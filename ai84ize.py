@@ -15,7 +15,6 @@ import torch
 from distiller.apputils.checkpoint import get_contents_table  # pylint: disable=no-name-in-module
 import ai84
 import yamlcfg
-from range_linear_ai84 import pow2_round
 
 CONV_SCALE_BITS = 8
 FC_SCALE_BITS = 8
@@ -168,7 +167,7 @@ def convert_checkpoint(input_file, output_file, arguments):
                     if module not in ['fc']:
                         # print("Factor in:", fp_scale, "bits", scale_bits, "out:",
                         #       pow2_round(fp_scale, scale_bits))
-                        weights *= pow2_round(fp_scale, scale_bits)
+                        weights *= fp_scale.clamp(min=1, max=2**scale_bits-1).round()
                         # Accomodate Arm q15_t/q7_t datatypes
                         weights = weights.clamp(min=-(2**(clamp_bits-1)),
                                                 max=2**(clamp_bits-1)-1).round()
