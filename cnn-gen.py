@@ -46,6 +46,17 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
     """
     Chain multiple CNN layers, create and save input and output
     """
+    # Check that input channels are in separate memory instances if CHW (big) data format is used
+    for ll in range(layers):
+        if big_data[ll]:
+            p = processor_map[ll] >> (ffs(processor_map[ll]) & ~(tc.P_SHARED-1))
+            while p:
+                if popcount(p & (tc.P_SHARED-1)) > 1:
+                    print(f"Layer {ll} uses CHW (big data) input format, buf multiple channels "
+                          "share the same memory instance. Modify the processor map for "
+                          f"layer {ll}.")
+                    sys.exit(1)
+                p >>= tc.P_SHARED
 
     # Trace output sizes of the network and fix up all pool_stride values
     dim = [[input_size[1], input_size[2]]]
