@@ -44,6 +44,7 @@ def load(checkpoint_file, arch, fc_layer, quantization):
     layers = 0
     have_fc_layer = False
     output_channels = []
+    input_channels = []
     for _, k in enumerate(checkpoint_state.keys()):
         operation, parameter = k.rsplit(sep='.', maxsplit=1)
         if parameter in ['weight']:
@@ -52,9 +53,8 @@ def load(checkpoint_file, arch, fc_layer, quantization):
                 w = checkpoint_state[k].numpy().astype(np.int64)
                 assert w.min() >= -(2**(quantization[layers]-1))
                 assert w.max() < 2**(quantization[layers]-1)
-                if layers == 0:
-                    output_channels.append(w.shape[1])  # Input channels
-                output_channels.append(w.shape[0])
+                input_channels.append(w.shape[1])  # Input channels
+                output_channels.append(w.shape[0])  # Output channels
                 weights.append(w.reshape(-1, w.shape[-2], w.shape[-1]))
                 # Is there a bias for this layer?
                 bias_name = operation + '.bias'
@@ -85,4 +85,4 @@ def load(checkpoint_file, arch, fc_layer, quantization):
                     fc_bias.append(None)
                 have_fc_layer = True
 
-    return layers, weights, bias, fc_weights, fc_bias, output_channels
+    return layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels

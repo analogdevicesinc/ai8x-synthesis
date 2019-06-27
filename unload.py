@@ -12,8 +12,8 @@ import tornadocnn as tc
 from utils import ffs, popcount
 
 
-def unload(memfile, apb_base, processor_map, input_shape, out_offset, expand_max, expand_thresh,
-           pool=None, pool_stride=1, ai84=True):
+def unload(memfile, apb_base, processor_map, input_shape, out_offset,
+           out_expand, out_expand_thresh, pool=None, pool_stride=1, ai84=True):
     """
     Unload HWC memory from AI84, writing C code to the `memfile` handle.
     The generated C code is specific to the network configuration passed in in `processor_map`,
@@ -26,23 +26,29 @@ def unload(memfile, apb_base, processor_map, input_shape, out_offset, expand_max
                   'void unload(uint8_t *out_buf)\n'
                   '{\n  uint32_t val, *addr, offs;\n\n')
 
-    coffs = ffs(processor_map) & ~(tc.P_SHARED-1)
+    coffs_start = ffs(processor_map) & ~(tc.P_SHARED-1)
+    coffs = coffs_start
+    poffs = coffs_start
     next_layer_map = next_layer_map_init = processor_map >> coffs
     read_addr = write_addr = None
     c = 0
     while c < input_shape[0]:
+        if c % out_expand_thresh == 0:
+            poffs = coffs_start
+
+        expand = c // out_expand_thresh  # Channels 64+ handled by processors 0+
+        proc = poffs & ~(tc.P_SHARED-1)
+
         for doffs in range(input_shape[1] * input_shape[2]):
             row, col = divmod(doffs, input_shape[2])
             this_map = next_layer_map
             this_c = c
 
             # Get four bytes from memory array
-            proc = (coffs % tc.MAX_PROC) & ~(tc.P_SHARED-1)
-            expand = c // expand_thresh  # Channels 64+ handled by processors 0+
             offs = out_offset + \
                 (((proc % tc.P_NUMPRO) * tc.INSTANCE_SIZE |
                   (proc // tc.P_NUMPRO) * tc.C_GROUP_OFFS // 4) +
-                 doffs * expand_max + expand) * 4
+                 doffs * out_expand + expand) * 4
 
             if ai84 and pool == 4 and pool_stride == 4:
                 offs += (doffs // 4) * 8 + 8
@@ -75,6 +81,7 @@ def unload(memfile, apb_base, processor_map, input_shape, out_offset, expand_max
                 this_map >>= 1
 
         coffs += 4
+        poffs += 4
         c += popcount(next_layer_map & 0x0f)
         next_layer_map >>= 4
         if next_layer_map == 0:

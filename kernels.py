@@ -75,12 +75,12 @@ def combine_bias(b, quantization, start, out_chan):
 
 
 def load(verbose, embedded_code, apb, layers, kernel, _kernel_size, quantization, processor_map,
-         chan, expand_max, expand_thresh, debug=False):
+         output_processor_map, input_chan, output_chan, out_expand, out_expand_thresh, debug=False):
     """
     Stack `kernel` values and write them to C code (for `embedded_code` if `True` or
     RTL simulation). The output is written to the `apb` object.
-    Input is configured with `kernel_size`, `quantization`, `layers`, `processor_map`, `chan`,
-    `expand_max` and `expand_thresh`.
+    Input is configured with `kernel_size`, `quantization`, `layers`, `processor_map`,
+    `output_processor_map`, `input_chan`, `output_chan`, `out_expand` and `out_expand_thresh`.
     This function returns the kernel offsets and the kernel lengths for all layers.
     """
     # Kernels: Stack kernels; write only the kernels needed
@@ -110,14 +110,14 @@ def load(verbose, embedded_code, apb, layers, kernel, _kernel_size, quantization
         # spans 4 processors, kernels for all instances that have a single processor enabled
         # need to be written, i.e. round down the first. The last does not need to be rounded
         # up because hardware takes care of it.
-        next_layer_map = processor_map[ll+1]
+        next_layer_map = output_processor_map[ll]
         # When using kernels smaller than 8 bit, round up to the next 8-bit boundary
         # Gaps are accounted for like any other kernel.
         kern_len[ll] = \
             (1 + fls(next_layer_map) - (ffs(next_layer_map) & ~(tc.P_SHARED-1))
              + 8 // quantization[ll] - 1) // (8 // quantization[ll])
         # This extends the kernels to the right on AI85 for output expansion
-        kern_len[ll] *= expand_max[ll+1]
+        kern_len[ll] *= out_expand[ll]
 
         # We don't have to use dummy columns if there's space available on the left
         kern_offs[ll] = \
@@ -141,10 +141,10 @@ def load(verbose, embedded_code, apb, layers, kernel, _kernel_size, quantization
                 # Unused source processor
                 continue
             col_target = ffs(next_layer_map) % tc.P_SHARED  # First target column
-            for expand in range(expand_max[ll+1]):
+            for expand in range(out_expand[ll]):
                 this_map = this_map_init
-                col = expand * expand_thresh[ll+1]
-                stop_col = col + expand_thresh[ll+1]
+                col = expand * out_expand_thresh[ll]
+                stop_col = col + out_expand_thresh[ll]
                 while col < stop_col:
                     # Skip over unused bits in the target processor map
                     # (unused means 1 bit for 8-bit weights, 2 for 4-bit weights, etc.)
@@ -155,11 +155,12 @@ def load(verbose, embedded_code, apb, layers, kernel, _kernel_size, quantization
                     this_mask = this_map & proc_mask
                     this_map >>= 8 // quantization[ll]
 
-                    # k = kernel[ll][ch + col*chan[ll]].flatten()
+                    # k = kernel[ll][ch + col*input_chan[ll]].flatten()
                     k, n = combine_kernels(kernel[ll], this_mask, quantization[ll],
-                                           col, ch, chan[ll], chan[ll+1])
+                                           col, ch, input_chan[ll], output_chan[ll])
                     if debug:
-                        print(f'Processor {p} Layer {ll} m[{col}..{col+n}] of {chan[ll+1]-1}: {k}')
+                        print(f'Processor {p} Layer {ll} m[{col}..{col+n}] of '
+                              f'{output_chan[ll]-1}: {k}')
                     if not embedded_code:
                         # Write in-line
                         apb.write_kern(ll, p, kern_offs[ll] + col_target, k)
@@ -271,7 +272,8 @@ def load(verbose, embedded_code, apb, layers, kernel, _kernel_size, quantization
 
 
 def load_bias(verbose, embedded_code, apb, layers,  # pylint: disable=unused-argument
-              bias, quantization, group_map, chan, debug):  # pylint: disable=unused-argument
+              bias, quantization, group_map, output_chan,
+              debug):  # pylint: disable=unused-argument
     """
     Write `bias` values for the network to C code.
     """
@@ -288,14 +290,14 @@ def load_bias(verbose, embedded_code, apb, layers,  # pylint: disable=unused-arg
     for ll in range(layers):
         if bias[ll] is None:
             continue
-        if len(bias[ll]) != chan[ll+1]:
-            print(f'Layer {ll}: output channel count {chan[ll+1]} does not match the number '
+        if len(bias[ll]) != output_chan[ll]:
+            print(f'Layer {ll}: output channel count {output_chan[ll]} does not match the number '
                   f'of bias values {len(bias[ll])}.')
             sys.exit(1)
 
         # Round up the divided length of bias values
         # FIXME: Is it necessary to handle gaps in the next layer?
-        bias_len = (chan[ll+1] + 8 // quantization[ll] - 1) // (8 // quantization[ll])
+        bias_len = (output_chan[ll] + 8 // quantization[ll] - 1) // (8 // quantization[ll])
 
         # Pick the group with the least amount of data in it
         group = argmin(group_bias_max[t] for t in group_map[ll])
@@ -308,8 +310,8 @@ def load_bias(verbose, embedded_code, apb, layers,  # pylint: disable=unused-arg
         # Each layer has output_channel number of bias values
         i = 0
         target_offs = 0
-        while i < chan[ll+1]:
-            b = combine_bias(bias[ll], quantization[ll], i, chan[ll+1])
+        while i < output_chan[ll]:
+            b = combine_bias(bias[ll], quantization[ll], i, output_chan[ll])
             if not embedded_code:
                 apb.write_bias(group, bias_offs[ll] + target_offs, b)
             else:
