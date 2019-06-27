@@ -16,7 +16,7 @@ from simulate import cnn_layer, linear_layer
 
 
 def create_net(prefix, verbose, debug, log, layers, input_size, kernel_size,
-               quantization, chan, padding, dilation, stride,
+               quantization, input_chan, output_chan, padding, dilation, stride,
                pool, pool_stride, pool_average, activate,
                data, kernel, bias, fc_weights, fc_bias,
                c_filename, base_directory, log_filename,
@@ -67,7 +67,7 @@ def create_net(prefix, verbose, debug, log, layers, input_size, kernel_size,
         c_file.write(f'\n// Configuring {layers} layer{"s" if layers > 1 else ""}:\n')
 
         for ll in range(layers):
-            c_file.write(f'// Layer {ll+1}: {chan[ll]}x{dim[ll][0]}x{dim[ll][1]}, ')
+            c_file.write(f'// Layer {ll+1}: {input_chan[ll]}x{dim[ll][0]}x{dim[ll][1]}, ')
             if pool[ll] > 0:
                 c_file.write(f'{pool[ll]}x{pool[ll]} {"avg" if pool_average[ll] else "max"} '
                              f'pool with stride {pool_stride[ll]}')
@@ -75,7 +75,8 @@ def create_net(prefix, verbose, debug, log, layers, input_size, kernel_size,
                 c_file.write(f'no pooling')
             c_file.write(f', {kernel_size[ll][0]}x{kernel_size[ll][1]} convolution '
                          f'with stride {stride[ll]} '
-                         f'pad {padding[ll]}, {chan[ll+1]}x{dim[ll+1][0]}x{dim[ll+1][1]} out\n')
+                         f'pad {padding[ll]}, '
+                         f'{output_chan[ll]}x{dim[ll+1][0]}x{dim[ll+1][1]} out\n')
 
         c_file.write('\n')
         toplevel.header(c_file, 0, embedded_code=True, cmsis_nn=True)
@@ -88,7 +89,8 @@ def create_net(prefix, verbose, debug, log, layers, input_size, kernel_size,
         # Pre-define the kernels and bias values
         for ll in range(layers):
             w = kernel[ll]. \
-                reshape((chan[ll+1], chan[ll], kernel_size[ll][0], kernel_size[ll][1])). \
+                reshape((output_chan[ll], input_chan[ll],
+                         kernel_size[ll][0], kernel_size[ll][1])). \
                 transpose((0, 2, 3, 1)). \
                 flatten()
             toplevel.c_define(weight_header, w, f'WEIGHTS_{ll}', '%d', 16)
@@ -97,14 +99,14 @@ def create_net(prefix, verbose, debug, log, layers, input_size, kernel_size,
             else:
                 # We need empty bias values (the Arm code needs them both for rounding of
                 # the shifted output, and it does not like NULL bias pointers)
-                b = np.zeros(chan[ll+1], dtype=np.int64)
+                b = np.zeros(output_chan[ll], dtype=np.int64)
             toplevel.c_define(weight_header, b, f'BIAS_{ll}', '%d', 16)
         c_file.write('\n')
 
         for ll in range(layers):
             c_file.write(f'static const q7_t weights_{ll}[{kernel[ll].size}] = '
                          f'WEIGHTS_{ll};\n')
-            c_file.write(f'static const q7_t bias_{ll}[{chan[ll+1]}] = '
+            c_file.write(f'static const q7_t bias_{ll}[{output_chan[ll]}] = '
                          f'BIAS_{ll};\n')
         c_file.write('\n')
 
@@ -113,8 +115,8 @@ def create_net(prefix, verbose, debug, log, layers, input_size, kernel_size,
         img_buffer_size = 0
         for ll in range(layers):
             col_buffer_size = max(col_buffer_size,
-                                  2*chan[ll]*kernel_size[ll][0]*kernel_size[ll][1])
-            img_buffer_size = max(img_buffer_size, chan[ll]*dim[ll][0]*dim[ll][1])
+                                  2*input_chan[ll]*kernel_size[ll][0]*kernel_size[ll][1])
+            img_buffer_size = max(img_buffer_size, input_chan[ll]*dim[ll][0]*dim[ll][1])
 
         c_file.write(f'static q7_t buffer0[{img_buffer_size}];\n')
         c_file.write(f'static q7_t buffer1[{img_buffer_size}];\n')
@@ -132,14 +134,14 @@ def create_net(prefix, verbose, debug, log, layers, input_size, kernel_size,
                 c_file.write(f'[{input_size[0]}, {pooled_size[ll][0]}, {pooled_size[ll][1]}] -> ')
             out_buf, out_size = cnn_layer(ll + 1, verbose,
                                           input_size, kernel_size[ll], quantization[ll],
-                                          chan[ll+1],
+                                          output_chan[ll],
                                           [padding[ll], padding[ll]], dilation[ll],
                                           [stride[ll], stride[ll]],
                                           [pool[ll], pool[ll]],
                                           [pool_stride[ll], pool_stride[ll]],
                                           pool_average[ll],
                                           activate[ll],
-                                          kernel[ll].reshape(chan[ll+1], input_size[0],
+                                          kernel[ll].reshape(output_chan[ll], input_size[0],
                                                              kernel_size[ll][0],
                                                              kernel_size[ll][1]),
                                           bias[ll],
@@ -151,26 +153,27 @@ def create_net(prefix, verbose, debug, log, layers, input_size, kernel_size,
             if pool[ll]:
                 if pool_average[ll]:
                     c_file.write(f'  arm_avepool_q7_HWC({buffer0}, {dim[ll][0]}, '
-                                 f'{chan[ll]}, {pool[ll]}, 0, {pool_stride[ll]}, '
+                                 f'{input_chan[ll]}, {pool[ll]}, 0, {pool_stride[ll]}, '
                                  f'{pooled_size[ll][0]}, NULL, {buffer1});\n')
                 else:
                     c_file.write(f'  arm_maxpool_q7_HWC({buffer0}, {dim[ll][0]}, '
-                                 f'{chan[ll]}, {pool[ll]}, 0, {pool_stride[ll]}, '
+                                 f'{input_chan[ll]}, {pool[ll]}, 0, {pool_stride[ll]}, '
                                  f'{pooled_size[ll][0]}, NULL, {buffer1});\n')
                 n = buffer0
                 buffer0 = buffer1
                 buffer1 = n
 
             source = 'input_data' if ll == 0 else buffer0
-            fn = 'fast' if chan[ll] % 4 == 0 and chan[ll+1] % 2 == 0 else 'basic'
+            fn = 'fast' if input_chan[ll] % 4 == 0 and output_chan[ll] % 2 == 0 else 'basic'
             c_file.write(f'  arm_convolve_HWC_q7_{fn}({source}, {pooled_size[ll][0]}, '
-                         f'{chan[ll]}, weights_{ll}, {chan[ll+1]}, {kernel_size[ll][0]}, '
+                         f'{input_chan[ll]}, weights_{ll}, {output_chan[ll]}, '
+                         f'{kernel_size[ll][0]}, '
                          f'{padding[ll]}, {stride[ll]}, bias_{ll}, 0, 7, {buffer1}, '
                          f'{dim[ll+1][0]}, col_buffer, NULL);\n')
 
             if activate[ll]:
                 c_file.write(f'  arm_relu_q7({buffer1}, '
-                             f'{dim[ll+1][0] * dim[ll+1][1] * chan[ll+1]});\n')
+                             f'{dim[ll+1][0] * dim[ll+1][1] * output_chan[ll]});\n')
             n = buffer0
             buffer0 = buffer1
             buffer1 = n
