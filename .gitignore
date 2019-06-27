@@ -18,8 +18,8 @@
 /pip-selfcheck.json
 /pytorch
 /pyvenv.cfg
+/rtlsim
+/rtlsim.old
 /share
 /tensorflow
 __pycache__
-/tests
-/tests.old
