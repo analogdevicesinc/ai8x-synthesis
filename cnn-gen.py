@@ -355,7 +355,7 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
                       (0x100 if not pool_average[ll] else 0) | \
                       (0x80 if pool[ll] > 1 else 0) | \
                       (0x40 if big_data[ll] else 0) | \
-                      (((chan[ll+1] + tc.MAX_PROC-1) // tc.MAX_PROC) - 1) << 19 | \
+                      (expand_max[ll+1] - 1) << 19 | \
                       (0x820)
                 if group == group_map[ll][0]:
                     # Set external source for other active processing groups (can be zero if no
