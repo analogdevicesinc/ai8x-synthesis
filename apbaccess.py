@@ -114,19 +114,19 @@ class APB(object):
             + proc * tornadocnn.TRAM_SIZE * 4 + offs * 4
         self.write(addr, d, f' // {comment}TRAM G{group} P{proc} #{offs}')
 
-    def write_kern(self, ll, ch, idx, k):
+    def write_kern(self, ll, p, idx, k):
         """
-        Write single 3x3 kernel `k` for layer `ll`, channel `ch` to index `idx` in weight
+        Write single 3x3 kernel `k` for layer `ll`, processor `p` to index `idx` in weight
         memory.
         """
-        assert ch < tornadocnn.MAX_CHANNELS
+        assert p < tornadocnn.MAX_PROC
         assert idx < tornadocnn.MASK_WIDTH
-        addr = tornadocnn.C_GROUP_OFFS * (ch // tornadocnn.P_NUMPRO) \
+        addr = tornadocnn.C_GROUP_OFFS * (p // tornadocnn.P_NUMPRO) \
             + tornadocnn.C_MRAM_BASE \
-            + (ch % tornadocnn.P_NUMPRO) * tornadocnn.MASK_OFFS * 16 + idx * 16
+            + (p % tornadocnn.P_NUMPRO) * tornadocnn.MASK_OFFS * 16 + idx * 16
 
         self.write(addr, k[0] & 0xff, no_verify=True,
-                   comment=f' // Layer {ll}: processor {ch} kernel #{idx}')
+                   comment=f' // Layer {ll}: processor {p} kernel #{idx}')
         self.write(addr+4, (k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 |
                    (k[3] & 0xff) << 8 | k[4] & 0xff, no_verify=True)
         self.write(addr+8, (k[5] & 0xff) << 24 | (k[6] & 0xff) << 16 |
@@ -263,7 +263,8 @@ class APB(object):
         return
 
     def unload(self, processor_map, input_shape,  # pylint: disable=unused-argument
-               output_offset=0, pool=None, pool_stride=1):  # pylint: disable=unused-argument
+               output_offset=0, expand_max=1, expand_thresh=64,  # pylint: disable=unused-argument
+               pool=None, pool_stride=1):  # pylint: disable=unused-argument
         """
         Write the unload function. The layer to unload has the shape `input_shape`,
         and the optional `output_offset` argument can shift the output.
@@ -451,12 +452,14 @@ class APBTopLevel(APB):
         """
         toplevel.fc_verify(self.memfile, self.sampledata_header, data)
 
-    def unload(self, processor_map, input_shape, output_offset=0, pool=None, pool_stride=1):
+    def unload(self, processor_map, input_shape, output_offset=0, expand_max=1, expand_thresh=64,
+               pool=None, pool_stride=1):
         """
         Write the unload function. The layer to unload has the shape `input_shape`,
         and the optional `output_offset` argument can shift the output.
         """
-        unload.unload(self.memfile, self.apb_base, processor_map, input_shape, output_offset,
+        unload.unload(self.memfile, self.apb_base, processor_map, input_shape,
+                      output_offset, expand_max, expand_thresh,
                       pool=pool, pool_stride=pool_stride, ai84=not self.ai85)
 
     def output_define(self, array, define_name, fmt, columns, weights=True):

@@ -14,12 +14,14 @@ import tornadocnn as tc
 from utils import s2u
 
 
-def load(embedded_code, apb, chw, processor_map, input_size, chan, dim, data, padding,
-         split=1, debug=False):
+def load(embedded_code, apb, chw, processor_map, input_size, chan,
+         expand_max, expand_thresh,  # pylint: disable=unused-argument
+         dim, data, padding, split=1, debug=False):
     """
     Create C code to load data input in CHW format (if `chw` is `True`) or HWC format
     for the `processor_map`. Data `data` is organized in `chan` channels, and `dim` dimensions
-    and the input size is `input_size`.
+    and the input size is `input_size`. Channel expansion is described in `expand_max` and
+    `expand_thresh` but currently not supported.
     The code performs optional `padding`, can `split` the input into more than one chunk
     and has optional `debug` output.
     The code is target for simulation (`embedded_code` == `False`) or embedded hardware (`True`).
@@ -34,12 +36,13 @@ def load(embedded_code, apb, chw, processor_map, input_size, chan, dim, data, pa
     data_offs = 0
     step = 1 if chw else 4
     for ch in range(0, tc.MAX_CHANNELS, step):
-        if not (processor_map >> ch) % 2**step:
+        if not (processor_map >> (ch % tc.MAX_PROC)) % 2**step:
             # Channel or block of four channels not used for input
             continue
 
         # Load channel into shared memory
-        group = ch // tc.P_NUMPRO
+        group = (ch % tc.MAX_PROC) // tc.P_NUMPRO
+        # expand = ch // expand_thresh
         instance = (ch % tc.P_NUMPRO) // tc.P_SHARED
         new_data_offs = tc.C_GROUP_OFFS*group + tc.C_SRAM_BASE + tc.INSTANCE_SIZE*4*instance
         if new_data_offs == data_offs:
@@ -47,6 +50,9 @@ def load(embedded_code, apb, chw, processor_map, input_size, chan, dim, data, pa
                   f'There is data overlap between processors {ch-1} and {ch}')
             sys.exit(1)
         data_offs = new_data_offs
+
+        # FIXME: Allow loading > 64 channels
+        assert chan <= tc.MAX_PROC
 
         if debug:
             print(f'G{group} L0 data_offs:      {data_offs:08x}')
