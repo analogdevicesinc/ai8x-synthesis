@@ -75,35 +75,36 @@ def combine_bias(b, quantization, start, out_chan):
 
 
 def load(verbose, embedded_code, apb, layers, kernel, _kernel_size, quantization, processor_map,
-         chan, debug=False):
+         chan, expand_max, expand_thresh, debug=False):
     """
     Stack `kernel` values and write them to C code (for `embedded_code` if `True` or
     RTL simulation). The output is written to the `apb` object.
-    Input is configured with `kernel_size`, `quantization`, `layers`, `processor_map` and `chan`.
+    Input is configured with `kernel_size`, `quantization`, `layers`, `processor_map`, `chan`,
+    `expand_max` and `expand_thresh`.
     This function returns the kernel offsets and the kernel lengths for all layers.
     """
     # Kernels: Stack kernels; write only the kernels needed
-    chan_kern_max = [0] * tc.MAX_CHANNELS
+    proc_kern_max = [0] * tc.MAX_PROC
     kern_offs = [0] * layers
     kern_len = [0] * layers
-    kernel_map = np.full((tc.MAX_CHANNELS, tc.MASK_WIDTH), _INVALID_VALUE, dtype=np.int64)
+    kernel_map = np.full((tc.MAX_PROC, tc.MASK_WIDTH), _INVALID_VALUE, dtype=np.int64)
     if embedded_code:
         # There are four 32-bit words per 9-byte kernel.
         # The value map is initialized with zeros so we can later ignore unused entries and use
         # memcpy() on initialized and uninitialized data.
-        kernel_values = np.zeros((tc.MAX_CHANNELS, tc.MASK_WIDTH * _WORDS_PER_KERNEL),
+        kernel_values = np.zeros((tc.MAX_PROC, tc.MASK_WIDTH * _WORDS_PER_KERNEL),
                                  dtype=np.int64)
 
     for ll in range(layers):
-        first_channel = ffs(processor_map[ll])
-        last_channel = fls(processor_map[ll])
+        first_proc = ffs(processor_map[ll])
+        last_proc = fls(processor_map[ll])
         ch = 0
-        for c in range(first_channel, last_channel+1):
-            if (processor_map[ll] >> c) & 1 == 0:
+        for p in range(first_proc, last_proc+1):
+            if (processor_map[ll] >> p) & 1 == 0:
                 # Unused processor
                 continue
-            # Get highest offset for all used channels
-            kern_offs[ll] = max(chan_kern_max[c], kern_offs[ll])
+            # Get highest offset for all used processors
+            kern_offs[ll] = max(proc_kern_max[p], kern_offs[ll])
 
         # Determine the number of kernels that need to be programmed. Since each instance
         # spans 4 processors, kernels for all instances that have a single processor enabled
@@ -115,6 +116,9 @@ def load(verbose, embedded_code, apb, layers, kernel, _kernel_size, quantization
         kern_len[ll] = \
             (1 + fls(next_layer_map) - (ffs(next_layer_map) & ~(tc.P_SHARED-1))
              + 8 // quantization[ll] - 1) // (8 // quantization[ll])
+        # This extends the kernels to the right on AI85 for output expansion
+        kern_len[ll] *= expand_max[ll+1]
+
         # We don't have to use dummy columns if there's space available on the left
         kern_offs[ll] = \
             max(0, kern_offs[ll] - (((ffs(next_layer_map) % tc.P_SHARED)
@@ -129,49 +133,53 @@ def load(verbose, embedded_code, apb, layers, kernel, _kernel_size, quantization
             sys.exit(1)
 
         proc_mask = 2**(8 // quantization[ll]) - 1
-        for c in range(first_channel, last_channel+1):
-            if (processor_map[ll] >> c) & 1 == 0:
+        # Start at the first used instance
+        this_map_init = next_layer_map >> ffs(next_layer_map)
+
+        for p in range(first_proc, last_proc+1):
+            if (processor_map[ll] >> p) & 1 == 0:
                 # Unused source processor
                 continue
-            # Start at the first used instance
-            this_map = next_layer_map >> ffs(next_layer_map)
-            col_target = ffs(next_layer_map) % tc.P_SHARED  # target column
-            col = 0
-            while col < chan[ll+1]:
-                # Skip over unused bits in the target processor map
-                # (unused means 1 bit for 8-bit weights, 2 for 4-bit weights, etc.)
-                while this_map & proc_mask == 0:
-                    assert this_map != 0
-                    col_target += 1  # Completely skip
-                    this_map >>= 8 // quantization[ll]  # and slide forward
-                this_mask = this_map & proc_mask
-                this_map >>= 8 // quantization[ll]
+            col_target = ffs(next_layer_map) % tc.P_SHARED  # First target column
+            for expand in range(expand_max[ll+1]):
+                this_map = this_map_init
+                col = expand * expand_thresh[ll+1]
+                stop_col = col + expand_thresh[ll+1]
+                while col < stop_col:
+                    # Skip over unused bits in the target processor map
+                    # (unused means 1 bit for 8-bit weights, 2 for 4-bit weights, etc.)
+                    while this_map & proc_mask == 0:
+                        assert this_map != 0
+                        col_target += 1  # Completely skip
+                        this_map >>= 8 // quantization[ll]  # and slide forward
+                    this_mask = this_map & proc_mask
+                    this_map >>= 8 // quantization[ll]
 
-                # k = kernel[ll][ch + col*chan[ll]].flatten()
-                k, n = combine_kernels(kernel[ll], this_mask, quantization[ll],
-                                       col, ch, chan[ll], chan[ll+1])
-                if debug:
-                    print(f'Channel {c} Layer {ll} m[{col}..{col+n}] of {chan[ll+1]-1}: {k}')
-                if not embedded_code:
-                    # Write in-line
-                    apb.write_kern(ll, c, kern_offs[ll] + col_target, k)
-                else:
-                    # Store for later
-                    offs = _WORDS_PER_KERNEL * (kern_offs[ll] + col_target)  # 96-bit words
-                    kernel_values[c][offs] = k[0] & 0xff
-                    kernel_values[c][offs + 1] = (k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 | \
-                        (k[3] & 0xff) << 8 | k[4] & 0xff
-                    kernel_values[c][offs + 2] = (k[5] & 0xff) << 24 | (k[6] & 0xff) << 16 | \
-                        (k[7] & 0xff) << 8 | k[8] & 0xff
+                    # k = kernel[ll][ch + col*chan[ll]].flatten()
+                    k, n = combine_kernels(kernel[ll], this_mask, quantization[ll],
+                                           col, ch, chan[ll], chan[ll+1])
+                    if debug:
+                        print(f'Processor {p} Layer {ll} m[{col}..{col+n}] of {chan[ll+1]-1}: {k}')
+                    if not embedded_code:
+                        # Write in-line
+                        apb.write_kern(ll, p, kern_offs[ll] + col_target, k)
+                    else:
+                        # Store for later
+                        offs = _WORDS_PER_KERNEL * (kern_offs[ll] + col_target)  # 96-bit words
+                        kernel_values[p][offs] = k[0] & 0xff
+                        kernel_values[p][offs + 1] = (k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 | \
+                            (k[3] & 0xff) << 8 | k[4] & 0xff
+                        kernel_values[p][offs + 2] = (k[5] & 0xff) << 24 | (k[6] & 0xff) << 16 | \
+                            (k[7] & 0xff) << 8 | k[8] & 0xff
 
-                # Update kernel map
-                assert kernel_map[c][kern_offs[ll] + col_target] == _INVALID_VALUE
-                kernel_map[c][kern_offs[ll] + col_target] = ll
-                col_target += 1
-                col += n
+                    # Update kernel map
+                    assert kernel_map[p][kern_offs[ll] + col_target] == _INVALID_VALUE
+                    kernel_map[p][kern_offs[ll] + col_target] = ll
+                    col_target += 1
+                    col += n
 
             assert kern_len[ll] == col_target
-            chan_kern_max[c] = kern_offs[ll] + kern_len[ll]
+            proc_kern_max[p] = kern_offs[ll] + kern_len[ll]
             ch += 1
 
     if verbose:
@@ -186,13 +194,13 @@ def load(verbose, embedded_code, apb, layers, kernel, _kernel_size, quantization
         # First, define the weights (will move to header file)
         p = 0
         # Combining memcopy() requires stacked memories
-        while p < tc.MAX_CHANNELS:
-            if chan_kern_max[p] > 0:
+        while p < tc.MAX_PROC:
+            if proc_kern_max[p] > 0:
                 start = p
                 while (
-                        chan_kern_max[p] == tc.MASK_OFFS and
-                        p+1 < tc.MAX_CHANNELS and
-                        chan_kern_max[p+1] and
+                        proc_kern_max[p] == tc.MASK_OFFS and
+                        p+1 < tc.MAX_PROC and
+                        proc_kern_max[p+1] and
                         (start & ~(tc.P_NUMPRO-1)) == (p+1 & ~(tc.P_NUMPRO-1))
                 ):
                     p += 1
@@ -200,10 +208,10 @@ def load(verbose, embedded_code, apb, layers, kernel, _kernel_size, quantization
                 k = None
                 for i in range(start, p + 1):
                     if k is None:
-                        k = kernel_values[i][:chan_kern_max[i] * _WORDS_PER_KERNEL]
+                        k = kernel_values[i][:proc_kern_max[i] * _WORDS_PER_KERNEL]
                     else:
                         k = np.concatenate(
-                            (k, kernel_values[i][:chan_kern_max[i] * _WORDS_PER_KERNEL])
+                            (k, kernel_values[i][:proc_kern_max[i] * _WORDS_PER_KERNEL])
                         )
 
                 apb.output_define(k, f'KERNELS_{start}', '0x%08x', 8)
@@ -211,18 +219,18 @@ def load(verbose, embedded_code, apb, layers, kernel, _kernel_size, quantization
 
         # Second, initialize static const variables as source for memcpy
         p = 0
-        while p < tc.MAX_CHANNELS:
-            if chan_kern_max[p] > 0:
-                span = chan_kern_max[p]
+        while p < tc.MAX_PROC:
+            if proc_kern_max[p] > 0:
+                span = proc_kern_max[p]
                 start = p
                 while (
-                        chan_kern_max[p] == tc.MASK_OFFS and
-                        p+1 < tc.MAX_CHANNELS and
-                        chan_kern_max[p+1] and
+                        proc_kern_max[p] == tc.MASK_OFFS and
+                        p+1 < tc.MAX_PROC and
+                        proc_kern_max[p+1] and
                         (start & ~(tc.P_NUMPRO-1)) == (p+1 & ~(tc.P_NUMPRO-1))
                 ):
                     p += 1
-                    span += chan_kern_max[p]
+                    span += proc_kern_max[p]
                 apb.output(f'static const uint32_t kernels_{start}[{span * _WORDS_PER_KERNEL}] = '
                            f'KERNELS_{start};\n')
             p += 1
@@ -239,20 +247,20 @@ def load(verbose, embedded_code, apb, layers, kernel, _kernel_size, quantization
 
         apb.output('void load_kernels(void)\n{\n')
         p = 0
-        while p < tc.MAX_CHANNELS:
-            if chan_kern_max[p] > 0:
-                span = chan_kern_max[p]
+        while p < tc.MAX_PROC:
+            if proc_kern_max[p] > 0:
+                span = proc_kern_max[p]
                 start = p
                 addr = apb.apb_base + tc.C_GROUP_OFFS * (p // tc.P_NUMPRO) \
                     + tc.C_MRAM_BASE + (p % tc.P_NUMPRO) * tc.MASK_OFFS * 16
                 while (
-                        chan_kern_max[p] == tc.MASK_OFFS and
-                        p+1 < tc.MAX_CHANNELS and
-                        chan_kern_max[p+1] and
+                        proc_kern_max[p] == tc.MASK_OFFS and
+                        p+1 < tc.MAX_PROC and
+                        proc_kern_max[p+1] and
                         (start & ~(tc.P_NUMPRO-1)) == (p+1 & ~(tc.P_NUMPRO-1))
                 ):
                     p += 1
-                    span += chan_kern_max[p]
+                    span += proc_kern_max[p]
                 apb.output(f'  memcpy_96to128((uint32_t *) 0x{addr:08x}, kernels_{start}, '
                            f'{span});\n')
             p += 1

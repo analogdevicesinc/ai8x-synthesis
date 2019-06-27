@@ -52,7 +52,8 @@ P_SHARED = 4  # Processors sharing a data memory
 
 INSTANCE_SIZE = 1024  # x32
 MEM_SIZE = INSTANCE_SIZE * P_NUMPRO * P_NUMGROUPS // P_SHARED  # x32
-MAX_CHANNELS = P_NUMPRO * P_NUMGROUPS
+MAX_PROC = P_NUMPRO * P_NUMGROUPS
+MAX_CHANNELS = MAX_PROC
 
 # Global registers
 REG_CTL = 0
@@ -97,6 +98,7 @@ def set_device(ai85):
     global C_SRAM_BASE  # pylint: disable=global-statement
     global C_GROUP_OFFS  # pylint: disable=global-statement
     global MASK_OFFS  # pylint: disable=global-statement
+    global MAX_CHANNELS  # pylint: disable=global-statement
 
     print(f'Configuring device: {"AI85" if ai85 else "AI84"}.')
     if not ai85:
@@ -111,3 +113,4 @@ def set_device(ai85):
     C_SRAM_BASE = C_SRAM_BASE_AI85
     C_GROUP_OFFS = C_GROUP_OFFS_AI85
     MASK_OFFS = MASK_OFFS_AI85
+    MAX_CHANNELS = 8 * MAX_PROC  # 8 x expansion

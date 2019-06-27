@@ -137,6 +137,13 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
         apb.output('\n')
         apb.header()
 
+        # Calculate output expansion
+        expand_max = [0] * (layers + 1)
+        expand_thresh = [0] * (layers + 1)
+        for ll in range(layers + 1):
+            expand_max[ll] = (chan[ll] + tc.MAX_PROC-1) // tc.MAX_PROC
+            expand_thresh[ll] = (chan[ll] + expand_max[ll]-1) // expand_max[ll]
+
         # Calculate the groups needed, and groups and processors used overall
         processors_used = 0
         group_map = []
@@ -144,9 +151,9 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
             bits = processor_map[ll]
             processors_used |= bits
 
-            if popcount(processor_map[ll]) != chan[ll]:
-                print(f'Layer {ll} has {chan[ll]} inputs, but enabled '
-                      f'processors {processor_map[ll]:016x} does not match.')
+            if popcount(processor_map[ll]) != expand_thresh[ll]:
+                print(f'Layer {ll} has {chan[ll]} inputs with expansion {expand_max[ll]}, '
+                      f'but enabled processor map {processor_map[ll]:016x} does not match.')
                 sys.exit(1)
             if chan[ll] > tc.MAX_CHANNELS:
                 print(f'Layer {ll} is configured for {chan[ll]} inputs, which exceeds '
@@ -158,6 +165,12 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
                     this_map.append(group)
             group_map.append(this_map)
 
+        if popcount(output_map) != expand_thresh[layers]:
+            print(f'The output_map ({output_map:016x}) does not correspond to the number of '
+                  f'output channels of the final layer ({chan[layers]}) with '
+                  f'expansion {expand_max[layers]}.')
+            sys.exit(1)
+
         groups_used = []
         for group in range(tc.P_NUMGROUPS):
             if ((processors_used | processor_map[layers]) >> group*tc.P_NUMPRO) % 2**tc.P_NUMPRO:
@@ -166,11 +179,12 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
         if embedded_code:
             # Pre-define data memory loader. Inline later when generating RTL sim.
             load.load(embedded_code, apb, big_data[0], processor_map[0], input_size, chan[0],
+                      expand_max[0], expand_thresh[0],
                       dim[0], data, padding[0], split=split, debug=debug)
             # Pre-define the kernels and bias values
             kern_offs, kern_len = \
                 kernels.load(verbose, embedded_code, apb, layers, kernel, kernel_size,
-                             quantization, processor_map, chan, debug)
+                             quantization, processor_map, chan, expand_max, expand_thresh, debug)
             bias_offs, bias_group, group_bias_max = \
                 kernels.load_bias(verbose, embedded_code, apb, layers, bias,
                                   quantization, group_map, chan, debug)
@@ -217,7 +231,7 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
         if not embedded_code:
             kern_offs, kern_len = \
                 kernels.load(verbose, embedded_code, apb, layers, kernel, kernel_size,
-                             quantization, processor_map, chan, debug)
+                             quantization, processor_map, chan, expand_max, expand_thresh, debug)
             bias_offs, bias_group, group_bias_max = \
                 kernels.load_bias(verbose, embedded_code, apb, layers, bias,
                                   quantization, group_map, chan, debug)
@@ -229,30 +243,33 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
         if verbose:
             print('\nGlobal configuration:')
             print('---------------------')
-            print(f'Used processors    = {processors_used:016x}')
-            print(f'Used groups        = {groups_used}')
-            print(f'Input offset       = {in_offset}')
+            print(f'Used processors     = {processors_used:016x}')
+            print(f'Used groups         = {groups_used}')
+            print(f'Input offset        = {in_offset}')
             print('\nPer-group configuration:')
             print('-----------------------')
-            print(f'Used bias memory   = {group_bias_max}')
+            print(f'Used bias memory    = {group_bias_max}')
             print('\nPer-layer configuration:')
             print('------------------------')
-            print(f'Number of channels = {chan[:layers]} -> {chan[layers]} outputs')
-            print('Processor map      = [',
+            print(f'Number of channels  = {chan[:layers]} -> {chan[layers]} outputs')
+            print('Processor map       = [',
                   ', '.join('{:016x}'.format(k) for k in processor_map[:layers]), ']',
                   f' -> {processor_map[layers]:016x} output', sep='',)
-            print(f'Group map          = {group_map}')
-            print(f'Kernel offsets     = {kern_offs}')
-            print(f'Kernel lengths     = {kern_len}')
             if ai85:
-                print(f'Kernel dimensions  = {kernel_size}')
-                print(f'Kernel bits        = {quantization}')
-            print(f'Padding            = {padding}')
-            print(f'Group with bias    = {bias_group}')
-            print(f'Bias offsets       = {bias_offs}')
-            print(f'Output offsets     = {out_offset}')
-            print(f'Pooling            = {pool}')
-            print(f'Pooling stride     = {pool_stride}')
+                print(f'Processor expansion = {expand_max}')
+                print(f'Expansion threshold = {expand_thresh}')
+            print(f'Group map           = {group_map}')
+            print(f'Kernel offsets      = {kern_offs}')
+            print(f'Kernel lengths      = {kern_len}')
+            if ai85:
+                print(f'Kernel dimensions   = {kernel_size}')
+                print(f'Kernel bits         = {quantization}')
+            print(f'Padding             = {padding}')
+            print(f'Group with bias     = {bias_group}')
+            print(f'Bias offsets        = {bias_offs}')
+            print(f'Output offsets      = {out_offset}')
+            print(f'Pooling             = {pool}')
+            print(f'Pooling stride      = {pool_stride}')
             print('')
 
         if verbose:
@@ -294,9 +311,12 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
                 # Get offset to first available instance of the first used processor of the next
                 # layer.
                 instance = ffs(processor_map[ll+1]) & ~(tc.P_SHARED-1)
-                apb.write_lreg(group, ll, tc.LREG_WPTR_BASE, out_offset[ll] // 4 +
-                               ((instance % tc.P_SHARED) * tc.INSTANCE_SIZE |
-                                ((instance // tc.P_SHARED) << 12)),
+                val = out_offset[ll] // 4 + \
+                    ((instance % tc.P_SHARED) * tc.INSTANCE_SIZE |
+                     ((instance // tc.P_SHARED) << 12))
+                if ai85:
+                    val |= 1 << 19  # wptr_inc
+                apb.write_lreg(group, ll, tc.LREG_WPTR_BASE, val,
                                verbose, comment=' // SRAM write ptr')
 
                 # Configure write pointer mask offset count
@@ -330,10 +350,12 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
                 # [10]  cpad_only (column pad only, no row pad) for parallel processing
                 # [11]  sramlsrc: global/local SRAM data input select
                 # [15:12] cnnsiena: enable externally sourced summed values from other processors
+                # [21:19] wptr_inc (AI85 only)
                 val = (0x200 if activate[ll] else 0) | \
                       (0x100 if not pool_average[ll] else 0) | \
                       (0x80 if pool[ll] > 1 else 0) | \
                       (0x40 if big_data[ll] else 0) | \
+                      (((chan[ll+1] + tc.MAX_PROC-1) // tc.MAX_PROC) - 1) << 19 | \
                       (0x820)
                 if group == group_map[ll][0]:
                     # Set external source for other active processing groups (can be zero if no
@@ -424,6 +446,7 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
             apb.output('\n  load_input(); // Load data input\n\n')
         else:
             load.load(embedded_code, apb, big_data[0], processor_map[0], input_size, chan[0],
+                      expand_max[0], expand_thresh[0],
                       dim[0], data, padding[0], split=split, debug=debug)
 
         if verbose:
@@ -512,19 +535,27 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
                 while c < chan[ll+1]:
                     # Get four bytes either from output or zeros and construct HWC word
                     val = 0
+
+                    expand = c // expand_thresh[ll+1]  # Channels 64+ handled by processors 0+
+
                     for _ in range(4):
                         val >>= 8
                         if this_map & 1:
                             val |= out_buf[c][row][col] << 24
                             c += 1
                         this_map >>= 1
+                    if this_map == 0:
+                        this_map = next_layer_map  # Wrap around for AI85 channel expansion
 
                     # Physical offset into instance and group
-                    proc = (coffs % tc.MAX_CHANNELS) & ~(tc.P_SHARED-1)
+                    proc = (coffs % tc.MAX_PROC) & ~(tc.P_SHARED-1)
+
                     offs = tc.C_SRAM_BASE + out_offset[ll] + \
                         (((proc % tc.P_NUMPRO) * tc.INSTANCE_SIZE |
                           (proc // tc.P_NUMPRO) * tc.C_GROUP_OFFS // 4) +
-                         doffs) * 4
+                         doffs * expand_max[ll+1] + expand) * 4
+
+                    # Special adjustment for AI84 quirk
                     if not ai85 and pool[ll] == 4 and pool_stride[ll] == 4:
                         offs += (doffs // 4) * 8 + 8
 
@@ -563,8 +594,9 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
                                              data=data, weight=fc_weights[0], bias=fc_bias[0],
                                              debug=debug)
 
-            apb.unload(processor_map[layers], input_size, out_offset[layers-1], pool[layers-1],
-                       pool_stride[layers-1])
+            apb.unload(processor_map[layers], input_size, out_offset[layers-1],
+                       expand_max[layers-1], expand_thresh[layers-1],
+                       pool[layers-1], pool_stride[layers-1])
             apb.fc_layer(fc_weights[0], fc_bias[0])
             apb.fc_verify(out_buf)
 
@@ -638,11 +670,6 @@ def main():
         else:
             # Default to packed, 0-aligned output map
             output_map = 2**output_channels[layers]-1
-
-    if popcount(output_map) != output_channels[layers]:
-        print(f'The output_map ({output_map:016x}) does not correspond to the number of output '
-              f'channels of the final layer ({output_channels[layers]}).')
-        sys.exit(1)
 
     # Remove extraneous input layer configurations (when --stop-after is used)
     processor_map = processor_map[:layers]

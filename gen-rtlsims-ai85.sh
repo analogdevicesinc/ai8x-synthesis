@@ -7,6 +7,8 @@
 ./cnn-gen.py --verbose --autogen tests --top-level cnn -L --test-dir tests --prefix ai85-q4-16x16avgpool --checkpoint-file trained/ai85-cifar10-bias-quant4.pth.tar --config-file test-ai85-cifar10-hwc-16x16avgpool.yaml --stop-after 0 --ai85
 ./cnn-gen.py --verbose --autogen tests --top-level cnn -L --test-dir tests --prefix ai85-3x3s2p2avgpool --checkpoint-file trained/ai85-cifar10-bias.pth.tar --config-file test-ai85-cifar10-hwc-3x3s2p2avgpool.yaml --stop-after 0 --ai85
 
-./cnn-gen.py --verbose --autogen tests --top-level cnn -L --test-dir demos --prefix ai85-3x3s1avgpool --checkpoint-file trained/ai84-mnist-extrasmallnet.pth.tar --config-file test-pooling3x3s1.yaml --stop-after 0 --ai85
-./cnn-gen.py --verbose --autogen tests --top-level cnn -L --test-dir demos --prefix ai85-4x4s2avgpool --checkpoint-file trained/ai84-mnist-extrasmallnet.pth.tar --config-file test-pooling4x4s2.yaml --stop-after 0 --ai85
+./cnn-gen.py --verbose --autogen tests --top-level cnn -L --test-dir tests --prefix ai85-3x3s1avgpool --checkpoint-file trained/ai84-mnist-extrasmallnet.pth.tar --config-file test-pooling3x3s1.yaml --stop-after 0 --ai85
+./cnn-gen.py --verbose --autogen tests --top-level cnn -L --test-dir tests --prefix ai85-4x4s2avgpool --checkpoint-file trained/ai84-mnist-extrasmallnet.pth.tar --config-file test-pooling4x4s2.yaml --stop-after 0 --ai85
+
+./cnn-gen.py --verbose --autogen tests --top-level cnn -L --test-dir tests --prefix ai85-wideout --checkpoint-file trained/ai85-mnist-wide.pth.tar --config-file test-ai85-mnistwide.yaml --stop-after 0 --ai85
 

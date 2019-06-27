@@ -58,7 +58,8 @@ def unload(apb_base, processor_map, input_shape,
             this_c = c
 
             # Get four bytes from memory array
-            proc = (coffs % tc.MAX_CHANNELS) & ~(tc.P_SHARED-1)
+            proc = (coffs % tc.MAX_PROC) & ~(tc.P_SHARED-1)
+            # FIXME: seq = ...
             offs = out_offset + \
                 (((proc % tc.P_NUMPRO) * tc.INSTANCE_SIZE |
                   (proc // tc.P_NUMPRO) * tc.C_GROUP_OFFS // 4) +
