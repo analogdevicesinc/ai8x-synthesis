@@ -31,7 +31,7 @@ from utils import ffs, popcount
 
 
 def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwrite_ok, log,
-               apb_base, layers, processor_map,
+               apb_base, layers, processor_map, output_processor_map,
                input_size, kernel_size, quantization,
                chan, padding, dilation, stride,
                pool, pool_stride, pool_average, activate,
@@ -627,7 +627,7 @@ def main():
     tc.set_device(args.ai85)
 
     # Load configuration file
-    cfg, params = yamlcfg.parse(args.config_file)
+    cfg, params = yamlcfg.parse(args.config_file, args.ai85)
 
     # Load weights and biases. This also configures the network's output channels.
     layers, weights, bias, fc_weights, fc_bias, output_channels = \
@@ -673,6 +673,7 @@ def main():
 
     # Remove extraneous input layer configurations (when --stop-after is used)
     processor_map = processor_map[:layers]
+    output_processor_map = params['output_processor_map'][:layers]
     output_channels = output_channels[:layers+1]
     output_offset = params['output_offset'][:layers]
     kernel_size = params['kernel_size'][:layers]
@@ -693,6 +694,7 @@ def main():
         tn = create_net(args.prefix, args.verbose,
                         args.debug, args.debug_computation, args.no_error_stop,
                         args.overwrite_ok, args.log, args.apb_base, layers, processor_map,
+                        output_processor_map,
                         input_size, kernel_size, quantization,
                         output_channels, padding,
                         params['dilation'], params['stride'],
