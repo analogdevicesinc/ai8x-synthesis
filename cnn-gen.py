@@ -33,7 +33,7 @@ from utils import ffs, popcount
 def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwrite_ok, log,
                apb_base, layers, processor_map, output_processor_map,
                input_size, kernel_size, quantization,
-               input_chan, output_chan, padding, dilation, stride,
+               input_chan, output_chan, output_width, padding, dilation, stride,
                pool, pool_stride, pool_average, activate,
                data, kernel, bias, big_data, fc_weights, fc_bias,
                split,
@@ -59,7 +59,7 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
                 p >>= tc.P_SHARED
 
     # Trace output sizes of the network and fix up all pool_stride values
-    # FIXME: Separate layer output from next layer's input
+    # FIXME: Separate layer output from next layer's input in "dim" variable.
     dim = [[input_size[1], input_size[2]]]
     for ll in range(layers):
         if pool[ll] > 0:
@@ -272,6 +272,7 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
             if ai85:
                 print(f'Output expansion    = {out_expand}')
                 print(f'Expansion threshold = {out_expand_thresh}')
+                print(f'Output data bits    = {output_width}')
             print(f'Group map           = {group_map}')
             print(f'Kernel offsets      = {kern_offs}')
             print(f'Kernel lengths      = {kern_len}')
@@ -376,6 +377,8 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
                     val |= ((out_expand[ll] - 1) << 19) \
                            | ((out_expand_thresh[ll] * quantization[ll] - 1) << 22) \
                            | (in_expand[ll] - 1) << 16
+                    if output_width[ll] != 8:
+                        val |= 1 << 31
                 if group == group_map[ll][0]:
                     # Set external source for other active processing groups (can be zero if no
                     # other groups are processing). Do not set the bit corresponding to this group
@@ -514,6 +517,7 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
                                                          kernel_size[ll][0], kernel_size[ll][1]),
                                       bias[ll],
                                       data,
+                                      output_width=output_width[ll],
                                       ai85=ai85,
                                       debug=debug_computation)
 
@@ -541,60 +545,11 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
 
             apb.output(f'// {test_name}\n// Expected output of layer {ll+1}\n')
             apb.verify_header()
-
-            # Start at the instance of the first active output processor/channel
-            coffs_start = ffs(output_processor_map[ll]) & ~(tc.P_SHARED-1)
-            next_layer_map = output_processor_map[ll] >> coffs_start
-
-            for doffs in range(out_size[1] * out_size[2]):
-                row, col = divmod(doffs, out_size[2])
-                this_map = next_layer_map
-                coffs = coffs_start
-                poffs = coffs_start
-                c = 0
-                while c < output_chan[ll]:
-                    if c % out_expand_thresh[ll] == 0:
-                        poffs = coffs_start
-                        this_map = next_layer_map  # Wrap around for AI85 channel expansion
-
-                    expand = c // out_expand_thresh[ll]  # Channels 64+ handled by processors 0+
-                    # Physical offset into instance and group
-                    proc = poffs & ~(tc.P_SHARED-1)
-
-                    # Get four bytes either from output or zeros and construct HWC word
-                    val = 0
-                    for _ in range(4):
-                        val >>= 8
-                        if this_map & 1:
-                            val |= out_buf[c][row][col] << 24
-                            c += 1
-                        this_map >>= 1
-
-                    offs = tc.C_SRAM_BASE + out_offset[ll] + \
-                        (((proc % tc.P_NUMPRO) * tc.INSTANCE_SIZE |
-                          (proc // tc.P_NUMPRO) * tc.C_GROUP_OFFS // 4) +
-                         doffs * out_expand[ll] + expand) * 4
-
-                    # Special adjustment for AI84 quirk
-                    if not ai85 and pool[ll] == 4 and pool_stride[ll] == 4:
-                        offs += (doffs // 4) * 8 + 8
-
-                    # If using single layer, make sure we're not overwriting the input
-                    if (not overwrite_ok) and in_map[offs >> 2] is not None:
-                        print(f'Layer {ll} output for CHW={c},{row}{col} is overwriting '
-                              f'input at location {offs:08x}')
-                        if not no_error_stop:
-                            sys.exit(1)
-                    if out_map[offs >> 2] is not None:
-                        print(f'Layer {ll} output for CHW={c},{row},{col} is overwriting '
-                              f'itself at location {offs:08x}')
-                        if not no_error_stop:
-                            sys.exit(1)
-                    out_map[offs >> 2] = val
-                    apb.verify(offs, val, rv=True)
-                    coffs += 4
-                    poffs += 4
-
+            apb.verify_unload(ll, in_map, out_map,
+                              out_buf, output_processor_map[ll], out_size,
+                              out_offset[ll], out_expand[ll],
+                              out_expand_thresh[ll], output_width[ll],
+                              pool[ll], pool_stride[ll], overwrite_ok, no_error_stop)
             apb.verify_footer()
         finally:
             if memfile:
@@ -616,7 +571,7 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
                                              debug=debug)
 
             apb.unload(output_processor_map[-1], input_size, out_offset[layers-1],
-                       out_expand[-1], out_expand_thresh[-1],
+                       out_expand[-1], out_expand_thresh[-1], output_width[-1],
                        pool[-1], pool_stride[-1])
             apb.fc_layer(fc_weights[0], fc_bias[0])
             apb.fc_verify(out_buf)
@@ -700,6 +655,10 @@ def main():
     pool = params['pool'][:layers]
     pool_stride = params['pool_stride'][:layers]
     padding = params['padding'][:layers]
+    stride = params['stride'][:layers]
+    dilation = params['dilation'][:layers]
+    big_data = params['big_data'][:layers]
+    output_width = params['output_width'][:layers]
 
     # Derived configuration options
     activate = [bool(x) for x in params['relu']]
@@ -715,10 +674,10 @@ def main():
                         args.overwrite_ok, args.log, args.apb_base, layers, processor_map,
                         output_processor_map,
                         input_size, kernel_size, quantization,
-                        input_channels, output_channels, padding,
-                        params['dilation'], params['stride'],
+                        input_channels, output_channels, output_width, padding,
+                        dilation, stride,
                         pool, pool_stride, pool_average, activate,
-                        data, weights, bias, params['big_data'], fc_weights, fc_bias,
+                        data, weights, bias, big_data, fc_weights, fc_bias,
                         args.input_split, args.input_offset, output_offset,
                         args.input_filename, args.output_filename, args.c_filename,
                         args.test_dir, args.runtest_filename, args.log_filename,
@@ -730,8 +689,8 @@ def main():
     else:
         cmsisnn.create_net(args.prefix, args.verbose, args.debug, args.log,
                            layers, input_size, kernel_size, quantization,
-                           input_channels, output_channels, padding,
-                           params['dilation'], params['stride'],
+                           input_channels, output_channels, output_width, padding,
+                           dilation, stride,
                            pool, pool_stride, pool_average, activate,
                            data, weights, bias, fc_weights, fc_bias,
                            args.c_filename,

@@ -19,7 +19,7 @@ def cnn_layer(layer, verbose,
               input_size, kernel_size, quantization,
               output_channels, padding, dilation, stride,
               pool, pool_stride, pool_average, do_activation,
-              kernel, bias, data, bits=8,
+              kernel, bias, data, bits=8, output_width=8,
               ai85=False, debug=False):  # pylint: disable=unused-argument
     """
     Perform pooling and convolution for one layer.
@@ -105,14 +105,15 @@ def cnn_layer(layer, verbose,
     stats.macc += pooled_size[0] * kernel_size[0] * kernel_size[1] * out_size[0] \
         * out_size[1] * out_size[2]
 
-    out_buf = np.floor(0.5 + out_buf / (16*quantization)).astype(np.int64). \
-        clip(-(2**(bits-1)), 2**(bits-1)-1)
+    if output_width != 32:
+        out_buf = np.floor(0.5 + out_buf / (16*quantization)).astype(np.int64). \
+            clip(-(2**(bits-1)), 2**(bits-1)-1)
 
-    if verbose:
-        print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} OUTPUT "
-              f"{'BEFORE ACTIVATION' if do_activation else '(NO ACTIVATION)'}:")
-        print(out_buf)
-        print('')
+        if verbose:
+            print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} OUTPUT "
+                  f"{'BEFORE ACTIVATION' if do_activation else '(NO ACTIVATION)'}:")
+            print(out_buf)
+            print('')
 
     if do_activation:
         np.clip(out_buf, 0, 2**(bits-1)-1, out_buf)

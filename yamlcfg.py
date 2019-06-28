@@ -48,8 +48,10 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
         print(f'Configuration file {config_file} contains unknown `dataset`.')
         sys.exit(1)
 
-    processor_map = [None] * tc.MAX_LAYERS  # Use this to see whether a layer was configured
+    # These are initializaed with 'None'. Use this to see whether a layer was configured.
+    processor_map = [None] * tc.MAX_LAYERS
     output_map = [None] * tc.MAX_LAYERS
+    # All other variables are initialized with the default values
     padding = [1] * tc.MAX_LAYERS
     pool = [0] * tc.MAX_LAYERS
     average = [0] * tc.MAX_LAYERS
@@ -58,12 +60,13 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
     output_offset = [0] * tc.MAX_LAYERS
     relu = [0] * tc.MAX_LAYERS
     big_data = [False] * tc.MAX_LAYERS
+    output_width = [8] * tc.MAX_LAYERS
 
     sequence = 0
     for ll in cfg['layers']:
         if bool(set(ll) - set(['max_pool', 'avg_pool', 'pool_stride', 'out_offset',
-                               'activate', 'data_format', 'output_processors', 'processors', 'pad',
-                               'quantization', 'sequence'])):
+                               'activate', 'data_format', 'output_processors', 'output_width',
+                               'processors', 'pad', 'quantization', 'sequence'])):
             print(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
             sys.exit(1)
 
@@ -83,10 +86,10 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
                 error_exit('output_processors` cannot be zero', sequence)
 
         if 'pad' in ll:
-            p = ll['pad']
-            if p < 0 or p > 2:
-                error_exit('Unsupported value {p} for `pad`', sequence)
-            padding[sequence] = p
+            val = ll['pad']
+            if val < 0 or val > 2:
+                error_exit('Unsupported value {val} for `pad`', sequence)
+            padding[sequence] = val
         if 'max_pool' in ll:
             pool[sequence] = ll['max_pool']
         elif 'avg_pool' in ll:
@@ -96,10 +99,10 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
             pool_stride[sequence] = ll['pool_stride']
 
         if 'quantization' in ll:
-            q = ll['quantization']
-            if q not in [1, 2, 4, 8]:
+            val = ll['quantization']
+            if val not in [1, 2, 4, 8]:
                 error_exit('`quantization` must be 1, 2, 4, or 8', sequence)
-            quantization[sequence] = q
+            quantization[sequence] = val
 
         if 'out_offset' in ll:
             output_offset[sequence] = ll['out_offset']
@@ -115,13 +118,19 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
             if sequence:
                 error_exit('`data_format` can only be configured for the first layer', sequence)
 
-            df = ll['data_format'].lower()
-            if df in ['chw', 'big']:
+            val = ll['data_format'].lower()
+            if val in ['chw', 'big']:
                 big_data[sequence] = True
-            elif df in ['hwc', 'little']:
+            elif val in ['hwc', 'little']:
                 pass
             else:
                 error_exit('Unknown value for `data_format`', sequence)
+
+        if 'output_width' in ll:
+            val = ll['output_width']
+            if val not in [8, 32]:
+                error_exit('`output_width` must be 8 or 32', sequence)
+            output_width[sequence] = val
 
         sequence += 1
 
@@ -138,13 +147,18 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
             del big_data[ll]
             del quantization[ll]
             del output_map[ll]
+            del output_width[ll]
 
-    # Fix up default output maps
-    for ll in range(len(output_map) - 1):  # No output map for very last layer
+    # Fix up default output maps, check output_width
+    for ll in range(len(output_map) - 1):  # Check all but last layer
+        if output_width[ll] != 8:
+            error_exit('`output_width` is not 8 for intermediate layer', ll)
         if output_map[ll] is None:
             output_map[ll] = processor_map[ll+1]
     if output_map[-1] is None and 'output_map' in cfg:
         output_map[-1] = cfg['output_map']
+    if output_width[-1] != 8 and relu[-1]:
+        error_exit('`output_width` must be 8 when activation is used', len(relu))
 
     settings = {}
     settings['padding'] = padding
@@ -157,6 +171,7 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
     settings['big_data'] = big_data
     settings['quantization'] = quantization
     settings['output_processor_map'] = output_map
+    settings['output_width'] = output_width
 
     # We don't support changing the following, but leave as parameters
     settings['dilation'] = [[1, 1]] * len(cfg['layers'])
