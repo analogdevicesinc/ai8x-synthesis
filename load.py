@@ -15,13 +15,13 @@ from utils import s2u
 
 
 def load(embedded_code, apb, chw, processor_map, input_size, chan,
-         in_expand, in_expand_thresh,  # pylint: disable=unused-argument
+         in_expand, in_expand_thresh,
          dim, data, padding, split=1, debug=False):
     """
     Create C code to load data input in CHW format (if `chw` is `True`) or HWC format
     for the `processor_map`. Data `data` is organized in `chan` channels, and `dim` dimensions
-    and the input size is `input_size`. Channel expansion is described in `in_expand` and
-    `in_expand_thresh` but currently not supported.
+    and the input size is `input_size`. Channel expansion is configured in `in_expand` and
+    `in_expand_thresh`.
     The code performs optional `padding`, can `split` the input into more than one chunk
     and has optional `debug` output.
     The code is target for simulation (`embedded_code` == `False`) or embedded hardware (`True`).
@@ -45,8 +45,7 @@ def load(embedded_code, apb, chw, processor_map, input_size, chan,
         expand = c // in_expand_thresh  # Channels 64+ handled by processors 0+
         instance = (ch % tc.P_NUMPRO) // tc.P_SHARED
         new_data_offs = tc.C_SRAM_BASE + tc.C_GROUP_OFFS*group + tc.INSTANCE_SIZE*4*instance \
-            + (in_expand_thresh * expand + expand)
-
+            + expand*4
         if new_data_offs == data_offs:
             print('Layer 0 processor map is misconfigured for data input. '
                   f'There is data overlap between processors {ch-1} and {ch}')
@@ -75,14 +74,16 @@ def load(embedded_code, apb, chw, processor_map, input_size, chan,
                         if shift == 3:
                             apb.check_overwrite(data_offs & ~3)
                             code_buffer[offs] = val
-                            offs += 1
+                            offs += in_expand
                             val = 0
                         data_offs += 1
+                        if data_offs & ~3 == 0:
+                            data_offs += 4 * (in_expand - 1)
 
                 if shift != 3:
                     apb.check_overwrite(data_offs & ~3)
                     code_buffer[offs] = val
-                    offs += 1
+                    offs += in_expand
 
                 apb.output_define(code_buffer, f'INPUT_{ch}', '0x%08x', 8, weights=False)
                 apb.output('static const uint32_t '
@@ -105,6 +106,8 @@ def load(embedded_code, apb, chw, processor_map, input_size, chan,
                         for _ in range(input_size[2]):
                             apb.write_byte(data_offs, 0)
                             data_offs += 1
+                            if data_offs & ~3 == 0:
+                                data_offs += 4 * (in_expand - 1)
                 row = 0
                 for s in range(split):
                     if split > 1 and s + 1 < split:
@@ -115,6 +118,8 @@ def load(embedded_code, apb, chw, processor_map, input_size, chan,
                         for col in range(input_size[2]):
                             apb.write_byte(data_offs, s2u(data[c][row][col]))
                             data_offs += 1
+                            if data_offs & ~3 == 0:
+                                data_offs += 4 * (in_expand - 1)
                         row += 1
                     row -= 2*overlap  # Rewind
                     # Switch to next memory instance
@@ -130,6 +135,8 @@ def load(embedded_code, apb, chw, processor_map, input_size, chan,
                         for _ in range(input_size[2]):
                             apb.write_byte(data_offs, 0)
                             data_offs += 1
+                            if data_offs & ~3 == 0:
+                                data_offs += 4 * (in_expand - 1)
 
             c += 1
         else:
@@ -156,9 +163,9 @@ def load(embedded_code, apb, chw, processor_map, input_size, chan,
                         apb.write(data_offs, val)
                     else:
                         code_buffer[offs] = val
-                        offs += 1
+                        offs += in_expand
                     apb.data_offs = data_offs  # For mixed HWC/CHW operation
-                    data_offs += 4
+                    data_offs += 4 * in_expand
 
             if embedded_code:
                 apb.output_define(code_buffer, f'INPUT_{ch}', '0x%08x', 8, weights=False)

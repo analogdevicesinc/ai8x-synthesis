@@ -575,11 +575,6 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
                           (proc // tc.P_NUMPRO) * tc.C_GROUP_OFFS // 4) +
                          doffs * out_expand[ll] + expand) * 4
 
-                    # print(f'coffs {coffs} coffs_start {coffs_start} out_expand_thresh '
-                    #       f'{out_expand_thresh[ll]} L {ll} c {c}, proc {proc}, doffs '
-                    #       f'{doffs:08}, out_expand {out_expand[ll]}, expand {expand} '
-                    #       f'-> offs {offs:08x} ')
-
                     # Special adjustment for AI84 quirk
                     if not ai85 and pool[ll] == 4 and pool_stride[ll] == 4:
                         offs += (doffs // 4) * 8 + 8
