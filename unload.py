@@ -8,12 +8,13 @@
 """
 Unload AI84 HWC memory into standard representation.
 """
+import sys
 import tornadocnn as tc
 from utils import ffs, popcount
 
 
 def unload(memfile, apb_base, processor_map, input_shape, out_offset,
-           out_expand, out_expand_thresh, pool=None, pool_stride=1, ai84=True):
+           out_expand, out_expand_thresh, output_width=8, pool=None, pool_stride=1, ai84=True):
     """
     Unload HWC memory from AI84, writing C code to the `memfile` handle.
     The generated C code is specific to the network configuration passed in in `processor_map`,
@@ -29,12 +30,20 @@ def unload(memfile, apb_base, processor_map, input_shape, out_offset,
     coffs_start = ffs(processor_map) & ~(tc.P_SHARED-1)
     coffs = coffs_start
     poffs = coffs_start
-    next_layer_map = next_layer_map_init = processor_map >> coffs
-    read_addr = write_addr = None
+    next_layer_map_init = processor_map >> coffs
+    next_layer_map = next_layer_map_init
+
+    # Output expansion for channels and/or wide output
+    out_size = output_width // 8
+    width = out_expand * out_size
+
+    read_addr = None
+    write_addr = None
     c = 0
     while c < input_shape[0]:
         if c % out_expand_thresh == 0:
             poffs = coffs_start
+            next_layer_map = next_layer_map_init
 
         expand = c // out_expand_thresh  # Channels 64+ handled by processors 0+
         proc = poffs & ~(tc.P_SHARED-1)
@@ -48,7 +57,7 @@ def unload(memfile, apb_base, processor_map, input_shape, out_offset,
             offs = out_offset + \
                 (((proc % tc.P_NUMPRO) * tc.INSTANCE_SIZE |
                   (proc // tc.P_NUMPRO) * tc.C_GROUP_OFFS // 4) +
-                 doffs * out_expand + expand) * 4
+                 doffs * width + expand * out_size) * 4
 
             if ai84 and pool == 4 and pool_stride == 4:
                 offs += (doffs // 4) * 8 + 8
@@ -61,7 +70,7 @@ def unload(memfile, apb_base, processor_map, input_shape, out_offset,
             # Singulate bytes, ignoring unused processors
             for shift in range(4):
                 addr = this_c * input_shape[1] * input_shape[2] + row * input_shape[1] + col
-                if shift == 0:
+                if shift == 0 or out_size > 1:
                     if addr != write_addr:
                         memfile.write(f'  offs = 0x{addr:04x};\n')
                     else:
@@ -72,11 +81,14 @@ def unload(memfile, apb_base, processor_map, input_shape, out_offset,
                     if shift > 0:
                         memfile.write(f'+0x{0x10 * shift:02x}')
                     memfile.write('] = ')
-                    if shift == 0:
+                    if shift == 0 or out_size > 1:
                         memfile.write('val')
                     else:
                         memfile.write(f'(val >> {shift * 8})')
-                    memfile.write(' & 0xff;\n')
+                    if out_size == 1:
+                        memfile.write(' & 0xff;\n')
+                    else:
+                        memfile.write(';\n')
                     this_c += 1
                 this_map >>= 1
 
@@ -84,7 +96,95 @@ def unload(memfile, apb_base, processor_map, input_shape, out_offset,
         poffs += 4
         c += popcount(next_layer_map & 0x0f)
         next_layer_map >>= 4
-        if next_layer_map == 0:
-            next_layer_map = next_layer_map_init
 
     memfile.write('}\n\n')
+
+
+def verify(verify_fn, ll, in_map, out_map,
+           out_buf, processor_map, input_shape, out_offset, out_expand,
+           out_expand_thresh, output_width=8, pool=None, pool_stride=1,
+           overwrite_ok=False, no_error_stop=False, ai84=True):
+    """
+    Verify HWC memory from AI84, writing C or mem code using the `verify_fn` function.
+    The generated code is specific to the network configuration passed in in `processor_map`,
+    and `input_shape`. Additionally, the generated addresses are offset by
+    `out_offset`. The function takes a pointer to a memory array, and the depth of
+    the array does not matter (flattened or not flattened) as long as the size is correct.
+    `in_map` and `out_map` are used to optionally prevent overwriting data
+    (controlled by `overwrite_ok` and `no_error_stop`).
+    """
+    # Start at the instance of the first active output processor/channel
+    coffs_start = ffs(processor_map) & ~(tc.P_SHARED-1)
+    next_layer_map = processor_map >> coffs_start
+    # Output expansion for channels and/or wide output
+    out_size = output_width // 8
+    width = out_expand * out_size
+
+    for doffs in range(input_shape[1] * input_shape[2]):
+        row, col = divmod(doffs, input_shape[2])
+        this_map = next_layer_map
+        coffs = coffs_start
+        poffs = coffs_start
+        c = 0
+        while c < input_shape[0]:
+            if c % out_expand_thresh == 0:
+                poffs = coffs_start
+                this_map = next_layer_map  # Wrap around for AI85 channel expansion
+
+            expand = c // out_expand_thresh  # Channels 64+ handled by processors 0+
+            # Physical offset into instance and group
+            proc = poffs & ~(tc.P_SHARED-1)
+
+            # Get four bytes or words either from output or zeros and construct HWC word
+            if out_size == 1:
+                val = 0
+                for _ in range(4):
+                    val >>= 8
+                    if this_map & 1:
+                        val |= out_buf[c][row][col] << 24
+                        c += 1
+                    this_map >>= 1
+            else:
+                val = [0] * 4
+                for i in range(4):
+                    if this_map & 1:
+                        val[3-i] = out_buf[c][row][col] & 0xffffffff
+                        c += 1
+                    this_map >>= 1
+
+            # Get the offset of the first output byte/word of 4
+            offs = tc.C_SRAM_BASE + out_offset + \
+                (((proc % tc.P_NUMPRO) * tc.INSTANCE_SIZE |
+                  (proc // tc.P_NUMPRO) * tc.C_GROUP_OFFS // 4) +
+                 doffs * width + expand * out_size) * 4
+
+            # Special adjustment for AI84 quirk
+            if ai84 and pool == 4 and pool_stride == 4:
+                offs += (doffs // 4) * 8 + 8
+
+            def check_overwrite(target_offs, in_map, out_map, c, row, col):
+                # If using single layer, make sure we're not overwriting the input
+                if (not overwrite_ok) and in_map[target_offs >> 2] is not None:
+                    print(f'Layer {ll} output for CHW={c},{row}{col} is overwriting '
+                          f'input at offset 0x{target_offs:08x} (APB )')
+                    if not no_error_stop:
+                        sys.exit(1)
+                if out_map[target_offs >> 2] is not None:
+                    print(f'Layer {ll} output for CHW={c},{row},{col} is overwriting '
+                          f'itself at offset 0x{target_offs:08x}')
+                    if not no_error_stop:
+                        sys.exit(1)
+
+            if out_size == 1:
+                check_overwrite(offs, in_map, out_map, c, row, col)
+                out_map[offs >> 2] = val
+                verify_fn(offs, val, rv=True)
+            else:
+                for i in range(out_size):
+                    check_overwrite(offs, in_map, out_map, c, row, col)
+                    out_map[offs >> 2] = val[i]
+                    verify_fn(offs, val[i], rv=True)
+                    offs += out_size
+
+            coffs += 4
+            poffs += 4

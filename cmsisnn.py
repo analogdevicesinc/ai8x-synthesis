@@ -16,7 +16,7 @@ from simulate import cnn_layer, linear_layer
 
 
 def create_net(prefix, verbose, debug, log, layers, input_size, kernel_size,
-               quantization, input_chan, output_chan, padding, dilation, stride,
+               quantization, input_chan, output_chan, output_width, padding, dilation, stride,
                pool, pool_stride, pool_average, activate,
                data, kernel, bias, fc_weights, fc_bias,
                c_filename, base_directory, log_filename,
@@ -24,6 +24,9 @@ def create_net(prefix, verbose, debug, log, layers, input_size, kernel_size,
     """
     Create the CMSIS NN network.
     """
+    if any(w != 8 for w in output_width):
+        print('CMSIS network generator does not currently support `output_width` that is not 8.')
+        sys.exit(1)
 
     # Trace output sizes of the network and fix up all pool_stride values
     dim = [[input_size[1], input_size[2]]]
