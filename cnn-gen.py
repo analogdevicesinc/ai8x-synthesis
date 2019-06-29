@@ -642,7 +642,9 @@ def main():
         output_processor_map[-1] = cfg['output_map']
     elif len(processor_map) == layers and output_processor_map[-1] is None:
         # Default to packed, 0-aligned output map
-        output_processor_map[-1] = 2**output_channels[layers-1]-1
+        expand = (output_channels[layers-1] + tc.MAX_PROC-1) // tc.MAX_PROC
+        expand_chunk = output_channels[layers-1] // expand
+        output_processor_map[-1] = 2**expand_chunk-1
 
     # Remove extraneous layer configuration values (when --stop-after is used)
     processor_map = processor_map[:layers]
