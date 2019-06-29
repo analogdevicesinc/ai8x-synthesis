@@ -87,6 +87,7 @@ def convert_checkpoint(input_file, output_file, arguments):
 
     first = True
     layers = 0
+    num_layers = len(params['quantization']) if params else None
     for _, k in enumerate(checkpoint_state.keys()):
         operation, parameter = k.rsplit(sep='.', maxsplit=1)
         if parameter in ['w_zero_point', 'b_zero_point']:
@@ -98,6 +99,8 @@ def convert_checkpoint(input_file, output_file, arguments):
                 module, _ = k.split(sep='.', maxsplit=1)
 
                 if module != 'fc':
+                    if num_layers and layers >= num_layers:
+                        continue
                     if not params:
                         clamp_bits = tc.DEFAULT_WEIGHT_BITS  # Default to 8 bits
                     else:
