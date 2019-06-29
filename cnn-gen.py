@@ -164,12 +164,16 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
             if popcount(processor_map[ll]) != in_expand_thresh[ll]:
                 print(f'Layer {ll} has {input_chan[ll]} inputs with input expansion '
                       f'{in_expand[ll]}, threshold {in_expand_thresh[ll]}, but '
-                      f'enabled processor map {processor_map[ll]:016x} does not match.')
+                      f'enabled processor map 0x{processor_map[ll]:016x} '
+                      f'has {popcount(processor_map[ll])} bits instead of the '
+                      f'expected number of {in_expand_thresh[ll]}.')
                 sys.exit(1)
             if popcount(output_processor_map[ll]) != out_expand_thresh[ll]:
                 print(f'Layer {ll} has {output_chan[ll]} outputs with output expansion '
                       f'{out_expand[ll]}, threshold {out_expand_thresh[ll]}, but '
-                      f'processor output map {output_processor_map[ll]:016x} does not match.')
+                      f'processor output map 0x{output_processor_map[ll]:016x} '
+                      f'has {popcount(output_processor_map[ll])} bits instead of the '
+                      f'expected number of {out_expand_thresh[ll]}.')
                 sys.exit(1)
             this_map = []
             for group in range(tc.P_NUMGROUPS):
