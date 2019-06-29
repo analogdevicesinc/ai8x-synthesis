@@ -42,6 +42,7 @@ def load(checkpoint_file, arch, fc_layer, quantization):
 
     checkpoint_state = checkpoint['state_dict']
     layers = 0
+    num_conv_layers = len(quantization)
     have_fc_layer = False
     output_channels = []
     input_channels = []
@@ -50,6 +51,8 @@ def load(checkpoint_file, arch, fc_layer, quantization):
         if parameter in ['weight']:
             module, _ = k.split(sep='.', maxsplit=1)
             if module != 'fc':
+                if layers >= num_conv_layers:
+                    continue
                 w = checkpoint_state[k].numpy().astype(np.int64)
                 assert w.min() >= -(2**(quantization[layers]-1))
                 assert w.max() < 2**(quantization[layers]-1)
