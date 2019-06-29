@@ -59,7 +59,8 @@ def get_parser():
     parser.add_argument('--input-offset', type=lambda x: int(x, 0), default=0,
                         metavar='N', choices=range(4*tornadocnn.MEM_SIZE),
                         help="input offset (x8 hex, defaults to 0x0000)")
-    parser.add_argument('--overwrite-ok', action='store_true', default=False,
+    parser.add_argument('--overlap-data', '--overwrite-ok', dest='overwrite_ok',
+                        action='store_true', default=False,
                         help="allow output to overwrite input (default: warn/stop)")
     parser.add_argument('--queue-name', default='lowp', metavar='S',
                         help="queue name (default: 'lowp')")
