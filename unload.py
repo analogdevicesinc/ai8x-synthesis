@@ -131,6 +131,7 @@ def verify(verify_fn, ll, in_map, out_map,
                 poffs = coffs_start
                 this_map = next_layer_map  # Wrap around for AI85 channel expansion
 
+            this_c = c
             expand = c // out_expand_thresh  # Channels 64+ handled by processors 0+
             # Physical offset into instance and group
             proc = poffs & ~(tc.P_SHARED-1)
@@ -162,27 +163,33 @@ def verify(verify_fn, ll, in_map, out_map,
             if ai84 and pool == 4 and pool_stride == 4:
                 offs += (doffs // 4) * 8 + 8
 
-            def check_overwrite(target_offs, in_map, out_map, c, row, col):
+            def check_overwrite(p, target_offs, in_map, out_map, c, row, col):
                 # If using single layer, make sure we're not overwriting the input
                 if (not overwrite_ok) and in_map[target_offs >> 2] is not None:
-                    print(f'Layer {ll} output for CHW={c},{row}{col} is overwriting '
-                          f'input at offset 0x{target_offs:08x} (APB )')
+                    print(in_map[target_offs >> 2])
+                    print(f'Processor {p}: '
+                          f'Layer {ll} output for CHW={c},{row},{col} is overwriting '
+                          f'input at offset 0x{target_offs:08x}.')
                     if not no_error_stop:
                         sys.exit(1)
+                # Check we're not overflowing the data memory
                 if out_map[target_offs >> 2] is not None:
-                    print(f'Layer {ll} output for CHW={c},{row},{col} is overwriting '
-                          f'itself at offset 0x{target_offs:08x}')
+                    old_c, old_row, old_col, old_val = out_map[target_offs >> 2]
+                    print(f'Processor {p}: '
+                          f'Layer {ll} output for CHW={c},{row},{col} is overwriting '
+                          f'itself at offset 0x{target_offs:08x}. Previous write by '
+                          f'CHW={old_c},{old_row},{old_col} with value 0x{old_val:08x}.')
                     if not no_error_stop:
                         sys.exit(1)
 
             if out_size == 1:
-                check_overwrite(offs, in_map, out_map, c, row, col)
-                out_map[offs >> 2] = val
+                check_overwrite(proc, offs, in_map, out_map, this_c, row, col)
+                out_map[offs >> 2] = (this_c, row, col, val)
                 verify_fn(offs, val, rv=True)
             else:
                 for i in range(out_size):
-                    check_overwrite(offs, in_map, out_map, c, row, col)
-                    out_map[offs >> 2] = val[i]
+                    check_overwrite(proc, offs, in_map, out_map, this_c, row, col)
+                    out_map[offs >> 2] = (this_c, row, col, val[i])
                     verify_fn(offs, val[i], rv=True)
                     offs += out_size
 
