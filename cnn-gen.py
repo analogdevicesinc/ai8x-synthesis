@@ -189,8 +189,8 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
 
         if embedded_code:
             # Pre-define data memory loader. Inline later when generating RTL sim.
-            load.load(embedded_code, apb, big_data[0], processor_map[0], input_size, input_chan[0],
-                      in_expand[0], in_expand_thresh[0],
+            load.load(embedded_code, apb, big_data[0], processor_map[0], in_offset[0],
+                      input_size, input_chan[0], in_expand[0], in_expand_thresh[0],
                       dim[0], data, padding[0], split=split, debug=debug)
             # Pre-define the kernels and bias values
             kern_offs, kern_len = \
@@ -258,35 +258,43 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
             print('---------------------')
             print(f'Used processors     = {processors_used:016x}')
             print(f'Used groups         = {groups_used}')
-            print(f'Input offset        = {in_offset}')
+
             print('\nPer-group configuration:')
             print('-----------------------')
             print(f'Used bias memory    = {group_bias_max}')
+
             print('\nPer-layer configuration:')
             print('------------------------')
             print(f'Input channels      = {input_chan}')
-            print(f'Output channels     = {output_chan}')
             print('Processor map       = [',
                   ', '.join('{:016x}'.format(k) for k in processor_map), ']', sep='',)
             if ai85:
                 print(f'Input expansion     = {in_expand}')
                 print(f'Expansion threshold = {in_expand_thresh}')
+            print('Input offsets       = [',
+                  ', '.join('{:04x}'.format(k) for k in in_offset), ']', sep='',)
+
+            print(f'Output channels     = {output_chan}')
             print('Output processors   = [',
                   ', '.join('{:016x}'.format(k) for k in output_processor_map), ']', sep='',)
             if ai85:
                 print(f'Output expansion    = {out_expand}')
                 print(f'Expansion threshold = {out_expand_thresh}')
                 print(f'Output data bits    = {output_width}')
+            print('Output offsets      = [',
+                  ', '.join('{:04x}'.format(k) for k in out_offset), ']', sep='',)
+
             print(f'Group map           = {group_map}')
+
             print(f'Kernel offsets      = {kern_offs}')
             print(f'Kernel lengths      = {kern_len}')
             if ai85:
                 print(f'Kernel dimensions   = {kernel_size}')
                 print(f'Kernel bits         = {quantization}')
+
             print(f'Padding             = {padding}')
             print(f'Group with bias     = {bias_group}')
             print(f'Bias offsets        = {bias_offs}')
-            print(f'Output offsets      = {out_offset}')
             print(f'Pooling             = {pool}')
             print(f'Pooling stride      = {pool_stride}')
             print('')
@@ -354,7 +362,7 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
                 # Configure sram read ptr count -- read ptr is local
                 # Source address must match write pointer of previous layer (minus global offset)
                 apb.write_lreg(group, ll, tc.LREG_RPTR_BASE,
-                               in_offset // 4 if ll == 0 else out_offset[ll-1] // 4,
+                               in_offset[ll] // 4,
                                verbose, comment=' // SRAM read ptr')
 
                 # Configure per-layer control
@@ -471,8 +479,8 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
             # Do the actual code generation later
             apb.output('\n  load_input(); // Load data input\n\n')
         else:
-            load.load(embedded_code, apb, big_data[0], processor_map[0], input_size, input_chan[0],
-                      in_expand[0], in_expand_thresh[0],
+            load.load(embedded_code, apb, big_data[0], processor_map[0], in_offset[0],
+                      input_size, input_chan[0], in_expand[0], in_expand_thresh[0],
                       dim[0], data, padding[0], split=split, debug=debug)
 
         if verbose:
@@ -656,6 +664,7 @@ def main():
     input_channels = input_channels[:layers]
     output_channels = output_channels[:layers]
     output_offset = params['output_offset'][:layers]
+    input_offset = params['input_offset'][:layers]
     kernel_size = params['kernel_size'][:layers]
     quantization = params['quantization'][:layers]
     pool = params['pool'][:layers]
@@ -665,6 +674,10 @@ def main():
     dilation = params['dilation'][:layers]
     big_data = params['big_data'][:layers]
     output_width = params['output_width'][:layers]
+
+    # Command line override
+    if args.input_offset is not None:
+        input_offset[0] = args.input_offset
 
     # Derived configuration options
     activate = [bool(x) for x in params['relu']]
@@ -684,7 +697,7 @@ def main():
                         dilation, stride,
                         pool, pool_stride, pool_average, activate,
                         data, weights, bias, big_data, fc_weights, fc_bias,
-                        args.input_split, args.input_offset, output_offset,
+                        args.input_split, input_offset, output_offset,
                         args.input_filename, args.output_filename, args.c_filename,
                         args.test_dir, args.runtest_filename, args.log_filename,
                         args.zero_unused, args.timeout, not args.top_level, args.verify_writes,

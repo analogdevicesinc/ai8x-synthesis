@@ -56,7 +56,7 @@ def get_parser():
                         help="log file name (default: 'log.txt')")
     parser.add_argument('--no-error-stop', action='store_true', default=False,
                         help="do not stop on errors (default: stop)")
-    parser.add_argument('--input-offset', type=lambda x: int(x, 0), default=0,
+    parser.add_argument('--input-offset', type=lambda x: int(x, 0),
                         metavar='N', choices=range(4*tornadocnn.MEM_SIZE),
                         help="input offset (x8 hex, defaults to 0x0000)")
     parser.add_argument('--overlap-data', '--overwrite-ok', dest='overwrite_ok',

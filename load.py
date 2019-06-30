@@ -14,14 +14,14 @@ import tornadocnn as tc
 from utils import s2u
 
 
-def load(embedded_code, apb, chw, processor_map, input_size, chan,
+def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
          in_expand, in_expand_thresh,
          dim, data, padding, split=1, debug=False):
     """
-    Create C code to load data input in CHW format (if `chw` is `True`) or HWC format
-    for the `processor_map`. Data `data` is organized in `chan` channels, and `dim` dimensions
-    and the input size is `input_size`. Channel expansion is configured in `in_expand` and
-    `in_expand_thresh`.
+    Create C code to load data input to offset `input_offset` in CHW format (if `chw` is `True`)
+    or HWC format for the `processor_map`. Data `data` is organized in `chan` channels, and
+    `dim` dimensions and the input size is `input_size`. Channel expansion is configured in
+    `in_expand` and `in_expand_thresh`.
     The code performs optional `padding`, can `split` the input into more than one chunk
     and has optional `debug` output.
     The code is target for simulation (`embedded_code` == `False`) or embedded hardware (`True`).
@@ -33,7 +33,7 @@ def load(embedded_code, apb, chw, processor_map, input_size, chan,
         apb.output('\n\n  ')
     apb.output(f'// {chan}-channel {dim[0]}x{dim[1]} data input:\n')
     c = 0
-    data_offs = 0
+    data_offs = input_offset
     step = 1 if chw else 4
     for ch in range(0, tc.MAX_CHANNELS, step):
         if not (processor_map >> (ch % tc.MAX_PROC)) % 2**step:

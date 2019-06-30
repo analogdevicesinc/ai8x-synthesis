@@ -48,9 +48,11 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
         print(f'Configuration file {config_file} contains unknown `dataset`.')
         sys.exit(1)
 
-    # These are initializaed with 'None'. Use this to see whether a layer was configured.
+    # These are initializaed with 'None'. Use this to see whether a layer was configured,
+    # will be auto-initialized to previous layer's value or a default.
     processor_map = [None] * tc.MAX_LAYERS
     output_map = [None] * tc.MAX_LAYERS
+    input_offset = [None] * tc.MAX_LAYERS
     # All other variables are initialized with the default values
     padding = [1] * tc.MAX_LAYERS
     pool = [0] * tc.MAX_LAYERS
@@ -64,7 +66,7 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
 
     sequence = 0
     for ll in cfg['layers']:
-        if bool(set(ll) - set(['max_pool', 'avg_pool', 'pool_stride', 'out_offset',
+        if bool(set(ll) - set(['max_pool', 'avg_pool', 'in_offset', 'pool_stride', 'out_offset',
                                'activate', 'data_format', 'output_processors', 'output_width',
                                'processors', 'pad', 'quantization', 'sequence'])):
             print(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
@@ -104,6 +106,8 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
                 error_exit('`quantization` must be 1, 2, 4, or 8', sequence)
             quantization[sequence] = val
 
+        if 'in_offset' in ll:
+            input_offset[sequence] = ll['in_offset']
         if 'out_offset' in ll:
             output_offset[sequence] = ll['out_offset']
 
@@ -141,6 +145,7 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
             del padding[ll]
             del pool[ll]
             del pool_stride[ll]
+            del input_offset[ll]
             del output_offset[ll]
             del average[ll]
             del relu[ll]
@@ -149,12 +154,22 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
             del output_map[ll]
             del output_width[ll]
 
-    # Fix up default output maps, check output_width
-    for ll in range(len(output_map) - 1):  # Check all but last layer
+    # Check all but last layer
+    for ll in range(len(output_map) - 1):
         if output_width[ll] != 8:
             error_exit('`output_width` is not 8 for intermediate layer', ll)
+        # Fix up default output maps
         if output_map[ll] is None:
             output_map[ll] = processor_map[ll+1]
+    # Check all but first layer
+    for ll in range(1, len(input_offset)):
+        # Fix up default input maps
+        if input_offset[ll] is None:
+            input_offset[ll] = output_offset[ll-1]
+    # Check first layer
+    if input_offset[0] is None:
+        input_offset[0] = 0
+    # Check last layer
     if output_map[-1] is None and 'output_map' in cfg:
         output_map[-1] = cfg['output_map']
     if output_width[-1] != 8 and relu[-1]:
@@ -164,6 +179,7 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
     settings['padding'] = padding
     settings['pool'] = pool
     settings['pool_stride'] = pool_stride
+    settings['input_offset'] = input_offset
     settings['output_offset'] = output_offset
     settings['processor_map'] = processor_map
     settings['average'] = average
