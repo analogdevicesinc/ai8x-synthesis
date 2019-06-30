@@ -48,17 +48,44 @@ def create_net(prefix, verbose, debug, debug_computation,
     """
     Chain multiple CNN layers, create and save input and output
     """
-    # Check that input channels are in separate memory instances if CHW (big) data format is used
+    in_expand = [0] * layers
+    out_expand = [0] * layers
+    in_expand_thresh = [0] * layers
+    out_expand_thresh = [0] * layers
+
+    # Check that input channels are in separate memory instances if CHW (big) data format is used,
+    # and calculate input and output expansion
     for ll in range(layers):
         if big_data[ll]:
             p = processor_map[ll] >> (ffs(processor_map[ll]) & ~(tc.P_SHARED-1))
             while p:
                 if popcount(p & (tc.P_SHARED-1)) > 1:
-                    print(f"Layer {ll} uses CHW (big data) input format, buf multiple channels "
+                    print(f"Layer {ll} uses CHW (big data) input format, but multiple channels "
                           "share the same memory instance. Modify the processor map for "
                           f"layer {ll}.")
                     sys.exit(1)
                 p >>= tc.P_SHARED
+
+        out_expand[ll] = (output_chan[ll] + tc.MAX_PROC-1) // tc.MAX_PROC
+        out_expand_thresh[ll] = (output_chan[ll] + out_expand[ll]-1) // out_expand[ll]
+        in_expand[ll] = (input_chan[ll] + tc.MAX_PROC-1) // tc.MAX_PROC
+        in_expand_thresh[ll] = (input_chan[ll] + in_expand[ll]-1) // in_expand[ll]
+
+        # Data memory size check - 4 channels share one instance unless CHW format
+        in_size = input_dim[ll][0] * input_dim[ll][1] * in_expand[ll] \
+            * (1 if big_data[ll] else 4)
+        if in_size + in_offset[ll] > tc.INSTANCE_SIZE*16:
+            print(f'Layer {ll}: {1 if big_data[ll] else 4}-channel input size {in_size} '
+                  f'with input offset 0x{in_offset[ll]:04x} and expansion {in_expand[ll]}x '
+                  f'exceeds data memory instance size of {tc.INSTANCE_SIZE*16}.')
+            sys.exit(1)
+        out_size = output_dim[ll][0] * output_dim[ll][1] * out_expand[ll] \
+            * 4 * output_width[ll] // 8
+        if out_size + out_offset[ll] > tc.INSTANCE_SIZE*16:
+            print(f'Layer {ll}: 4-channel, {output_width[ll]}-bit output size {out_size} '
+                  f'with output offset 0x{out_offset[ll]:04x} and expansion {out_expand[ll]}x '
+                  f'exceeds data memory instance size of {tc.INSTANCE_SIZE*16}.')
+            sys.exit(1)
 
     # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
     test_name = prefix
@@ -122,17 +149,6 @@ def create_net(prefix, verbose, debug, debug_computation,
 
         apb.output('\n')
         apb.header()
-
-        # Calculate input and output expansion
-        in_expand = [0] * layers
-        out_expand = [0] * layers
-        in_expand_thresh = [0] * layers
-        out_expand_thresh = [0] * layers
-        for ll in range(layers):
-            out_expand[ll] = (output_chan[ll] + tc.MAX_PROC-1) // tc.MAX_PROC
-            out_expand_thresh[ll] = (output_chan[ll] + out_expand[ll]-1) // out_expand[ll]
-            in_expand[ll] = (input_chan[ll] + tc.MAX_PROC-1) // tc.MAX_PROC
-            in_expand_thresh[ll] = (input_chan[ll] + in_expand[ll]-1) // in_expand[ll]
 
         # Calculate the groups needed, and groups and processors used overall
         processors_used = 0
