@@ -30,8 +30,10 @@ from simulate import cnn_layer, linear_layer
 from utils import ffs, popcount
 
 
-def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwrite_ok, log,
-               apb_base, layers, processor_map, output_processor_map,
+def create_net(prefix, verbose, debug, debug_computation,
+               no_error_stop, overwrite_ok, log, apb_base,
+               layers, input_dim, pooled_dim, output_dim,
+               processor_map, output_processor_map,
                input_size, kernel_size, quantization,
                input_chan, output_chan, output_width, padding, dilation, stride,
                pool, pool_stride, pool_average, activate,
@@ -58,27 +60,12 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
                     sys.exit(1)
                 p >>= tc.P_SHARED
 
-    # Trace output sizes of the network and fix up all pool_stride values
-    # FIXME: Separate layer output from next layer's input in "dim" variable.
-    dim = [[input_size[1], input_size[2]]]
-    for ll in range(layers):
-        if pool[ll] > 0:
-            pooled_size = [(dim[ll][0] + pool_stride[ll] - pool[ll]) // pool_stride[ll],
-                           (dim[ll][1] + pool_stride[ll] - pool[ll]) // pool_stride[ll]]
-        else:
-            pool_stride[ll] = 1
-            pooled_size = dim[ll]
-        dim.append([(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
-                     2 * padding[ll]) // stride[ll] + 1,
-                    (pooled_size[1] - dilation[ll][1] * (kernel_size[ll][1] - 1) - 1 +
-                     2 * padding[ll]) // stride[ll] + 1])
-
     # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
     test_name = prefix
     if not embedded_code:
         for ll in range(layers):
             test_name += f'-{input_chan[ll]}' \
-                        f'x{dim[ll][0]}x{dim[ll][1]}' \
+                        f'x{input_dim[ll][0]}x{input_dim[ll][1]}' \
                         f'{"b" if big_data[ll] else "l"}_' \
                         f'{"avg" if pool_average[ll] and pool[ll] > 0 else ""}' \
                         f'{"max" if not pool_average[ll] and pool[ll] > 0 else ""}' \
@@ -121,7 +108,7 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
         apb.output(f'\n// Configuring {layers} layer{"s" if layers > 1 else ""}:\n')
 
         for ll in range(layers):
-            apb.output(f'// Layer {ll+1}: {input_chan[ll]}x{dim[ll][0]}x{dim[ll][1]} '
+            apb.output(f'// Layer {ll+1}: {input_chan[ll]}x{input_dim[ll][0]}x{input_dim[ll][1]} '
                        f'{"(CHW/big data)" if big_data[ll] else "(HWC/little data)"}, ')
             if pool[ll] > 0:
                 apb.output(f'{pool[ll]}x{pool[ll]} {"avg" if pool_average[ll] else "max"} '
@@ -130,7 +117,8 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
                 apb.output(f'no pooling')
             apb.output(f', {kernel_size[ll][0]}x{kernel_size[ll][1]} convolution '
                        f'with stride {stride[ll]} '
-                       f'pad {padding[ll]}, {output_chan[ll]}x{dim[ll+1][0]}x{dim[ll+1][1]} out\n')
+                       f'pad {padding[ll]}, '
+                       f'{output_chan[ll]}x{output_dim[ll][0]}x{output_dim[ll][1]} out\n')
 
         apb.output('\n')
         apb.header()
@@ -191,7 +179,7 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
             # Pre-define data memory loader. Inline later when generating RTL sim.
             load.load(embedded_code, apb, big_data[0], processor_map[0], in_offset[0],
                       input_size, input_chan[0], in_expand[0], in_expand_thresh[0],
-                      dim[0], data, padding[0], split=split, debug=debug)
+                      input_dim[0], data, padding[0], split=split, debug=debug)
             # Pre-define the kernels and bias values
             kern_offs, kern_len = \
                 kernels.load(verbose, embedded_code, apb, layers, kernel, kernel_size,
@@ -256,7 +244,7 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
         if verbose:
             print('\nGlobal configuration:')
             print('---------------------')
-            print(f'Used processors     = {processors_used:016x}')
+            print(f'Used processors     = 0x{processors_used:016x}')
             print(f'Used groups         = {groups_used}')
 
             print('\nPer-group configuration:')
@@ -265,24 +253,26 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
 
             print('\nPer-layer configuration:')
             print('------------------------')
+            print(f'Input dimensions    = {input_dim}')
             print(f'Input channels      = {input_chan}')
             print('Processor map       = [',
-                  ', '.join('{:016x}'.format(k) for k in processor_map), ']', sep='',)
+                  ', '.join('0x{:016x}'.format(k) for k in processor_map), ']', sep='',)
             if ai85:
                 print(f'Input expansion     = {in_expand}')
                 print(f'Expansion threshold = {in_expand_thresh}')
             print('Input offsets       = [',
-                  ', '.join('{:04x}'.format(k) for k in in_offset), ']', sep='',)
+                  ', '.join('0x{:04x}'.format(k) for k in in_offset), ']', sep='',)
 
+            print(f'Output dimensions   = {output_dim}')
             print(f'Output channels     = {output_chan}')
             print('Output processors   = [',
-                  ', '.join('{:016x}'.format(k) for k in output_processor_map), ']', sep='',)
+                  ', '.join('0x{:016x}'.format(k) for k in output_processor_map), ']', sep='',)
             if ai85:
                 print(f'Output expansion    = {out_expand}')
                 print(f'Expansion threshold = {out_expand_thresh}')
                 print(f'Output data bits    = {output_width}')
             print('Output offsets      = [',
-                  ', '.join('{:04x}'.format(k) for k in out_offset), ']', sep='',)
+                  ', '.join('0x{:04x}'.format(k) for k in out_offset), ']', sep='',)
 
             print(f'Group map           = {group_map}')
 
@@ -297,6 +287,7 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
             print(f'Bias offsets        = {bias_offs}')
             print(f'Pooling             = {pool}')
             print(f'Pooling stride      = {pool_stride}')
+            print(f'Pooled dimensions   = {pooled_dim}')
             print('')
 
         if verbose:
@@ -312,14 +303,14 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
                 # [7:0] maxcount: lower 8 bits = total of width + pad - 1
                 # [9:8] pad: 2 bits pad
                 apb.write_lreg(group, ll, tc.LREG_RCNT,
-                               (padding[ll] << 8) | (dim[ll][0]-1 + 2*padding[ll]),
+                               (padding[ll] << 8) | (input_dim[ll][0]-1 + 2*padding[ll]),
                                verbose, comment=' // Rows')
 
                 # Configure column count
                 # [7:0] width including padding - 1
                 # [9:8] pad count (0 = no pad, 1 = half pad, 2 = full pad)
                 apb.write_lreg(group, ll, tc.LREG_CCNT,
-                               padding[ll] << 8 | (dim[ll][1]-1 + 2 * padding[ll]),
+                               padding[ll] << 8 | (input_dim[ll][1]-1 + 2 * padding[ll]),
                                verbose, comment=' // Columns')
 
                 # Configure pooling row count
@@ -429,10 +420,9 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
 
                 # Configure tram pointer max
                 if pool[ll] > 0:
-                    val = max(0, (dim[ll][1] + pool_stride[ll] - pool[ll]) // pool_stride[ll] +
-                              2*padding[ll] - 3)
+                    val = max(0, pooled_dim[ll][1] + 2*padding[ll] - kernel_size[ll][1])
                 else:
-                    val = max(0, dim[ll][1] + 2*padding[ll] - 3)
+                    val = max(0, input_dim[ll][1] + 2*padding[ll] - kernel_size[ll][1])
                 apb.write_lreg(group, ll, tc.LREG_TPTR, val,
                                verbose, comment=' // TRAM ptr max')
 
@@ -481,7 +471,7 @@ def create_net(prefix, verbose, debug, debug_computation, no_error_stop, overwri
         else:
             load.load(embedded_code, apb, big_data[0], processor_map[0], in_offset[0],
                       input_size, input_chan[0], in_expand[0], in_expand_thresh[0],
-                      dim[0], data, padding[0], split=split, debug=debug)
+                      input_dim[0], data, padding[0], split=split, debug=debug)
 
         if verbose:
             print('\nGlobal registers:')
@@ -687,11 +677,33 @@ def main():
     data = sampledata.get(cfg['dataset'])
     input_size = list(data.shape)
 
+    # Trace output sizes of the network
+    # FIXME: Currently, input_dim[ll+1] == output_dim[ll]. Allow configuration override later
+    # to support 'parallel' layers.
+    input_dim = [[None, None]] * layers
+    pooled_dim = [[None, None]] * layers
+    output_dim = [[None, None]] * layers
+    input_dim[0] = [input_size[1], input_size[2]]
+    for ll in range(layers):
+        if input_dim[ll] == [None, None]:
+            input_dim[ll] = output_dim[ll-1]
+        if pool[ll] > 0:
+            pooled_size = [(input_dim[ll][0] + pool_stride[ll] - pool[ll]) // pool_stride[ll],
+                           (input_dim[ll][1] + pool_stride[ll] - pool[ll]) // pool_stride[ll]]
+        else:
+            pooled_size = input_dim[ll]
+        output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
+                           2 * padding[ll]) // stride[ll] + 1,
+                          (pooled_size[1] - dilation[ll][1] * (kernel_size[ll][1] - 1) - 1 +
+                           2 * padding[ll]) // stride[ll] + 1]
+        pooled_dim[ll] = pooled_size
+
     if not args.cmsis_software_nn:
         tn = create_net(args.prefix, args.verbose,
                         args.debug, args.debug_computation, args.no_error_stop,
-                        args.overwrite_ok, args.log, args.apb_base, layers, processor_map,
-                        output_processor_map,
+                        args.overwrite_ok, args.log, args.apb_base,
+                        layers, input_dim, pooled_dim, output_dim,
+                        processor_map, output_processor_map,
                         input_size, kernel_size, quantization,
                         input_channels, output_channels, output_width, padding,
                         dilation, stride,
@@ -707,7 +719,8 @@ def main():
             rtlsim.append_regression(args.top_level, tn, args.queue_name, args.autogen)
     else:
         cmsisnn.create_net(args.prefix, args.verbose, args.debug, args.log,
-                           layers, input_size, kernel_size, quantization,
+                           layers, input_dim, pooled_dim, output_dim,
+                           input_size, kernel_size, quantization,
                            input_channels, output_channels, output_width, padding,
                            dilation, stride,
                            pool, pool_stride, pool_average, activate,
