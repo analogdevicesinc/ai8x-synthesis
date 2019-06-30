@@ -15,7 +15,9 @@ import toplevel
 from simulate import cnn_layer, linear_layer
 
 
-def create_net(prefix, verbose, debug, log, layers, input_size, kernel_size,
+def create_net(prefix, verbose, debug, log,
+               layers, input_dim, pooled_dim, output_dim,
+               input_size, kernel_size,
                quantization, input_chan, output_chan, output_width, padding, dilation, stride,
                pool, pool_stride, pool_average, activate,
                data, kernel, bias, fc_weights, fc_bias,
@@ -27,22 +29,6 @@ def create_net(prefix, verbose, debug, log, layers, input_size, kernel_size,
     if any(w != 8 for w in output_width):
         print('CMSIS network generator does not currently support `output_width` that is not 8.')
         sys.exit(1)
-
-    # Trace output sizes of the network and fix up all pool_stride values
-    dim = [[input_size[1], input_size[2]]]
-    pooled_size = []
-    for ll in range(layers):
-        if pool[ll] > 0:
-            p_size = [(dim[ll][0] + pool_stride[ll] - pool[ll]) // pool_stride[ll],
-                      (dim[ll][1] + pool_stride[ll] - pool[ll]) // pool_stride[ll]]
-        else:
-            pool_stride[ll] = 1
-            p_size = dim[ll]
-        dim.append([(p_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
-                     2 * padding[ll]) // stride[ll] + 1,
-                    (p_size[1] - dilation[ll][1] * (kernel_size[ll][1] - 1) - 1 +
-                     2 * padding[ll]) // stride[ll] + 1])
-        pooled_size.append(p_size)
 
     test_name = prefix
     print(f'{test_name}...')
@@ -70,7 +56,8 @@ def create_net(prefix, verbose, debug, log, layers, input_size, kernel_size,
         c_file.write(f'\n// Configuring {layers} layer{"s" if layers > 1 else ""}:\n')
 
         for ll in range(layers):
-            c_file.write(f'// Layer {ll+1}: {input_chan[ll]}x{dim[ll][0]}x{dim[ll][1]}, ')
+            c_file.write(f'// Layer {ll+1}: '
+                         f'{input_chan[ll]}x{input_dim[ll][0]}x{input_dim[ll][1]}, ')
             if pool[ll] > 0:
                 c_file.write(f'{pool[ll]}x{pool[ll]} {"avg" if pool_average[ll] else "max"} '
                              f'pool with stride {pool_stride[ll]}')
@@ -79,7 +66,7 @@ def create_net(prefix, verbose, debug, log, layers, input_size, kernel_size,
             c_file.write(f', {kernel_size[ll][0]}x{kernel_size[ll][1]} convolution '
                          f'with stride {stride[ll]} '
                          f'pad {padding[ll]}, '
-                         f'{output_chan[ll]}x{dim[ll+1][0]}x{dim[ll+1][1]} out\n')
+                         f'{output_chan[ll]}x{output_dim[ll][0]}x{output_dim[ll][1]} out\n')
 
         c_file.write('\n')
         toplevel.header(c_file, 0, embedded_code=True, cmsis_nn=True)
@@ -119,7 +106,8 @@ def create_net(prefix, verbose, debug, log, layers, input_size, kernel_size,
         for ll in range(layers):
             col_buffer_size = max(col_buffer_size,
                                   2*input_chan[ll]*kernel_size[ll][0]*kernel_size[ll][1])
-            img_buffer_size = max(img_buffer_size, input_chan[ll]*dim[ll][0]*dim[ll][1])
+            img_buffer_size = max(img_buffer_size,
+                                  input_chan[ll]*input_dim[ll][0]*input_dim[ll][1])
 
         c_file.write(f'static q7_t buffer0[{img_buffer_size}];\n')
         c_file.write(f'static q7_t buffer1[{img_buffer_size}];\n')
@@ -134,7 +122,7 @@ def create_net(prefix, verbose, debug, log, layers, input_size, kernel_size,
         for ll in range(layers):
             c_file.write(f'  // Layer {ll}: {input_size} -> ')
             if pool[ll]:
-                c_file.write(f'[{input_size[0]}, {pooled_size[ll][0]}, {pooled_size[ll][1]}] -> ')
+                c_file.write(f'[{input_size[0]}, {pooled_dim[ll][0]}, {pooled_dim[ll][1]}] -> ')
             out_buf, out_size = cnn_layer(ll + 1, verbose,
                                           input_size, kernel_size[ll], quantization[ll],
                                           output_chan[ll],
@@ -155,28 +143,28 @@ def create_net(prefix, verbose, debug, log, layers, input_size, kernel_size,
 
             if pool[ll]:
                 if pool_average[ll]:
-                    c_file.write(f'  arm_avepool_q7_HWC({buffer0}, {dim[ll][0]}, '
+                    c_file.write(f'  arm_avepool_q7_HWC({buffer0}, {input_dim[ll][0]}, '
                                  f'{input_chan[ll]}, {pool[ll]}, 0, {pool_stride[ll]}, '
-                                 f'{pooled_size[ll][0]}, NULL, {buffer1});\n')
+                                 f'{pooled_dim[ll][0]}, NULL, {buffer1});\n')
                 else:
-                    c_file.write(f'  arm_maxpool_q7_HWC({buffer0}, {dim[ll][0]}, '
+                    c_file.write(f'  arm_maxpool_q7_HWC({buffer0}, {input_dim[ll][0]}, '
                                  f'{input_chan[ll]}, {pool[ll]}, 0, {pool_stride[ll]}, '
-                                 f'{pooled_size[ll][0]}, NULL, {buffer1});\n')
+                                 f'{pooled_dim[ll][0]}, NULL, {buffer1});\n')
                 n = buffer0
                 buffer0 = buffer1
                 buffer1 = n
 
             source = 'input_data' if ll == 0 else buffer0
             fn = 'fast' if input_chan[ll] % 4 == 0 and output_chan[ll] % 2 == 0 else 'basic'
-            c_file.write(f'  arm_convolve_HWC_q7_{fn}({source}, {pooled_size[ll][0]}, '
+            c_file.write(f'  arm_convolve_HWC_q7_{fn}({source}, {pooled_dim[ll][0]}, '
                          f'{input_chan[ll]}, weights_{ll}, {output_chan[ll]}, '
                          f'{kernel_size[ll][0]}, '
                          f'{padding[ll]}, {stride[ll]}, bias_{ll}, 0, 7, {buffer1}, '
-                         f'{dim[ll+1][0]}, col_buffer, NULL);\n')
+                         f'{output_dim[ll][0]}, col_buffer, NULL);\n')
 
             if activate[ll]:
                 c_file.write(f'  arm_relu_q7({buffer1}, '
-                             f'{dim[ll+1][0] * dim[ll+1][1] * output_chan[ll]});\n')
+                             f'{output_dim[ll][0] * output_dim[ll][1] * output_chan[ll]});\n')
             n = buffer0
             buffer0 = buffer1
             buffer1 = n

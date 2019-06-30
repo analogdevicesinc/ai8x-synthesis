@@ -57,7 +57,7 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
     padding = [1] * tc.MAX_LAYERS
     pool = [0] * tc.MAX_LAYERS
     average = [0] * tc.MAX_LAYERS
-    pool_stride = [0] * tc.MAX_LAYERS
+    pool_stride = [1] * tc.MAX_LAYERS
     quantization = [8] * tc.MAX_LAYERS
     output_offset = [0] * tc.MAX_LAYERS
     relu = [0] * tc.MAX_LAYERS
