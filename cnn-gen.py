@@ -121,8 +121,8 @@ def create_net(prefix, verbose, debug, debug_computation,
                          f'{"b" if big_data[ll] else "l"}_' \
                          f'{"avg" if pool_average[ll] and pool[ll][0] > 0 else ""}' \
                          f'{"max" if not pool_average[ll] and pool[ll][0] > 0 else ""}' \
-                         f'{pool_str[ll]}s{pool_stride_str[ll].replace("/", "-")}' \
-                         f'p{padding_str[ll].replace("/", "-")}' \
+                         f'{pool_str[ll]}s{pool_stride[ll][0]}' \
+                         f'p{padding[ll][0]}' \
                          f'm{output_chan[ll]}' \
                          f'{"_relu" if activate[ll] else ""}'
     print(f'{test_name}...')
@@ -340,19 +340,27 @@ def create_net(prefix, verbose, debug, debug_computation,
             for ll in range(layers):
                 apb.output(f'\n  // Group {group} layer {ll}\n')
 
-                # Configure row count
-                # [7:0] maxcount: lower 8 bits = total of width + pad - 1
-                # [9:8] pad: 2 bits pad
-                apb.write_lreg(group, ll, tc.LREG_RCNT,
-                               (padding[ll][0] << 8) | (input_dim[ll][0]-1 + 2*padding[ll][0]),
-                               verbose, comment=' // Rows')
+                if convolution[ll] == 2:
+                    # Configure row count
+                    # [7:0] maxcount: lower 8 bits = total of width + pad - 1
+                    # [9:8] pad: 2 bits pad
+                    apb.write_lreg(group, ll, tc.LREG_RCNT,
+                                   (padding[ll][0] << 8) | (input_dim[ll][0]-1 + 2*padding[ll][0]),
+                                   verbose, comment=' // Rows')
 
-                # Configure column count
-                # [7:0] width including padding - 1
-                # [9:8] pad count (0 = no pad, 1 = half pad, 2 = full pad)
-                apb.write_lreg(group, ll, tc.LREG_CCNT,
-                               padding[ll][1] << 8 | (input_dim[ll][1]-1 + 2 * padding[ll][1]),
-                               verbose, comment=' // Columns')
+                    # Configure column count
+                    # [7:0] width including padding - 1
+                    # [9:8] pad count (0 = no pad, 1 = half pad, 2 = full pad)
+                    apb.write_lreg(group, ll, tc.LREG_CCNT,
+                                   padding[ll][1] << 8 | (input_dim[ll][1]-1 + 2 * padding[ll][1]),
+                                   verbose, comment=' // Columns')
+                else:
+                    val = ((padding[ll][0] << 8)
+                           | ((input_dim[ll][0] + 2*padding[ll][0]) + 2) // 3 - 1)
+                    apb.write_lreg(group, ll, tc.LREG_RCNT, val,
+                                   verbose, comment=' // Rows')
+                    apb.write_lreg(group, ll, tc.LREG_CCNT, 2,
+                                   verbose, comment=' // Columns')
 
                 # Configure pooling row count
                 apb.write_lreg(group, ll, tc.LREG_PRCNT, max(1, pool[ll][0]-1),
@@ -466,7 +474,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                     else:
                         val = max(0, input_dim[ll][1] + 2*padding[ll][1] - kernel_size[ll][1])
                 else:
-                    val = max(0, pooled_dim[ll][0] + 2*padding[ll][0] - kernel_size[ll][0])
+                    val = 0
                 apb.write_lreg(group, ll, tc.LREG_TPTR, val,
                                verbose, comment=' // TRAM ptr max')
 
@@ -780,6 +788,11 @@ def main():
                               (pooled_size[1] - dilation[ll][1] * (kernel_size[ll][1] - 1) - 1 +
                                2 * padding[ll][1]) // stride[ll][1] + 1]
         else:
+            # FIXME: Consider padding?
+            if pooled_size[0] % 3 != 0:
+                print(f'1D convolution in layer {ll} requires a multiple of 3 for the '
+                      f'pooled input length (currently {pooled_size[0]})')
+                sys.exit(1)
             output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
                                2 * padding[ll][0]) // stride[ll][0] + 1,
                               1]

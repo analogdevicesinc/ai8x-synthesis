@@ -29,10 +29,6 @@ def create_net(prefix, verbose, debug, log,
     if any(w != 8 for w in output_width):
         print('CMSIS network generator does not currently support `output_width` that is not 8.')
         sys.exit(1)
-    if any(c != 2 for c in convolution):
-        # FIXME: Does Arm have code for 1D Convolution?
-        print('CMSIS network generator does not currently support `convolution` that is not 2D.')
-        sys.exit(1)
 
     test_name = prefix
     print(f'{test_name}...')
@@ -125,10 +121,9 @@ def create_net(prefix, verbose, debug, log,
 
         for ll in range(layers):
             c_file.write(f'  // Layer {ll}: {input_size} -> ')
+            if pool[ll][0]:
+                c_file.write(f'[{input_size[0]}, {pooled_dim[ll][0]}, {pooled_dim[ll][1]}] -> ')
             if convolution[ll] == 2:
-                if pool[ll][0]:
-                    c_file.write(f'[{input_size[0]}, {pooled_dim[ll][0]}, '
-                                 f'{pooled_dim[ll][1]}] -> ')
                 out_buf, out_size = cnn2d_layer(ll + 1, verbose,
                                                 input_size, kernel_size[ll], quantization[ll],
                                                 output_chan[ll],
@@ -146,8 +141,6 @@ def create_net(prefix, verbose, debug, log,
                                                 ai85=ai85,
                                                 debug=debug)
             else:
-                if pool[ll]:
-                    c_file.write(f'[{input_size[0]}, {pooled_dim[ll][0]}] -> ')
                 out_buf, out_size = cnn1d_layer(ll + 1, verbose,
                                                 input_size, kernel_size[ll][0], quantization[ll],
                                                 output_chan[ll],
@@ -155,7 +148,7 @@ def create_net(prefix, verbose, debug, log,
                                                 stride[ll][0],
                                                 pool[ll][0],
                                                 pool_stride[ll][0],
-                                                pool_average[ll][0],
+                                                pool_average[ll],
                                                 activate[ll],
                                                 kernel[ll].reshape(output_chan[ll], input_size[0],
                                                                    kernel_size[ll][0]),
@@ -166,6 +159,7 @@ def create_net(prefix, verbose, debug, log,
             c_file.write(f'{out_size}\n')
 
             if pool[ll][0]:
+                # FIXME: Add support for non-square pooling
                 if pool_average[ll]:
                     c_file.write(f'  arm_avepool_q7_HWC({buffer0}, {input_dim[ll][0]}, '
                                  f'{input_chan[ll]}, {pool[ll][0]}, 0, {pool_stride[ll][0]}, '
@@ -179,13 +173,34 @@ def create_net(prefix, verbose, debug, log,
                 buffer1 = n
 
             source = 'input_data' if ll == 0 else buffer0
-            fn = 'fast' if input_chan[ll] % 4 == 0 and output_chan[ll] % 2 == 0 else 'basic'
-            # FIXME: Add support for non-square (kernel_size, padding, stride)
-            c_file.write(f'  arm_convolve_HWC_q7_{fn}({source}, {pooled_dim[ll][0]}, '
-                         f'{input_chan[ll]}, weights_{ll}, {output_chan[ll]}, '
-                         f'{kernel_size[ll][0]}, '
-                         f'{padding[ll][0]}, {stride[ll][0]}, bias_{ll}, 0, 7, {buffer1}, '
-                         f'{output_dim[ll][0]}, col_buffer, NULL);\n')
+
+            # Check for squareness
+            if kernel_size[ll][0] == kernel_size[ll][1] \
+               and pooled_dim[ll][0] == pooled_dim[ll][1] \
+               and output_dim[ll][0] == output_dim[ll][1] \
+               and padding[ll][0] == padding[ll][1] \
+               and stride[ll][0] == stride[ll][1]:
+                fn = 'fast' if input_chan[ll] % 4 == 0 and output_chan[ll] % 2 == 0 else 'basic'
+                c_file.write(f'  arm_convolve_HWC_q7_{fn}({source}, '
+                             f'{pooled_dim[ll][0]}, '
+                             f'{input_chan[ll]}, weights_{ll}, {output_chan[ll]}, '
+                             f'{kernel_size[ll][0]}, '
+                             f'{padding[ll][0]}, '
+                             f'{stride[ll][0]}, '
+                             f'bias_{ll}, 0, 7, {buffer1}, '
+                             f'{output_dim[ll][0]}, '
+                             'col_buffer, NULL);\n')
+            else:
+                c_file.write(f'  arm_convolve_HWC_q7_basic_nonsquare({source}, '
+                             f'{pooled_dim[ll][0]}, {pooled_dim[ll][1]}, '
+                             f'{input_chan[ll]}, weights_{ll}, {output_chan[ll]}, '
+                             f'{kernel_size[ll][0]}, {kernel_size[ll][1]}, '
+                             f'{padding[ll][0]}, {padding[ll][1]}, '
+                             f'{stride[ll][0]}, {stride[ll][1]},\n'
+                             '                                      '
+                             f'bias_{ll}, 0, 7, {buffer1}, '
+                             f'{output_dim[ll][0]}, {output_dim[ll][1]}, '
+                             'col_buffer, NULL);\n')
 
             if activate[ll]:
                 c_file.write(f'  arm_relu_q7({buffer1}, '
@@ -224,10 +239,9 @@ def create_net(prefix, verbose, debug, log,
 
             toplevel.fc_layer(c_file, weight_header, w, fc_bias[0], cmsis_nn=True)
 
-        c_file.write('int main(void)\n{\n')
-        if fc_weights:
-            c_file.write('  int i;\n\n')
-        c_file.write('  cnn_run();\n')
+        c_file.write('int main(void)\n{\n'
+                     '  int i;\n\n'
+                     '  cnn_run();\n')
         if fc_weights:
             c_file.write(f'  fc_layer({buffer0});\n\n')
             c_file.write('  printf("Classification results:\\n");\n'
@@ -235,6 +249,18 @@ def create_net(prefix, verbose, debug, log,
                          '    printf("[%6d] -> Class %d: %0.1f%%\\n", fc_output[i], i, '
                          '(double) (100.0 * fc_softmax[i] / 32768.0));\n'
                          '  }\n\n')
+        else:
+            c_file.write('  printf("Output of final layer:\\n");\n'
+                         '  for (i = 0; i < '
+                         f'{output_dim[ll][0] * output_dim[ll][1] * output_chan[ll]}; '
+                         'i++) {\n'
+                         f'    printf("%02x", {buffer0}[i] & 0xff);\n'
+                         '    if ((i + 1) % 32 == 0)\n      printf("\\n");\n'
+                         '    else if ((i + 1) % 4 == 0)\n      printf(" ");\n'
+                         '  }\n'
+                         '  printf("\\n");\n'
+                         '\n')
+
         c_file.write('  return 0;\n}\n\n')
 
     # Close header files
