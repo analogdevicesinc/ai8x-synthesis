@@ -12,11 +12,11 @@ import os
 import sys
 import numpy as np
 import toplevel
-from simulate import cnn_layer, linear_layer
+from simulate import cnn1d_layer, cnn2d_layer, linear_layer
 
 
 def create_net(prefix, verbose, debug, log,
-               layers, input_dim, pooled_dim, output_dim,
+               layers, convolution, input_dim, pooled_dim, output_dim,
                input_size, kernel_size,
                quantization, input_chan, output_chan, output_width, padding, dilation, stride,
                pool, pool_stride, pool_average, activate,
@@ -28,6 +28,9 @@ def create_net(prefix, verbose, debug, log,
     """
     if any(w != 8 for w in output_width):
         print('CMSIS network generator does not currently support `output_width` that is not 8.')
+        sys.exit(1)
+    if any(c != 2 for c in convolution):
+        print('CMSIS network generator does not currently support `convolution` that is not 2D.')
         sys.exit(1)
 
     test_name = prefix
@@ -121,24 +124,44 @@ def create_net(prefix, verbose, debug, log,
 
         for ll in range(layers):
             c_file.write(f'  // Layer {ll}: {input_size} -> ')
-            if pool[ll]:
-                c_file.write(f'[{input_size[0]}, {pooled_dim[ll][0]}, {pooled_dim[ll][1]}] -> ')
-            out_buf, out_size = cnn_layer(ll + 1, verbose,
-                                          input_size, kernel_size[ll], quantization[ll],
-                                          output_chan[ll],
-                                          [padding[ll], padding[ll]], dilation[ll],
-                                          [stride[ll], stride[ll]],
-                                          [pool[ll], pool[ll]],
-                                          [pool_stride[ll], pool_stride[ll]],
-                                          pool_average[ll],
-                                          activate[ll],
-                                          kernel[ll].reshape(output_chan[ll], input_size[0],
-                                                             kernel_size[ll][0],
-                                                             kernel_size[ll][1]),
-                                          bias[ll],
-                                          data,
-                                          ai85=ai85,
-                                          debug=debug)
+            if convolution[ll] == 2:
+                if pool[ll]:
+                    c_file.write(f'[{input_size[0]}, {pooled_dim[ll][0]}, '
+                                 f'{pooled_dim[ll][1]}] -> ')
+                out_buf, out_size = cnn2d_layer(ll + 1, verbose,
+                                                input_size, kernel_size[ll], quantization[ll],
+                                                output_chan[ll],
+                                                [padding[ll], padding[ll]], dilation[ll],
+                                                [stride[ll], stride[ll]],
+                                                [pool[ll], pool[ll]],
+                                                [pool_stride[ll], pool_stride[ll]],
+                                                pool_average[ll],
+                                                activate[ll],
+                                                kernel[ll].reshape(output_chan[ll], input_size[0],
+                                                                   kernel_size[ll][0],
+                                                                   kernel_size[ll][1]),
+                                                bias[ll],
+                                                data,
+                                                ai85=ai85,
+                                                debug=debug)
+            else:
+                if pool[ll]:
+                    c_file.write(f'[{input_size[0]}, {pooled_dim[ll][0]}] -> ')
+                out_buf, out_size = cnn1d_layer(ll + 1, verbose,
+                                                input_size, kernel_size[ll][0], quantization[ll],
+                                                output_chan[ll],
+                                                padding[ll], dilation[ll][0],
+                                                stride[ll],
+                                                pool[ll],
+                                                pool_stride[ll],
+                                                pool_average[ll][0],
+                                                activate[ll],
+                                                kernel[ll].reshape(output_chan[ll], input_size[0],
+                                                                   kernel_size[ll][0]),
+                                                bias[ll],
+                                                data,
+                                                ai85=ai85,
+                                                debug=debug)
             c_file.write(f'{out_size}\n')
 
             if pool[ll]:

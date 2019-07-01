@@ -1,0 +1,12 @@
+# Test Conv1D
+
+arch: test
+dataset: test_conv1d
+
+layers:
+- pad: 0
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0x0000000000000111
+  convolution: conv1d
+

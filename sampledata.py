@@ -4991,6 +4991,15 @@ def get(dataset):
             ],
             dtype=np.int64,
         )
+    elif dataset == 'test_conv1d':
+        data = np.array([[-31, 45, 119, 29, 103, 127, -92, -42, 13,
+                          127, 127, 105, -128, 40, -128, 25, -34],
+                         [-81, 127, 54, -25, -23, 49, 19, 96, 127,
+                          67, -128, -8, -128, 108, 80, 127, -90],
+                         [-128, -128, 64, 25, 127, 26, 127, -112,
+                          -128, -62, -60, 127, -47, 61, -128, -67, -33]],
+                        dtype=np.int64)
+        data = np.expand_dims(data, axis=-1)  # Empty dimension makes data loader work right
     else:
         print(f"No sample data for dataset `{dataset}`.")
         sys.exit(1)

@@ -13,7 +13,7 @@ import yaml
 import tornadocnn as tc
 
 
-SUPPORTED_DATASETS = ['mnist', 'fashionmnist', 'cifar-10']
+SUPPORTED_DATASETS = ['mnist', 'fashionmnist', 'cifar-10', 'test_conv1d']
 
 
 def parse(config_file, ai85=False):  # pylint: disable=unused-argument
@@ -63,10 +63,16 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
     relu = [0] * tc.MAX_LAYERS
     big_data = [False] * tc.MAX_LAYERS
     output_width = [8] * tc.MAX_LAYERS
+    convolution = [2] * tc.MAX_LAYERS
+    # We don't support changing the following (yet), but leave as parameters:
+    dilation = [[1, 1]] * tc.MAX_LAYERS
+    kernel_size = [[3, 3]] * tc.MAX_LAYERS
+    stride = [1] * tc.MAX_LAYERS
 
     sequence = 0
     for ll in cfg['layers']:
-        if bool(set(ll) - set(['max_pool', 'avg_pool', 'in_offset', 'pool_stride', 'out_offset',
+        if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution',
+                               'in_offset', 'pool_stride', 'out_offset',
                                'activate', 'data_format', 'output_processors', 'output_width',
                                'processors', 'pad', 'quantization', 'sequence'])):
             print(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
@@ -118,6 +124,16 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
                 error_exit(f'Unknown value "{ll["activate"]}" for `activate`', sequence)
                 sys.exit(1)
 
+        if 'convolution' in ll:
+            conv = ll['convolution'].lower()
+            if conv == 'conv1d':
+                convolution[sequence] = 1
+            elif conv == 'conv2d':
+                convolution[sequence] = 2
+            else:
+                error_exit(f'Unknown value "{ll["convolution"]}" for `convolution`', sequence)
+                sys.exit(1)
+
         if 'data_format' in ll:
             if sequence:
                 error_exit('`data_format` can only be configured for the first layer', sequence)
@@ -153,6 +169,10 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
             del quantization[ll]
             del output_map[ll]
             del output_width[ll]
+            del convolution[ll]
+            del dilation[ll]
+            del kernel_size[ll]
+            del stride[ll]
 
     # Check all but last layer
     for ll in range(len(output_map) - 1):
@@ -175,6 +195,11 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
     if output_width[-1] != 8 and relu[-1]:
         error_exit('`output_width` must be 8 when activation is used', len(relu))
 
+    # Fix up defaults for Conv1D:
+    for ll, e in enumerate(convolution):
+        if e == 1:
+            kernel_size[ll] = [9, 1]
+
     settings = {}
     settings['padding'] = padding
     settings['pool'] = pool
@@ -188,10 +213,9 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
     settings['quantization'] = quantization
     settings['output_processor_map'] = output_map
     settings['output_width'] = output_width
-
-    # We don't support changing the following, but leave as parameters
-    settings['dilation'] = [[1, 1]] * len(cfg['layers'])
-    settings['kernel_size'] = [[3, 3]] * len(cfg['layers'])
-    settings['stride'] = [1] * len(cfg['layers'])
+    settings['convolution'] = convolution
+    settings['dilation'] = dilation
+    settings['kernel_size'] = kernel_size
+    settings['stride'] = stride
 
     return cfg, settings

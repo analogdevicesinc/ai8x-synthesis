@@ -75,7 +75,8 @@ def combine_bias(b, quantization, start, out_chan):
 
 
 def load(verbose, embedded_code, apb, layers, kernel, _kernel_size, quantization, processor_map,
-         output_processor_map, input_chan, output_chan, out_expand, out_expand_thresh, debug=False):
+         output_processor_map, input_chan, output_chan, out_expand, out_expand_thresh,
+         debug=False):
     """
     Stack `kernel` values and write them to C code (for `embedded_code` if `True` or
     RTL simulation). The output is written to the `apb` object.
