@@ -768,6 +768,16 @@ def main():
                               1]
         pooled_dim[ll] = pooled_size
 
+        # Check for max dimensions
+        if any(dim > tc.MAX_ROW_COL for dim in input_dim[ll]):
+            print(f'Input dimension {input_dim[ll]} exceeds system maximum of '
+                  f'{tc.MAX_ROW_COL} in layer {ll}.')
+            sys.exit(1)
+        if any(dim > tc.MAX_ROW_COL for dim in output_dim[ll]):
+            print(f'Output dimension {output_dim[ll]} exceeds system maximum of '
+                  f'{tc.MAX_ROW_COL} in layer {ll}.')
+            sys.exit(1)
+
     if not args.cmsis_software_nn:
         tn = create_net(args.prefix, args.verbose,
                         args.debug, args.debug_computation, args.no_error_stop,

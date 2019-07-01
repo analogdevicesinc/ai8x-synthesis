@@ -1,7 +1,7 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_6/30/2019_
+_7/1/2019_
 
 _Open this file in a markdown enabled viewer, for example Visual Studio Code
 (https://code.visualstudio.com)._
@@ -422,6 +422,7 @@ The AI84 hardware does not support arbitrary network parameters. Specifically,
 * The `Conv2D` stride is fixed to 1. However, the pooling stride can be 1, 2, or 4.
 * The number of input or output channels must not exceed 64.
 * The number of layers must not exceed 32.
+* The maximum dimension for input or output data is 256.
 * Overall weight storage is limited to 64*128 3x3 kernels. However, weights must be arranged
   in a certain order, see above.
 * The hardware supports only 2D convolution layers. For convenience, a single final fully
