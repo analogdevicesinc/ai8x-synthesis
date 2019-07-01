@@ -23,16 +23,17 @@ import kernels
 import load
 import rtlsim
 import sampledata
+import sampleweight
 import stats
 import tornadocnn as tc
 import yamlcfg
-from simulate import cnn_layer, linear_layer
+from simulate import cnn1d_layer, cnn2d_layer, linear_layer
 from utils import ffs, popcount
 
 
 def create_net(prefix, verbose, debug, debug_computation,
                no_error_stop, overwrite_ok, log, apb_base,
-               layers, input_dim, pooled_dim, output_dim,
+               layers, convolution, input_dim, pooled_dim, output_dim,
                processor_map, output_processor_map,
                input_size, kernel_size, quantization,
                input_chan, output_chan, output_width, padding, dilation, stride,
@@ -52,6 +53,11 @@ def create_net(prefix, verbose, debug, debug_computation,
     out_expand = [0] * layers
     in_expand_thresh = [0] * layers
     out_expand_thresh = [0] * layers
+
+    input_dim_str = [None] * layers
+    output_dim_str = [None] * layers
+    kernel_size_str = [None] * layers
+    pool_str = [None] * layers
 
     # Check that input channels are in separate memory instances if CHW (big) data format is used,
     # and calculate input and output expansion
@@ -87,19 +93,29 @@ def create_net(prefix, verbose, debug, debug_computation,
                   f'exceeds data memory instance size of {tc.INSTANCE_SIZE*16}.')
             sys.exit(1)
 
+        if convolution[ll] == 2:
+            input_dim_str[ll] = f'{input_dim[ll][0]}x{input_dim[ll][1]}'
+            output_dim_str[ll] = f'{output_dim[ll][0]}x{output_dim[ll][1]}'
+            kernel_size_str[ll] = f'{kernel_size[ll][0]}x{kernel_size[ll][1]}'
+            pool_str[ll] = f'{pool[ll]}x{pool[ll]}'
+        else:
+            input_dim_str[ll] = f'{input_dim[ll][0]}'
+            output_dim_str[ll] = f'{output_dim[ll][0]}'
+            kernel_size_str[ll] = f'{kernel_size[ll][0]}'
+            pool_str[ll] = f'{pool[ll]}'
+
     # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
     test_name = prefix
     if not embedded_code:
         for ll in range(layers):
-            test_name += f'-{input_chan[ll]}' \
-                        f'x{input_dim[ll][0]}x{input_dim[ll][1]}' \
-                        f'{"b" if big_data[ll] else "l"}_' \
-                        f'{"avg" if pool_average[ll] and pool[ll] > 0 else ""}' \
-                        f'{"max" if not pool_average[ll] and pool[ll] > 0 else ""}' \
-                        f'{pool[ll]}x{pool[ll]}s{pool_stride[ll]}' \
-                        f'p{padding[ll]}' \
-                        f'm{output_chan[ll]}' \
-                        f'{"_relu" if activate[ll] else ""}'
+            test_name += f'-{input_chan[ll]}x{input_dim_str[ll]}' \
+                         f'{"b" if big_data[ll] else "l"}_' \
+                         f'{"avg" if pool_average[ll] and pool[ll] > 0 else ""}' \
+                         f'{"max" if not pool_average[ll] and pool[ll] > 0 else ""}' \
+                         f'{pool_str[ll]}s{pool_stride[ll]}' \
+                         f'p{padding[ll]}' \
+                         f'm{output_chan[ll]}' \
+                         f'{"_relu" if activate[ll] else ""}'
     print(f'{test_name}...')
 
     os.makedirs(os.path.join(base_directory, test_name), exist_ok=True)
@@ -135,17 +151,17 @@ def create_net(prefix, verbose, debug, debug_computation,
         apb.output(f'\n// Configuring {layers} layer{"s" if layers > 1 else ""}:\n')
 
         for ll in range(layers):
-            apb.output(f'// Layer {ll+1}: {input_chan[ll]}x{input_dim[ll][0]}x{input_dim[ll][1]} '
+            apb.output(f'// Layer {ll+1}: {input_chan[ll]}x{input_dim_str[ll]} '
                        f'{"(CHW/big data)" if big_data[ll] else "(HWC/little data)"}, ')
             if pool[ll] > 0:
-                apb.output(f'{pool[ll]}x{pool[ll]} {"avg" if pool_average[ll] else "max"} '
+                apb.output(f'{pool_str[ll]} {"avg" if pool_average[ll] else "max"} '
                            f'pool with stride {pool_stride[ll]}')
             else:
                 apb.output(f'no pooling')
-            apb.output(f', {kernel_size[ll][0]}x{kernel_size[ll][1]} convolution '
+            apb.output(f', {kernel_size_str[ll]} {convolution[ll]}D convolution '
                        f'with stride {stride[ll]} '
                        f'pad {padding[ll]}, '
-                       f'{output_chan[ll]}x{output_dim[ll][0]}x{output_dim[ll][1]} out\n')
+                       f'{output_chan[ll]}x{output_dim_str[ll]} out\n')
 
         apb.output('\n')
         apb.header()
@@ -522,22 +538,41 @@ def create_net(prefix, verbose, debug, debug_computation,
 
     # Compute layer-by-layer output and chain results into input
     for ll in range(layers):
-        out_buf, out_size = cnn_layer(ll + 1, verbose,
-                                      input_size, kernel_size[ll], quantization[ll],
-                                      output_chan[ll],
-                                      [padding[ll], padding[ll]], dilation[ll],
-                                      [stride[ll], stride[ll]],
-                                      [pool[ll], pool[ll]],
-                                      [pool_stride[ll], pool_stride[ll]],
-                                      pool_average[ll],
-                                      activate[ll],
-                                      kernel[ll].reshape(output_chan[ll], input_size[0],
-                                                         kernel_size[ll][0], kernel_size[ll][1]),
-                                      bias[ll],
-                                      data,
-                                      output_width=output_width[ll],
-                                      ai85=ai85,
-                                      debug=debug_computation)
+        if convolution[ll] == 2:
+            out_buf, out_size = cnn2d_layer(ll + 1, verbose,
+                                            input_size, kernel_size[ll], quantization[ll],
+                                            output_chan[ll],
+                                            [padding[ll], padding[ll]], dilation[ll],
+                                            [stride[ll], stride[ll]],
+                                            [pool[ll], pool[ll]],
+                                            [pool_stride[ll], pool_stride[ll]],
+                                            pool_average[ll],
+                                            activate[ll],
+                                            kernel[ll].reshape(output_chan[ll], input_size[0],
+                                                               kernel_size[ll][0],
+                                                               kernel_size[ll][1]),
+                                            bias[ll],
+                                            data,
+                                            output_width=output_width[ll],
+                                            ai85=ai85,
+                                            debug=debug_computation)
+        else:
+            out_buf, out_size = cnn1d_layer(ll + 1, verbose,
+                                            input_size, kernel_size[ll][0], quantization[ll],
+                                            output_chan[ll],
+                                            padding[ll], dilation[ll][0],
+                                            stride[ll],
+                                            pool[ll],
+                                            pool_stride[ll],
+                                            pool_average[ll],
+                                            activate[ll],
+                                            kernel[ll].reshape(output_chan[ll], input_size[0],
+                                                               kernel_size[ll][0]),
+                                            bias[ll],
+                                            data,
+                                            output_width=output_width[ll],
+                                            ai85=ai85,
+                                            debug=debug_computation)
 
         # Write .mem file for output or create the C cnn_check() function to verify the output
         out_map = [None] * tc.C_GROUP_OFFS * tc.P_NUMGROUPS
@@ -623,9 +658,15 @@ def main():
     # Load configuration file
     cfg, params = yamlcfg.parse(args.config_file, args.ai85)
 
-    # Load weights and biases. This also configures the network's output channels.
-    layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
-        checkpoint.load(args.checkpoint_file, cfg['arch'], args.fc_layer, params['quantization'])
+    # If not using test data, load weights and biases
+    # This also configures the network's output channels
+    if cfg['arch'] != 'test':
+        layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
+            checkpoint.load(args.checkpoint_file, cfg['arch'],
+                            args.fc_layer, params['quantization'])
+    else:  # Get some hard-coded sample weights
+        layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
+            sampleweight.load(cfg['dataset'], params['quantization'])
 
     if layers != len(cfg['layers']):
         print(f"Number of layers in the YAML configuration file ({len(cfg['layers'])}) "
@@ -680,6 +721,7 @@ def main():
     dilation = params['dilation'][:layers]
     big_data = params['big_data'][:layers]
     output_width = params['output_width'][:layers]
+    convolution = params['convolution'][:layers]
 
     # Command line override
     if args.input_offset is not None:
@@ -696,29 +738,41 @@ def main():
     # Trace output sizes of the network
     # FIXME: Currently, input_dim[ll+1] == output_dim[ll]. Allow configuration override later
     # to support 'parallel' layers.
-    input_dim = [[None, None]] * layers
-    pooled_dim = [[None, None]] * layers
-    output_dim = [[None, None]] * layers
-    input_dim[0] = [input_size[1], input_size[2]]
+    input_dim = [None] * layers
+    pooled_dim = [None] * layers
+    output_dim = [None] * layers
+    if convolution[0] == 2:
+        input_dim[0] = [input_size[1], input_size[2]]
+    else:
+        input_dim[0] = [input_size[1], 1]
     for ll in range(layers):
-        if input_dim[ll] == [None, None]:
+        if input_dim[ll] is None:
             input_dim[ll] = output_dim[ll-1]
         if pool[ll] > 0:
-            pooled_size = [(input_dim[ll][0] + pool_stride[ll] - pool[ll]) // pool_stride[ll],
-                           (input_dim[ll][1] + pool_stride[ll] - pool[ll]) // pool_stride[ll]]
+            if convolution[ll] == 2:
+                pooled_size = [(input_dim[ll][0] + pool_stride[ll] - pool[ll]) // pool_stride[ll],
+                               (input_dim[ll][1] + pool_stride[ll] - pool[ll]) // pool_stride[ll]]
+            else:
+                pooled_size = [(input_dim[ll][0] + pool_stride[ll] - pool[ll]) // pool_stride[ll],
+                               1]
         else:
             pooled_size = input_dim[ll]
-        output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
-                           2 * padding[ll]) // stride[ll] + 1,
-                          (pooled_size[1] - dilation[ll][1] * (kernel_size[ll][1] - 1) - 1 +
-                           2 * padding[ll]) // stride[ll] + 1]
+        if convolution[ll] == 2:
+            output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
+                               2 * padding[ll]) // stride[ll] + 1,
+                              (pooled_size[1] - dilation[ll][1] * (kernel_size[ll][1] - 1) - 1 +
+                               2 * padding[ll]) // stride[ll] + 1]
+        else:
+            output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
+                               2 * padding[ll]) // stride[ll] + 1,
+                              1]
         pooled_dim[ll] = pooled_size
 
     if not args.cmsis_software_nn:
         tn = create_net(args.prefix, args.verbose,
                         args.debug, args.debug_computation, args.no_error_stop,
                         args.overwrite_ok, args.log, args.apb_base,
-                        layers, input_dim, pooled_dim, output_dim,
+                        layers, convolution, input_dim, pooled_dim, output_dim,
                         processor_map, output_processor_map,
                         input_size, kernel_size, quantization,
                         input_channels, output_channels, output_width, padding,
@@ -735,7 +789,7 @@ def main():
             rtlsim.append_regression(args.top_level, tn, args.queue_name, args.autogen)
     else:
         cmsisnn.create_net(args.prefix, args.verbose, args.debug, args.log,
-                           layers, input_dim, pooled_dim, output_dim,
+                           layers, convolution, input_dim, pooled_dim, output_dim,
                            input_size, kernel_size, quantization,
                            input_channels, output_channels, output_width, padding,
                            dilation, stride,

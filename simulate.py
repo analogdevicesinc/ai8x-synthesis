@@ -12,17 +12,17 @@ import numpy as np
 
 import stats
 import tornadocnn as tc
-from compute import conv2d, linear
+from compute import conv1d, conv2d, linear
 
 
-def cnn_layer(layer, verbose,
-              input_size, kernel_size, quantization,
-              output_channels, padding, dilation, stride,
-              pool, pool_stride, pool_average, do_activation,
-              kernel, bias, data, bits=8, output_width=8,
-              ai85=False, debug=False):  # pylint: disable=unused-argument
+def cnn2d_layer(layer, verbose,
+                input_size, kernel_size, quantization,
+                output_channels, padding, dilation, stride,
+                pool, pool_stride, pool_average, do_activation,
+                kernel, bias, data, bits=8, output_width=8,
+                ai85=False, debug=False):  # pylint: disable=unused-argument
     """
-    Perform pooling and convolution for one layer.
+    Perform 2D pooling and 2D convolution for one layer.
     """
     if verbose:
         print(f"LAYER {layer}...\n")
@@ -124,6 +124,116 @@ def cnn_layer(layer, verbose,
             print('')
 
         stats.comp += out_size[0] * out_size[1] * out_size[2]
+
+    return out_buf, out_size
+
+
+def cnn1d_layer(layer, verbose,
+                input_size, kernel_size, quantization,
+                output_channels, padding, dilation, stride,
+                pool, pool_stride, pool_average, do_activation,
+                kernel, bias, data, bits=8, output_width=8,
+                ai85=False, debug=False):  # pylint: disable=unused-argument
+    """
+    Perform 1D pooling and 1D convolution for one layer.
+    """
+    if verbose:
+        print(f"LAYER {layer}...\n")
+
+        print(f"{input_size[0]}x{input_size[1]} INPUT DATA:")
+        print(data.squeeze(axis=-1))
+        print('')
+
+    if pool > 1:
+        pooled_size = [input_size[0],
+                       (input_size[1] + pool_stride - pool) // pool_stride]
+        pooled = np.empty(shape=(pooled_size, pooled_size),
+                          dtype=np.int64)
+        for c in range(input_size[0]):
+            for x in range(0, pooled_size[1]*pool_stride, pool_stride):
+                if pool_average:
+                    avg = np.average(data[c][x:x+pool])
+                    if avg < 0:
+                        val = np.ceil(avg).astype(np.int64).clip(min=-128, max=127)
+                    else:
+                        val = np.floor(avg).astype(np.int64).clip(min=-128, max=127)
+                else:
+                    val = np.amax(data[c][x:x+pool])
+                pooled[c][x//pool_stride] = val
+        if verbose:
+            print(f"{pool} {'AVERAGE' if pool_average else 'MAX'} "
+                  f"POOLING, STRIDE {pool_stride} "
+                  f"{input_size} -> {pooled_size}:")
+            print(pooled)
+            print('')
+
+        if pool_average:
+            stats.add += pool * pooled_size[0] * pooled_size[1]
+        else:
+            stats.comp += pool * pooled_size[0] * pooled_size[1]
+    else:
+        pooled_size = input_size
+        pooled = data
+
+    if verbose:
+        print(f"KERNEL SIZE {kernel_size}:")
+        print(kernel)
+        print(f"BIAS: {bias}\n")
+
+    kernel = kernel.reshape((output_channels, input_size[0], -1))
+    pooled = pooled.reshape((pooled_size[0], -1))
+
+    out_size = [output_channels,
+                (pooled_size[1] - dilation * (kernel_size - 1) - 1 +
+                 2 * padding) // stride + 1,
+                1]
+    out_buf = np.full(shape=(out_size[0], out_size[1]),
+                      fill_value=np.nan, dtype=np.int64)
+
+    if bias is not None:
+        bias = bias * tc.BIAS_DIV
+
+    conv1d(data=pooled,
+           weight=kernel,
+           bias=bias,
+           input_size=pooled_size,
+           out_channels=output_channels,
+           kernel_size=kernel_size,
+           stride=stride,
+           pad=padding,
+           dilation=dilation,
+           output=out_buf,
+           debug=debug)
+
+    out_buf = out_buf.reshape((out_size))
+
+    if verbose:
+        print(f"{out_size[0]}x{out_size[1]} FULL-RES OUTPUT:")
+        print(out_buf.squeeze(axis=-1))
+        print('')
+
+    stats.macc += pooled_size[0] * kernel_size * out_size[0] \
+        * out_size[1]
+
+    if output_width != 32:
+        out_buf = np.floor(0.5 + out_buf / (16*quantization)).astype(np.int64). \
+            clip(-(2**(bits-1)), 2**(bits-1)-1)
+
+        if verbose:
+            print(f"{out_size[0]}x{out_size[1]} OUTPUT "
+                  f"{'BEFORE ACTIVATION' if do_activation else '(NO ACTIVATION)'}:")
+            print(out_buf.squeeze(axis=-1))
+            print('')
+
+    if do_activation:
+        np.clip(out_buf, 0, 2**(bits-1)-1, out_buf)
+
+        if verbose:
+            print(f"{out_size[0]}x{out_size[1]} ACTIVATED OUTPUT:")
+            print(out_buf.squeeze(axis=-1))
+            print('')
+
+        stats.comp += out_size[0] * out_size[1]
 
     return out_buf, out_size
 
