@@ -22,17 +22,18 @@ def test_cmsis(test_no):
     weight = []
     bias = []
     layers = 1
-    padding = [1]
+    padding = [[1, 1]]
     dilation = [[1, 1]]
-    stride = [1]
+    stride = [[1, 1]]
     kernel_size = [[3, 3]]
     quantization = [8]
-    pool = [0]
-    pool_stride = [1]
+    pool = [[0, 0]]
+    pool_stride = [[1, 1]]
     pool_average = [False]
     activate = [False]
     bias = [None]
     output_width = [8]
+    convolution = [2]
 
     assert 0 <= test_no <= 4
     if test_no == 0:  # Passes
@@ -135,7 +136,7 @@ def test_cmsis(test_no):
     output_dim = [[data.shape[1], data.shape[2]]]
 
     cmsisnn.create_net('test_cmsis', True, False, True,
-                       layers, input_dim, pooled_dim, output_dim,
+                       layers, convolution, input_dim, pooled_dim, output_dim,
                        input_size, kernel_size, quantization,
                        input_chan, output_chan, output_width, padding, dilation, stride,
                        pool, pool_stride, pool_average, activate,

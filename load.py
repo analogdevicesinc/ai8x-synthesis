@@ -102,7 +102,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
                 # end of each channel's output below)
                 if split > 1:
                     # Add top pad
-                    for _ in range(padding):
+                    for _ in range(padding[0]):
                         for _ in range(input_size[2]):
                             apb.write_byte(data_offs, 0)
                             data_offs += 1
@@ -111,7 +111,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
                 row = 0
                 for s in range(split):
                     if split > 1 and s + 1 < split:
-                        overlap = padding
+                        overlap = padding[0]
                     else:
                         overlap = 0
                     while row < (s + 1) * chunk + overlap:
@@ -131,7 +131,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
                         data_offs = new_data_offs
                 if split > 1:
                     # Add bottom pad
-                    for _ in range(padding):
+                    for _ in range(padding[0]):
                         for _ in range(input_size[2]):
                             apb.write_byte(data_offs, 0)
                             data_offs += 1

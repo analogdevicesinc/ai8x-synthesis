@@ -14,7 +14,7 @@ from utils import ffs, popcount
 
 
 def unload(memfile, apb_base, processor_map, input_shape, out_offset,
-           out_expand, out_expand_thresh, output_width=8, pool=None, pool_stride=1, ai84=True):
+           out_expand, out_expand_thresh, output_width=8, pool=None, pool_stride=None, ai84=True):
     """
     Unload HWC memory from AI84, writing C code to the `memfile` handle.
     The generated C code is specific to the network configuration passed in in `processor_map`,
@@ -59,7 +59,7 @@ def unload(memfile, apb_base, processor_map, input_shape, out_offset,
                   (proc // tc.P_NUMPRO) * tc.C_GROUP_OFFS // 4) +
                  doffs * width + expand * out_size) * 4
 
-            if ai84 and pool == 4 and pool_stride == 4:
+            if ai84 and pool and pool[0] == 4 and pool_stride[0] == 4:
                 offs += (doffs // 4) * 8 + 8
 
             if offs != read_addr:
@@ -102,7 +102,7 @@ def unload(memfile, apb_base, processor_map, input_shape, out_offset,
 
 def verify(verify_fn, ll, in_map, out_map,
            out_buf, processor_map, input_shape, out_offset, out_expand,
-           out_expand_thresh, output_width=8, pool=None, pool_stride=1,
+           out_expand_thresh, output_width=8, pool=None, pool_stride=None,
            overwrite_ok=False, no_error_stop=False, ai84=True):
     """
     Verify HWC memory from AI84, writing C or mem code using the `verify_fn` function.
@@ -160,7 +160,7 @@ def verify(verify_fn, ll, in_map, out_map,
                  doffs * width + expand * out_size) * 4
 
             # Special adjustment for AI84 quirk
-            if ai84 and pool == 4 and pool_stride == 4:
+            if ai84 and pool and pool[0] == 4 and pool_stride[0] == 4:
                 offs += (doffs // 4) * 8 + 8
 
             def check_overwrite(p, target_offs, in_map, out_map, c, row, col):

@@ -14,6 +14,8 @@ import tornadocnn as tc
 
 
 SUPPORTED_DATASETS = ['mnist', 'fashionmnist', 'cifar-10', 'test_conv1d']
+DEFAULT_2D_KERNEL = [3, 3]
+DEFAULT_1D_KERNEL = [9, 1]
 
 
 def parse(config_file, ai85=False):  # pylint: disable=unused-argument
@@ -54,10 +56,11 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
     output_map = [None] * tc.MAX_LAYERS
     input_offset = [None] * tc.MAX_LAYERS
     # All other variables are initialized with the default values
-    padding = [1] * tc.MAX_LAYERS
-    pool = [0] * tc.MAX_LAYERS
+    padding = [[1, 1]] * tc.MAX_LAYERS
+    pool = [[0, 0]] * tc.MAX_LAYERS
+    pooling_enabled = [False] * tc.MAX_LAYERS
     average = [0] * tc.MAX_LAYERS
-    pool_stride = [1] * tc.MAX_LAYERS
+    pool_stride = [[1, 1]] * tc.MAX_LAYERS
     quantization = [8] * tc.MAX_LAYERS
     output_offset = [0] * tc.MAX_LAYERS
     relu = [0] * tc.MAX_LAYERS
@@ -66,13 +69,13 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
     convolution = [2] * tc.MAX_LAYERS
     # We don't support changing the following (yet), but leave as parameters:
     dilation = [[1, 1]] * tc.MAX_LAYERS
-    kernel_size = [[3, 3]] * tc.MAX_LAYERS
-    stride = [1] * tc.MAX_LAYERS
+    kernel_size = [DEFAULT_2D_KERNEL] * tc.MAX_LAYERS
+    stride = [[1, 1]] * tc.MAX_LAYERS
 
     sequence = 0
     for ll in cfg['layers']:
         if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution',
-                               'in_offset', 'pool_stride', 'out_offset',
+                               'in_offset', 'kernel_size', 'pool_stride', 'out_offset',
                                'activate', 'data_format', 'output_processors', 'output_width',
                                'processors', 'pad', 'quantization', 'sequence'])):
             print(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
@@ -97,14 +100,20 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
             val = ll['pad']
             if val < 0 or val > 2:
                 error_exit('Unsupported value {val} for `pad`', sequence)
-            padding[sequence] = val
+            padding[sequence] = [val, val]
         if 'max_pool' in ll:
-            pool[sequence] = ll['max_pool']
+            val = ll['max_pool']
+            pool[sequence] = [val, val]
+            pooling_enabled[sequence] = True
         elif 'avg_pool' in ll:
-            pool[sequence] = ll['avg_pool']
+            val = ll['avg_pool']
+            pool[sequence] = [val, val]
+            pooling_enabled[sequence] = True
             average[sequence] = 1
+
         if 'pool_stride' in ll:
-            pool_stride[sequence] = ll['pool_stride']
+            val = ll['pool_stride']
+            pool_stride[sequence] = [val, val]
 
         if 'quantization' in ll:
             val = ll['quantization']
@@ -152,6 +161,26 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
                 error_exit('`output_width` must be 8 or 32', sequence)
             output_width[sequence] = val
 
+        if 'kernel_size' in ll:
+            val = ll['kernel_size'].tolower()
+            if convolution[sequence] == 2:
+                if val not in ['3x3']:
+                    error_exit('Unsupported value for `kernel_size`', sequence)
+                kernel_size[sequence] = [int(val[0]), int(val[2])]
+            else:
+                if val not in [9]:
+                    error_exit('Unsupported value for `kernel_size`', sequence)
+                kernel_size[sequence] = [val, 1]
+        elif convolution[sequence] == 1:  # Set default for 1D convolution
+            kernel_size[sequence] = DEFAULT_1D_KERNEL
+
+        # Fix up values for 1D Convolution
+        if convolution[sequence] == 1:
+            padding[sequence][1] = 0
+            pool[sequence][1] = 0
+            pool_stride[sequence][1] = 1
+            stride[sequence][1] = 1
+
         sequence += 1
 
     # Sequence specification may have holes. Contract to the used layers.
@@ -173,6 +202,7 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
             del dilation[ll]
             del kernel_size[ll]
             del stride[ll]
+            del pooling_enabled[ll]
 
     # Check all but last layer
     for ll in range(len(output_map) - 1):
@@ -203,6 +233,7 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
     settings = {}
     settings['padding'] = padding
     settings['pool'] = pool
+    settings['pooling_enabled'] = pooling_enabled
     settings['pool_stride'] = pool_stride
     settings['input_offset'] = input_offset
     settings['output_offset'] = output_offset

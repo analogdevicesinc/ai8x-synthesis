@@ -30,6 +30,7 @@ def create_net(prefix, verbose, debug, log,
         print('CMSIS network generator does not currently support `output_width` that is not 8.')
         sys.exit(1)
     if any(c != 2 for c in convolution):
+        # FIXME: Does Arm have code for 1D Convolution?
         print('CMSIS network generator does not currently support `convolution` that is not 2D.')
         sys.exit(1)
 
@@ -61,8 +62,8 @@ def create_net(prefix, verbose, debug, log,
         for ll in range(layers):
             c_file.write(f'// Layer {ll+1}: '
                          f'{input_chan[ll]}x{input_dim[ll][0]}x{input_dim[ll][1]}, ')
-            if pool[ll] > 0:
-                c_file.write(f'{pool[ll]}x{pool[ll]} {"avg" if pool_average[ll] else "max"} '
+            if pool[ll][0] > 0:
+                c_file.write(f'{pool[ll][0]}x{pool[ll][1]} {"avg" if pool_average[ll] else "max"} '
                              f'pool with stride {pool_stride[ll]}')
             else:
                 c_file.write(f'no pooling')
@@ -125,16 +126,16 @@ def create_net(prefix, verbose, debug, log,
         for ll in range(layers):
             c_file.write(f'  // Layer {ll}: {input_size} -> ')
             if convolution[ll] == 2:
-                if pool[ll]:
+                if pool[ll][0]:
                     c_file.write(f'[{input_size[0]}, {pooled_dim[ll][0]}, '
                                  f'{pooled_dim[ll][1]}] -> ')
                 out_buf, out_size = cnn2d_layer(ll + 1, verbose,
                                                 input_size, kernel_size[ll], quantization[ll],
                                                 output_chan[ll],
-                                                [padding[ll], padding[ll]], dilation[ll],
-                                                [stride[ll], stride[ll]],
-                                                [pool[ll], pool[ll]],
-                                                [pool_stride[ll], pool_stride[ll]],
+                                                padding[ll], dilation[ll],
+                                                stride[ll],
+                                                pool[ll],
+                                                pool_stride[ll],
                                                 pool_average[ll],
                                                 activate[ll],
                                                 kernel[ll].reshape(output_chan[ll], input_size[0],
@@ -150,10 +151,10 @@ def create_net(prefix, verbose, debug, log,
                 out_buf, out_size = cnn1d_layer(ll + 1, verbose,
                                                 input_size, kernel_size[ll][0], quantization[ll],
                                                 output_chan[ll],
-                                                padding[ll], dilation[ll][0],
-                                                stride[ll],
-                                                pool[ll],
-                                                pool_stride[ll],
+                                                padding[ll][0], dilation[ll][0],
+                                                stride[ll][0],
+                                                pool[ll][0],
+                                                pool_stride[ll][0],
                                                 pool_average[ll][0],
                                                 activate[ll],
                                                 kernel[ll].reshape(output_chan[ll], input_size[0],
@@ -164,14 +165,14 @@ def create_net(prefix, verbose, debug, log,
                                                 debug=debug)
             c_file.write(f'{out_size}\n')
 
-            if pool[ll]:
+            if pool[ll][0]:
                 if pool_average[ll]:
                     c_file.write(f'  arm_avepool_q7_HWC({buffer0}, {input_dim[ll][0]}, '
-                                 f'{input_chan[ll]}, {pool[ll]}, 0, {pool_stride[ll]}, '
+                                 f'{input_chan[ll]}, {pool[ll][0]}, 0, {pool_stride[ll][0]}, '
                                  f'{pooled_dim[ll][0]}, NULL, {buffer1});\n')
                 else:
                     c_file.write(f'  arm_maxpool_q7_HWC({buffer0}, {input_dim[ll][0]}, '
-                                 f'{input_chan[ll]}, {pool[ll]}, 0, {pool_stride[ll]}, '
+                                 f'{input_chan[ll]}, {pool[ll][0]}, 0, {pool_stride[ll][0]}, '
                                  f'{pooled_dim[ll][0]}, NULL, {buffer1});\n')
                 n = buffer0
                 buffer0 = buffer1
@@ -179,10 +180,11 @@ def create_net(prefix, verbose, debug, log,
 
             source = 'input_data' if ll == 0 else buffer0
             fn = 'fast' if input_chan[ll] % 4 == 0 and output_chan[ll] % 2 == 0 else 'basic'
+            # FIXME: Add support for non-square (kernel_size, padding, stride)
             c_file.write(f'  arm_convolve_HWC_q7_{fn}({source}, {pooled_dim[ll][0]}, '
                          f'{input_chan[ll]}, weights_{ll}, {output_chan[ll]}, '
                          f'{kernel_size[ll][0]}, '
-                         f'{padding[ll]}, {stride[ll]}, bias_{ll}, 0, 7, {buffer1}, '
+                         f'{padding[ll][0]}, {stride[ll][0]}, bias_{ll}, 0, 7, {buffer1}, '
                          f'{output_dim[ll][0]}, col_buffer, NULL);\n')
 
             if activate[ll]:
