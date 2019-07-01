@@ -58,6 +58,9 @@ def create_net(prefix, verbose, debug, debug_computation,
     output_dim_str = [None] * layers
     kernel_size_str = [None] * layers
     pool_str = [None] * layers
+    padding_str = [None] * layers
+    pool_stride_str = [None] * layers
+    stride_str = [None] * layers
 
     # Check that input channels are in separate memory instances if CHW (big) data format is used,
     # and calculate input and output expansion
@@ -97,12 +100,18 @@ def create_net(prefix, verbose, debug, debug_computation,
             input_dim_str[ll] = f'{input_dim[ll][0]}x{input_dim[ll][1]}'
             output_dim_str[ll] = f'{output_dim[ll][0]}x{output_dim[ll][1]}'
             kernel_size_str[ll] = f'{kernel_size[ll][0]}x{kernel_size[ll][1]}'
-            pool_str[ll] = f'{pool[ll]}x{pool[ll]}'
+            pool_str[ll] = f'{pool[ll][0]}x{pool[ll][1]}'
+            padding_str[ll] = f'{padding[ll][0]}/{padding[ll][1]}'
+            pool_stride_str[ll] = f'{pool_stride[ll][0]}/{pool_stride[ll][1]}'
+            stride_str[ll] = f'{stride[ll][0]}/{stride[ll][1]}'
         else:
             input_dim_str[ll] = f'{input_dim[ll][0]}'
             output_dim_str[ll] = f'{output_dim[ll][0]}'
             kernel_size_str[ll] = f'{kernel_size[ll][0]}'
-            pool_str[ll] = f'{pool[ll]}'
+            pool_str[ll] = f'{pool[ll][0]}'
+            padding_str[ll] = f'{padding[ll][0]}'
+            pool_stride_str[ll] = f'{pool_stride[ll][0]}'
+            stride_str[ll] = f'{stride[ll][0]}'
 
     # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
     test_name = prefix
@@ -110,10 +119,10 @@ def create_net(prefix, verbose, debug, debug_computation,
         for ll in range(layers):
             test_name += f'-{input_chan[ll]}x{input_dim_str[ll]}' \
                          f'{"b" if big_data[ll] else "l"}_' \
-                         f'{"avg" if pool_average[ll] and pool[ll] > 0 else ""}' \
-                         f'{"max" if not pool_average[ll] and pool[ll] > 0 else ""}' \
-                         f'{pool_str[ll]}s{pool_stride[ll]}' \
-                         f'p{padding[ll]}' \
+                         f'{"avg" if pool_average[ll] and pool[ll][0] > 0 else ""}' \
+                         f'{"max" if not pool_average[ll] and pool[ll][0] > 0 else ""}' \
+                         f'{pool_str[ll]}s{pool_stride_str[ll].replace("/", "-")}' \
+                         f'p{padding_str[ll].replace("/", "-")}' \
                          f'm{output_chan[ll]}' \
                          f'{"_relu" if activate[ll] else ""}'
     print(f'{test_name}...')
@@ -153,15 +162,15 @@ def create_net(prefix, verbose, debug, debug_computation,
         for ll in range(layers):
             apb.output(f'// Layer {ll+1}: {input_chan[ll]}x{input_dim_str[ll]} '
                        f'{"(CHW/big data)" if big_data[ll] else "(HWC/little data)"}, ')
-            if pool[ll] > 0:
+            if pool[ll][0] > 0:
                 apb.output(f'{pool_str[ll]} {"avg" if pool_average[ll] else "max"} '
-                           f'pool with stride {pool_stride[ll]}')
+                           f'pool with stride {pool_stride_str[ll]}')
             else:
                 apb.output(f'no pooling')
-            apb.output(f', {kernel_size_str[ll]} {convolution[ll]}D convolution '
-                       f'with stride {stride[ll]} '
-                       f'pad {padding[ll]}, '
-                       f'{output_chan[ll]}x{output_dim_str[ll]} out\n')
+            apb.output(f', {convolution[ll]}D convolution with kernel size {kernel_size_str[ll]}, '
+                       f'stride {stride_str[ll]}, '
+                       f'pad {padding_str[ll]}, '
+                       f'{output_chan[ll]}x{output_dim_str[ll]} output\n')
 
         apb.output('\n')
         apb.header()
@@ -335,26 +344,26 @@ def create_net(prefix, verbose, debug, debug_computation,
                 # [7:0] maxcount: lower 8 bits = total of width + pad - 1
                 # [9:8] pad: 2 bits pad
                 apb.write_lreg(group, ll, tc.LREG_RCNT,
-                               (padding[ll] << 8) | (input_dim[ll][0]-1 + 2*padding[ll]),
+                               (padding[ll][0] << 8) | (input_dim[ll][0]-1 + 2*padding[ll][0]),
                                verbose, comment=' // Rows')
 
                 # Configure column count
                 # [7:0] width including padding - 1
                 # [9:8] pad count (0 = no pad, 1 = half pad, 2 = full pad)
                 apb.write_lreg(group, ll, tc.LREG_CCNT,
-                               padding[ll] << 8 | (input_dim[ll][1]-1 + 2 * padding[ll]),
+                               padding[ll][1] << 8 | (input_dim[ll][1]-1 + 2 * padding[ll][1]),
                                verbose, comment=' // Columns')
 
                 # Configure pooling row count
-                apb.write_lreg(group, ll, tc.LREG_PRCNT, max(1, pool[ll]-1),
+                apb.write_lreg(group, ll, tc.LREG_PRCNT, max(1, pool[ll][0]-1),
                                verbose, comment=' // Pooling rows')
 
                 # Configure pooling column count
-                apb.write_lreg(group, ll, tc.LREG_PCCNT, max(1, pool[ll]-1),
+                apb.write_lreg(group, ll, tc.LREG_PCCNT, max(1, pool[ll][1]-1),
                                verbose, comment=' // Pooling columns')
 
                 # Configure pooling stride count
-                apb.write_lreg(group, ll, tc.LREG_STRIDE, pool_stride[ll]-1,
+                apb.write_lreg(group, ll, tc.LREG_STRIDE, pool_stride[ll][0]-1,
                                verbose, comment=' // Pooling stride')
 
                 # Configure SRAM write pointer -- write ptr is global
@@ -403,7 +412,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                 # [21:19] wptr_inc (AI85 only)
                 val = (0x200 if activate[ll] else 0) | \
                       (0x100 if not pool_average[ll] else 0) | \
-                      (0x80 if pool[ll] > 1 else 0) | \
+                      (0x80 if pool[ll][0] > 1 else 0) | \
                       (0x40 if big_data[ll] else 0) | \
                       (0x820)
                 if ai85:
@@ -451,10 +460,13 @@ def create_net(prefix, verbose, debug, debug_computation,
                                verbose, comment=' // Mask offset and count')
 
                 # Configure tram pointer max
-                if pool[ll] > 0:
-                    val = max(0, pooled_dim[ll][1] + 2*padding[ll] - kernel_size[ll][1])
+                if convolution[ll] == 2:
+                    if pool[ll][0] > 0:
+                        val = max(0, pooled_dim[ll][1] + 2*padding[ll][1] - kernel_size[ll][1])
+                    else:
+                        val = max(0, input_dim[ll][1] + 2*padding[ll][1] - kernel_size[ll][1])
                 else:
-                    val = max(0, input_dim[ll][1] + 2*padding[ll] - kernel_size[ll][1])
+                    val = max(0, pooled_dim[ll][0] + 2*padding[ll][0] - kernel_size[ll][0])
                 apb.write_lreg(group, ll, tc.LREG_TPTR, val,
                                verbose, comment=' // TRAM ptr max')
 
@@ -542,10 +554,10 @@ def create_net(prefix, verbose, debug, debug_computation,
             out_buf, out_size = cnn2d_layer(ll + 1, verbose,
                                             input_size, kernel_size[ll], quantization[ll],
                                             output_chan[ll],
-                                            [padding[ll], padding[ll]], dilation[ll],
-                                            [stride[ll], stride[ll]],
-                                            [pool[ll], pool[ll]],
-                                            [pool_stride[ll], pool_stride[ll]],
+                                            padding[ll], dilation[ll],
+                                            stride[ll],
+                                            pool[ll],
+                                            pool_stride[ll],
                                             pool_average[ll],
                                             activate[ll],
                                             kernel[ll].reshape(output_chan[ll], input_size[0],
@@ -560,10 +572,10 @@ def create_net(prefix, verbose, debug, debug_computation,
             out_buf, out_size = cnn1d_layer(ll + 1, verbose,
                                             input_size, kernel_size[ll][0], quantization[ll],
                                             output_chan[ll],
-                                            padding[ll], dilation[ll][0],
-                                            stride[ll],
-                                            pool[ll],
-                                            pool_stride[ll],
+                                            padding[ll][0], dilation[ll][0],
+                                            stride[ll][0],
+                                            pool[ll][0],
+                                            pool_stride[ll][0],
                                             pool_average[ll],
                                             activate[ll],
                                             kernel[ll].reshape(output_chan[ll], input_size[0],
@@ -682,11 +694,13 @@ def main():
             print('All quantization configuration values must be 8 for AI84.')
             sys.exit(1)
 
-        if any(p & 1 != 0 or p < 0 or p > 4 for p in params['pool']):
+        if any(p0 & 1 != 0 or p0 < 0 or p0 > 4 or p1 & 1 != 0
+               or p1 < 0 or p1 > 4 for [p0, p1] in params['pool']):
             print('Unsupported value for `max_pool`/`avg_pool` for AI84 in YAML configuration.')
             sys.exit(1)
 
-        if any(p == 3 or p < 0 or p > 4 for p in params['pool_stride']):
+        if any(p0 == 3 or p0 < 0 or p0 > 4
+               or p1 == 3 or p1 < 0 or p1 > 4 for [p0, p1] in params['pool_stride']):
             print('Unsupported value for `pool_stride` in YAML configuration.')
             sys.exit(1)
 
@@ -748,23 +762,26 @@ def main():
     for ll in range(layers):
         if input_dim[ll] is None:
             input_dim[ll] = output_dim[ll-1]
-        if pool[ll] > 0:
+        if pool[ll][0] > 0:
             if convolution[ll] == 2:
-                pooled_size = [(input_dim[ll][0] + pool_stride[ll] - pool[ll]) // pool_stride[ll],
-                               (input_dim[ll][1] + pool_stride[ll] - pool[ll]) // pool_stride[ll]]
+                pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])
+                               // pool_stride[ll][0],
+                               (input_dim[ll][1] + pool_stride[ll][1] - pool[ll][1])
+                               // pool_stride[ll][1]]
             else:
-                pooled_size = [(input_dim[ll][0] + pool_stride[ll] - pool[ll]) // pool_stride[ll],
+                pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])
+                               // pool_stride[ll][0],
                                1]
         else:
             pooled_size = input_dim[ll]
         if convolution[ll] == 2:
             output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
-                               2 * padding[ll]) // stride[ll] + 1,
+                               2 * padding[ll][0]) // stride[ll][0] + 1,
                               (pooled_size[1] - dilation[ll][1] * (kernel_size[ll][1] - 1) - 1 +
-                               2 * padding[ll]) // stride[ll] + 1]
+                               2 * padding[ll][1]) // stride[ll][1] + 1]
         else:
             output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
-                               2 * padding[ll]) // stride[ll] + 1,
+                               2 * padding[ll][0]) // stride[ll][0] + 1,
                               1]
         pooled_dim[ll] = pooled_size
 
