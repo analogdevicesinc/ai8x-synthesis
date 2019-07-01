@@ -55,6 +55,11 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
         if debug:
             print(f'G{group} L0 data_offs:      {data_offs:08x}')
 
+        if input_size[2] == 1:
+            data_len = 3 * ((input_size[1] + 2) // 3)
+        else:
+            data_len = input_size[1] * input_size[2]
+
         if chw:
             assert split > 0
 
@@ -63,7 +68,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
                 # Create optimized code when we're not splitting the input
                 apb.output(f'// CHW (big data): {dim[0]}x{dim[1]}, channel {c}\n')
                 offs = 0
-                code_buffer = np.zeros(input_size[1] * input_size[2] // 4, dtype=np.int64)
+                code_buffer = np.zeros(data_len // 4, dtype=np.int64)
                 addr = data_offs
 
                 val = 0
@@ -84,6 +89,14 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
                     apb.check_overwrite(data_offs & ~3)
                     code_buffer[offs] = val
                     offs += in_expand
+
+                if input_size[2] == 1:  # 1D data
+                    # Pad remainder with zeros
+                    for col in range(data_len - input_size[1] * input_size[2]):
+                        apb.check_overwrite(data_offs & ~3)
+                        code_buffer[offs] = 0
+                        offs += in_expand
+                        data_offs += 4 * in_expand
 
                 apb.output_define(code_buffer, f'INPUT_{ch}', '0x%08x', 8, weights=False)
                 apb.output('static const uint32_t '
@@ -137,7 +150,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
                             data_offs += 1
                             if data_offs & ~3 == 0:
                                 data_offs += 4 * (in_expand - 1)
-
+                # FIXME: 1D padding
             c += 1
         else:
             # HWC ("Little Data") - Four channels packed into a word (0BGR0BGR0BGR0BGR0BGR....)
@@ -148,7 +161,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
 
             if embedded_code:
                 offs = 0
-                code_buffer = np.zeros(input_size[1] * input_size[2], dtype=np.int64)
+                code_buffer = np.zeros(data_len, dtype=np.int64)
                 addr = data_offs
 
             for row in range(input_size[1]):
@@ -167,10 +180,22 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
                     apb.data_offs = data_offs  # For mixed HWC/CHW operation
                     data_offs += 4 * in_expand
 
+            if input_size[2] == 1:  # 1D data
+                # Pad remainder with zeros
+                for col in range(data_len - input_size[1] * input_size[2]):
+                    apb.check_overwrite(data_offs)
+                    if not embedded_code:
+                        apb.write(data_offs, 0)
+                    else:
+                        code_buffer[offs] = 0
+                        offs += in_expand
+                    apb.data_offs = data_offs  # For mixed HWC/CHW operation
+                    data_offs += 4 * in_expand
+
             if embedded_code:
                 apb.output_define(code_buffer, f'INPUT_{ch}', '0x%08x', 8, weights=False)
                 apb.output('static const uint32_t '
-                           f'input_{ch}[{input_size[1] * input_size[2]}] = INPUT_{ch};\n\n')
+                           f'input_{ch}[{data_len}] = INPUT_{ch};\n\n')
                 input_list.append((addr, ch, offs))
 
             c += 4
