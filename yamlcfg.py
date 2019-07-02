@@ -77,7 +77,7 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
         if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution',
                                'in_offset', 'kernel_size', 'pool_stride', 'out_offset',
                                'activate', 'data_format', 'output_processors', 'output_width',
-                               'processors', 'pad', 'quantization', 'sequence'])):
+                               'processors', 'pad', 'quantization', 'sequence', 'stride'])):
             print(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
             sys.exit(1)
 
@@ -98,8 +98,8 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
 
         if 'pad' in ll:
             val = ll['pad']
-            if val < 0 or val > 2:
-                error_exit('Unsupported value {val} for `pad`', sequence)
+            if val < 0:
+                error_exit(f'Unsupported value {val} for `pad`', sequence)
             padding[sequence] = [val, val]
         if 'max_pool' in ll:
             val = ll['max_pool']
@@ -162,17 +162,29 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
             output_width[sequence] = val
 
         if 'kernel_size' in ll:
-            val = ll['kernel_size'].tolower()
+            val = str(ll['kernel_size']).lower()
             if convolution[sequence] == 2:
                 if val not in ['3x3']:
                     error_exit('Unsupported value for `kernel_size`', sequence)
                 kernel_size[sequence] = [int(val[0]), int(val[2])]
             else:
-                if val not in [9]:
+                if val not in ['9']:
                     error_exit('Unsupported value for `kernel_size`', sequence)
-                kernel_size[sequence] = [val, 1]
+                kernel_size[sequence] = [int(val), 1]
         elif convolution[sequence] == 1:  # Set default for 1D convolution
             kernel_size[sequence] = DEFAULT_1D_KERNEL
+
+        if 'stride' in ll:
+            val = ll['stride']
+            if pooling_enabled[sequence]:
+                # Must use the default stride when pooling, otherwise stride can be set
+                if convolution == 2 and val != 1 or val != 3:
+                    error_exit('Cannot set `stride` to non-default value when pooling', sequence)
+                if convolution != 2:
+                    stride[sequence] = [3, 1]  # Fix default for 1D
+            else:
+                # Stride can be set
+                stride[sequence] = [val, val]
 
         # Fix up values for 1D Convolution
         if convolution[sequence] == 1:
