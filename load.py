@@ -11,7 +11,7 @@ Load Tornado CNN data memory
 import sys
 import numpy as np
 import tornadocnn as tc
-from utils import s2u
+from utils import s2u, popcount
 
 
 def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
@@ -36,9 +36,11 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
     data_offs = input_offset
     step = 1 if chw else 4
     for ch in range(0, tc.MAX_CHANNELS, step):
-        if not (processor_map >> (ch % tc.MAX_PROC)) % 2**step:
+        instance_map = (processor_map >> (ch % tc.MAX_PROC)) % 2**step
+        if not instance_map:
             # Channel or block of four channels not used for input
             continue
+        num_ch = popcount(instance_map)
 
         # Load channel into shared memory
         group = (ch % tc.MAX_PROC) // tc.P_NUMPRO
@@ -89,14 +91,6 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
                     apb.check_overwrite(data_offs & ~3)
                     code_buffer[offs] = val
                     offs += in_expand
-
-                if input_size[2] == 1:  # 1D data
-                    # Pad remainder with zeros
-                    for col in range(data_len - input_size[1] * input_size[2]):
-                        apb.check_overwrite(data_offs & ~3)
-                        code_buffer[offs] = 0
-                        offs += in_expand
-                        data_offs += 4 * in_expand
 
                 apb.output_define(code_buffer, f'INPUT_{ch}', '0x%08x', 8, weights=False)
                 apb.output('static const uint32_t '
@@ -150,14 +144,14 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
                             data_offs += 1
                             if data_offs & ~3 == 0:
                                 data_offs += 4 * (in_expand - 1)
-                # FIXME: 1D padding
             c += 1
         else:
-            # HWC ("Little Data") - Four channels packed into a word (0BGR0BGR0BGR0BGR0BGR....)
+            # HWC ("Little Data") - (Up to) four channels packed into a word
+            # (0BGR0BGR0BGR0BGR0BGR....)
             if not embedded_code:
                 apb.output('  ')
             apb.output(f'// HWC (little data): {dim[0]}x{dim[1]}, '
-                       f'channels {c} to {min(c+3, chan-1)}\n')
+                       f'channels {c} to {c+num_ch-1}\n')
 
             if embedded_code:
                 offs = 0
@@ -167,9 +161,13 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
             for row in range(input_size[1]):
                 for col in range(input_size[2]):
                     # Always write multiple of four bytes even for last input
+                    # Handle gaps and fill with 0
                     val = 0
-                    for i in range(chan - c):
-                        val |= (s2u(data[c + i][row][col]) & 0xff) << (i * 8)
+                    this_c = c
+                    for i in range(4):
+                        if instance_map & 2**i:
+                            val |= (s2u(data[this_c][row][col]) & 0xff) << (i * 8)
+                            this_c += 1
 
                     apb.check_overwrite(data_offs)
                     if not embedded_code:
@@ -180,25 +178,13 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
                     apb.data_offs = data_offs  # For mixed HWC/CHW operation
                     data_offs += 4 * in_expand
 
-            if input_size[2] == 1:  # 1D data
-                # Pad remainder with zeros
-                for col in range(data_len - input_size[1] * input_size[2]):
-                    apb.check_overwrite(data_offs)
-                    if not embedded_code:
-                        apb.write(data_offs, 0)
-                    else:
-                        code_buffer[offs] = 0
-                        offs += in_expand
-                    apb.data_offs = data_offs  # For mixed HWC/CHW operation
-                    data_offs += 4 * in_expand
-
             if embedded_code:
                 apb.output_define(code_buffer, f'INPUT_{ch}', '0x%08x', 8, weights=False)
                 apb.output('static const uint32_t '
                            f'input_{ch}[{data_len}] = INPUT_{ch};\n\n')
                 input_list.append((addr, ch, offs))
 
-            c += 4
+            c += num_ch
 
         apb.write_byte_flush(0)
         if c >= chan:
