@@ -323,6 +323,8 @@ def create_net(prefix, verbose, debug, debug_computation,
             if ai85:
                 print(f'Kernel dimensions   = {kernel_size}')
                 print(f'Kernel bits         = {quantization}')
+            print(f'Convolution dim.    = {convolution}')
+            print(f'Stride              = {stride}')
 
             print(f'Padding             = {padding}')
             print(f'Group with bias     = {bias_group}')
@@ -356,8 +358,10 @@ def create_net(prefix, verbose, debug, debug_computation,
                                    padding[ll][1] << 8 | (input_dim[ll][1]-1 + 2 * padding[ll][1]),
                                    verbose, comment=' // Columns')
                 else:
-                    val = ((padding[ll][0] << 8)
-                           | ((input_dim[ll][0] + 2*padding[ll][0]) + 2) // 3 - 1)
+                    # For 1D convolutions, the column count is always 3, and the row count is
+                    # divided by 3. Padding is divided by 3.
+                    val = (padding[ll][0] // 3 << 8) \
+                           | (input_dim[ll][0] + 2*padding[ll][0]) // 3 - 1
                     apb.write_lreg(group, ll, tc.LREG_RCNT, val,
                                    verbose, comment=' // Rows')
                     apb.write_lreg(group, ll, tc.LREG_CCNT, 2,
@@ -372,8 +376,14 @@ def create_net(prefix, verbose, debug, debug_computation,
                                verbose, comment=' // Pooling columns')
 
                 # Configure pooling stride count
-                apb.write_lreg(group, ll, tc.LREG_STRIDE, pool_stride[ll][0]-1,
-                               verbose, comment=' // Pooling stride')
+                if pool[ll][0] > 0:
+                    val = pool_stride[ll][0]-1
+                else:
+                    val = stride[ll][0]-1
+                if convolution[ll] != 2:
+                    val -= 2
+                apb.write_lreg(group, ll, tc.LREG_STRIDE, val,
+                               verbose, comment=' // Stride')
 
                 # Configure SRAM write pointer -- write ptr is global
                 # Get offset to first available instance of the first used processor of the next
@@ -470,10 +480,7 @@ def create_net(prefix, verbose, debug, debug_computation,
 
                 # Configure tram pointer max
                 if convolution[ll] == 2:
-                    if pool[ll][0] > 0:
-                        val = max(0, pooled_dim[ll][1] + 2*padding[ll][1] - kernel_size[ll][1])
-                    else:
-                        val = max(0, input_dim[ll][1] + 2*padding[ll][1] - kernel_size[ll][1])
+                    val = max(0, pooled_dim[ll][1] + 2*padding[ll][1] - kernel_size[ll][1])
                 else:
                     val = 0
                 apb.write_lreg(group, ll, tc.LREG_TPTR, val,
@@ -794,11 +801,20 @@ def main():
                                2 * padding[ll][0]) // stride[ll][0] + 1,
                               (pooled_size[1] - dilation[ll][1] * (kernel_size[ll][1] - 1) - 1 +
                                2 * padding[ll][1]) // stride[ll][1] + 1]
+            if padding[ll][0] >= 3:
+                print(f'2D convolution in layer {ll} does not support `pad` >= 3 '
+                      f'(currently set to {padding[ll][0]}).')
+                sys.exit(1)
         else:
-            # FIXME: Consider padding?
+            # We don't have to consider padding for the width calculation,
+            # since padding has to be a multiple of 3 and we check for that.
             if pooled_size[0] % 3 != 0:
                 print(f'1D convolution in layer {ll} requires a multiple of 3 for the '
-                      f'pooled input length (currently {pooled_size[0]})')
+                      f'pooled input length (currently {pooled_size[0]}).')
+                sys.exit(1)
+            if padding[ll][0] % 3 != 0:
+                print(f'1D convolution in layer {ll} requires a multiple of 3 for '
+                      f'`pad` (currently set to {padding[ll][0]}).')
                 sys.exit(1)
             output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
                                2 * padding[ll][0]) // stride[ll][0] + 1,
