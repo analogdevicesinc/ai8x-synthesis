@@ -35,7 +35,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                no_error_stop, overwrite_ok, log, apb_base,
                layers, convolution, input_dim, pooled_dim, output_dim,
                processor_map, output_processor_map,
-               input_size, kernel_size, quantization,
+               kernel_size, quantization,
                input_chan, output_chan, output_width, padding, dilation, stride,
                pool, pool_stride, pool_average, activate,
                data, kernel, bias, big_data, fc_weights, fc_bias,
@@ -219,8 +219,9 @@ def create_net(prefix, verbose, debug, debug_computation,
         if embedded_code:
             # Pre-define data memory loader. Inline later when generating RTL sim.
             load.load(embedded_code, apb, big_data[0], processor_map[0], in_offset[0],
-                      input_size, input_chan[0], in_expand[0], in_expand_thresh[0],
-                      input_dim[0], data, padding[0], split=split, debug=debug)
+                      [input_chan[0], input_dim[0][0], input_dim[0][1]],
+                      in_expand[0], in_expand_thresh[0],
+                      data, padding[0], split=split, debug=debug)
             # Pre-define the kernels and bias values
             kern_offs, kern_len = \
                 kernels.load(verbose, embedded_code, apb, layers, kernel, kernel_size,
@@ -522,8 +523,9 @@ def create_net(prefix, verbose, debug, debug_computation,
             apb.output('\n  load_input(); // Load data input\n\n')
         else:
             load.load(embedded_code, apb, big_data[0], processor_map[0], in_offset[0],
-                      input_size, input_chan[0], in_expand[0], in_expand_thresh[0],
-                      input_dim[0], data, padding[0], split=split, debug=debug)
+                      [input_chan[0], input_dim[0][0], input_dim[0][1]],
+                      in_expand[0], in_expand_thresh[0],
+                      data, padding[0], split=split, debug=debug)
 
         if verbose:
             print('\nGlobal registers:')
@@ -560,7 +562,8 @@ def create_net(prefix, verbose, debug, debug_computation,
     for ll in range(layers):
         if convolution[ll] == 2:
             out_buf, out_size = cnn2d_layer(ll + 1, verbose,
-                                            input_size, kernel_size[ll], quantization[ll],
+                                            [input_chan[ll], input_dim[ll][0], input_dim[ll][1]],
+                                            kernel_size[ll], quantization[ll],
                                             output_chan[ll],
                                             padding[ll], dilation[ll],
                                             stride[ll],
@@ -568,7 +571,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                                             pool_stride[ll],
                                             pool_average[ll],
                                             activate[ll],
-                                            kernel[ll].reshape(output_chan[ll], input_size[0],
+                                            kernel[ll].reshape(output_chan[ll], input_chan[ll],
                                                                kernel_size[ll][0],
                                                                kernel_size[ll][1]),
                                             bias[ll],
@@ -578,7 +581,8 @@ def create_net(prefix, verbose, debug, debug_computation,
                                             debug=debug_computation)
         else:
             out_buf, out_size = cnn1d_layer(ll + 1, verbose,
-                                            input_size, kernel_size[ll][0], quantization[ll],
+                                            [input_chan[ll], input_dim[ll][0]],
+                                            kernel_size[ll][0], quantization[ll],
                                             output_chan[ll],
                                             padding[ll][0], dilation[ll][0],
                                             stride[ll][0],
@@ -586,13 +590,16 @@ def create_net(prefix, verbose, debug, debug_computation,
                                             pool_stride[ll][0],
                                             pool_average[ll],
                                             activate[ll],
-                                            kernel[ll].reshape(output_chan[ll], input_size[0],
+                                            kernel[ll].reshape(output_chan[ll], input_chan[ll],
                                                                kernel_size[ll][0]),
                                             bias[ll],
                                             data,
                                             output_width=output_width[ll],
                                             ai85=ai85,
                                             debug=debug_computation)
+
+        assert out_size[0] == output_chan[ll] \
+            and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
 
         # Write .mem file for output or create the C cnn_check() function to verify the output
         out_map = [None] * tc.C_GROUP_OFFS * tc.P_NUMGROUPS
@@ -628,8 +635,7 @@ def create_net(prefix, verbose, debug, debug_computation,
             if memfile:
                 memfile.close()
 
-        input_size = [out_size[0], out_size[1], out_size[2]]
-        data = out_buf.reshape(input_size[0], input_size[1], input_size[2])
+        data = out_buf.reshape(out_size)
         in_map = out_map
 
     with open(os.path.join(base_directory, test_name, filename), mode=filemode) as memfile:
@@ -638,14 +644,15 @@ def create_net(prefix, verbose, debug, debug_computation,
         if fc_weights:
             data = data.flatten()
 
+            apb.unload(output_processor_map[-1], out_size, out_offset[layers-1],
+                       out_expand[-1], out_expand_thresh[-1], output_width[-1],
+                       pool[-1], pool_stride[-1])
+
             out_buf, out_size = linear_layer(verbose=verbose,
                                              do_activation=False,
                                              data=data, weight=fc_weights[0], bias=fc_bias[0],
                                              debug=debug)
 
-            apb.unload(output_processor_map[-1], input_size, out_offset[layers-1],
-                       out_expand[-1], out_expand_thresh[-1], output_width[-1],
-                       pool[-1], pool_stride[-1])
             apb.fc_layer(fc_weights[0], fc_bias[0])
             apb.fc_verify(out_buf)
 
@@ -814,7 +821,7 @@ def main():
                         args.overwrite_ok, args.log, args.apb_base,
                         layers, convolution, input_dim, pooled_dim, output_dim,
                         processor_map, output_processor_map,
-                        input_size, kernel_size, quantization,
+                        kernel_size, quantization,
                         input_channels, output_channels, output_width, padding,
                         dilation, stride,
                         pool, pool_stride, pool_average, activate,
@@ -830,7 +837,7 @@ def main():
     else:
         cmsisnn.create_net(args.prefix, args.verbose, args.debug, args.log,
                            layers, convolution, input_dim, pooled_dim, output_dim,
-                           input_size, kernel_size, quantization,
+                           kernel_size, quantization,
                            input_channels, output_channels, output_width, padding,
                            dilation, stride,
                            pool, pool_stride, pool_average, activate,

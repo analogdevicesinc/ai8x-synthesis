@@ -16,9 +16,11 @@ from simulate import cnn1d_layer, cnn2d_layer, linear_layer
 
 
 def create_net(prefix, verbose, debug, log,
-               layers, convolution, input_dim, pooled_dim, output_dim,
-               input_size, kernel_size,
-               quantization, input_chan, output_chan, output_width, padding, dilation, stride,
+               layers, convolution,
+               input_dim, pooled_dim, output_dim,
+               kernel_size, quantization,
+               input_chan, output_chan, output_width,
+               padding, dilation, stride,
                pool, pool_stride, pool_average, activate,
                data, kernel, bias, fc_weights, fc_bias,
                c_filename, base_directory, log_filename,
@@ -120,12 +122,15 @@ def create_net(prefix, verbose, debug, log,
         buffer1 = 'buffer1'
 
         for ll in range(layers):
-            c_file.write(f'  // Layer {ll}: {input_size} -> ')
+            c_file.write(f'  // Layer {ll}: [{input_chan[ll]}, {input_dim[ll][0]}, '
+                         f'{input_dim[ll][1]}] -> ')
             if pool[ll][0]:
-                c_file.write(f'[{input_size[0]}, {pooled_dim[ll][0]}, {pooled_dim[ll][1]}] -> ')
+                c_file.write(f'[{input_chan[ll]}, {pooled_dim[ll][0]}, {pooled_dim[ll][1]}] -> ')
             if convolution[ll] == 2:
                 out_buf, out_size = cnn2d_layer(ll + 1, verbose,
-                                                input_size, kernel_size[ll], quantization[ll],
+                                                [input_chan[ll], input_dim[ll][0],
+                                                 input_dim[ll][1]],
+                                                kernel_size[ll], quantization[ll],
                                                 output_chan[ll],
                                                 padding[ll], dilation[ll],
                                                 stride[ll],
@@ -133,7 +138,7 @@ def create_net(prefix, verbose, debug, log,
                                                 pool_stride[ll],
                                                 pool_average[ll],
                                                 activate[ll],
-                                                kernel[ll].reshape(output_chan[ll], input_size[0],
+                                                kernel[ll].reshape(output_chan[ll], input_chan[ll],
                                                                    kernel_size[ll][0],
                                                                    kernel_size[ll][1]),
                                                 bias[ll],
@@ -142,7 +147,8 @@ def create_net(prefix, verbose, debug, log,
                                                 debug=debug)
             else:
                 out_buf, out_size = cnn1d_layer(ll + 1, verbose,
-                                                input_size, kernel_size[ll][0], quantization[ll],
+                                                [input_chan[ll], input_dim[ll][0]],
+                                                kernel_size[ll][0], quantization[ll],
                                                 output_chan[ll],
                                                 padding[ll][0], dilation[ll][0],
                                                 stride[ll][0],
@@ -150,7 +156,7 @@ def create_net(prefix, verbose, debug, log,
                                                 pool_stride[ll][0],
                                                 pool_average[ll],
                                                 activate[ll],
-                                                kernel[ll].reshape(output_chan[ll], input_size[0],
+                                                kernel[ll].reshape(output_chan[ll], input_chan[ll],
                                                                    kernel_size[ll][0]),
                                                 bias[ll],
                                                 data,
@@ -201,6 +207,8 @@ def create_net(prefix, verbose, debug, log,
                              f'bias_{ll}, 0, 7, {buffer1}, '
                              f'{output_dim[ll][0]}, {output_dim[ll][1]}, '
                              'col_buffer, NULL);\n')
+            assert out_size[0] == output_chan[ll] \
+                and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
 
             if activate[ll]:
                 c_file.write(f'  arm_relu_q7({buffer1}, '
@@ -209,8 +217,7 @@ def create_net(prefix, verbose, debug, log,
             buffer0 = buffer1
             buffer1 = n
 
-            input_size = [out_size[0], out_size[1], out_size[2]]
-            data = out_buf.reshape(input_size[0], input_size[1], input_size[2])
+            data = out_buf.reshape(out_size)
             c_file.write('\n')
             data_cmsis = data.transpose((1, 2, 0)).flatten()
             if verbose:
@@ -230,7 +237,8 @@ def create_net(prefix, verbose, debug, log,
 
             # Rearrange the weights to account for the shape of the conv layer output
             w = fc_weights[0]. \
-                reshape((fc_weights[0].shape[0], input_size[0], input_size[1], input_size[2])). \
+                reshape((fc_weights[0].shape[0], output_chan[ll],
+                         output_dim[ll][0], output_dim[ll][1])). \
                 transpose(0, 2, 3, 1). \
                 reshape((fc_weights[0].shape[0], fc_weights[0].shape[1]))
 

@@ -14,13 +14,13 @@ import tornadocnn as tc
 from utils import s2u, popcount
 
 
-def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
+def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
          in_expand, in_expand_thresh,
-         dim, data, padding, split=1, debug=False):
+         data, padding, split=1, debug=False):
     """
     Create C code to load data input to offset `input_offset` in CHW format (if `chw` is `True`)
-    or HWC format for the `processor_map`. Data `data` is organized in `chan` channels, and
-    `dim` dimensions and the input size is `input_size`. Channel expansion is configured in
+    or HWC format for the `processor_map`. Data `data` is organized in `input_size` channels and
+    and dimensions. Channel expansion is configured in
     `in_expand` and `in_expand_thresh`.
     The code performs optional `padding`, can `split` the input into more than one chunk
     and has optional `debug` output.
@@ -28,10 +28,11 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
     Output is written to the `apb` object.
     """
     input_list = []
+    chan = input_size[0]
 
     if not embedded_code:
         apb.output('\n\n  ')
-    apb.output(f'// {chan}-channel {dim[0]}x{dim[1]} data input:\n')
+    apb.output(f'// {chan}-channel {input_size[1]}x{input_size[2]} data input:\n')
     c = 0
     data_offs = input_offset
     step = 1 if chw else 4
@@ -68,7 +69,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
             # CHW ("Big Data") - Separate channel sequences (BBBBB....GGGGG....RRRRR....)
             if embedded_code and split == 1:
                 # Create optimized code when we're not splitting the input
-                apb.output(f'// CHW (big data): {dim[0]}x{dim[1]}, channel {c}\n')
+                apb.output(f'// CHW (big data): {input_size[1]}x{input_size[2]}, channel {c}\n')
                 offs = 0
                 code_buffer = np.zeros(data_len // 4, dtype=np.int64)
                 addr = data_offs
@@ -102,7 +103,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
                 if embedded_code:
                     apb.output('void load_input(void)\n{\n')
 
-                apb.output(f'  // CHW (big data): {dim[0]}x{dim[1]}, channel {c}\n')
+                apb.output(f'  // CHW (big data): {input_size[1]}x{input_size[2]}, channel {c}\n')
 
                 chunk = input_size[1] // split
                 # (Note: We do not need to flush here, since that is done at the
@@ -150,7 +151,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size, chan,
             # (0BGR0BGR0BGR0BGR0BGR....)
             if not embedded_code:
                 apb.output('  ')
-            apb.output(f'// HWC (little data): {dim[0]}x{dim[1]}, '
+            apb.output(f'// HWC (little data): {input_size[1]}x{input_size[2]}, '
                        f'channels {c} to {c+num_ch-1}\n')
 
             if embedded_code:
