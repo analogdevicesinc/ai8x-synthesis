@@ -54,6 +54,8 @@ def get_parser():
                         help="run test file name (default: 'run_test.sv')")
     parser.add_argument('--log-filename', default='log.txt', metavar='S',
                         help="log file name (default: 'log.txt')")
+    parser.add_argument('--init-tram', action='store_true', default=False,
+                        help="initialize TRAM to 0 (default: False)")
     parser.add_argument('--no-error-stop', action='store_true', default=False,
                         help="do not stop on errors (default: stop)")
     parser.add_argument('--input-offset', type=lambda x: int(x, 0),
