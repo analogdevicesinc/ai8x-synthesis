@@ -381,7 +381,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                 else:
                     val = stride[ll][0]-1
                 if convolution[ll] != 2:
-                    val -= 2
+                    val //= 3
                 apb.write_lreg(group, ll, tc.LREG_STRIDE, val,
                                verbose, comment=' // Stride')
 

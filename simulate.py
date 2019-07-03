@@ -147,7 +147,7 @@ def cnn1d_layer(layer, verbose,
     if pool > 1:
         pooled_size = [input_size[0],
                        (input_size[1] + pool_stride - pool) // pool_stride]
-        pooled = np.empty(shape=(pooled_size, pooled_size),
+        pooled = np.empty(shape=(pooled_size),
                           dtype=np.int64)
         for c in range(input_size[0]):
             for x in range(0, pooled_size[1]*pool_stride, pool_stride):
