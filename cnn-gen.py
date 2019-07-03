@@ -45,7 +45,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                base_directory, runtest_filename, log_filename,
                zero_unused, timeout, block_mode, verify_writes,
                embedded_code=False, weight_filename=None, sample_filename=None,
-               ai85=False):
+               ai85=False, init_tram=False):
     """
     Chain multiple CNN layers, create and save input and output
     """
@@ -247,17 +247,18 @@ def create_net(prefix, verbose, debug, debug_computation,
 
         # Configure global control registers for used groups
         for _, group in enumerate(groups_used):
-            # Zero out Tornado RAM
-            if not embedded_code:
-                for p in range(tc.P_NUMPRO):
-                    for offs in range(tc.TRAM_SIZE):
-                        apb.write_tram(group, p, offs, 0, comment='Zero ')
-                apb.output('\n')
-            # else:
-            #     addr = apb_base + tc.C_GROUP_OFFS*group + C_TRAM_BASE
-            #     apb.output(f'  memset((uint32_t *) 0x{addr:08x}, 0, '
-            #                f'{tc.TRAM_SIZE * tc.P_NUMPRO * 4}); // Zero TRAM {group}\n')
-            #     apb.output('\n')
+            if init_tram:
+                # Zero out Tornado RAM
+                if not embedded_code:
+                    for p in range(tc.P_NUMPRO):
+                        for offs in range(tc.TRAM_SIZE):
+                            apb.write_tram(group, p, offs, 0, comment='Zero ')
+                    apb.output('\n')
+                else:
+                    addr = apb_base + tc.C_GROUP_OFFS*group + tc.C_TRAM_BASE
+                    apb.output(f'  memset((uint32_t *) 0x{addr:08x}, 0, '
+                               f'{tc.TRAM_SIZE * tc.P_NUMPRO * 4}); // Zero TRAM {group}\n')
+                    apb.output('\n')
 
             # Stop state machine - will be overwritten later
             apb.write_ctl(group, tc.REG_CTL, 0x06,
@@ -847,7 +848,7 @@ def main():
                         args.test_dir, args.runtest_filename, args.log_filename,
                         args.zero_unused, args.timeout, not args.top_level, args.verify_writes,
                         args.embedded_code, args.weight_filename, args.sample_filename,
-                        args.ai85)
+                        args.ai85, args.init_tram)
         if not args.embedded_code:
             rtlsim.append_regression(args.top_level, tn, args.queue_name, args.autogen)
     else:
