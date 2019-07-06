@@ -34,7 +34,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
         apb.output('\n\n  ')
     apb.output(f'// {chan}-channel {input_size[1]}x{input_size[2]} data input:\n')
     c = 0
-    data_offs = input_offset
+    data_offs = None
     step = 1 if chw else 4
     for ch in range(0, tc.MAX_CHANNELS, step):
         instance_map = (processor_map >> (ch % tc.MAX_PROC)) % 2**step
@@ -49,6 +49,8 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
         instance = (ch % tc.P_NUMPRO) // tc.P_SHARED
         new_data_offs = tc.C_SRAM_BASE + tc.C_GROUP_OFFS*group + tc.INSTANCE_SIZE*4*instance \
             + expand*4
+        if expand == 0:
+            new_data_offs += input_offset
         if new_data_offs == data_offs:
             print('Layer 0 processor map is misconfigured for data input. '
                   f'There is data overlap between processors {ch-1} and {ch}')
