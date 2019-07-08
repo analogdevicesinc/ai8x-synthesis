@@ -20,7 +20,8 @@ def cnn2d_layer(layer, verbose,
                 output_channels, padding, dilation, stride,
                 pool, pool_stride, pool_average, do_activation,
                 kernel, bias, data, bits=8, output_width=8,
-                ai85=False, debug=False):  # pylint: disable=unused-argument
+                ai85=False, debug=False,  # pylint: disable=unused-argument
+                expand=None, expand_thresh=None):
     """
     Perform 2D pooling and 2D convolution for one layer.
     """
@@ -28,7 +29,13 @@ def cnn2d_layer(layer, verbose,
         print(f"LAYER {layer}...\n")
 
         print(f"{input_size[0]}x{input_size[1]}x{input_size[2]} INPUT DATA:")
-        print(data)
+        if expand and expand > 1:
+            for i in range(expand):
+                print(f"Expansion/compression - channels {i*expand_thresh + 1} to "
+                      f"{(i+1)*expand_thresh} of {input_size[0]}")
+                print(data[i*expand_thresh:(i+1)*expand_thresh])
+        else:
+            print(data)
         print('')
 
     if pool[0] > 1 or pool[1] > 1:

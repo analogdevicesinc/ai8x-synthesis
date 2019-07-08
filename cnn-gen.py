@@ -586,7 +586,9 @@ def create_net(prefix, verbose, debug, debug_computation,
                                             data,
                                             output_width=output_width[ll],
                                             ai85=ai85,
-                                            debug=debug_computation)
+                                            debug=debug_computation,
+                                            expand=in_expand[ll],
+                                            expand_thresh=in_expand_thresh[ll])
         else:
             out_buf, out_size = cnn1d_layer(ll + 1, verbose,
                                             [input_chan[ll], input_dim[ll][0]],
