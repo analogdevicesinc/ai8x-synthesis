@@ -226,7 +226,8 @@ def create_net(prefix, verbose, debug, debug_computation,
             kern_offs, kern_len = \
                 kernels.load(verbose, embedded_code, apb, layers, kernel, kernel_size,
                              quantization, processor_map, output_processor_map,
-                             input_chan, output_chan, out_expand, out_expand_thresh, debug)
+                             input_chan, output_chan, out_expand, out_expand_thresh,
+                             in_expand, in_expand_thresh, debug)
             bias_offs, bias_group, group_bias_max = \
                 kernels.load_bias(verbose, embedded_code, apb, layers, bias,
                                   quantization, group_map, output_chan, debug)
@@ -275,7 +276,8 @@ def create_net(prefix, verbose, debug, debug_computation,
             kern_offs, kern_len = \
                 kernels.load(verbose, embedded_code, apb, layers, kernel, kernel_size,
                              quantization, processor_map, output_processor_map,
-                             input_chan, output_chan, out_expand, out_expand_thresh, debug)
+                             input_chan, output_chan, out_expand, out_expand_thresh,
+                             in_expand, in_expand_thresh, debug)
             bias_offs, bias_group, group_bias_max = \
                 kernels.load_bias(verbose, embedded_code, apb, layers, bias,
                                   quantization, group_map, output_chan, debug)
