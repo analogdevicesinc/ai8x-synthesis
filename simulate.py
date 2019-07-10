@@ -25,17 +25,19 @@ def cnn2d_layer(layer, verbose,
     """
     Perform 2D pooling and 2D convolution for one layer.
     """
+    int8_format = '{0:4}' if np.any(data < 0) else '{0:3}'
     if verbose:
         print(f"LAYER {layer}...\n")
 
         print(f"{input_size[0]}x{input_size[1]}x{input_size[2]} INPUT DATA:")
-        if expand and expand > 1:
-            for i in range(expand):
-                print(f"Expansion/compression - channels {i*expand_thresh + 1} to "
-                      f"{(i+1)*expand_thresh} of {input_size[0]}")
-                print(data[i*expand_thresh:(i+1)*expand_thresh])
-        else:
-            print(data)
+        with np.printoptions(formatter={'int': int8_format.format}):
+            for i in range(input_size[0]):
+                print(f'Channel {i+1} of {input_size[0]}', end='')
+                if expand > 1:
+                    print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
+                else:
+                    print('')
+                print(data[i])
         print('')
 
     if pool[0] > 1 or pool[1] > 1:
@@ -60,7 +62,14 @@ def cnn2d_layer(layer, verbose,
             print(f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
                   f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]} "
                   f"{input_size} -> {pooled_size}:")
-            print(pooled)
+            with np.printoptions(formatter={'int': int8_format.format}):
+                for i in range(input_size[0]):
+                    print(f'Channel {i+1} of {input_size[0]}', end='')
+                    if expand > 1:
+                        print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
+                    else:
+                        print('')
+                    print(pooled[i])
             print('')
 
         if pool_average:
@@ -73,7 +82,10 @@ def cnn2d_layer(layer, verbose,
 
     if verbose:
         print(f"{kernel_size[0]}x{kernel_size[1]} KERNEL(S):")
-        print(kernel)
+        with np.printoptions(formatter={'int': '{0:4}'.format}):
+            for i in range(output_channels):
+                print(f'Output channel {i}')
+                print(kernel[i])
         print(f"BIAS: {bias}\n")
 
     kernel = kernel.reshape((output_channels, input_size[0], -1))
