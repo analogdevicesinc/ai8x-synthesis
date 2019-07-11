@@ -216,6 +216,10 @@ def create_net(prefix, verbose, debug, debug_computation,
                  output_processor_map[-1]) >> group*tc.P_NUMPRO) % 2**tc.P_NUMPRO:
                 groups_used.append(group)
 
+        if 0 not in groups_used:
+            print('Group 0 is not used, this currently does not work.')
+            sys.exit(1)
+
         if embedded_code:
             # Pre-define data memory loader. Inline later when generating RTL sim.
             load.load(embedded_code, apb, big_data[0], processor_map[0], in_offset[0],
@@ -445,12 +449,12 @@ def create_net(prefix, verbose, debug, debug_computation,
                            | (in_expand[ll] - 1) << 16
                     if output_width[ll] != 8:
                         val |= 1 << 31
-                if group == group_map[ll][0]:
+                if group == groups_used[0]:
                     # Set external source for other active processing groups (can be zero if no
                     # other groups are processing). Do not set the bit corresponding to this group
                     # (e.g., if group == 0, do not set bit 12)
                     sources = 0
-                    for t in range(group_map[ll][0]+1, tc.P_NUMGROUPS):
+                    for t in range(groups_used[0]+1, tc.P_NUMGROUPS):
                         # See if any processors other than this one are operating
                         # and set the cnnsiena bit if true
                         if (processor_map[ll] >> (t * tc.P_NUMPRO)) % 2**tc.P_NUMPRO:
