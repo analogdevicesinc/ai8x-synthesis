@@ -13,3 +13,6 @@ cp demos/MNIST-ExtraSmall/* ../AI84SDK/Firmware/trunk/Applications/EvKitExamples
 
 ./cnn-gen.py --verbose -L --top-level cnn --test-dir demos --prefix MNIST-Small --checkpoint-file trained/ai84-mnist-smallnet.pth.tar --config-file networks/mnist-chw-smallnet.yaml --fc-layer --embedded-code
 cp demos/MNIST-Small/* ../AI84SDK/Firmware/trunk/Applications/EvKitExamples/MNIST-Small/
+
+./cnn-gen.py --verbose -L --top-level cnn --test-dir demos --prefix speechcom --checkpoint-file trained/ai84-speechcom-net7.pth.tar --config-file networks/speechcom-chw.yaml --fc-layer --embedded-code
+cp demos/speechcom/* ../AI84SDK/Firmware/trunk/Applications/EvKitExamples/SpeechCom/

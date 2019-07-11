@@ -1,0 +1,40 @@
+# CHW (big data) configuration for SpeechCom
+
+arch: ai84net7
+dataset: SpeechCom
+
+# Define layer parameters in order of the layer sequence
+layers:
+- pad: 1
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0x0000000000000001
+  data_format: CHW
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0x000000000007fff0
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0x0003fffffff00000
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0xfffffffffffffff0
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0x00000003fffffff0
+- pad: 1
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0xfffffffc00000000

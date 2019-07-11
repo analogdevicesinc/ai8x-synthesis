@@ -13,7 +13,7 @@ import yaml
 import tornadocnn as tc
 
 
-SUPPORTED_DATASETS = ['mnist', 'fashionmnist', 'cifar-10', 'test_conv1d']
+SUPPORTED_DATASETS = ['mnist', 'fashionmnist', 'cifar-10', 'speechcom', 'test_conv1d']
 DEFAULT_2D_KERNEL = [3, 3]
 DEFAULT_1D_KERNEL = [9, 1]
 
