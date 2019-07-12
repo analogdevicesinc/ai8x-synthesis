@@ -109,7 +109,8 @@ def create_net(prefix, verbose, debug, log,
             col_buffer_size = max(col_buffer_size,
                                   2*input_chan[ll]*kernel_size[ll][0]*kernel_size[ll][1])
             img_buffer_size = max(img_buffer_size,
-                                  input_chan[ll]*input_dim[ll][0]*input_dim[ll][1])
+                                  input_chan[ll]*input_dim[ll][0]*input_dim[ll][1],
+                                  output_chan[ll]*output_dim[ll][0]*output_dim[ll][1])
 
         c_file.write(f'static q7_t buffer0[{img_buffer_size}];\n')
         c_file.write(f'static q7_t buffer1[{img_buffer_size}];\n')
