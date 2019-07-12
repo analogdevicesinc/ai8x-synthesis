@@ -108,6 +108,9 @@ def create_net(prefix, verbose, debug, log,
         for ll in range(layers):
             col_buffer_size = max(col_buffer_size,
                                   2*input_chan[ll]*kernel_size[ll][0]*kernel_size[ll][1])
+            if pool[ll][0]:
+                col_buffer_size = max(col_buffer_size,
+                                      pooled_dim[ll][0]*input_chan[ll])  # q15_t doesn't need 2*
             img_buffer_size = max(img_buffer_size,
                                   input_chan[ll]*input_dim[ll][0]*input_dim[ll][1],
                                   output_chan[ll]*output_dim[ll][0]*output_dim[ll][1])
@@ -170,11 +173,11 @@ def create_net(prefix, verbose, debug, log,
                 if pool_average[ll]:
                     c_file.write(f'  arm_avepool_q7_HWC({buffer0}, {input_dim[ll][0]}, '
                                  f'{input_chan[ll]}, {pool[ll][0]}, 0, {pool_stride[ll][0]}, '
-                                 f'{pooled_dim[ll][0]}, NULL, {buffer1});\n')
+                                 f'{pooled_dim[ll][0]}, (q7_t *) col_buffer, {buffer1});\n')
                 else:
                     c_file.write(f'  arm_maxpool_q7_HWC({buffer0}, {input_dim[ll][0]}, '
                                  f'{input_chan[ll]}, {pool[ll][0]}, 0, {pool_stride[ll][0]}, '
-                                 f'{pooled_dim[ll][0]}, NULL, {buffer1});\n')
+                                 f'{pooled_dim[ll][0]}, (q7_t *) col_buffer, {buffer1});\n')
                 n = buffer0
                 buffer0 = buffer1
                 buffer1 = n
