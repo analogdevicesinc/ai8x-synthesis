@@ -33,7 +33,7 @@ def cnn2d_layer(layer, verbose,
         with np.printoptions(formatter={'int': int8_format.format}):
             for i in range(input_size[0]):
                 print(f'Channel {i+1} of {input_size[0]}', end='')
-                if expand > 1:
+                if expand and expand > 1:
                     print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
                 else:
                     print('')
@@ -65,7 +65,7 @@ def cnn2d_layer(layer, verbose,
             with np.printoptions(formatter={'int': int8_format.format}):
                 for i in range(input_size[0]):
                     print(f'Channel {i+1} of {input_size[0]}', end='')
-                    if expand > 1:
+                    if expand and expand > 1:
                         print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
                     else:
                         print('')
