@@ -9,7 +9,6 @@
 Command line parser for Tornado CNN
 """
 import argparse
-import tornadocnn
 
 
 def get_parser():
@@ -17,13 +16,11 @@ def get_parser():
     Return an argparse parser.
     """
 
-    parser = argparse.ArgumentParser(
-        description="AI84/AI85 Software CNN Generator")
-    parser.add_argument('--ai85', action='store_true', default=False,
+    parser = argparse.ArgumentParser(description="AI8X Software CNN Generator")
+    parser.add_argument('--ai85', action='store_const', const=85, default=84, dest='device',
                         help="enable AI85 features (default: false)")
-    parser.add_argument('--apb-base', type=lambda x: int(x, 0),
-                        default=tornadocnn.APB_BASE, metavar='N',
-                        help=f"APB base address (default: {tornadocnn.APB_BASE:08x})")
+    parser.add_argument('--apb-base', type=lambda x: int(x, 0), metavar='N',
+                        help=f"APB base address (default: device specific)")
     parser.add_argument('--autogen', default='tests', metavar='S',
                         help="directory location for autogen_list (default: 'tests')")
     parser.add_argument('--c-filename', metavar='S',
@@ -59,7 +56,7 @@ def get_parser():
     parser.add_argument('--no-error-stop', action='store_true', default=False,
                         help="do not stop on errors (default: stop)")
     parser.add_argument('--input-offset', type=lambda x: int(x, 0),
-                        metavar='N', choices=range(4*tornadocnn.MEM_SIZE),
+                        metavar='N',
                         help="input offset (x8 hex, defaults to 0x0000)")
     parser.add_argument('--overlap-data', '--overwrite-ok', dest='overwrite_ok',
                         action='store_true', default=False,
@@ -69,7 +66,7 @@ def get_parser():
     parser.add_argument('-L', '--log', action='store_true', default=False,
                         help="redirect stdout to log file (default: false)")
     parser.add_argument('--input-split', type=int, default=1, metavar='N',
-                        choices=range(1, tornadocnn.MAX_CHANNELS+1),
+                        choices=range(1, 1025),
                         help="split input into N portions (default: don't split)")
     parser.add_argument('--stop-after', type=int, metavar='N',
                         help="stop after layer")

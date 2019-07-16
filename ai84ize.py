@@ -102,7 +102,7 @@ def convert_checkpoint(input_file, output_file, arguments):
                     if num_layers and layers >= num_layers:
                         continue
                     if not params:
-                        clamp_bits = tc.DEFAULT_WEIGHT_BITS  # Default to 8 bits
+                        clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Default to 8 bits
                     else:
                         clamp_bits = params['quantization'][layers]
                     factor = 2**(clamp_bits-1) * sat_fn(checkpoint_state[k])
@@ -152,7 +152,7 @@ def convert_checkpoint(input_file, output_file, arguments):
                     # multiplied by 128. This depends on the data width, not the weight width,
                     # and is therefore always 128.
                     if arguments.ai85 and module != 'fc':
-                        weights *= 2**(tc.ACTIVATION_BITS-1)
+                        weights *= 2**(tc.dev.ACTIVATION_BITS-1)
 
                     # Store modified weight/bias back into model
                     new_checkpoint_state[bias_name] = weights
@@ -164,7 +164,7 @@ def convert_checkpoint(input_file, output_file, arguments):
                     scale = module + '.' + parameter[0] + '_scale'
                     weights = checkpoint_state[k]
                     scale = module + '.' + parameter[0] + '_scale'
-                    (scale_bits, clamp_bits) = (CONV_SCALE_BITS, tc.DEFAULT_WEIGHT_BITS) \
+                    (scale_bits, clamp_bits) = (CONV_SCALE_BITS, tc.dev.DEFAULT_WEIGHT_BITS) \
                         if module != 'fc' else (FC_SCALE_BITS, FC_CLAMP_BITS)
                     fp_scale = checkpoint_state[scale]
                     if module not in ['fc']:
@@ -217,6 +217,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Configure device
-    tc.set_device(args.ai85)
+    tc.dev = tc.get_device(84 if not args.ai85 else 85)
 
     convert_checkpoint(args.input, args.output, args)

@@ -46,7 +46,7 @@ def unload(apb_base, processor_map, input_shape,
           'void unload(uint8_t *out_buf)\n'
           '{\n  uint32_t val, *addr, offs;\n')
 
-    coffs = ffs(processor_map) & ~(tc.P_SHARED-1)
+    coffs = ffs(processor_map) & ~(tc.dev.P_SHARED-1)
     next_layer_map = processor_map >> coffs
     read_addr = None
     write_addr = None
@@ -58,17 +58,17 @@ def unload(apb_base, processor_map, input_shape,
             this_c = c
 
             # Get four bytes from memory array
-            proc = (coffs % tc.MAX_PROC) & ~(tc.P_SHARED-1)
+            proc = (coffs % tc.dev.MAX_PROC) & ~(tc.dev.P_SHARED-1)
             # FIXME: seq = ...
             offs = out_offset + \
-                (((proc % tc.P_NUMPRO) * tc.INSTANCE_SIZE |
-                  (proc // tc.P_NUMPRO) * tc.C_GROUP_OFFS // 4) +
+                (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
+                  (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
                  doffs) * 4
 
             val = get_val(offs)
 
             if offs != read_addr:
-                print(f'  addr = (uint32_t *) 0x{apb_base + tc.C_SRAM_BASE + offs:08x};')
+                print(f'  addr = (uint32_t *) 0x{apb_base + tc.dev.C_SRAM_BASE + offs:08x};')
             print(f'  val = *addr++;')
             read_addr = offs + 4
 
@@ -110,6 +110,7 @@ def test_unload():
     """
     test case for unload()
     """
+    tc.dev = tc.get_device(84)
     np.set_printoptions(threshold=np.inf, linewidth=80,
                         formatter={'int': lambda x: f'{x:02x}'})
 
@@ -222,7 +223,7 @@ def test_unload():
     processor_map = 0x0000000000000fff
     input_shape = (12, 4, 4)  # CHW - match generator
     out_offset = 0
-    unload(tc.APB_BASE, processor_map, input_shape,
+    unload(tc.dev.APB_BASE, processor_map, input_shape,
            computed, out_offset, mem_image, flatten=True)
 
     print('\n// unload(flatten=True):')
@@ -231,7 +232,7 @@ def test_unload():
     assert np.array_equal(expected.flatten(), computed)
 
     computed = np.empty_like(expected)
-    unload(tc.APB_BASE, processor_map, input_shape,
+    unload(tc.dev.APB_BASE, processor_map, input_shape,
            computed, out_offset, mem_image)
 
     print('\n// unload():')

@@ -28,7 +28,7 @@ class APB(object):
                  weight_header=None,
                  sampledata_header=None,
                  embedded_code=False,
-                 ai85=False):
+                 device=84):
         """
         Create an APB class object that writes to memfile.
         """
@@ -39,12 +39,12 @@ class APB(object):
         self.weight_header = weight_header
         self.sampledata_header = sampledata_header
         self.embedded_code = embedded_code
-        self.ai85 = ai85
+        self.device = device
 
         self.data = 0
         self.num = 0
         self.data_offs = 0
-        self.mem = [None] * tornadocnn.C_GROUP_OFFS * tornadocnn.P_NUMGROUPS
+        self.mem = [None] * tornadocnn.dev.C_GROUP_OFFS * tornadocnn.dev.P_NUMGROUPS
 
     def write(self,
               addr,
@@ -82,7 +82,7 @@ class APB(object):
         """
         if comment is None:
             comment = f' // global ctl {reg}'
-        addr = tornadocnn.C_GROUP_OFFS*group + tornadocnn.C_CNN_BASE + reg*4
+        addr = tornadocnn.dev.C_GROUP_OFFS*group + tornadocnn.dev.C_CNN_BASE + reg*4
         self.write(addr, val, comment)
         if debug:
             print(f'R{reg:02} ({addr:08x}): {val:08x}{comment}')
@@ -93,8 +93,8 @@ class APB(object):
         """
         if comment is None:
             comment = f' // reg {reg}'
-        addr = tornadocnn.C_GROUP_OFFS*group + tornadocnn.C_CNN_BASE + tornadocnn.C_CNN*4 \
-            + reg*4 * tornadocnn.MAX_LAYERS + layer*4
+        addr = tornadocnn.dev.C_GROUP_OFFS*group + tornadocnn.dev.C_CNN_BASE \
+            + tornadocnn.dev.C_CNN*4 + reg*4 * tornadocnn.dev.MAX_LAYERS + layer*4
         self.write(addr, val, comment)
         if debug:
             print(f'G{group} L{layer} R{reg:02} ({addr:08x}): {val:08x}{comment}')
@@ -103,15 +103,15 @@ class APB(object):
         """
         Write bias value `bias` to offset `offs` in bias memory #`group`.
         """
-        addr = tornadocnn.C_GROUP_OFFS*group + tornadocnn.C_BRAM_BASE + offs * 4
+        addr = tornadocnn.dev.C_GROUP_OFFS*group + tornadocnn.dev.C_BRAM_BASE + offs * 4
         self.write(addr, bias & 0xff, f' // Bias')
 
     def write_tram(self, group, proc, offs, d, comment=''):
         """
         Write value `d` to TRAM in group `group` and processor `proc` to offset `offs`.
         """
-        addr = tornadocnn.C_GROUP_OFFS*group + tornadocnn.C_TRAM_BASE \
-            + proc * tornadocnn.TRAM_SIZE * 4 + offs * 4
+        addr = tornadocnn.dev.C_GROUP_OFFS*group + tornadocnn.dev.C_TRAM_BASE \
+            + proc * tornadocnn.dev.TRAM_OFFS * 4 + offs * 4
         self.write(addr, d, f' // {comment}TRAM G{group} P{proc} #{offs}')
 
     def write_kern(self, ll, p, idx, k):
@@ -119,11 +119,11 @@ class APB(object):
         Write single 3x3 kernel `k` for layer `ll`, processor `p` to index `idx` in weight
         memory.
         """
-        assert p < tornadocnn.MAX_PROC
-        assert idx < tornadocnn.MASK_WIDTH
-        addr = tornadocnn.C_GROUP_OFFS * (p // tornadocnn.P_NUMPRO) \
-            + tornadocnn.C_MRAM_BASE \
-            + (p % tornadocnn.P_NUMPRO) * tornadocnn.MASK_OFFS * 16 + idx * 16
+        assert p < tornadocnn.dev.MAX_PROC
+        assert idx < tornadocnn.dev.MASK_WIDTH
+        addr = tornadocnn.dev.C_GROUP_OFFS * (p // tornadocnn.dev.P_NUMPRO) \
+            + tornadocnn.dev.C_MRAM_BASE \
+            + (p % tornadocnn.dev.P_NUMPRO) * tornadocnn.dev.MASK_OFFS * 16 + idx * 16
 
         self.write(addr, k[0] & 0xff, no_verify=True,
                    comment=f' // Layer {ll}: processor {p} kernel #{idx}')
@@ -278,8 +278,7 @@ class APB(object):
                       out_offset=0, out_expand=1,  # pylint: disable=unused-argument
                       out_expand_thresh=64, output_width=8,  # pylint: disable=unused-argument
                       pool=None, pool_stride=1,  # pylint: disable=unused-argument
-                      overwrite_ok=False, no_error_stop=False,  # pylint: disable=unused-argument
-                      ai84=True):  # pylint: disable=unused-argument
+                      overwrite_ok=False, no_error_stop=False):  # pylint: disable=unused-argument
         """
         Write a verification function. The layer to unload has the shape `input_shape`,
         and the optional `output_offset` argument can shift the output.
@@ -476,15 +475,14 @@ class APBTopLevel(APB):
         """
         unload.unload(self.memfile, self.apb_base, processor_map, input_shape,
                       output_offset, out_expand, out_expand_thresh, output_width,
-                      pool=pool, pool_stride=pool_stride, ai84=not self.ai85)
+                      pool=pool, pool_stride=pool_stride, device=self.device)
 
     def verify_unload(self, ll, in_map, out_map, out_buf,
                       processor_map, input_shape,
                       out_offset=0, out_expand=1,
                       out_expand_thresh=64, output_width=8,
                       pool=None, pool_stride=1,
-                      overwrite_ok=False, no_error_stop=False,
-                      ai84=True):
+                      overwrite_ok=False, no_error_stop=False):
         """
         Write a verification function. The layer to unload has the shape `input_shape`,
         and the optional `output_offset` argument can shift the output.
@@ -494,7 +492,7 @@ class APBTopLevel(APB):
                       processor_map, input_shape, out_offset, out_expand, out_expand_thresh,
                       output_width, pool=pool, pool_stride=pool_stride,
                       overwrite_ok=overwrite_ok, no_error_stop=no_error_stop,
-                      ai84=not self.ai85)
+                      device=self.device)
 
     def output_define(self, array, define_name, fmt, columns, weights=True):
         """
@@ -516,7 +514,7 @@ def apbwriter(memfile,
               weight_header=None,
               sampledata_header=None,
               embedded_code=False,
-              ai85=False):
+              device=84):
     """
     Depending on `block_level`, return a block level .mem file writer or a top level .c file
     writer to the file `memfile` with APB base address `apb_base`.
@@ -532,4 +530,4 @@ def apbwriter(memfile,
                     weight_header=weight_header,
                     sampledata_header=sampledata_header,
                     embedded_code=embedded_code,
-                    ai85=ai85)
+                    device=device)

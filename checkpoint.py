@@ -62,7 +62,8 @@ def load(checkpoint_file, arch, fc_layer, quantization):
                 # Is there a bias for this layer?
                 bias_name = operation + '.bias'
                 if bias_name in checkpoint_state:
-                    w = checkpoint_state[bias_name].numpy().astype(np.int64) // tornadocnn.BIAS_DIV
+                    w = checkpoint_state[bias_name].numpy(). \
+                        astype(np.int64) // tornadocnn.dev.BIAS_DIV
                     assert w.min() >= -(2**(quantization[layers]-1))
                     assert w.max() < 2**(quantization[layers]-1)
                     bias.append(w)

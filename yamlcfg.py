@@ -18,11 +18,11 @@ DEFAULT_2D_KERNEL = [3, 3]
 DEFAULT_1D_KERNEL = [9, 1]
 
 
-def parse(config_file, ai85=False):  # pylint: disable=unused-argument
+def parse(config_file, device=84):  # pylint: disable=unused-argument
     """
     Configure network parameters from the YAML configuration file `config_file`.
     The function returns both the YAML dictionary as well as a settings dictionary.
-    `ai85` is `True` for AI85 and AI86, `False` for AI84.
+    `device` is `84`, `85`, etc.
     """
 
     def error_exit(message, sequence):
@@ -52,25 +52,25 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
 
     # These are initializaed with 'None'. Use this to see whether a layer was configured,
     # will be auto-initialized to previous layer's value or a default.
-    processor_map = [None] * tc.MAX_LAYERS
-    output_map = [None] * tc.MAX_LAYERS
-    input_offset = [None] * tc.MAX_LAYERS
+    processor_map = [None] * tc.dev.MAX_LAYERS
+    output_map = [None] * tc.dev.MAX_LAYERS
+    input_offset = [None] * tc.dev.MAX_LAYERS
     # All other variables are initialized with the default values
-    padding = [[1, 1]] * tc.MAX_LAYERS
-    pool = [[0, 0]] * tc.MAX_LAYERS
-    pooling_enabled = [False] * tc.MAX_LAYERS
-    average = [0] * tc.MAX_LAYERS
-    pool_stride = [[1, 1]] * tc.MAX_LAYERS
-    quantization = [8] * tc.MAX_LAYERS
-    output_offset = [0] * tc.MAX_LAYERS
-    relu = [0] * tc.MAX_LAYERS
-    big_data = [False] * tc.MAX_LAYERS
-    output_width = [8] * tc.MAX_LAYERS
-    convolution = [2] * tc.MAX_LAYERS
+    padding = [[1, 1]] * tc.dev.MAX_LAYERS
+    pool = [[0, 0]] * tc.dev.MAX_LAYERS
+    pooling_enabled = [False] * tc.dev.MAX_LAYERS
+    average = [0] * tc.dev.MAX_LAYERS
+    pool_stride = [[1, 1]] * tc.dev.MAX_LAYERS
+    quantization = [8] * tc.dev.MAX_LAYERS
+    output_offset = [0] * tc.dev.MAX_LAYERS
+    relu = [0] * tc.dev.MAX_LAYERS
+    big_data = [False] * tc.dev.MAX_LAYERS
+    output_width = [8] * tc.dev.MAX_LAYERS
+    convolution = [2] * tc.dev.MAX_LAYERS
     # We don't support changing the following (yet), but leave as parameters:
-    dilation = [[1, 1]] * tc.MAX_LAYERS
-    kernel_size = [DEFAULT_2D_KERNEL] * tc.MAX_LAYERS
-    stride = [[1, 1]] * tc.MAX_LAYERS
+    dilation = [[1, 1]] * tc.dev.MAX_LAYERS
+    kernel_size = [DEFAULT_2D_KERNEL] * tc.dev.MAX_LAYERS
+    stride = [[1, 1]] * tc.dev.MAX_LAYERS
 
     sequence = 0
     for ll in cfg['layers']:
@@ -196,7 +196,7 @@ def parse(config_file, ai85=False):  # pylint: disable=unused-argument
         sequence += 1
 
     # Sequence specification may have holes. Contract to the used layers.
-    for ll in range(tc.MAX_LAYERS-1, -1, -1):
+    for ll in range(tc.dev.MAX_LAYERS-1, -1, -1):
         if processor_map[ll] is None:
             del processor_map[ll]
             del padding[ll]
