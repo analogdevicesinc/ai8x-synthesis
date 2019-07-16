@@ -185,12 +185,12 @@ def verify(verify_fn, ll, in_map, out_map,
             if out_size == 1:
                 check_overwrite(proc, offs, in_map, out_map, this_c, row, col)
                 out_map[offs >> 2] = (this_c, row, col, val)
-                verify_fn(offs, val, rv=True)
+                verify_fn(offs, val, rv=False)
             else:
                 for i in range(out_size):
                     check_overwrite(proc, offs, in_map, out_map, this_c, row, col)
                     out_map[offs >> 2] = (this_c, row, col, val[i])
-                    verify_fn(offs, val[i], rv=True)
+                    verify_fn(offs, val[i], rv=False)
                     offs += out_size
 
             coffs += 4

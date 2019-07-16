@@ -401,7 +401,7 @@ class APBTopLevel(APB):
 
         if rv:
             self.memfile.write(f'  if (*((volatile uint32_t *) 0x{addr:08x}) != 0x{val:08x}) '
-                               f'return 0;{comment}\n')  # FIXME
+                               f'rv = 0;{comment}\n')
         else:
             self.memfile.write(f'  if (*((volatile uint32_t *) 0x{addr:08x}) != 0x{val:08x}) '
                                f'return 0;{comment}\n')
