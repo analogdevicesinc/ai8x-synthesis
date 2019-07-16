@@ -137,7 +137,7 @@ def test_cmsis(test_no):
 
     cmsisnn.create_net('test_cmsis', True, False, True,
                        layers, convolution, input_dim, pooled_dim, output_dim,
-                       input_size, kernel_size, quantization,
+                       kernel_size, quantization,
                        input_chan, output_chan, output_width, padding, dilation, stride,
                        pool, pool_stride, pool_average, activate,
                        data, weight, bias, None, None,
