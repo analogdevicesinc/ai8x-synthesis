@@ -45,7 +45,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                base_directory, runtest_filename, log_filename,
                zero_unused, timeout, block_mode, verify_writes,
                embedded_code=False, weight_filename=None, sample_filename=None,
-               ai85=False, init_tram=False):
+               device=84, init_tram=False):
     """
     Chain multiple CNN layers, create and save input and output
     """
@@ -66,34 +66,34 @@ def create_net(prefix, verbose, debug, debug_computation,
     # and calculate input and output expansion
     for ll in range(layers):
         if big_data[ll]:
-            p = processor_map[ll] >> (ffs(processor_map[ll]) & ~(tc.P_SHARED-1))
+            p = processor_map[ll] >> (ffs(processor_map[ll]) & ~(tc.dev.P_SHARED-1))
             while p:
-                if popcount(p & (tc.P_SHARED-1)) > 1:
+                if popcount(p & (tc.dev.P_SHARED-1)) > 1:
                     print(f"Layer {ll} uses CHW (big data) input format, but multiple channels "
                           "share the same memory instance. Modify the processor map for "
                           f"layer {ll}.")
                     sys.exit(1)
-                p >>= tc.P_SHARED
+                p >>= tc.dev.P_SHARED
 
-        out_expand[ll] = (output_chan[ll] + tc.MAX_PROC-1) // tc.MAX_PROC
+        out_expand[ll] = (output_chan[ll] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
         out_expand_thresh[ll] = (output_chan[ll] + out_expand[ll]-1) // out_expand[ll]
-        in_expand[ll] = (input_chan[ll] + tc.MAX_PROC-1) // tc.MAX_PROC
+        in_expand[ll] = (input_chan[ll] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
         in_expand_thresh[ll] = (input_chan[ll] + in_expand[ll]-1) // in_expand[ll]
 
         # Data memory size check - 4 channels share one instance unless CHW format
         in_size = input_dim[ll][0] * input_dim[ll][1] * in_expand[ll] \
             * (1 if big_data[ll] else 4)
-        if in_size + in_offset[ll] > tc.INSTANCE_SIZE*16:
+        if in_size + in_offset[ll] > tc.dev.INSTANCE_SIZE*16:
             print(f'Layer {ll}: {1 if big_data[ll] else 4}-channel input size {in_size} '
                   f'with input offset 0x{in_offset[ll]:04x} and expansion {in_expand[ll]}x '
-                  f'exceeds data memory instance size of {tc.INSTANCE_SIZE*16}.')
+                  f'exceeds data memory instance size of {tc.dev.INSTANCE_SIZE*16}.')
             sys.exit(1)
         out_size = output_dim[ll][0] * output_dim[ll][1] * out_expand[ll] \
             * 4 * output_width[ll] // 8
-        if out_size + out_offset[ll] > tc.INSTANCE_SIZE*16:
+        if out_size + out_offset[ll] > tc.dev.INSTANCE_SIZE*16:
             print(f'Layer {ll}: 4-channel, {output_width[ll]}-bit output size {out_size} '
                   f'with output offset 0x{out_offset[ll]:04x} and expansion {out_expand[ll]}x '
-                  f'exceeds data memory instance size of {tc.INSTANCE_SIZE*16}.')
+                  f'exceeds data memory instance size of {tc.dev.INSTANCE_SIZE*16}.')
             sys.exit(1)
 
         if convolution[ll] == 2:
@@ -149,7 +149,7 @@ def create_net(prefix, verbose, debug, debug_computation,
     with open(os.path.join(base_directory, test_name, filename), mode='w') as memfile:
         apb = apbaccess.apbwriter(memfile, apb_base, block_mode, verify_writes, no_error_stop,
                                   weight_header=weight_header, sampledata_header=sampledata_header,
-                                  embedded_code=embedded_code, ai85=ai85)
+                                  embedded_code=embedded_code, device=device)
 
         apb.copyright_header()
 
@@ -182,13 +182,13 @@ def create_net(prefix, verbose, debug, debug_computation,
             bits = processor_map[ll]
             processors_used |= bits
 
-            if input_chan[ll] > tc.MAX_CHANNELS:
+            if input_chan[ll] > tc.dev.MAX_CHANNELS:
                 print(f'Layer {ll} is configured for {input_chan[ll]} inputs, which exceeds '
-                      f'the system maximum of {tc.MAX_CHANNELS}.')
+                      f'the system maximum of {tc.dev.MAX_CHANNELS}.')
                 sys.exit(1)
-            if output_chan[ll] > tc.MAX_CHANNELS:
+            if output_chan[ll] > tc.dev.MAX_CHANNELS:
                 print(f'Layer {ll} is configured for {output_chan[ll]} outputs, which exceeds '
-                      f'the system maximum of {tc.MAX_CHANNELS}.')
+                      f'the system maximum of {tc.dev.MAX_CHANNELS}.')
                 sys.exit(1)
             if popcount(processor_map[ll]) != in_expand_thresh[ll]:
                 print(f'Layer {ll} has {input_chan[ll]} inputs with input expansion '
@@ -205,15 +205,15 @@ def create_net(prefix, verbose, debug, debug_computation,
                       f'expected number of {out_expand_thresh[ll]}.')
                 sys.exit(1)
             this_map = []
-            for group in range(tc.P_NUMGROUPS):
-                if (processor_map[ll] >> group*tc.P_NUMPRO) % 2**tc.P_NUMPRO:
+            for group in range(tc.dev.P_NUMGROUPS):
+                if (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO:
                     this_map.append(group)
             group_map.append(this_map)
 
         groups_used = []
-        for group in range(tc.P_NUMGROUPS):
+        for group in range(tc.dev.P_NUMGROUPS):
             if ((processors_used |
-                 output_processor_map[-1]) >> group*tc.P_NUMPRO) % 2**tc.P_NUMPRO:
+                 output_processor_map[-1]) >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO:
                 groups_used.append(group)
 
         if 0 not in groups_used:
@@ -245,9 +245,9 @@ def create_net(prefix, verbose, debug, debug_computation,
             print('-----------------')
 
         # Disable completely unused groups
-        for group in range(tc.P_NUMGROUPS):
+        for group in range(tc.dev.P_NUMGROUPS):
             if group not in groups_used:
-                apb.write_ctl(group, tc.REG_CTL, 0,
+                apb.write_ctl(group, tc.dev.REG_CTL, 0,
                               verbose, comment=f' // Disable group {group}')
 
         # Configure global control registers for used groups
@@ -255,24 +255,26 @@ def create_net(prefix, verbose, debug, debug_computation,
             if init_tram:
                 # Zero out Tornado RAM
                 if not embedded_code:
-                    for p in range(tc.P_NUMPRO):
-                        for offs in range(tc.TRAM_SIZE):
+                    for p in range(tc.dev.P_NUMPRO):
+                        for offs in range(tc.dev.TRAM_SIZE):
                             apb.write_tram(group, p, offs, 0, comment='Zero ')
                     apb.output('\n')
                 else:
-                    addr = apb_base + tc.C_GROUP_OFFS*group + tc.C_TRAM_BASE
-                    apb.output(f'  memset((uint32_t *) 0x{addr:08x}, 0, '
-                               f'{tc.TRAM_SIZE * tc.P_NUMPRO * 4}); // Zero TRAM {group}\n')
-                    apb.output('\n')
+                    for p in range(tc.dev.P_NUMPRO):
+                        addr = apb_base + tc.dev.C_GROUP_OFFS*group + tc.dev.C_TRAM_BASE \
+                            + p * tc.dev.TRAM_OFFS * 4
+                        apb.output(f'  memset((uint32_t *) 0x{addr:08x}, 0, '
+                                   f'{tc.dev.TRAM_SIZE}); // Zero TRAM {group}\n')
+                        apb.output('\n')
 
             # Stop state machine - will be overwritten later
-            apb.write_ctl(group, tc.REG_CTL, 0x06,
+            apb.write_ctl(group, tc.dev.REG_CTL, 0x06,
                           verbose, comment=' // Stop SM')
             # SRAM Control - does not need to be changed
-            apb.write_ctl(group, tc.REG_SRAM, 0x40e,
+            apb.write_ctl(group, tc.dev.REG_SRAM, 0x40e,
                           verbose, comment=' // SRAM control')
             # Number of layers
-            apb.write_ctl(group, tc.REG_LCNT_MAX, layers-1,
+            apb.write_ctl(group, tc.dev.REG_LCNT_MAX, layers-1,
                           verbose, comment=' // Layer count')
             apb.output('\n')
 
@@ -306,7 +308,7 @@ def create_net(prefix, verbose, debug, debug_computation,
             print(f'Input channels      = {input_chan}')
             print('Processor map       = [',
                   ', '.join('0x{:016x}'.format(k) for k in processor_map), ']', sep='',)
-            if ai85:
+            if device >= 85:
                 print(f'Input expansion     = {in_expand}')
                 print(f'Expansion threshold = {in_expand_thresh}')
             print('Input offsets       = [',
@@ -316,7 +318,7 @@ def create_net(prefix, verbose, debug, debug_computation,
             print(f'Output channels     = {output_chan}')
             print('Output processors   = [',
                   ', '.join('0x{:016x}'.format(k) for k in output_processor_map), ']', sep='',)
-            if ai85:
+            if device >= 85:
                 print(f'Output expansion    = {out_expand}')
                 print(f'Expansion threshold = {out_expand_thresh}')
                 print(f'Output data bits    = {output_width}')
@@ -327,7 +329,7 @@ def create_net(prefix, verbose, debug, debug_computation,
 
             print(f'Kernel offsets      = {kern_offs}')
             print(f'Kernel lengths      = {kern_len}')
-            if ai85:
+            if device >= 85:
                 print(f'Kernel dimensions   = {kernel_size}')
                 print(f'Kernel bits         = {quantization}')
             print(f'Convolution dim.    = {convolution}')
@@ -354,14 +356,14 @@ def create_net(prefix, verbose, debug, debug_computation,
                     # Configure row count
                     # [7:0] maxcount: lower 8 bits = total of width + pad - 1
                     # [9:8] pad: 2 bits pad
-                    apb.write_lreg(group, ll, tc.LREG_RCNT,
+                    apb.write_lreg(group, ll, tc.dev.LREG_RCNT,
                                    (padding[ll][0] << 8) | (input_dim[ll][0]-1 + 2*padding[ll][0]),
                                    verbose, comment=' // Rows')
 
                     # Configure column count
                     # [7:0] width including padding - 1
                     # [9:8] pad count (0 = no pad, 1 = half pad, 2 = full pad)
-                    apb.write_lreg(group, ll, tc.LREG_CCNT,
+                    apb.write_lreg(group, ll, tc.dev.LREG_CCNT,
                                    padding[ll][1] << 8 | (input_dim[ll][1]-1 + 2 * padding[ll][1]),
                                    verbose, comment=' // Columns')
                 else:
@@ -369,17 +371,17 @@ def create_net(prefix, verbose, debug, debug_computation,
                     # divided by 3. Padding is divided by 3.
                     val = (padding[ll][0] // 3 << 8) \
                            | (input_dim[ll][0] + 2*padding[ll][0]) // 3 - 1
-                    apb.write_lreg(group, ll, tc.LREG_RCNT, val,
+                    apb.write_lreg(group, ll, tc.dev.LREG_RCNT, val,
                                    verbose, comment=' // Rows')
-                    apb.write_lreg(group, ll, tc.LREG_CCNT, 2,
+                    apb.write_lreg(group, ll, tc.dev.LREG_CCNT, 2,
                                    verbose, comment=' // Columns')
 
                 # Configure pooling row count
-                apb.write_lreg(group, ll, tc.LREG_PRCNT, max(1, pool[ll][0]-1),
+                apb.write_lreg(group, ll, tc.dev.LREG_PRCNT, max(1, pool[ll][0]-1),
                                verbose, comment=' // Pooling rows')
 
                 # Configure pooling column count
-                apb.write_lreg(group, ll, tc.LREG_PCCNT, max(1, pool[ll][1]-1),
+                apb.write_lreg(group, ll, tc.dev.LREG_PCCNT, max(1, pool[ll][1]-1),
                                verbose, comment=' // Pooling columns')
 
                 # Configure pooling stride count
@@ -389,19 +391,19 @@ def create_net(prefix, verbose, debug, debug_computation,
                     val = stride[ll][0]-1
                 if convolution[ll] != 2:
                     val //= 3
-                apb.write_lreg(group, ll, tc.LREG_STRIDE, val,
+                apb.write_lreg(group, ll, tc.dev.LREG_STRIDE, val,
                                verbose, comment=' // Stride')
 
                 # Configure SRAM write pointer -- write ptr is global
                 # Get offset to first available instance of the first used processor of the next
                 # layer.
-                instance = ffs(output_processor_map[ll]) & ~(tc.P_SHARED-1)
+                instance = ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1)
                 val = out_offset[ll] // 4 + \
-                    ((instance % tc.P_SHARED) * tc.INSTANCE_SIZE |
-                     ((instance // tc.P_SHARED) << 12))
-                if ai85:
+                    ((instance % tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE |
+                     ((instance // tc.dev.P_SHARED) << 12))
+                if device >= 85:
                     val |= 1 << 16  # wptr_inc
-                apb.write_lreg(group, ll, tc.LREG_WPTR_BASE, val,
+                apb.write_lreg(group, ll, tc.dev.LREG_WPTR_BASE, val,
                                verbose, comment=' // SRAM write ptr')
 
                 # Configure write pointer mask offset count
@@ -414,12 +416,12 @@ def create_net(prefix, verbose, debug, debug_computation,
                     val = 0x10000000
                 else:
                     val = 0
-                apb.write_lreg(group, ll, tc.LREG_WPTR_OFFS, val,
+                apb.write_lreg(group, ll, tc.dev.LREG_WPTR_OFFS, val,
                                verbose, comment=' // Mask offset count')
 
                 # Configure sram read ptr count -- read ptr is local
                 # Source address must match write pointer of previous layer (minus global offset)
-                apb.write_lreg(group, ll, tc.LREG_RPTR_BASE,
+                apb.write_lreg(group, ll, tc.dev.LREG_RPTR_BASE,
                                in_offset[ll] // 4,
                                verbose, comment=' // SRAM read ptr')
 
@@ -441,7 +443,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                       (0x80 if pool[ll][0] > 1 else 0) | \
                       (0x40 if big_data[ll] else 0) | \
                       (0x820)
-                if ai85:
+                if device >= 85:
                     # The threshold is adjusted based on whether the weights are 1, 2, 4, or 8 bit.
                     # One full weight size is subtracted from the shifted value.
                     val |= ((out_expand[ll] - 1) << 19) \
@@ -454,13 +456,13 @@ def create_net(prefix, verbose, debug, debug_computation,
                     # other groups are processing). Do not set the bit corresponding to this group
                     # (e.g., if group == 0, do not set bit 12)
                     sources = 0
-                    for t in range(groups_used[0]+1, tc.P_NUMGROUPS):
+                    for t in range(groups_used[0]+1, tc.dev.P_NUMGROUPS):
                         # See if any processors other than this one are operating
                         # and set the cnnsiena bit if true
-                        if (processor_map[ll] >> (t * tc.P_NUMPRO)) % 2**tc.P_NUMPRO:
+                        if (processor_map[ll] >> (t * tc.dev.P_NUMPRO)) % 2**tc.dev.P_NUMPRO:
                             sources |= 1 << t
                     val |= sources << 12
-                apb.write_lreg(group, ll, tc.LREG_LCTL, val,
+                apb.write_lreg(group, ll, tc.dev.LREG_LCTL, val,
                                verbose, comment=' // Layer control')
 
                 # Configure mask count
@@ -476,13 +478,14 @@ def create_net(prefix, verbose, debug, debug_computation,
                 # AI85:
                 # [15:0]  Max count (output channels)
                 # [31:16] Starting address for group of 16
-                val = kern_offs[ll] << tc.MCNT_SAD_OFFS \
-                    | (kern_len[ll] << tc.MCNT_MAX_OFFS) - (quantization[ll] if ai85 else 1)
-                if not ai85:
+                val = kern_offs[ll] << tc.dev.MCNT_SAD_OFFS \
+                    | (kern_len[ll] << tc.dev.MCNT_MAX_OFFS) \
+                    - (quantization[ll] if device >= 85 else 1)
+                if device == 84:
                     if group == bias_group[ll]:
                         # Enable bias only for one group
                         val |= 0x1000000 | bias_offs[ll] << 16
-                apb.write_lreg(group, ll, tc.LREG_MCNT, val,
+                apb.write_lreg(group, ll, tc.dev.LREG_MCNT, val,
                                verbose, comment=' // Mask offset and count')
 
                 # Configure tram pointer max
@@ -490,10 +493,10 @@ def create_net(prefix, verbose, debug, debug_computation,
                     val = max(0, pooled_dim[ll][1] + 2*padding[ll][1] - kernel_size[ll][1])
                 else:
                     val = 0
-                apb.write_lreg(group, ll, tc.LREG_TPTR, val,
+                apb.write_lreg(group, ll, tc.dev.LREG_TPTR, val,
                                verbose, comment=' // TRAM ptr max')
 
-                if ai85:
+                if device >= 85:
                     # Compensate for the smaller weights by adjusting the output shift
                     if quantization[ll] == 1:
                         val = (1 << 22) | (3 << 13)  # Shift left 3
@@ -508,8 +511,8 @@ def create_net(prefix, verbose, debug, debug_computation,
                     if group == bias_group[ll]:
                         # Enable bias only for one group
                         val |= (1 << 12) | bias_offs[ll]
-                    apb.write_lreg(group, ll, tc.LREG_POST, val,
-                                   verbose, comment=' // AI85 post processing register')
+                    apb.write_lreg(group, ll, tc.dev.LREG_POST, val,
+                                   verbose, comment=' // AI85/86 post processing register')
 
                 # Configure mask and processor enables
                 # [15:0]  processor enable
@@ -519,14 +522,14 @@ def create_net(prefix, verbose, debug, debug_computation,
                 # channels, 0x000f000f would be correct.
                 #
                 # Enable at most 16 processors and masks
-                bits = (processor_map[ll] >> group*tc.P_NUMPRO) % 2**tc.P_NUMPRO
-                apb.write_lreg(group, ll, tc.LREG_ENA, bits << 16 | bits,
+                bits = (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO
+                apb.write_lreg(group, ll, tc.dev.LREG_ENA, bits << 16 | bits,
                                verbose, comment=' // Mask and processor enables')
 
             if zero_unused:
-                for ll in range(layers, tc.MAX_LAYERS):
-                    for reg in range(tc.MAX_LREG+1):
-                        if reg == tc.LREG_RFU:  # Register 2 not implemented
+                for ll in range(layers, tc.dev.MAX_LAYERS):
+                    for reg in range(tc.dev.MAX_LREG+1):
+                        if reg == tc.dev.LREG_RFU:  # Register 2 not implemented
                             continue
                         apb.write_lreg(group, ll, reg, 0,
                                        verbose, comment=f' // Zero unused layer {ll} registers')
@@ -557,11 +560,11 @@ def create_net(prefix, verbose, debug, debug_computation,
             # [8]    one-shot (stop after single layer)
             # [11:9] ext_sync (slave to other group)
             # [12]   irq
-            apb.write_ctl(group, tc.REG_CTL, 0x807 | groups_used[0] << 9,
+            apb.write_ctl(group, tc.dev.REG_CTL, 0x807 | groups_used[0] << 9,
                           verbose, comment=f' // Enable group {group}')
 
         # Master control - go
-        apb.write_ctl(groups_used[0], tc.REG_CTL, 0x07,
+        apb.write_ctl(groups_used[0], tc.dev.REG_CTL, 0x07,
                       verbose, comment=f' // Master enable group {groups_used[0]}')
 
         apb.load_footer()
@@ -591,7 +594,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                                             bias[ll],
                                             data,
                                             output_width=output_width[ll],
-                                            ai85=ai85,
+                                            device=device,
                                             debug=debug_computation,
                                             expand=in_expand[ll],
                                             expand_thresh=in_expand_thresh[ll])
@@ -611,14 +614,14 @@ def create_net(prefix, verbose, debug, debug_computation,
                                             bias[ll],
                                             data,
                                             output_width=output_width[ll],
-                                            ai85=ai85,
+                                            device=device,
                                             debug=debug_computation)
 
         assert out_size[0] == output_chan[ll] \
             and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
 
         # Write .mem file for output or create the C cnn_check() function to verify the output
-        out_map = [None] * tc.C_GROUP_OFFS * tc.P_NUMGROUPS
+        out_map = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
         if block_mode:
             if ll == layers-1:
                 filename = output_filename + '.mem'  # Final output
@@ -696,10 +699,14 @@ def main():
     args = commandline.get_parser()
 
     # Configure device
-    tc.set_device(args.ai85)
+    tc.dev = tc.get_device(args.device)
+    if args.apb_base:
+        apb_base = args.apb_base
+    else:
+        apb_base = tc.dev.APB_BASE
 
     # Load configuration file
-    cfg, params = yamlcfg.parse(args.config_file, args.ai85)
+    cfg, params = yamlcfg.parse(args.config_file, args.device)
 
     # If not using test data, load weights and biases
     # This also configures the network's output channels
@@ -716,11 +723,11 @@ def main():
               f"does not match the checkpoint file ({layers}).")
         sys.exit(1)
 
-    if any(p < 0 or p > 4*tc.MEM_SIZE for p in params['output_offset']):
+    if any(p < 0 or p > 4*tc.dev.MEM_SIZE for p in params['output_offset']):
         print('Unsupported value for `out_offset` in YAML configuration.')
         sys.exit(1)
 
-    if not args.ai85:
+    if args.device == 84:
         if any(q != 8 for q in params['quantization']):
             print('All quantization configuration values must be 8 for AI84.')
             sys.exit(1)
@@ -746,7 +753,7 @@ def main():
         output_processor_map[-1] = cfg['output_map']
     elif len(processor_map) == layers and output_processor_map[-1] is None:
         # Default to packed, 0-aligned output map
-        expand = (output_channels[layers-1] + tc.MAX_PROC-1) // tc.MAX_PROC
+        expand = (output_channels[layers-1] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
         expand_chunk = output_channels[layers-1] // expand
         output_processor_map[-1] = 2**expand_chunk-1
 
@@ -831,19 +838,19 @@ def main():
         pooled_dim[ll] = pooled_size
 
         # Check for max dimensions
-        if any(dim > tc.MAX_ROW_COL for dim in input_dim[ll]):
+        if any(dim > tc.dev.MAX_ROW_COL for dim in input_dim[ll]):
             print(f'Input dimension {input_dim[ll]} exceeds system maximum of '
-                  f'{tc.MAX_ROW_COL} in layer {ll}.')
+                  f'{tc.dev.MAX_ROW_COL} in layer {ll}.')
             sys.exit(1)
-        if any(dim > tc.MAX_ROW_COL for dim in output_dim[ll]):
+        if any(dim > tc.dev.MAX_ROW_COL for dim in output_dim[ll]):
             print(f'Output dimension {output_dim[ll]} exceeds system maximum of '
-                  f'{tc.MAX_ROW_COL} in layer {ll}.')
+                  f'{tc.dev.MAX_ROW_COL} in layer {ll}.')
             sys.exit(1)
 
     if not args.cmsis_software_nn:
         tn = create_net(args.prefix, args.verbose,
                         args.debug, args.debug_computation, args.no_error_stop,
-                        args.overwrite_ok, args.log, args.apb_base,
+                        args.overwrite_ok, args.log, apb_base,
                         layers, convolution, input_dim, pooled_dim, output_dim,
                         processor_map, output_processor_map,
                         kernel_size, quantization,
@@ -856,7 +863,7 @@ def main():
                         args.test_dir, args.runtest_filename, args.log_filename,
                         args.zero_unused, args.timeout, not args.top_level, args.verify_writes,
                         args.embedded_code, args.weight_filename, args.sample_filename,
-                        args.ai85, args.init_tram)
+                        args.device, args.init_tram)
         if not args.embedded_code:
             rtlsim.append_regression(args.top_level, tn, args.queue_name, args.autogen)
     else:
@@ -870,7 +877,7 @@ def main():
                            args.c_filename,
                            args.test_dir, args.log_filename,
                            args.weight_filename, args.sample_filename,
-                           args.ai85)
+                           args.device)
 
     print("SUMMARY OF OPS")
     stats.print_summary()

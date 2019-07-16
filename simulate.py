@@ -20,7 +20,7 @@ def cnn2d_layer(layer, verbose,
                 output_channels, padding, dilation, stride,
                 pool, pool_stride, pool_average, do_activation,
                 kernel, bias, data, bits=8, output_width=8,
-                ai85=False, debug=False,  # pylint: disable=unused-argument
+                device=84, debug=False,  # pylint: disable=unused-argument
                 expand=None, expand_thresh=None):
     """
     Perform 2D pooling and 2D convolution for one layer.
@@ -100,7 +100,7 @@ def cnn2d_layer(layer, verbose,
                       fill_value=np.nan, dtype=np.int64)
 
     if bias is not None:
-        bias = bias * tc.BIAS_DIV
+        bias = bias * tc.dev.BIAS_DIV
 
     conv2d(data=pooled,
            weight=kernel,
@@ -152,7 +152,7 @@ def cnn1d_layer(layer, verbose,
                 output_channels, padding, dilation, stride,
                 pool, pool_stride, pool_average, do_activation,
                 kernel, bias, data, bits=8, output_width=8,
-                ai85=False, debug=False):  # pylint: disable=unused-argument
+                device=84, debug=False):  # pylint: disable=unused-argument
     """
     Perform 1D pooling and 1D convolution for one layer.
     """
@@ -210,7 +210,7 @@ def cnn1d_layer(layer, verbose,
                       fill_value=np.nan, dtype=np.int64)
 
     if bias is not None:
-        bias = bias * tc.BIAS_DIV
+        bias = bias * tc.dev.BIAS_DIV
 
     conv1d(data=pooled,
            weight=kernel,

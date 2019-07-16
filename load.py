@@ -36,19 +36,19 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
     c = 0
     data_offs = None
     step = 1 if chw else 4
-    for ch in range(0, tc.MAX_CHANNELS, step):
-        instance_map = (processor_map >> (ch % tc.MAX_PROC)) % 2**step
+    for ch in range(0, tc.dev.MAX_CHANNELS, step):
+        instance_map = (processor_map >> (ch % tc.dev.MAX_PROC)) % 2**step
         if not instance_map:
             # Channel or block of four channels not used for input
             continue
         num_ch = popcount(instance_map)
 
         # Load channel into shared memory
-        group = (ch % tc.MAX_PROC) // tc.P_NUMPRO
+        group = (ch % tc.dev.MAX_PROC) // tc.dev.P_NUMPRO
         expand = c // in_expand_thresh  # Channels 64+ handled by processors 0+
-        instance = (ch % tc.P_NUMPRO) // tc.P_SHARED
-        new_data_offs = tc.C_SRAM_BASE + tc.C_GROUP_OFFS*group + tc.INSTANCE_SIZE*4*instance \
-            + expand*4
+        instance = (ch % tc.dev.P_NUMPRO) // tc.dev.P_SHARED
+        new_data_offs = tc.dev.C_SRAM_BASE + tc.dev.C_GROUP_OFFS*group \
+            + tc.dev.INSTANCE_SIZE*4*instance + expand*4
         if expand == 0:
             new_data_offs += input_offset
         if new_data_offs == data_offs:
@@ -134,8 +134,8 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
                     row -= 2*overlap  # Rewind
                     # Switch to next memory instance
                     if split > 1 and s + 1 < split:
-                        new_data_offs = ((data_offs + tc.INSTANCE_SIZE - 1) //
-                                         tc.INSTANCE_SIZE) * tc.INSTANCE_SIZE
+                        new_data_offs = ((data_offs + tc.dev.INSTANCE_SIZE - 1) //
+                                         tc.dev.INSTANCE_SIZE) * tc.dev.INSTANCE_SIZE
                         if new_data_offs != data_offs:
                             apb.write_byte_flush(0)
                         data_offs = new_data_offs

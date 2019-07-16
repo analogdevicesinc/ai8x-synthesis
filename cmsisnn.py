@@ -24,7 +24,7 @@ def create_net(prefix, verbose, debug, log,
                pool, pool_stride, pool_average, activate,
                data, kernel, bias, fc_weights, fc_bias,
                c_filename, base_directory, log_filename,
-               weight_filename, sample_filename, ai85=False):
+               weight_filename, sample_filename, device=84):
     """
     Create the CMSIS NN network.
     """
@@ -147,7 +147,7 @@ def create_net(prefix, verbose, debug, log,
                                                                    kernel_size[ll][1]),
                                                 bias[ll],
                                                 data,
-                                                ai85=ai85,
+                                                device=device,
                                                 debug=debug)
             else:
                 out_buf, out_size = cnn1d_layer(ll + 1, verbose,
@@ -164,7 +164,7 @@ def create_net(prefix, verbose, debug, log,
                                                                    kernel_size[ll][0]),
                                                 bias[ll],
                                                 data,
-                                                ai85=ai85,
+                                                device=device,
                                                 debug=debug)
             c_file.write(f'{out_size}\n')
 
