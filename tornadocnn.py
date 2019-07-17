@@ -103,13 +103,15 @@ class DevAI85(Dev):
     LREG_PCCNT = 4
     LREG_STRIDE = 5
     LREG_WPTR_BASE = 6
-    LREG_WPTR_OFFS = 7
-    LREG_RPTR_BASE = 8
-    LREG_LCTL = 9
-    LREG_MCNT = 10
-    LREG_TPTR = 11
-    LREG_ENA = 12
-    LREG_POST = 13
+    LREG_WPTR_TOFFS = 7
+    LREG_WPTR_MOFFS = 8
+    LREG_WPTR_CHOFFS = 9
+    LREG_RPTR_BASE = 10
+    LREG_LCTL = 11
+    LREG_MCNT = 12
+    LREG_TPTR = 13
+    LREG_ENA = 14
+    LREG_POST = 15
     MAX_LREG = LREG_POST
 
     # Global registers
@@ -120,7 +122,7 @@ class DevAI85(Dev):
     DEFAULT_WEIGHT_BITS = 8
     ACTIVATION_BITS = 8
     TRAM_SIZE = 768
-    TRAM_OFFS = 1024
+    TRAM_OFFS = 2048
     BIAS_SIZE = 512
     MASK_WIDTH = 768
     MASK_OFFS = 1024
