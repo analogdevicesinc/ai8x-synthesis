@@ -420,7 +420,10 @@ def create_net(prefix, verbose, debug, debug_computation,
                 else:
                     # [15:0] Write Pointer Timeslot Offset Register
                     # Used for 1x1 convolution, and pooling without convolution
-                    val = 0
+                    if kernel_size[ll] == [1, 1]:
+                        val = 1
+                    else:
+                        val = 0
                     apb.write_lreg(group, ll, tc.dev.LREG_WPTR_TOFFS, val,
                                    verbose, comment=' // Write ptr time slot offs')
 
@@ -527,11 +530,15 @@ def create_net(prefix, verbose, debug, debug_computation,
                         val = 0  # Do not shift
 
                     # [24] ts_ena
-                    # [25] 1d_ena
+                    # [25] onexone_ena
 
                     if group == bias_group[ll]:
                         # Enable bias only for one group
                         val |= (1 << 12) | bias_offs[ll]
+
+                    if kernel_size[ll] == [1, 1]:
+                        val |= 3 << 24
+
                     apb.write_lreg(group, ll, tc.dev.LREG_POST, val,
                                    verbose, comment=' // AI85/86 post processing register')
 
@@ -599,8 +606,9 @@ def create_net(prefix, verbose, debug, debug_computation,
     # Compute layer-by-layer output and chain results into input
     for ll in range(layers):
         if convolution[ll] == 2:
+            data = data.reshape((input_chan[ll], input_dim[ll][0], input_dim[ll][1]))
             out_buf, out_size = cnn2d_layer(ll + 1, verbose,
-                                            [input_chan[ll], input_dim[ll][0], input_dim[ll][1]],
+                                            data.shape,
                                             kernel_size[ll], quantization[ll],
                                             output_chan[ll],
                                             padding[ll], dilation[ll],
@@ -620,8 +628,9 @@ def create_net(prefix, verbose, debug, debug_computation,
                                             expand=in_expand[ll],
                                             expand_thresh=in_expand_thresh[ll])
         else:
+            data = data.reshape((input_chan[ll], input_dim[ll][0]))
             out_buf, out_size = cnn1d_layer(ll + 1, verbose,
-                                            [input_chan[ll], input_dim[ll][0]],
+                                            data.shape,
                                             kernel_size[ll][0], quantization[ll],
                                             output_chan[ll],
                                             padding[ll][0], dilation[ll][0],
@@ -784,6 +793,7 @@ def main():
     input_channels = input_channels[:layers]
     output_channels = output_channels[:layers]
     output_offset = params['output_offset'][:layers]
+    conf_input_dim = params['input_dim'][:layers]
     input_offset = params['input_offset'][:layers]
     kernel_size = params['kernel_size'][:layers]
     quantization = params['quantization'][:layers]
@@ -809,18 +819,23 @@ def main():
     input_size = list(data.shape)
 
     # Trace output sizes of the network
-    # FIXME: Currently, input_dim[ll+1] == output_dim[ll]. Allow configuration override later
-    # to support 'parallel' layers.
     input_dim = [None] * layers
     pooled_dim = [None] * layers
     output_dim = [None] * layers
-    if convolution[0] == 2:
-        input_dim[0] = [input_size[1], input_size[2]]
+
+    if conf_input_dim[0] is None:
+        if convolution[0] == 2:
+            input_dim[0] = [input_size[1], input_size[2]]
+        else:
+            input_dim[0] = [input_size[1], 1]
     else:
-        input_dim[0] = [input_size[1], 1]
+        input_dim[0] = conf_input_dim[0]
     for ll in range(layers):
         if input_dim[ll] is None:
-            input_dim[ll] = output_dim[ll-1]
+            if conf_input_dim[ll] is None:
+                input_dim[ll] = output_dim[ll-1]
+            else:
+                input_dim[ll] = conf_input_dim[ll]
         if pool[ll][0] > 0:
             if convolution[ll] == 2:
                 pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])

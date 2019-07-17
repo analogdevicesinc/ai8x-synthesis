@@ -55,7 +55,7 @@ def combine_bias(b, quantization, start, out_chan):
     return val
 
 
-def load(verbose, embedded_code, apb, layers, kernel, _kernel_size, quantization, processor_map,
+def load(verbose, embedded_code, apb, layers, kernel, kernel_size, quantization, processor_map,
          output_processor_map, input_chan, output_chan, out_expand, out_expand_thresh,
          in_expand, in_expand_thresh, debug=False):
     """
@@ -164,15 +164,20 @@ def load(verbose, embedded_code, apb, layers, kernel, _kernel_size, quantization
                                       f'{output_chan[ll]}: {k}')
                         if not embedded_code:
                             # Write in-line
-                            apb.write_kern(ll, p, kern_offs[ll] + col_target, k)
+                            apb.write_kern(ll, p, kern_offs[ll] + col_target, k,
+                                           size=kernel_size[ll][0] * kernel_size[ll][1])
                         else:
                             # Store for later
                             offs = _WORDS_PER_KERNEL * (kern_offs[ll] + col_target)  # 96-bit words
                             kernel_values[p][offs] = k[0] & 0xff
-                            kernel_values[p][offs + 1] = (k[1] & 0xff) << 24 \
-                                | (k[2] & 0xff) << 16 | (k[3] & 0xff) << 8 | k[4] & 0xff
-                            kernel_values[p][offs + 2] = (k[5] & 0xff) << 24 \
-                                | (k[6] & 0xff) << 16 | (k[7] & 0xff) << 8 | k[8] & 0xff
+                            if kernel_size[ll] != [1, 1]:
+                                kernel_values[p][offs + 1] = (k[1] & 0xff) << 24 \
+                                    | (k[2] & 0xff) << 16 | (k[3] & 0xff) << 8 | k[4] & 0xff
+                                kernel_values[p][offs + 2] = (k[5] & 0xff) << 24 \
+                                    | (k[6] & 0xff) << 16 | (k[7] & 0xff) << 8 | k[8] & 0xff
+                            else:
+                                kernel_values[p][offs + 1] = 0
+                                kernel_values[p][offs + 2] = 0
 
                         # Update kernel map
                         assert kernel_map[p][kern_offs[ll] + col_target] == _INVALID_VALUE

@@ -114,10 +114,10 @@ class APB(object):
             + proc * tornadocnn.dev.TRAM_OFFS * 4 + offs * 4
         self.write(addr, d, f' // {comment}TRAM G{group} P{proc} #{offs}')
 
-    def write_kern(self, ll, p, idx, k):
+    def write_kern(self, ll, p, idx, k, size=9):
         """
-        Write single 3x3 kernel `k` for layer `ll`, processor `p` to index `idx` in weight
-        memory.
+        Write single kernel `k` of length `size` for layer `ll`, processor `p` to index `idx` in
+        weight memory.
         """
         assert p < tornadocnn.dev.MAX_PROC
         assert idx < tornadocnn.dev.MASK_WIDTH
@@ -127,17 +127,25 @@ class APB(object):
 
         self.write(addr, k[0] & 0xff, no_verify=True,
                    comment=f' // Layer {ll}: processor {p} kernel #{idx}')
-        self.write(addr+4, (k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 |
-                   (k[3] & 0xff) << 8 | k[4] & 0xff, no_verify=True)
-        self.write(addr+8, (k[5] & 0xff) << 24 | (k[6] & 0xff) << 16 |
-                   (k[7] & 0xff) << 8 | k[8] & 0xff, no_verify=True)
+        if size != 1:
+            self.write(addr+4, (k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 |
+                       (k[3] & 0xff) << 8 | k[4] & 0xff, no_verify=True)
+            self.write(addr+8, (k[5] & 0xff) << 24 | (k[6] & 0xff) << 16 |
+                       (k[7] & 0xff) << 8 | k[8] & 0xff, no_verify=True)
+        else:
+            self.write(addr+4, 0, no_verify=True)
+            self.write(addr+8, 0, no_verify=True)
         self.write(addr+12, 0, no_verify=True)  # Execute write
         if self.verify_writes:
             self.verify(addr, k[0] & 0xff)
-            self.verify(addr+4, (k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 |
-                        (k[3] & 0xff) << 8 | k[4] & 0xff)
-            self.verify(addr+8, (k[5] & 0xff) << 24 | (k[6] & 0xff) << 16 |
-                        (k[7] & 0xff) << 8 | k[8] & 0xff)
+            if size != 1:
+                self.verify(addr+4, (k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 |
+                            (k[3] & 0xff) << 8 | k[4] & 0xff)
+                self.verify(addr+8, (k[5] & 0xff) << 24 | (k[6] & 0xff) << 16 |
+                            (k[7] & 0xff) << 8 | k[8] & 0xff)
+            else:
+                self.verify(addr+4, 0)
+                self.verify(addr+8, 0)
             self.verify(addr+12, 0)
 
     def check_overwrite(self, offs):
