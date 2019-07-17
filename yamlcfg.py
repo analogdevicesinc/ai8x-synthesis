@@ -13,7 +13,8 @@ import yaml
 import tornadocnn as tc
 
 
-SUPPORTED_DATASETS = ['mnist', 'fashionmnist', 'cifar-10', 'speechcom', 'test_conv1d']
+SUPPORTED_DATASETS = ['mnist', 'fashionmnist', 'cifar-10', 'speechcom', 'test_conv1d',
+                      'test_conv1x1']
 DEFAULT_2D_KERNEL = [3, 3]
 DEFAULT_1D_KERNEL = [9, 1]
 
@@ -55,6 +56,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     processor_map = [None] * tc.dev.MAX_LAYERS
     output_map = [None] * tc.dev.MAX_LAYERS
     input_offset = [None] * tc.dev.MAX_LAYERS
+    input_dim = [None] * tc.dev.MAX_LAYERS
     # All other variables are initialized with the default values
     padding = [[1, 1]] * tc.dev.MAX_LAYERS
     pool = [[0, 0]] * tc.dev.MAX_LAYERS
@@ -74,7 +76,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
 
     sequence = 0
     for ll in cfg['layers']:
-        if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution',
+        if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'in_dim',
                                'in_offset', 'kernel_size', 'pool_stride', 'out_offset',
                                'activate', 'data_format', 'output_processors', 'output_width',
                                'processors', 'pad', 'quantization', 'sequence', 'stride'])):
@@ -121,6 +123,8 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                 error_exit('`quantization` must be 1, 2, 4, or 8', sequence)
             quantization[sequence] = val
 
+        if 'in_dim' in ll:
+            input_dim[sequence] = ll['in_dim']
         if 'in_offset' in ll:
             input_offset[sequence] = ll['in_offset']
         if 'out_offset' in ll:
@@ -164,7 +168,8 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
         if 'kernel_size' in ll:
             val = str(ll['kernel_size']).lower()
             if convolution[sequence] == 2:
-                if val not in ['3x3']:
+                if device == 84 and val not in ['3x3'] \
+                        or device >= 85 and val not in ['1x1', '3x3']:
                     error_exit('Unsupported value for `kernel_size`', sequence)
                 kernel_size[sequence] = [int(val[0]), int(val[2])]
             else:
@@ -202,6 +207,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             del padding[ll]
             del pool[ll]
             del pool_stride[ll]
+            del input_dim[ll]
             del input_offset[ll]
             del output_offset[ll]
             del average[ll]
@@ -247,6 +253,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     settings['pool'] = pool
     settings['pooling_enabled'] = pooling_enabled
     settings['pool_stride'] = pool_stride
+    settings['input_dim'] = input_dim
     settings['input_offset'] = input_offset
     settings['output_offset'] = output_offset
     settings['processor_map'] = processor_map

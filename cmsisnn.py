@@ -131,9 +131,13 @@ def create_net(prefix, verbose, debug, log,
             if pool[ll][0]:
                 c_file.write(f'[{input_chan[ll]}, {pooled_dim[ll][0]}, {pooled_dim[ll][1]}] -> ')
             if convolution[ll] == 2:
+                if data.shape != (input_chan[ll], input_dim[ll][0], input_dim[ll][1]):
+                    # FIXME: While the reshape matches PyTorch and AI8x, we need to manually
+                    # reorder the data for CMSIS
+                    # TODO
+                    data = data.reshape((input_chan[ll], input_dim[ll][0], input_dim[ll][1]))
                 out_buf, out_size = cnn2d_layer(ll + 1, verbose,
-                                                [input_chan[ll], input_dim[ll][0],
-                                                 input_dim[ll][1]],
+                                                data.shape,
                                                 kernel_size[ll], quantization[ll],
                                                 output_chan[ll],
                                                 padding[ll], dilation[ll],
@@ -150,8 +154,9 @@ def create_net(prefix, verbose, debug, log,
                                                 device=device,
                                                 debug=debug)
             else:
+                data = data.reshape((input_chan[ll], input_dim[ll][0]))
                 out_buf, out_size = cnn1d_layer(ll + 1, verbose,
-                                                [input_chan[ll], input_dim[ll][0]],
+                                                data.shape,
                                                 kernel_size[ll][0], quantization[ll],
                                                 output_chan[ll],
                                                 padding[ll][0], dilation[ll][0],
