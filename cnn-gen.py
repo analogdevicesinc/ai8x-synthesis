@@ -401,23 +401,41 @@ def create_net(prefix, verbose, debug, debug_computation,
                 val = out_offset[ll] // 4 + \
                     ((instance % tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE |
                      ((instance // tc.dev.P_SHARED) << 12))
-                if device >= 85:
-                    val |= 1 << 16  # wptr_inc
                 apb.write_lreg(group, ll, tc.dev.LREG_WPTR_BASE, val,
                                verbose, comment=' // SRAM write ptr')
 
-                # Configure write pointer mask offset count
-                # [15:0]  Timeslot offset
-                #         [11:0]  12 bits for memory - word address every time we reach mask limit
-                #         [13:12] instance in group
-                #         [15:14] by-16 group
-                # [31:16] Mask offset (0x10000000, required when writing more than 4 masks)
-                if input_chan[ll] * kern_len[ll] > 4:
-                    val = 0x10000000
+                if device == 84:
+                    # Configure write pointer mask offset count
+                    # [15:0]  Timeslot offset
+                    #         [11:0]  12 bits for memory - word address every time we reach limit
+                    #         [13:12] instance in group
+                    #         [15:14] by-16 group
+                    # [31:16] Mask offset (0x10000000, required when writing more than 4 masks)
+                    if input_chan[ll] * kern_len[ll] > 4:
+                        val = 0x10000000
+                    else:
+                        val = 0
+                    apb.write_lreg(group, ll, tc.dev.LREG_WPTR_OFFS, val,
+                                   verbose, comment=' // Mask offset count')
                 else:
+                    # [15:0] Write Pointer Timeslot Offset Register
+                    # Used for 1x1 convolution, and pooling without convolution
                     val = 0
-                apb.write_lreg(group, ll, tc.dev.LREG_WPTR_OFFS, val,
-                               verbose, comment=' // Mask offset count')
+                    apb.write_lreg(group, ll, tc.dev.LREG_WPTR_TOFFS, val,
+                                   verbose, comment=' // Write ptr time slot offs')
+
+                    # [15:0] Write Pointer Mask Offset Register
+                    if input_chan[ll] * kern_len[ll] > 4:
+                        val = 0x1000
+                    else:
+                        val = 0
+                    apb.write_lreg(group, ll, tc.dev.LREG_WPTR_MOFFS, val,
+                                   verbose, comment=' // Write ptr mask offs')
+
+                    # [15:0] Write Pointer Multi-Pass Channel Offset Register
+                    val = 1
+                    apb.write_lreg(group, ll, tc.dev.LREG_WPTR_CHOFFS, val,
+                                   verbose, comment=' // Write ptr multi-pass channel offs')
 
                 # Configure sram read ptr count -- read ptr is local
                 # Source address must match write pointer of previous layer (minus global offset)
@@ -507,6 +525,9 @@ def create_net(prefix, verbose, debug, debug_computation,
                     else:
                         assert quantization[ll] == 8
                         val = 0  # Do not shift
+
+                    # [24] ts_ena
+                    # [25] 1d_ena
 
                     if group == bias_group[ll]:
                         # Enable bias only for one group
