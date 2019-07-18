@@ -58,7 +58,7 @@ def create_net(prefix, verbose, debug, log,
         c_file.write(f'\n// Configuring {layers} layer{"s" if layers > 1 else ""}:\n')
 
         for ll in range(layers):
-            c_file.write(f'// Layer {ll+1}: '
+            c_file.write(f'// Layer {ll}: '
                          f'{input_chan[ll]}x{input_dim[ll][0]}x{input_dim[ll][1]}, ')
             if pool[ll][0] > 0:
                 c_file.write(f'{pool[ll][0]}x{pool[ll][1]} {"avg" if pool_average[ll] else "max"} '
@@ -143,7 +143,7 @@ def create_net(prefix, verbose, debug, log,
                 c_file.write(f'[{input_chan[ll]}, {pooled_dim[ll][0]}, {pooled_dim[ll][1]}] -> ')
             if convolution[ll] == 2:
                 data = data.reshape((input_chan[ll], input_dim[ll][0], input_dim[ll][1]))
-                out_buf, out_size = cnn2d_layer(ll + 1, verbose,
+                out_buf, out_size = cnn2d_layer(ll, verbose,
                                                 data.shape,
                                                 kernel_size[ll], quantization[ll],
                                                 output_chan[ll],
@@ -162,7 +162,7 @@ def create_net(prefix, verbose, debug, log,
                                                 debug=debug)
             else:
                 data = data.reshape((input_chan[ll], input_dim[ll][0]))
-                out_buf, out_size = cnn1d_layer(ll + 1, verbose,
+                out_buf, out_size = cnn1d_layer(ll, verbose,
                                                 data.shape,
                                                 kernel_size[ll][0], quantization[ll],
                                                 output_chan[ll],

@@ -160,7 +160,7 @@ def create_net(prefix, verbose, debug, debug_computation,
         apb.output(f'\n// Configuring {layers} layer{"s" if layers > 1 else ""}:\n')
 
         for ll in range(layers):
-            apb.output(f'// Layer {ll+1}: {input_chan[ll]}x{input_dim_str[ll]} '
+            apb.output(f'// Layer {ll}: {input_chan[ll]}x{input_dim_str[ll]} '
                        f'{"(CHW/big data)" if big_data[ll] else "(HWC/little data)"}, ')
             if pool[ll][0] > 0:
                 apb.output(f'{pool_str[ll]} {"avg" if pool_average[ll] else "max"} '
@@ -607,7 +607,7 @@ def create_net(prefix, verbose, debug, debug_computation,
     for ll in range(layers):
         if convolution[ll] == 2:
             data = data.reshape((input_chan[ll], input_dim[ll][0], input_dim[ll][1]))
-            out_buf, out_size = cnn2d_layer(ll + 1, verbose,
+            out_buf, out_size = cnn2d_layer(ll, verbose,
                                             data.shape,
                                             kernel_size[ll], quantization[ll],
                                             output_chan[ll],
@@ -629,7 +629,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                                             expand_thresh=in_expand_thresh[ll])
         else:
             data = data.reshape((input_chan[ll], input_dim[ll][0]))
-            out_buf, out_size = cnn1d_layer(ll + 1, verbose,
+            out_buf, out_size = cnn1d_layer(ll, verbose,
                                             data.shape,
                                             kernel_size[ll][0], quantization[ll],
                                             output_chan[ll],
@@ -672,7 +672,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                 memfile = None
             apb.set_memfile(memfile)
 
-            apb.output(f'// {test_name}\n// Expected output of layer {ll+1}\n')
+            apb.output(f'// {test_name}\n// Expected output of layer {ll}\n')
             apb.verify_header()
             apb.verify_unload(ll, in_map, out_map,
                               out_buf, output_processor_map[ll], out_size,
