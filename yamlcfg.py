@@ -13,8 +13,6 @@ import yaml
 import tornadocnn as tc
 
 
-SUPPORTED_DATASETS = ['mnist', 'fashionmnist', 'cifar-10', 'speechcom', 'test_conv1d',
-                      'test_conv1x1', 'test_nonsquare']
 DEFAULT_2D_KERNEL = [3, 3]
 DEFAULT_1D_KERNEL = [9, 1]
 
@@ -45,10 +43,6 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     if 'layers' not in cfg or 'arch' not in cfg or 'dataset' not in cfg:
         print(f'Configuration file {config_file} does not contain '
               f'`layers`, `arch`, or `dataset`.')
-        sys.exit(1)
-
-    if bool(set([cfg['dataset'].lower()]) - set(SUPPORTED_DATASETS)):
-        print(f'Configuration file {config_file} contains unknown `dataset`.')
         sys.exit(1)
 
     # These are initializaed with 'None'. Use this to see whether a layer was configured,
