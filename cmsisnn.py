@@ -17,7 +17,7 @@ from simulate import cnn1d_layer, cnn2d_layer, linear_layer
 
 def create_net(prefix, verbose, debug, log,
                layers, convolution,
-               input_dim, pooled_dim, output_dim,
+               auto_input_dim, input_dim, pooled_dim, output_dim,
                kernel_size, quantization,
                input_chan, output_chan, output_width,
                padding, dilation, stride,
@@ -74,17 +74,28 @@ def create_net(prefix, verbose, debug, log,
         toplevel.header(c_file, 0, embedded_code=True, cmsis_nn=True)
 
         # Pre-define data memory loader.
-        d = data.transpose((1, 2, 0)).flatten()
+        d = data.transpose((1, 2, 0)).flatten()  # CHW -> HWC
         toplevel.c_define(sampledata_header, d, 'INPUT_DATA', '%d', 16)
         c_file.write(f'static const q7_t input_data[{d.size}] = INPUT_DATA;\n')
 
         # Pre-define the kernels and bias values
         for ll in range(layers):
-            w = kernel[ll]. \
-                reshape((output_chan[ll], input_chan[ll],
-                         kernel_size[ll][0], kernel_size[ll][1])). \
-                transpose((0, 2, 3, 1)). \
-                flatten()
+            # Rearrange kernels when emulating a fully connected network using 1x1 Conv2D
+            # CMSIS data uses HWC, PyTorch uses CHW
+            if kernel_size[ll] == [1, 1] and input_dim[ll] == [1, 1]:
+                w = kernel[ll]. \
+                    reshape((output_chan[ll],
+                             input_chan[ll] // (auto_input_dim[ll][0] * auto_input_dim[ll][1]),
+                             auto_input_dim[ll][0], auto_input_dim[ll][1],
+                             kernel_size[ll][0], kernel_size[ll][1])). \
+                    transpose((0, 4, 5, 2, 3, 1)). \
+                    flatten()
+            else:
+                w = kernel[ll]. \
+                    reshape((output_chan[ll], input_chan[ll],
+                             kernel_size[ll][0], kernel_size[ll][1])). \
+                    transpose((0, 2, 3, 1)). \
+                    flatten()
             toplevel.c_define(weight_header, w, f'WEIGHTS_{ll}', '%d', 16)
             if bias[ll]:
                 b = bias[ll].flatten()
@@ -131,11 +142,7 @@ def create_net(prefix, verbose, debug, log,
             if pool[ll][0]:
                 c_file.write(f'[{input_chan[ll]}, {pooled_dim[ll][0]}, {pooled_dim[ll][1]}] -> ')
             if convolution[ll] == 2:
-                if data.shape != (input_chan[ll], input_dim[ll][0], input_dim[ll][1]):
-                    # FIXME: While the reshape matches PyTorch and AI8x, we need to manually
-                    # reorder the data for CMSIS
-                    # TODO
-                    data = data.reshape((input_chan[ll], input_dim[ll][0], input_dim[ll][1]))
+                data = data.reshape((input_chan[ll], input_dim[ll][0], input_dim[ll][1]))
                 out_buf, out_size = cnn2d_layer(ll + 1, verbose,
                                                 data.shape,
                                                 kernel_size[ll], quantization[ll],
@@ -173,21 +180,24 @@ def create_net(prefix, verbose, debug, log,
                                                 debug=debug)
             c_file.write(f'{out_size}\n')
 
+            source = 'input_data' if ll == 0 else buffer0
             if pool[ll][0]:
-                # FIXME: Add support for non-square pooling
-                if pool_average[ll]:
-                    c_file.write(f'  arm_avepool_q7_HWC({buffer0}, {input_dim[ll][0]}, '
+                # FIXME: Add support for non-square pooling, and pooling of non-square images
+                if pool[ll][0] != pool[ll][1]:
+                    raise NotImplementedError("CMSIS does not support non-square pooling")
+                pool_type = 'ave' if pool_average[ll] else 'max'
+                if input_dim[ll][0] == input_dim[ll][1]:
+                    c_file.write(f'  arm_{pool_type}pool_q7_HWC({source}, {input_dim[ll][0]}, '
                                  f'{input_chan[ll]}, {pool[ll][0]}, 0, {pool_stride[ll][0]}, '
                                  f'{pooled_dim[ll][0]}, (q7_t *) col_buffer, {buffer1});\n')
                 else:
-                    c_file.write(f'  arm_maxpool_q7_HWC({buffer0}, {input_dim[ll][0]}, '
+                    c_file.write(f'  arm_{pool_type}pool_q7_HWC_nonsquare({source}, '
+                                 f'{input_dim[ll][1]}, {input_dim[ll][0]}, '
                                  f'{input_chan[ll]}, {pool[ll][0]}, 0, {pool_stride[ll][0]}, '
-                                 f'{pooled_dim[ll][0]}, (q7_t *) col_buffer, {buffer1});\n')
-                n = buffer0
-                buffer0 = buffer1
-                buffer1 = n
-
-            source = 'input_data' if ll == 0 else buffer0
+                                 f'{pooled_dim[ll][1]}, {pooled_dim[ll][0]}, '
+                                 f'(q7_t *) col_buffer, {buffer1});\n')
+                source = buffer1
+                buffer0, buffer1 = buffer1, buffer0
 
             # Check for squareness
             if kernel_size[ll][0] == kernel_size[ll][1] \
@@ -207,14 +217,14 @@ def create_net(prefix, verbose, debug, log,
                              'col_buffer, NULL);\n')
             else:
                 c_file.write(f'  arm_convolve_HWC_q7_basic_nonsquare({source}, '
-                             f'{pooled_dim[ll][0]}, {pooled_dim[ll][1]}, '
+                             f'{pooled_dim[ll][1]}, {pooled_dim[ll][0]}, '
                              f'{input_chan[ll]}, weights_{ll}, {output_chan[ll]}, '
-                             f'{kernel_size[ll][0]}, {kernel_size[ll][1]}, '
-                             f'{padding[ll][0]}, {padding[ll][1]}, '
-                             f'{stride[ll][0]}, {stride[ll][1]},\n'
+                             f'{kernel_size[ll][1]}, {kernel_size[ll][0]}, '
+                             f'{padding[ll][1]}, {padding[ll][0]}, '
+                             f'{stride[ll][1]}, {stride[ll][0]},\n'
                              '                                      '
                              f'bias_{ll}, 0, 7, {buffer1}, '
-                             f'{output_dim[ll][0]}, {output_dim[ll][1]}, '
+                             f'{output_dim[ll][1]}, {output_dim[ll][0]}, '
                              'col_buffer, NULL);\n')
             assert out_size[0] == output_chan[ll] \
                 and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
@@ -222,9 +232,7 @@ def create_net(prefix, verbose, debug, log,
             if activate[ll]:
                 c_file.write(f'  arm_relu_q7({buffer1}, '
                              f'{output_dim[ll][0] * output_dim[ll][1] * output_chan[ll]});\n')
-            n = buffer0
-            buffer0 = buffer1
-            buffer1 = n
+            buffer0, buffer1 = buffer1, buffer0
 
             data = out_buf.reshape(out_size)
             c_file.write('\n')
@@ -271,7 +279,7 @@ def create_net(prefix, verbose, debug, log,
                          '  for (i = 0; i < '
                          f'{output_dim[ll][0] * output_dim[ll][1] * output_chan[ll]}; '
                          'i++) {\n'
-                         f'    printf("%02x", {buffer0}[i] & 0xff);\n'
+                         f'    printf("%5hhd", (int8_t) ({buffer0}[i] & 0xff));\n'
                          '    if ((i + 1) % 32 == 0)\n      printf("\\n");\n'
                          '    else if ((i + 1) % 4 == 0)\n      printf(" ");\n'
                          '  }\n'

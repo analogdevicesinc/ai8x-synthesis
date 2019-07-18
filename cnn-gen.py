@@ -819,21 +819,24 @@ def main():
     input_size = list(data.shape)
 
     # Trace output sizes of the network
+    auto_input_dim = [None] * layers
     input_dim = [None] * layers
     pooled_dim = [None] * layers
     output_dim = [None] * layers
 
+    if convolution[0] == 2:
+        auto_input_dim[0] = [input_size[1], input_size[2]]
+    else:
+        auto_input_dim[0] = [input_size[1], 1]
     if conf_input_dim[0] is None:
-        if convolution[0] == 2:
-            input_dim[0] = [input_size[1], input_size[2]]
-        else:
-            input_dim[0] = [input_size[1], 1]
+        input_dim[0] = auto_input_dim[0]
     else:
         input_dim[0] = conf_input_dim[0]
     for ll in range(layers):
         if input_dim[ll] is None:
+            auto_input_dim[ll] = output_dim[ll-1]
             if conf_input_dim[ll] is None:
-                input_dim[ll] = output_dim[ll-1]
+                input_dim[ll] = auto_input_dim[ll]
             else:
                 input_dim[ll] = conf_input_dim[ll]
         if pool[ll][0] > 0:
@@ -904,7 +907,7 @@ def main():
             rtlsim.append_regression(args.top_level, tn, args.queue_name, args.autogen)
     else:
         cmsisnn.create_net(args.prefix, args.verbose, args.debug, args.log,
-                           layers, convolution, input_dim, pooled_dim, output_dim,
+                           layers, convolution, auto_input_dim, input_dim, pooled_dim, output_dim,
                            kernel_size, quantization,
                            input_channels, output_channels, output_width, padding,
                            dilation, stride,
