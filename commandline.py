@@ -41,7 +41,7 @@ def get_parser():
                         help="debug computation (default: false)")
     parser.add_argument('--config-file', required=True, metavar='S',
                         help="YAML configuration file containing layer configuration")
-    parser.add_argument('--checkpoint-file', required=True, metavar='S',
+    parser.add_argument('--checkpoint-file', metavar='S',
                         help="checkpoint file containing quantized weights")
     parser.add_argument('--input-filename', default='input', metavar='S',
                         help="input .mem file name base (default: 'input' -> 'input.mem')")
