@@ -124,7 +124,10 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             quantization[sequence] = val
 
         if 'in_dim' in ll:
-            input_dim[sequence] = ll['in_dim']
+            if ll['in_dim'].lower() == 'flatten':
+                input_dim[sequence] = [1, 1]
+            else:
+                input_dim[sequence] = ll['in_dim']
         if 'in_offset' in ll:
             input_offset[sequence] = ll['in_offset']
         if 'out_offset' in ll:

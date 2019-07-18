@@ -1,7 +1,7 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_7/17/2019_
+_7/18/2019_
 
 _Open this file in a markdown enabled viewer, for example Visual Studio Code
 (https://code.visualstudio.com). See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet
@@ -173,7 +173,7 @@ For macOS and systems without CUDA:
 For CUDA 10 on Linux (see https://pytorch.org/get-started/locally/):
 
     (ai8x-training) $ pip3 install https://download.pytorch.org/whl/cu100/torch-1.1.0-cp36-cp36m-linux_x86_64.whl
-    (ai8x-training) $ pip3 install pip3 install https://download.pytorch.org/whl/cu100/torchvision-0.3.0-cp36-cp36m-linux_x86_64.whl
+    (ai8x-training) $ pip3 install https://download.pytorch.org/whl/cu100/torchvision-0.3.0-cp36-cp36m-linux_x86_64.whl
 
 Next, install TensorFlow. TensorFlow is needed for TensorBoard support.
 
@@ -717,8 +717,9 @@ Example: `pool_stride: 2`
 
 `in_dim` specifies the dimensions of the input data. This is usually automatically computed;
 however, when merging layers or flattening data, this key allows overriding of the dimensions.
+The value `"flatten"` is equivalent to `[1, 1]`.
 
-Example: `in_dim: [64, 64]`.
+Examples: `in_dim: [64, 64]`; `in_dim: "flatten"`.
 
 
 ### Adding Datasets to the Network Loader
