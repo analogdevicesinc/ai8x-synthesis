@@ -1,0 +1,10 @@
+# Test Non-Square Conv2D
+
+arch: test
+dataset: test_nonsquare
+
+layers:
+- out_offset: 0x2000
+  processors: 0x000000000000001f
+  pad: 1
+

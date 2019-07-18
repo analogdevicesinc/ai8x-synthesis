@@ -14,7 +14,7 @@ import tornadocnn as tc
 
 
 SUPPORTED_DATASETS = ['mnist', 'fashionmnist', 'cifar-10', 'speechcom', 'test_conv1d',
-                      'test_conv1x1']
+                      'test_conv1x1', 'test_nonsquare']
 DEFAULT_2D_KERNEL = [3, 3]
 DEFAULT_1D_KERNEL = [9, 1]
 
