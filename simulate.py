@@ -27,17 +27,32 @@ def cnn2d_layer(layer, verbose,
     """
     int8_format = '{0:4}' if np.any(data < 0) else '{0:3}'
     if verbose:
+        if expand_thresh is None:
+            expand_thresh = input_size[0]
         print(f"LAYER {layer}...\n")
 
         print(f"{input_size[0]}x{input_size[1]}x{input_size[2]} INPUT DATA:")
         with np.printoptions(formatter={'int': int8_format.format}):
-            for i in range(input_size[0]):
-                print(f'Channel {i+1} of {input_size[0]}', end='')
-                if expand and expand > 1:
-                    print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
-                else:
-                    print('')
-                print(data[i])
+            if input_size[1] == input_size[2] == 1:
+                for i in range(0, input_size[0], expand_thresh):
+                    last = min(i + expand_thresh, input_size[0])
+                    if last - 1 > i:
+                        print(f'Channels #{i} to #{last-1}', end='')
+                    else:
+                        print(f'Channel #{i}', end='')
+                    if expand and expand > 1:
+                        print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
+                    else:
+                        print('')
+                    print(np.squeeze(data[i:last]))
+            else:
+                for i in range(input_size[0]):
+                    print(f'Channel #{i}', end='')
+                    if expand and expand > 1:
+                        print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
+                    else:
+                        print('')
+                    print(data[i])
         print('')
 
     if pool[0] > 1 or pool[1] > 1:
@@ -64,7 +79,7 @@ def cnn2d_layer(layer, verbose,
                   f"{input_size} -> {pooled_size}:")
             with np.printoptions(formatter={'int': int8_format.format}):
                 for i in range(input_size[0]):
-                    print(f'Channel {i+1} of {input_size[0]}', end='')
+                    print(f'Channel #{i}', end='')
                     if expand and expand > 1:
                         print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
                     else:
@@ -84,8 +99,11 @@ def cnn2d_layer(layer, verbose,
         print(f"{kernel_size[0]}x{kernel_size[1]} KERNEL(S):")
         with np.printoptions(formatter={'int': '{0:4}'.format}):
             for i in range(output_channels):
-                print(f'Output channel {i}')
-                print(kernel[i])
+                print(f'Output channel #{i}')
+                if kernel_size[0] == kernel_size[1] == 1:
+                    print(np.squeeze(kernel[i]))
+                else:
+                    print(kernel[i])
         print(f"BIAS: {bias}\n")
 
     kernel = kernel.reshape((output_channels, input_size[0], -1))
@@ -118,7 +136,10 @@ def cnn2d_layer(layer, verbose,
 
     if verbose:
         print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} FULL-RES OUTPUT:")
-        print(out_buf)
+        if out_size[1] == out_size[2] == 1:
+            print(np.squeeze(out_buf))
+        else:
+            print(out_buf)
         print('')
 
     stats.macc += pooled_size[0] * kernel_size[0] * kernel_size[1] * out_size[0] \
@@ -131,7 +152,10 @@ def cnn2d_layer(layer, verbose,
         if verbose:
             print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} OUTPUT "
                   f"{'BEFORE ACTIVATION' if do_activation else '(NO ACTIVATION)'}:")
-            print(out_buf)
+            if out_size[1] == out_size[2] == 1:
+                print(np.squeeze(out_buf))
+            else:
+                print(out_buf)
             print('')
 
     if do_activation:
@@ -139,7 +163,10 @@ def cnn2d_layer(layer, verbose,
 
         if verbose:
             print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} ACTIVATED OUTPUT:")
-            print(out_buf)
+            if out_size[1] == out_size[2] == 1:
+                print(np.squeeze(out_buf))
+            else:
+                print(out_buf)
             print('')
 
         stats.comp += out_size[0] * out_size[1] * out_size[2]
@@ -160,7 +187,7 @@ def cnn1d_layer(layer, verbose,
         print(f"LAYER {layer}...\n")
 
         print(f"{input_size[0]}x{input_size[1]} INPUT DATA:")
-        print(data.squeeze(axis=-1))
+        print(np.squeeze(data))
         print('')
 
     if pool > 1:

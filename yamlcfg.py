@@ -30,7 +30,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
         """
         Print error message `message` for layer sequence `sequence` and exit.
         """
-        print(f'{message} (found in layer sequence {sequence+1} in YAML configuration).')
+        print(f'{message} (found in layer sequence {sequence} in YAML configuration).')
         sys.exit(1)
 
     # Load configuration file

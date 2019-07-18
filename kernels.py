@@ -160,7 +160,7 @@ def load(verbose, embedded_code, apb, layers, kernel, kernel_size, quantization,
                         if debug:
                             with np.printoptions(formatter={'int': '{0:02x}'.format}):
                                 print(f'Layer {ll} processor {p} channel '
-                                      f'{ch + ie * in_expand_thresh[ll]} m[{col+1}..{col+n}] of '
+                                      f'{ch + ie * in_expand_thresh[ll]} m[{col}..{col+n-1}] of '
                                       f'{output_chan[ll]}: {k}')
                         if not embedded_code:
                             # Write in-line
