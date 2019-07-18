@@ -741,6 +741,9 @@ def main():
     # If not using test data, load weights and biases
     # This also configures the network's output channels
     if cfg['arch'] != 'test':
+        if not args.checkpoint_file:
+            print("--checkpoint-file is a required argument.")
+            sys.exit(1)
         layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
             checkpoint.load(args.checkpoint_file, cfg['arch'],
                             args.fc_layer, params['quantization'])
