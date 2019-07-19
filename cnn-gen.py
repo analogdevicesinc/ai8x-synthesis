@@ -119,8 +119,8 @@ def create_net(prefix, verbose, debug, debug_computation,
         for ll in range(layers):
             test_name += f'-{input_chan[ll]}x{input_dim_str[ll]}' \
                          f'{"b" if big_data[ll] else "l"}_' \
-                         f'{"avg" if pool_average[ll] and pool[ll][0] > 0 else ""}' \
-                         f'{"max" if not pool_average[ll] and pool[ll][0] > 0 else ""}' \
+                         f'{"avg" if pool_average[ll] and pool[ll][0] else ""}' \
+                         f'{"max" if not pool_average[ll] and pool[ll][0] else ""}' \
                          f'{pool_str[ll]}s{pool_stride[ll][0]}' \
                          f'p{padding[ll][0]}' \
                          f'm{output_chan[ll]}' \
@@ -162,7 +162,7 @@ def create_net(prefix, verbose, debug, debug_computation,
         for ll in range(layers):
             apb.output(f'// Layer {ll}: {input_chan[ll]}x{input_dim_str[ll]} '
                        f'{"(CHW/big data)" if big_data[ll] else "(HWC/little data)"}, ')
-            if pool[ll][0] > 0:
+            if pool[ll][0]:
                 apb.output(f'{pool_str[ll]} {"avg" if pool_average[ll] else "max"} '
                            f'pool with stride {pool_stride_str[ll]}')
             else:
@@ -385,7 +385,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                                verbose, comment=' // Pooling columns')
 
                 # Configure pooling stride count
-                if pool[ll][0] > 0:
+                if pool[ll][0]:
                     val = pool_stride[ll][0]-1
                 else:
                     val = stride[ll][0]-1
@@ -461,7 +461,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                 # [21:19] wptr_inc (AI85 only)
                 val = (0x200 if activate[ll] else 0) | \
                       (0x100 if not pool_average[ll] else 0) | \
-                      (0x80 if pool[ll][0] > 1 else 0) | \
+                      (0x80 if pool[ll][0] else 0) | \
                       (0x40 if big_data[ll] else 0) | \
                       (0x820)
                 if device >= 85:
@@ -842,7 +842,7 @@ def main():
                 input_dim[ll] = auto_input_dim[ll]
             else:
                 input_dim[ll] = conf_input_dim[ll]
-        if pool[ll][0] > 0:
+        if pool[ll][0]:
             if convolution[ll] == 2:
                 pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])
                                // pool_stride[ll][0],

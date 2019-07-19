@@ -60,7 +60,7 @@ def create_net(prefix, verbose, debug, log,
         for ll in range(layers):
             c_file.write(f'// Layer {ll}: '
                          f'{input_chan[ll]}x{input_dim[ll][0]}x{input_dim[ll][1]}, ')
-            if pool[ll][0] > 0:
+            if pool[ll][0]:
                 c_file.write(f'{pool[ll][0]}x{pool[ll][1]} {"avg" if pool_average[ll] else "max"} '
                              f'pool with stride {pool_stride[ll]}')
             else:
@@ -182,20 +182,25 @@ def create_net(prefix, verbose, debug, log,
 
             source = 'input_data' if ll == 0 else buffer0
             if pool[ll][0]:
-                # FIXME: Add support for non-square pooling, and pooling of non-square images
-                if pool[ll][0] != pool[ll][1]:
-                    raise NotImplementedError("CMSIS does not support non-square pooling")
                 pool_type = 'ave' if pool_average[ll] else 'max'
-                if input_dim[ll][0] == input_dim[ll][1]:
-                    c_file.write(f'  arm_{pool_type}pool_q7_HWC({source}, {input_dim[ll][0]}, '
-                                 f'{input_chan[ll]}, {pool[ll][0]}, 0, {pool_stride[ll][0]}, '
-                                 f'{pooled_dim[ll][0]}, (q7_t *) col_buffer, {buffer1});\n')
-                else:
-                    c_file.write(f'  arm_{pool_type}pool_q7_HWC_nonsquare({source}, '
+                if pool[ll][0] != pool[ll][1]:
+                    c_file.write(f'  arm_{pool_type}pool_nonsquare_q7_HWC_nonsquare({source}, '
                                  f'{input_dim[ll][1]}, {input_dim[ll][0]}, '
-                                 f'{input_chan[ll]}, {pool[ll][0]}, 0, {pool_stride[ll][0]}, '
+                                 f'{input_chan[ll]}, {pool[ll][1]}, {pool[ll][0]}, 0, 0, '
+                                 f'{pool_stride[ll][1]}, {pool_stride[ll][0]}, '
                                  f'{pooled_dim[ll][1]}, {pooled_dim[ll][0]}, '
                                  f'(q7_t *) col_buffer, {buffer1});\n')
+                else:
+                    if input_dim[ll][0] == input_dim[ll][1]:
+                        c_file.write(f'  arm_{pool_type}pool_q7_HWC({source}, {input_dim[ll][0]}, '
+                                     f'{input_chan[ll]}, {pool[ll][0]}, 0, {pool_stride[ll][0]}, '
+                                     f'{pooled_dim[ll][0]}, (q7_t *) col_buffer, {buffer1});\n')
+                    else:
+                        c_file.write(f'  arm_{pool_type}pool_q7_HWC_nonsquare({source}, '
+                                     f'{input_dim[ll][1]}, {input_dim[ll][0]}, '
+                                     f'{input_chan[ll]}, {pool[ll][0]}, 0, {pool_stride[ll][0]}, '
+                                     f'{pooled_dim[ll][1]}, {pooled_dim[ll][0]}, '
+                                     f'(q7_t *) col_buffer, {buffer1});\n')
                 source = buffer1
                 buffer0, buffer1 = buffer1, buffer0
 
