@@ -99,17 +99,26 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             padding[sequence] = [val, val]
         if 'max_pool' in ll:
             val = ll['max_pool']
-            pool[sequence] = [val, val]
+            if not isinstance(val, list):
+                pool[sequence] = [val, val]
+            else:
+                pool[sequence] = val
             pooling_enabled[sequence] = True
         elif 'avg_pool' in ll:
             val = ll['avg_pool']
-            pool[sequence] = [val, val]
+            if not isinstance(val, list):
+                pool[sequence] = [val, val]
+            else:
+                pool[sequence] = val
             pooling_enabled[sequence] = True
             average[sequence] = 1
 
         if 'pool_stride' in ll:
             val = ll['pool_stride']
-            pool_stride[sequence] = [val, val]
+            if not isinstance(val, list):
+                pool_stride[sequence] = [val, val]
+            else:
+                pool_stride[sequence] = val
 
         if 'quantization' in ll:
             val = ll['quantization']
