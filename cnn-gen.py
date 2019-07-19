@@ -400,7 +400,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                 instance = ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1)
                 val = out_offset[ll] // 4 + \
                     ((instance % tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE |
-                     ((instance // tc.dev.P_SHARED) << 13))
+                     ((instance // tc.dev.P_SHARED) << tc.dev.INSTANCE_SHIFT))
                 apb.write_lreg(group, ll, tc.dev.LREG_WPTR_BASE, val,
                                verbose, comment=' // SRAM write ptr')
 
@@ -412,7 +412,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                     #         [15:14] by-16 group
                     # [31:16] Mask offset (0x10000000, required when writing more than 4 masks)
                     if input_chan[ll] * kern_len[ll] > 4:
-                        val = 0x10000000
+                        val = 1 << tc.dev.INSTANCE_SHIFT + 16
                     else:
                         val = 0
                     apb.write_lreg(group, ll, tc.dev.LREG_WPTR_OFFS, val,
@@ -429,7 +429,7 @@ def create_net(prefix, verbose, debug, debug_computation,
 
                     # [15:0] Write Pointer Mask Offset Register
                     if input_chan[ll] * kern_len[ll] > 4:
-                        val = 0x2000
+                        val = 1 << tc.dev.INSTANCE_SHIFT
                     else:
                         val = 0
                     apb.write_lreg(group, ll, tc.dev.LREG_WPTR_MOFFS, val,
