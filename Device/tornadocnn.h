@@ -70,3 +70,7 @@ void arm_avepool_nonsquare_q7_HWC_nonsquare(q7_t * Im_in,
                                             const uint16_t dim_im_out_x,
                                             const uint16_t dim_im_out_y,
                                             q7_t * bufferA, q7_t * Im_out);
+
+
+void arm_relu32_q7(q7_t * data, uint32_t size);
+

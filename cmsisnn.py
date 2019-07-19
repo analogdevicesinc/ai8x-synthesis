@@ -235,8 +235,11 @@ def create_net(prefix, verbose, debug, log,
                 and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
 
             if activate[ll]:
-                c_file.write(f'  arm_relu_q7({buffer1}, '
-                             f'{output_dim[ll][0] * output_dim[ll][1] * output_chan[ll]});\n')
+                size = output_dim[ll][0] * output_dim[ll][1] * output_chan[ll]
+                if size < 65536:
+                    c_file.write(f'  arm_relu_q7({buffer1}, {size});\n')
+                else:
+                    c_file.write(f'  arm_relu32_q7({buffer1}, {size});\n')
             buffer0, buffer1 = buffer1, buffer0
 
             data = out_buf.reshape(out_size)
