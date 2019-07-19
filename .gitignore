@@ -2,6 +2,7 @@
 *.mem
 *.prof
 /.mypy_cache
+/.python-version
 /.vscode
 /apex
 /bin
