@@ -606,7 +606,7 @@ def create_net(prefix, verbose, debug, debug_computation,
     # Compute layer-by-layer output and chain results into input
     for ll in range(layers):
         if convolution[ll] == 2:
-            data = data.reshape((input_chan[ll], input_dim[ll][0], input_dim[ll][1]))
+            data = data.reshape(input_chan[ll], input_dim[ll][0], input_dim[ll][1])
             out_buf, out_size = cnn2d_layer(ll, verbose,
                                             data.shape,
                                             kernel_size[ll], quantization[ll],
@@ -628,7 +628,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                                             expand=in_expand[ll],
                                             expand_thresh=in_expand_thresh[ll])
         else:
-            data = data.reshape((input_chan[ll], input_dim[ll][0]))
+            data = data.reshape(input_chan[ll], input_dim[ll][0])
             out_buf, out_size = cnn1d_layer(ll, verbose,
                                             data.shape,
                                             kernel_size[ll][0], quantization[ll],
@@ -922,7 +922,7 @@ def main():
                            args.device)
 
     print("SUMMARY OF OPS")
-    stats.print_summary()
+    stats.print_summary(args.debug)
 
 
 def signal_handler(_signal, _frame):

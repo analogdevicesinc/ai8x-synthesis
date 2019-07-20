@@ -48,12 +48,10 @@ def test_conv1d():
          [-13630, 77478, 3115, -9839, -25421, -89124, -25032, 3245, 69909]],
         dtype=np.int64)
 
-    output = np.zeros_like(expected)
-
     print('Input:\n', data)
 
-    compute.conv1d(data, weight, None, data.shape, weight.shape[0], weight.shape[2],
-                   stride=1, pad=0, dilation=1, output=output, debug=False)
+    output = compute.conv1d(data, weight, None, data.shape, expected.shape, weight.shape[0],
+                            kernel_size=9, stride=1, pad=0, dilation=1, debug=False)
 
     print('Output before division:\n', output)
     output += 64
