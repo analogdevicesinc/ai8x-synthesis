@@ -37,11 +37,12 @@ def sw_ops():
     return sw_macc + sw_comp
 
 
-def print_summary():
+def print_summary(debug=False):
     """
     Print ops summary stats.
     """
     print(f'Hardware: {ops():,} ops ({macc:,} macc; {comp:,} comp; {add:,} add)')
-    print(f'          True MACs: {true_macc:,}')
+    if debug:
+        print(f'          True MACs: {true_macc:,}')
     if sw_macc:
         print(f'Software: {sw_ops():,} ops ({sw_macc:,} macc; {sw_comp:,} comp)')

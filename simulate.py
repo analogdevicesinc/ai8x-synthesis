@@ -12,7 +12,7 @@ import numpy as np
 
 import stats
 import tornadocnn as tc
-from compute import conv1d, conv2d, linear
+from compute import conv1d, conv2d, linear, pool1d, pool2d
 
 
 def cnn2d_layer(layer, verbose,
@@ -59,20 +59,8 @@ def cnn2d_layer(layer, verbose,
         pooled_size = [input_size[0],
                        (input_size[1] + pool_stride[0] - pool[0]) // pool_stride[0],
                        (input_size[2] + pool_stride[1] - pool[1]) // pool_stride[1]]
-        pooled = np.empty(shape=(pooled_size[0], pooled_size[1], pooled_size[2]),
-                          dtype=np.int64)
-        for c in range(input_size[0]):
-            for row in range(0, pooled_size[1]*pool_stride[0], pool_stride[0]):
-                for col in range(0, pooled_size[2]*pool_stride[1], pool_stride[1]):
-                    if pool_average:
-                        avg = np.average(data[c][row:row+pool[0], col:col+pool[1]])
-                        if avg < 0:
-                            val = np.ceil(avg).astype(np.int64).clip(min=-128, max=127)
-                        else:
-                            val = np.floor(avg).astype(np.int64).clip(min=-128, max=127)
-                    else:
-                        val = np.amax(data[c][row:row+pool[0], col:col+pool[1]])
-                    pooled[c][row//pool_stride[0]][col//pool_stride[1]] = val
+        pooled = pool2d(data, input_size, pooled_size, pool, pool_stride, pool_average,
+                        floor=True, debug=debug)  # FIXME: Fix rounding for AI85?
         if verbose:
             print(f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
                   f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]} "
@@ -106,33 +94,26 @@ def cnn2d_layer(layer, verbose,
                     print(kernel[i])
         print(f"BIAS: {bias}\n")
 
-    kernel = kernel.reshape((output_channels, input_size[0], -1))
-    pooled = pooled.reshape((pooled_size[0], -1))
-
     out_size = [output_channels,
                 (pooled_size[1] - dilation[0] * (kernel_size[0] - 1) - 1 +
                  2 * padding[0]) // stride[0] + 1,
                 (pooled_size[2] - dilation[1] * (kernel_size[1] - 1) - 1 +
                  2 * padding[1]) // stride[1] + 1]
-    out_buf = np.full(shape=(out_size[0], out_size[1]*out_size[2]),
-                      fill_value=np.nan, dtype=np.int64)
 
     if bias is not None:
         bias = bias * tc.dev.BIAS_DIV
 
-    conv2d(data=pooled,
-           weight=kernel,
-           bias=bias,
-           input_size=pooled_size,
-           out_channels=output_channels,
-           kernel_size=kernel_size,
-           stride=stride,
-           pad=padding,
-           dilation=dilation,
-           output=out_buf,
-           debug=debug)
-
-    out_buf = out_buf.reshape((out_size))
+    out_buf = conv2d(data=pooled,
+                     weight=kernel,
+                     bias=bias,
+                     input_size=pooled_size,
+                     output_size=out_size,
+                     out_channels=output_channels,
+                     kernel_size=kernel_size,
+                     stride=stride,
+                     pad=padding,
+                     dilation=dilation,
+                     debug=debug)
 
     if verbose:
         print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} FULL-RES OUTPUT:")
@@ -193,19 +174,8 @@ def cnn1d_layer(layer, verbose,
     if pool > 1:
         pooled_size = [input_size[0],
                        (input_size[1] + pool_stride - pool) // pool_stride]
-        pooled = np.empty(shape=(pooled_size),
-                          dtype=np.int64)
-        for c in range(input_size[0]):
-            for x in range(0, pooled_size[1]*pool_stride, pool_stride):
-                if pool_average:
-                    avg = np.average(data[c][x:x+pool])
-                    if avg < 0:
-                        val = np.ceil(avg).astype(np.int64).clip(min=-128, max=127)
-                    else:
-                        val = np.floor(avg).astype(np.int64).clip(min=-128, max=127)
-                else:
-                    val = np.amax(data[c][x:x+pool])
-                pooled[c][x//pool_stride] = val
+        pooled = pool1d(data, input_size, pooled_size, pool, pool_stride, pool_average,
+                        floor=True, debug=debug)  # FIXME: Fix rounding for AI85?
         if verbose:
             print(f"{pool} {'AVERAGE' if pool_average else 'MAX'} "
                   f"POOLING, STRIDE {pool_stride} "
@@ -226,32 +196,25 @@ def cnn1d_layer(layer, verbose,
         print(kernel)
         print(f"BIAS: {bias}\n")
 
-    kernel = kernel.reshape((output_channels, input_size[0], -1))
-    pooled = pooled.reshape((pooled_size[0], -1))
-
     out_size = [output_channels,
                 (pooled_size[1] - dilation * (kernel_size - 1) - 1 +
                  2 * padding) // stride + 1,
                 1]
-    out_buf = np.full(shape=(out_size[0], out_size[1]),
-                      fill_value=np.nan, dtype=np.int64)
 
     if bias is not None:
         bias = bias * tc.dev.BIAS_DIV
 
-    conv1d(data=pooled,
-           weight=kernel,
-           bias=bias,
-           input_size=pooled_size,
-           out_channels=output_channels,
-           kernel_size=kernel_size,
-           stride=stride,
-           pad=padding,
-           dilation=dilation,
-           output=out_buf,
-           debug=debug)
-
-    out_buf = out_buf.reshape((out_size))
+    out_buf = conv1d(data=pooled,
+                     weight=kernel,
+                     bias=bias,
+                     input_size=pooled_size,
+                     output_size=out_size,
+                     out_channels=output_channels,
+                     kernel_size=kernel_size,
+                     stride=stride,
+                     pad=padding,
+                     dilation=dilation,
+                     debug=debug)
 
     if verbose:
         print(f"{out_size[0]}x{out_size[1]} FULL-RES OUTPUT:")
@@ -302,10 +265,9 @@ def linear_layer(verbose, do_activation,
         print(weight)
         print(f"BIAS: {bias}\n")
 
-    out_buf = np.empty(out_features, dtype=np.int64)
-    linear(data=data, weight=weight, bias=bias,
-           in_features=in_features, out_features=out_features,
-           output=out_buf, debug=debug)
+    out_buf = linear(data=data, weight=weight, bias=bias,
+                     in_features=in_features, out_features=out_features,
+                     debug=debug)
     out_buf = np.floor(0.5 + out_buf / 128).astype(np.int64). \
         clip(-(2**(bits-1)), 2**(bits-1)-1)
 

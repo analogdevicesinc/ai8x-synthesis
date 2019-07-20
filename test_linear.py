@@ -228,8 +228,8 @@ def test_linear():
 
     print('Input:', data)
 
-    compute.linear(data, weight, bias, in_features=len(data), out_features=weight.shape[0],
-                   output=output, debug=True)
+    output = compute.linear(data, weight, bias,
+                            in_features=len(data), out_features=weight.shape[0], debug=True)
 
     print('Output before division:', output)
     output += 64
