@@ -76,7 +76,9 @@ def create_net(prefix, verbose, debug, log,
         # Pre-define data memory loader.
         d = data.transpose((1, 2, 0)).flatten()  # CHW -> HWC
         toplevel.c_define(sampledata_header, d, 'INPUT_DATA', '%d', 16)
-        c_file.write(f'static const q7_t input_data[{d.size}] = INPUT_DATA;\n')
+        input_size = d.size
+        c_file.write('static const q7_t input_data[] = INPUT_DATA;\n')
+        c_file.write('static const q7_t output_data[] = OUTPUT_DATA; // Last conv layer output\n')
 
         # Pre-define the kernels and bias values
         for ll in range(layers):
@@ -107,10 +109,8 @@ def create_net(prefix, verbose, debug, log,
         c_file.write('\n')
 
         for ll in range(layers):
-            c_file.write(f'static const q7_t weights_{ll}[{kernel[ll].size}] = '
-                         f'WEIGHTS_{ll};\n')
-            c_file.write(f'static const q7_t bias_{ll}[{output_chan[ll]}] = '
-                         f'BIAS_{ll};\n')
+            c_file.write(f'static const q7_t weights_{ll}[] = WEIGHTS_{ll};\n')
+            c_file.write(f'static const q7_t bias_{ll}[] = BIAS_{ll};\n')
         c_file.write('\n')
 
         # Compute buffer sizes
@@ -126,15 +126,15 @@ def create_net(prefix, verbose, debug, log,
                                   input_chan[ll]*input_dim[ll][0]*input_dim[ll][1],
                                   output_chan[ll]*output_dim[ll][0]*output_dim[ll][1])
 
-        c_file.write(f'static q7_t buffer0[{img_buffer_size}];\n')
+        c_file.write(f'static q7_t buffer0[{max(img_buffer_size, input_size)}];\n')
         c_file.write(f'static q7_t buffer1[{img_buffer_size}];\n')
         c_file.write(f'static q15_t col_buffer[{col_buffer_size}];\n\n')
 
-        c_file.write('int cnn_run(void)\n{\n')
+        c_file.write('int cnn_run(const q7_t *input, int input_size, '
+                     'q7_t **output, int *output_size)\n{\n')
 
         # Compute layer-by-layer output and chain results into input
-        buffer0 = 'buffer0'
-        buffer1 = 'buffer1'
+        buffer0, buffer1 = 'buffer0', 'buffer1'
 
         for ll in range(layers):
             c_file.write(f'  // Layer {ll}: [{input_chan[ll]}, {input_dim[ll][0]}, '
@@ -186,10 +186,14 @@ def create_net(prefix, verbose, debug, log,
             c_file.write(f'{out_size}\n')
 
             source = 'input_data' if ll == 0 else buffer0
+
             if pool[ll][0]:
+                if ll == 0:
+                    c_file.write('  memcpy(buffer0, input, input_size);'
+                                 ' // Pooling may destroy input\n')
                 pool_type = 'ave' if pool_average[ll] else 'max'
                 if pool[ll][0] != pool[ll][1]:
-                    c_file.write(f'  arm_{pool_type}pool_nonsquare_q7_HWC_nonsquare({source}, '
+                    c_file.write(f'  arm_{pool_type}pool_nonsquare_q7_HWC_nonsquare({buffer0}, '
                                  f'{input_dim[ll][1]}, {input_dim[ll][0]}, '
                                  f'{input_chan[ll]}, {pool[ll][1]}, {pool[ll][0]}, 0, 0, '
                                  f'{pool_stride[ll][1]}, {pool_stride[ll][0]}, '
@@ -197,11 +201,12 @@ def create_net(prefix, verbose, debug, log,
                                  f'(q7_t *) col_buffer, {buffer1});\n')
                 else:
                     if input_dim[ll][0] == input_dim[ll][1]:
-                        c_file.write(f'  arm_{pool_type}pool_q7_HWC({source}, {input_dim[ll][0]}, '
-                                     f'{input_chan[ll]}, {pool[ll][0]}, 0, {pool_stride[ll][0]}, '
+                        c_file.write(f'  arm_{pool_type}pool_q7_HWC({buffer0}, '
+                                     f'{input_dim[ll][0]}, {input_chan[ll]}, '
+                                     f'{pool[ll][0]}, 0, {pool_stride[ll][0]}, '
                                      f'{pooled_dim[ll][0]}, (q7_t *) col_buffer, {buffer1});\n')
                     else:
-                        c_file.write(f'  arm_{pool_type}pool_q7_HWC_nonsquare({source}, '
+                        c_file.write(f'  arm_{pool_type}pool_q7_HWC_nonsquare({buffer0}, '
                                      f'{input_dim[ll][1]}, {input_dim[ll][0]}, '
                                      f'{input_chan[ll]}, {pool[ll][0]}, 0, {pool_stride[ll][0]}, '
                                      f'{pooled_dim[ll][1]}, {pooled_dim[ll][0]}, '
@@ -251,11 +256,13 @@ def create_net(prefix, verbose, debug, log,
             c_file.write('\n')
             data_cmsis = data.transpose((1, 2, 0)).flatten()
             if verbose:
-                print('TRANSPOSED AND FLATTENED:')
+                print('TRANSPOSED (HWC) AND FLATTENED:')
                 print(data_cmsis)
                 print('')
 
-        c_file.write('  return 1;\n}\n\n')
+        c_file.write(f'  *output = {buffer0};\n'
+                     f'  *output_size = {data_cmsis.size};\n\n'
+                     '  return 1;\n}\n\n')
 
         if fc_weights:
             data = data.flatten()
@@ -278,10 +285,19 @@ def create_net(prefix, verbose, debug, log,
             toplevel.fc_layer(c_file, weight_header, w, fc_bias[0], cmsis_nn=True)
 
         c_file.write('int main(void)\n{\n'
-                     '  int i;\n\n'
-                     '  cnn_run();\n')
+                     '  int i;\n'
+                     '  q7_t *output;\n'
+                     '  int output_size;\n\n'
+                     f'  cnn_run(input_data, {input_size}, &output, &output_size);\n\n')
+
+        toplevel.c_define(sampledata_header, data_cmsis, 'OUTPUT_DATA', '%d', 16)
+        c_file.write(f'  if (memcmp(output_data, output, output_size) == 0)\n'
+                     '    printf("*** PASS ***\\n\\n");\n'
+                     '  else\n'
+                     '    printf("!!! FAIL !!!\\n\\n");\n\n')
+
         if fc_weights:
-            c_file.write(f'  fc_layer({buffer0});\n\n')
+            c_file.write(f'  fc_layer(output);\n\n')
             c_file.write('  printf("Classification results:\\n");\n'
                          '  for (i = 0; i < FC_OUT; i++) {\n'
                          '    printf("[%6d] -> Class %d: %0.1f%%\\n", fc_output[i], i, '
@@ -289,10 +305,8 @@ def create_net(prefix, verbose, debug, log,
                          '  }\n\n')
         else:
             c_file.write('  printf("Output of final layer:\\n");\n'
-                         '  for (i = 0; i < '
-                         f'{output_dim[ll][0] * output_dim[ll][1] * output_chan[ll]}; '
-                         'i++) {\n'
-                         f'    printf("%5hhd", (int8_t) ({buffer0}[i] & 0xff));\n'
+                         '  for (i = 0; i < output_size; i++) {\n'
+                         '    printf("%5hhd", (int8_t) (output[i] & 0xff));\n'
                          '    if ((i + 1) % 32 == 0)\n      printf("\\n");\n'
                          '    else if ((i + 1) % 4 == 0)\n      printf(" ");\n'
                          '  }\n'

@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-I. -ICMSIS_5/CMSIS/Core/Include -ICMSIS_5/CMSIS/NN/Include -ICMSIS_5/CMSIS/DSP/Include -Wall -D__ARM_ARCH_6M__
+CFLAGS=-I. -ICMSIS/Core/Include -ICMSIS/NN/Include -ICMSIS/DSP/Include -Wall -D__ARM_ARCH_6M__
 
 .PHONY: all
 all: main
