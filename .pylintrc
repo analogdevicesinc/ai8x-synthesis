@@ -11,3 +11,6 @@ max-statements=100
 min-public-methods=1
 max-branches=30
 max-module-lines=5000
+[MASTER]
+ignore=CMSIS_5
+ignore=distiller
