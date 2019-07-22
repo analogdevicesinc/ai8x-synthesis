@@ -1,7 +1,8 @@
 ###################################################################################################
 # Copyright (C) 2019 Maxim Integrated Products, Inc. All Rights Reserved.
 #
-# Maxim Confidential
+# Maxim Integrated Products, Inc. Default Copyright Notice:
+# https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
 #
 # Written by RM
 ###################################################################################################
