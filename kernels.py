@@ -238,8 +238,7 @@ def load(verbose, embedded_code, apb, layers, kernel, kernel_size, quantization,
                 ):
                     p += 1
                     span += proc_kern_max[p]
-                apb.output(f'static const uint32_t kernels_{start}[{span * _WORDS_PER_KERNEL}] = '
-                           f'KERNELS_{start};\n')
+                apb.output(f'static const uint32_t kernels_{start}[] = KERNELS_{start};\n')
             p += 1
         apb.output('\n')
 
@@ -339,8 +338,7 @@ def load_bias(verbose, embedded_code, apb, layers,  # pylint: disable=unused-arg
             for group in range(tc.dev.P_NUMGROUPS):
                 if group_bias_max[group] == 0:
                     continue
-                apb.output(f'static const uint8_t bias_{group}[{group_bias_max[group]}] = '
-                           f'BIAS_{group};\n')
+                apb.output(f'static const uint8_t bias_{group}[] = BIAS_{group};\n')
             apb.output('\n')
 
             # Finally, create function and do memcpy()

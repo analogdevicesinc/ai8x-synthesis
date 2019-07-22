@@ -135,7 +135,7 @@ def fc_layer(memfile, weights_fh, weights, bias, cmsis_nn=False):
     weights = convert_to_x4_q7_weights(weights)
 
     c_define(weights_fh, weights, 'FC_WEIGHTS', '%d', 16)
-    memfile.write('static const q7_t fc_weights[FC_OUT * FC_IN] = FC_WEIGHTS;\n\n')
+    memfile.write('static const q7_t fc_weights[] = FC_WEIGHTS;\n\n')
 
     if not cmsis_nn:
         memfile.write('static uint8_t conv_data[FC_IN];\n')
@@ -145,7 +145,7 @@ def fc_layer(memfile, weights_fh, weights, bias, cmsis_nn=False):
 
     if bias is not None:
         c_define(weights_fh, bias, 'FC_BIAS', '%d', 16)
-        memfile.write('static const q7_t fc_bias[FC_OUT] = FC_BIAS;\n\n')
+        memfile.write('static const q7_t fc_bias[] = FC_BIAS;\n\n')
 
     if not cmsis_nn:
         memfile.write('int fc_layer(void)\n'
