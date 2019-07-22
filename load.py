@@ -48,7 +48,8 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
         expand = c // in_expand_thresh  # Channels 64+ handled by processors 0+
         instance = (ch % tc.dev.P_NUMPRO) // tc.dev.P_SHARED
         new_data_offs = tc.dev.C_SRAM_BASE + tc.dev.C_GROUP_OFFS*group \
-            + tc.dev.INSTANCE_SIZE*4*instance + expand*4
+            + tc.dev.INSTANCE_SIZE*16*instance + expand*4
+
         if expand == 0:
             new_data_offs += input_offset
         if new_data_offs == data_offs:
@@ -96,8 +97,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
                     offs += in_expand
 
                 apb.output_define(code_buffer, f'INPUT_{ch}', '0x%08x', 8, weights=False)
-                apb.output('static const uint32_t '
-                           f'input_{ch}[{offs}] = INPUT_{ch};\n\n')
+                apb.output(f'static const uint32_t input_{ch}[] = INPUT_{ch};\n\n')
                 input_list.append((addr, ch, offs))
 
                 apb.data_offs = data_offs  # For mixed HWC/CHW operation
@@ -183,8 +183,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
 
             if embedded_code:
                 apb.output_define(code_buffer, f'INPUT_{ch}', '0x%08x', 8, weights=False)
-                apb.output('static const uint32_t '
-                           f'input_{ch}[{data_len}] = INPUT_{ch};\n\n')
+                apb.output(f'static const uint32_t input_{ch}[] = INPUT_{ch};\n\n')
                 input_list.append((addr, ch, offs))
 
             c += num_ch
