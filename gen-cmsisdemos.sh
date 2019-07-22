@@ -13,3 +13,5 @@
 ./cnn-gen.py --verbose -L --top-level cnn --test-dir demos --prefix CMSIS-NonsquarePool --config-file tests/test-nonsquare-pool.yaml --embedded-code --cmsis-software-nn --ai85
 ./cnn-gen.py --verbose -L --top-level cnn --test-dir demos --prefix CMSIS-NonsquarePoolNonsquare --config-file tests/test-nonsquare-nonsquarepool.yaml --embedded-code --cmsis-software-nn --ai85
 
+./cnn-gen.py --verbose -L --top-level cnn --test-dir demos --prefix CMSIS-Energy --config-file tests/test-energy.yaml --embedded-code --cmsis-software-nn
+
