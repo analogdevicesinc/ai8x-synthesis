@@ -1,0 +1,13 @@
+# Pooling test
+
+arch: test
+dataset: test_3x65x65
+
+layers:
+- pad: 1
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0x0000000000000007
+  data_format: HWC
+  max_pool: 16
+  pool_stride : 4
