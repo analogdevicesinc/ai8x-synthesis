@@ -100,7 +100,7 @@ class DevAI85(Dev):
     # Per-layer registers
     LREG_RCNT = 0
     LREG_CCNT = 1
-    LREG_RFU = 2
+    LREG_ONED = 2
     LREG_PRCNT = 3
     LREG_PCCNT = 4
     LREG_STRIDE = 5

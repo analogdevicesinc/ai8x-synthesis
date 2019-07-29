@@ -180,9 +180,13 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                     error_exit('Unsupported value for `kernel_size`', sequence)
                 kernel_size[sequence] = [int(val[0]), int(val[2])]
             else:
-                if val not in ['9']:
+                try:
+                    val = int(val)
+                except ValueError:
                     error_exit('Unsupported value for `kernel_size`', sequence)
-                kernel_size[sequence] = [int(val), 1]
+                if device == 84 and val != 9 or val < 1 or val > 9:
+                    error_exit('Unsupported value for `kernel_size`', sequence)
+                kernel_size[sequence] = [val, 1]
         elif convolution[sequence] == 1:  # Set default for 1D convolution
             kernel_size[sequence] = DEFAULT_1D_KERNEL
 

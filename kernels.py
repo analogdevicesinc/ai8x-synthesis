@@ -56,7 +56,8 @@ def combine_bias(b, quantization, start, out_chan):
     return val
 
 
-def load(verbose, embedded_code, apb, layers, kernel, kernel_size, quantization, processor_map,
+def load(verbose, embedded_code, device, apb, layers, convolution,
+         kernel, kernel_size, quantization, processor_map,
          output_processor_map, input_chan, output_chan, out_expand, out_expand_thresh,
          in_expand, in_expand_thresh, debug=False):
     """
@@ -71,12 +72,13 @@ def load(verbose, embedded_code, apb, layers, kernel, kernel_size, quantization,
     kern_offs = [0] * layers
     kern_len = [0] * layers
     kernel_map = np.full((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH), _INVALID_VALUE, dtype=np.int64)
-    if embedded_code:
-        # There are four 32-bit words per 9-byte kernel.
-        # The value map is initialized with zeros so we can later ignore unused entries and use
-        # memcpy() on initialized and uninitialized data.
-        kernel_values = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH * _WORDS_PER_KERNEL),
-                                 dtype=np.int64)
+    kernels_used = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH), dtype=np.int64)
+    kernel_data = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH, 9), dtype=np.int8)
+    # There are four 32-bit words per 9-byte kernel.
+    # The value map is initialized with zeros so we can later ignore unused entries and use
+    # memcpy() on initialized and uninitialized data.
+    kernel_values = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH * _WORDS_PER_KERNEL),
+                             dtype=np.int64)
     if debug:
         print('\nLoading Kernels...')
 
@@ -103,6 +105,9 @@ def load(verbose, embedded_code, apb, layers, kernel, kernel_size, quantization,
              + 8 // quantization[ll] - 1) // (8 // quantization[ll])
         # This extends the kernels to the right on AI85 for input and output expansion
         kern_len[ll] *= out_expand[ll] * in_expand[ll]
+        if device != 84:
+            # Pack kernels when using 1D convolutions, or 1x1 kernels
+            kern_len[ll] = (kern_len[ll] * kernel_size[ll][0] * kernel_size[ll][1] + 8) // 9
 
         # We don't have to use dummy columns if there's space available on the left
         kern_offs[ll] = \
@@ -163,29 +168,28 @@ def load(verbose, embedded_code, apb, layers, kernel, kernel_size, quantization,
                                 print(f'Layer {ll} processor {p} channel '
                                       f'{ch + ie * in_expand_thresh[ll]} m[{col}..{col+n-1}] of '
                                       f'{output_chan[ll]}: {k}')
-                        if not embedded_code:
-                            # Write in-line
-                            apb.write_kern(ll, p, kern_offs[ll] + col_target, k,
-                                           size=kernel_size[ll][0] * kernel_size[ll][1])
-                        else:
-                            # Store for later
-                            offs = _WORDS_PER_KERNEL * (kern_offs[ll] + col_target)  # 96-bit words
-                            kernel_values[p][offs] = k[0] & 0xff
-                            if kernel_size[ll] != [1, 1]:
-                                kernel_values[p][offs + 1] = (k[1] & 0xff) << 24 \
-                                    | (k[2] & 0xff) << 16 | (k[3] & 0xff) << 8 | k[4] & 0xff
-                                kernel_values[p][offs + 2] = (k[5] & 0xff) << 24 \
-                                    | (k[6] & 0xff) << 16 | (k[7] & 0xff) << 8 | k[8] & 0xff
-                            else:
-                                kernel_values[p][offs + 1] = 0
-                                kernel_values[p][offs + 2] = 0
 
-                        # Update kernel map
-                        assert kernel_map[p][kern_offs[ll] + col_target] == _INVALID_VALUE
-                        kernel_map[p][kern_offs[ll] + col_target] = ll
-                        col_target += 1  # Write 1
+                        def add_kernel_data(ll, p, col_target, b):
+                            col = kern_offs[ll] + col_target
+                            boffs = kernels_used[p][col]
+                            kernel_data[p][col][boffs] = b & 0xff
+                            kernels_used[p][col] += 1
+
+                            if boffs == 0:  # Update kernel map
+                                assert kernel_map[p][col] == _INVALID_VALUE
+                                kernel_map[p][col] = ll
+                            elif boffs == 8:  # Flush
+                                col_target += 1  # Write 1
+
+                            return col_target
+
+                        for i in range(kernel_size[ll][0] * kernel_size[ll][1]):
+                            col_target = add_kernel_data(ll, p, col_target, k[i])
+
                     col += n  # Consume n
 
+            if kernels_used[p][kern_offs[ll] + col_target] > 0:  # Partials
+                col_target += 1
             assert kern_len[ll] == col_target
             proc_kern_max[p] = kern_offs[ll] + kern_len[ll]
             ch += 1
@@ -194,10 +198,30 @@ def load(verbose, embedded_code, apb, layers, kernel, kernel_size, quantization,
         print('\nKernel map:')
         print_map(layers, kernel_map)
 
-    if embedded_code:
+    if not embedded_code:
+        # Write in-line
+        for p in range(tc.dev.MAX_PROC):
+            for col in range(0, proc_kern_max[p]):
+                ll = kernel_map[p][col]
+                if ll != _INVALID_VALUE:
+                    k = kernel_data[p][col]
+                    apb.write_kern(ll, p, col, k)
+    else:
         # Write kernels, combining layers and processors where possible to reduce the number
         # of constants and calls to memcpy.
         apb.output('// Kernels:\n')
+
+        for p in range(tc.dev.MAX_PROC):
+            for col in range(0, proc_kern_max[p]):
+                ll = kernel_map[p][col]
+                if ll != _INVALID_VALUE:
+                    k = kernel_data[p][col]
+                    offs = _WORDS_PER_KERNEL * col
+                    kernel_values[p][offs] = k[0] & 0xff
+                    kernel_values[p][offs + 1] = (k[1] & 0xff) << 24 \
+                        | (k[2] & 0xff) << 16 | (k[3] & 0xff) << 8 | k[4] & 0xff
+                    kernel_values[p][offs + 2] = (k[5] & 0xff) << 24 \
+                        | (k[6] & 0xff) << 16 | (k[7] & 0xff) << 8 | k[8] & 0xff
 
         # First, define the weights (will move to header file)
         p = 0

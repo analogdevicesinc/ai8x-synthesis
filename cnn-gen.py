@@ -229,7 +229,8 @@ def create_net(prefix, verbose, debug, debug_computation,
                       data, padding[0], split=split, debug=debug)
             # Pre-define the kernels and bias values
             kern_offs, kern_len = \
-                kernels.load(verbose, embedded_code, apb, layers, kernel, kernel_size,
+                kernels.load(verbose, embedded_code, device, apb, layers, convolution,
+                             kernel, kernel_size,
                              quantization, processor_map, output_processor_map,
                              input_chan, output_chan, out_expand, out_expand_thresh,
                              in_expand, in_expand_thresh, debug)
@@ -281,7 +282,8 @@ def create_net(prefix, verbose, debug, debug_computation,
 
         if not embedded_code:
             kern_offs, kern_len = \
-                kernels.load(verbose, embedded_code, apb, layers, kernel, kernel_size,
+                kernels.load(verbose, embedded_code, device, apb, layers, convolution,
+                             kernel, kernel_size,
                              quantization, processor_map, output_processor_map,
                              input_chan, output_chan, out_expand, out_expand_thresh,
                              in_expand, in_expand_thresh, debug)
@@ -353,7 +355,7 @@ def create_net(prefix, verbose, debug, debug_computation,
             for ll in range(layers):
                 apb.output(f'\n  // Group {group} layer {ll}\n')
 
-                if convolution[ll] == 2:
+                if convolution[ll] == 2 or device != 84:
                     # Configure row count
                     # [7:0] maxcount: lower 8 bits = total of width + pad - 1
                     # [9:8] pad: 2 bits pad
@@ -361,21 +363,29 @@ def create_net(prefix, verbose, debug, debug_computation,
                                    (padding[ll][0] << 8) | (input_dim[ll][0]-1 + 2*padding[ll][0]),
                                    verbose, comment=' // Rows')
 
-                    # Configure column count
+                    # Configure column count (evaluates to 0 for 1D convolutions)
                     # [7:0] width including padding - 1
                     # [9:8] pad count (0 = no pad, 1 = half pad, 2 = full pad)
                     apb.write_lreg(group, ll, tc.dev.LREG_CCNT,
                                    padding[ll][1] << 8 | (input_dim[ll][1]-1 + 2 * padding[ll][1]),
                                    verbose, comment=' // Columns')
                 else:
-                    # For 1D convolutions, the column count is always 3, and the row count is
-                    # divided by 3. Padding is divided by 3.
+                    # For 1D convolutions on AI84, the column count is always 3, and the
+                    # row count is divided by 3. Padding is divided by 3.
                     val = (padding[ll][0] // 3 << 8) \
                            | (input_dim[ll][0] + 2*padding[ll][0]) // 3 - 1
                     apb.write_lreg(group, ll, tc.dev.LREG_RCNT, val,
                                    verbose, comment=' // Rows')
                     apb.write_lreg(group, ll, tc.dev.LREG_CCNT, 2,
                                    verbose, comment=' // Columns')
+
+                if convolution[ll] == 1 and device != 84:
+                    #  [3:0] tscnt_max[3:0]      Maximum timeslot count register
+                    #  [7:4] oned_sad[3:0]       Start mask address (offset within 9 byte mask)
+                    # [11:8] oned_width[3:0]     1D mask width (0-9).  Width > 0 enables 1D
+                    apb.write_lreg(group, ll, tc.dev.LREG_ONED,
+                                   kernel_size[ll][0] << 8,
+                                   verbose, comment=' // 1D')
 
                 # Configure pooling row count
                 apb.write_lreg(group, ll, tc.dev.LREG_PRCNT, max(1, pool[ll][0]-1),
@@ -390,7 +400,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                     val = pool_stride[ll][0]-1
                 else:
                     val = stride[ll][0]-1
-                if convolution[ll] != 2:
+                if device == 84 and convolution[ll] != 2:
                     val //= 3
                 apb.write_lreg(group, ll, tc.dev.LREG_STRIDE, val,
                                verbose, comment=' // Stride')
@@ -875,11 +885,11 @@ def main():
         else:
             # We don't have to consider padding for the width calculation,
             # since padding has to be a multiple of 3 and we check for that.
-            if pooled_size[0] % 3 != 0:
+            if args.device == 84 and pooled_size[0] % 3 != 0:
                 print(f'1D convolution in layer {ll} requires a multiple of 3 for the '
                       f'pooled input length (currently {pooled_size[0]}).')
                 sys.exit(1)
-            if padding[ll][0] % 3 != 0:
+            if args.device == 84 and padding[ll][0] % 3 != 0:
                 print(f'1D convolution in layer {ll} requires a multiple of 3 for '
                       f'`pad` (currently set to {padding[ll][0]}).')
                 sys.exit(1)
