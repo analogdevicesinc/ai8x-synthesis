@@ -8,5 +8,5 @@ layers:
   processors: 0x000000000000001f
   pad: 1
   max_pool: [2, 3]
-  pool_stride: [1, 2]
+  pool_stride: [3, 3]
 

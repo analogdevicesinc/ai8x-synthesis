@@ -151,7 +151,7 @@ def verify(verify_fn, ll, in_map, out_map,
                 val = [0] * 4
                 for i in range(4):
                     if this_map & 1:
-                        val[3-i] = out_buf[c][row][col] & 0xffffffff
+                        val[i] = out_buf[c][row][col] & 0xffffffff
                         c += 1
                     this_map >>= 1
 

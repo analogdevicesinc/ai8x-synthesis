@@ -437,7 +437,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                                    verbose, comment=' // Write ptr mask offs')
 
                     # [15:0] Write Pointer Multi-Pass Channel Offset Register
-                    val = 1
+                    val = output_width[ll] // 8
                     apb.write_lreg(group, ll, tc.dev.LREG_WPTR_CHOFFS, val,
                                    verbose, comment=' // Write ptr multi-pass channel offs')
 
@@ -845,6 +845,10 @@ def main():
                 input_dim[ll] = conf_input_dim[ll]
         if pool[ll][0]:
             if convolution[ll] == 2:
+                if pool_stride[ll][0] != pool_stride[ll][1]:
+                    print(f'2D convolution in layer {ll} does not support non-square pooling '
+                          f'stride (currently set to {pool_stride[ll][0]}x{pool_stride[ll][1]}).')
+                    sys.exit(1)
                 pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])
                                // pool_stride[ll][0],
                                (input_dim[ll][1] + pool_stride[ll][1] - pool[ll][1])
@@ -856,6 +860,10 @@ def main():
         else:
             pooled_size = input_dim[ll]
         if convolution[ll] == 2:
+            if stride[ll][0] != stride[ll][1]:
+                print(f'2D convolution in layer {ll} does not support non-square '
+                      f'stride (currently set to {stride[ll][0]}x{stride[ll][1]}).')
+                sys.exit(1)
             output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
                                2 * padding[ll][0]) // stride[ll][0] + 1,
                               (pooled_size[1] - dilation[ll][1] * (kernel_size[ll][1] - 1) - 1 +
