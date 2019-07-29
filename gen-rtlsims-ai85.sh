@@ -43,6 +43,7 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-energy --config-file tests/test-energy.yaml --ai85
 
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-pool-16x16s4 --config-file tests/test-pooling16x16s4.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-pool-16x16s4wide --config-file tests/test-pooling16x16s4wide.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-pool-16x16s7 --config-file tests/test-pooling16x16s7.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-pool-16x16s16 --config-file tests/test-pooling16x16s16.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-pool2-16x16s7 --config-file tests/test-pooling16x16s7-II.yaml --ai85
