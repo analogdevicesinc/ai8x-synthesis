@@ -388,11 +388,13 @@ def create_net(prefix, verbose, debug, debug_computation,
                                    verbose, comment=' // 1D')
 
                 # Configure pooling row count
-                apb.write_lreg(group, ll, tc.dev.LREG_PRCNT, max(1, pool[ll][0]-1),
+                val = max(1, pool[ll][0]-1) if device == 84 else max(0, pool[ll][0]-1)
+                apb.write_lreg(group, ll, tc.dev.LREG_PRCNT, val,
                                verbose, comment=' // Pooling rows')
 
                 # Configure pooling column count
-                apb.write_lreg(group, ll, tc.dev.LREG_PCCNT, max(1, pool[ll][1]-1),
+                val = max(1, pool[ll][1]-1) if device == 84 else max(0, pool[ll][1]-1)
+                apb.write_lreg(group, ll, tc.dev.LREG_PCCNT, val,
                                verbose, comment=' // Pooling columns')
 
                 # Configure pooling stride count
