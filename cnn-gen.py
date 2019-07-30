@@ -10,6 +10,7 @@
 """
 Embedded network and simulation test generator program for Tornado CNN
 """
+import hashlib
 import os
 import signal
 import sys
@@ -126,6 +127,11 @@ def create_net(prefix, verbose, debug, debug_computation,
                          f'p{padding[ll][0]}' \
                          f'm{output_chan[ll]}' \
                          f'{"_relu" if activate[ll] else ""}'
+    MAX_PATH = 255
+    if len(test_name) + len(base_directory) > MAX_PATH - 10:
+        h = hashlib.md5(test_name.encode()).hexdigest()  # Immutable hash from test name
+        cutoff = MAX_PATH - len(test_name) - len(base_directory) - len(h) - 10
+        test_name = test_name[:cutoff] + '#' + h
     print(f'{test_name}...')
 
     os.makedirs(os.path.join(base_directory, test_name), exist_ok=True)
