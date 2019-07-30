@@ -30,6 +30,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
     """
     input_list = []
     chan = input_size[0]
+    out_map = apb.get_mem()
 
     if not embedded_code:
         apb.output('\n\n  ')
@@ -85,6 +86,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
                         val |= (s2u(data[c][row][col]) & 0xff) << (shift * 8)
                         if shift == 3:
                             apb.check_overwrite(data_offs & ~3)
+                            out_map[(data_offs & ~3) >> 2] = (c, row, col, val)
                             code_buffer[offs] = val
                             offs += in_expand
                             val = 0
@@ -94,6 +96,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
 
                 if shift != 3:
                     apb.check_overwrite(data_offs & ~3)
+                    out_map[(data_offs & ~3) >> 2] = (c, row, col, val)
                     code_buffer[offs] = val
                     offs += in_expand
 
@@ -174,6 +177,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
                             this_c += 1
 
                     apb.check_overwrite(data_offs)
+                    out_map[data_offs >> 2] = (this_c, row, col, val)
                     if not embedded_code:
                         apb.write(data_offs, val)
                     else:

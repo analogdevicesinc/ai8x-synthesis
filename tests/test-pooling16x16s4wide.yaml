@@ -5,9 +5,9 @@ dataset: test_3x65x65
 
 layers:
 - pad: 1
-  out_offset: 0x2000
+  out_offset: 0x4400
   processors: 0x0000000000000007
   data_format: HWC
-  max_pool: 16
+  avg_pool: 16
   pool_stride : 4
   output_width: 32
