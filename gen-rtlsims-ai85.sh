@@ -71,3 +71,4 @@
 
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-singlebyte-hwc --config-file tests/test-singlebyte-hwc.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-singlebyte-chw --config-file tests/test-singlebyte-chw.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-layers --config-file tests/test-layers.yaml --ai85
