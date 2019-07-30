@@ -487,7 +487,9 @@ def create_net(prefix, verbose, debug, debug_computation,
                     # The threshold is adjusted based on whether the weights are 1, 2, 4, or 8 bit.
                     # One full weight size is subtracted from the shifted value.
                     val |= ((out_expand[ll] - 1) << 19) \
-                           | (((fls(output_processor_map[ll]) + 1) * quantization[ll] - 1) << 22) \
+                           | (((fls(output_processor_map[ll])
+                                - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED - 1)) + 1)
+                               * quantization[ll] - 1) << 22) \
                            | (in_expand[ll] - 1) << 16
                     if output_width[ll] != 8:
                         val |= 1 << 31
