@@ -254,10 +254,11 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     if output_width[-1] != 8 and relu[-1]:
         error_exit('`output_width` must be 8 when activation is used', len(relu))
 
-    # Fix up defaults for Conv1D:
-    for ll, e in enumerate(convolution):
-        if e == 1:
-            kernel_size[ll] = [9, 1]
+    if device == 84:
+        # Fix up defaults for Conv1D:
+        for ll, e in enumerate(convolution):
+            if e == 1:
+                kernel_size[ll] = [9, 1]
 
     settings = {}
     settings['padding'] = padding
