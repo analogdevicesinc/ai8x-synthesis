@@ -9,5 +9,5 @@ layers:
   convolution: conv1d
   kernel_size: 1
   stride: 1
-  pad: 1
+  pad: 0
 

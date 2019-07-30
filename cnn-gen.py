@@ -914,6 +914,11 @@ def main():
                               1]
         pooled_dim[ll] = pooled_size
 
+        # Prohibit pad greater than or equal to kernel size
+        if padding[ll][0] >= kernel_size[ll][0] or padding[ll][1] >= kernel_size[ll][1]:
+            print(f'Pad size for layer {ll} exceeds kernel size.')
+            sys.exit(1)
+
         # Check for max dimensions
         if any(dim > tc.dev.MAX_ROW_COL for dim in input_dim[ll]):
             print(f'Input dimension {input_dim[ll]} exceeds system maximum of '
