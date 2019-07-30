@@ -56,7 +56,7 @@ def combine_bias(b, quantization, start, out_chan):
     return val
 
 
-def load(verbose, embedded_code, device, apb, layers, convolution,
+def load(verbose, embedded_code, device, apb, layers,
          kernel, kernel_size, quantization, processor_map,
          output_processor_map, input_chan, output_chan, out_expand, out_expand_thresh,
          in_expand, in_expand_thresh, debug=False):
@@ -138,36 +138,17 @@ def load(verbose, embedded_code, device, apb, layers, convolution,
                 while col < stop_col:
                     # Skip over unused bits in the target processor map
                     # (unused means 1 bit for 8-bit weights, 2 for 4-bit weights, etc.)
-                    while this_map & proc_mask == 0:
-                        assert this_map != 0
-                        col_target += 1  # Completely skip
-                        this_map >>= 8 // quantization[ll]  # and slide forward
+                    if this_map != 0:
+                        while this_map & proc_mask == 0:
+                            assert this_map != 0
+                            col_target += 1  # Completely skip
+                            this_map >>= 8 // quantization[ll]  # and slide forward
                     this_mask = this_map & proc_mask
                     this_map >>= 8 // quantization[ll]
 
                     src_offs = ch + col * input_chan[ll]
                     for ie in range(in_expand[ll]):
                         mask = this_mask
-
-                        n = 0
-                        k = np.zeros_like(kernel[ll][src_offs].flatten())
-                        for i in range(8 // quantization[ll]):
-                            if mask & 1 and col + i < output_chan[ll]:
-                                # Cycle through phases
-                                idx = n + ie * (8 // quantization[ll])
-                                this_kern = kernel[ll][src_offs + (idx % in_expand[ll])
-                                                       * in_expand_thresh[ll]
-                                                       + (idx // in_expand[ll]) * input_chan[ll]].\
-                                    flatten() & (2**quantization[ll]-1)
-                                k |= this_kern << (i * quantization[ll])
-                                n += 1
-                            mask >>= 1
-
-                        if debug:
-                            with np.printoptions(formatter={'int': '{0:02x}'.format}):
-                                print(f'Layer {ll} processor {p} channel '
-                                      f'{ch + ie * in_expand_thresh[ll]} m[{col}..{col+n-1}] of '
-                                      f'{output_chan[ll]}: {k}')
 
                         def add_kernel_data(ll, p, col_target, b):
                             col = kern_offs[ll] + col_target
@@ -183,12 +164,40 @@ def load(verbose, embedded_code, device, apb, layers, convolution,
 
                             return col_target
 
-                        for i in range(kernel_size[ll][0] * kernel_size[ll][1]):
-                            col_target = add_kernel_data(ll, p, col_target, k[i])
+                        n = 0
+                        if src_offs < len(kernel[ll]):
+                            k = np.zeros_like(kernel[ll][src_offs].flatten())
+                            for i in range(8 // quantization[ll]):
+                                if mask & 1 and col + i < output_chan[ll]:
+                                    # Cycle through phases
+                                    idx = n + ie * (8 // quantization[ll])
+                                    this_kern = kernel[ll][src_offs + (idx % in_expand[ll])
+                                                           * in_expand_thresh[ll]
+                                                           + (idx // in_expand[ll])
+                                                           * input_chan[ll]].\
+                                        flatten() & (2**quantization[ll]-1)
+                                    k |= this_kern << (i * quantization[ll])
+                                    n += 1
+                                mask >>= 1
+
+                            if debug:
+                                with np.printoptions(formatter={'int': '{0:02x}'.format}):
+                                    print(f'Layer {ll} processor {p} channel '
+                                          f'{ch + ie * in_expand_thresh[ll]} m[{col}..{col+n-1}] '
+                                          f'of {output_chan[ll]}: {k}')
+
+                            for i in range(kernel_size[ll][0] * kernel_size[ll][1]):
+                                col_target = add_kernel_data(ll, p, col_target, k[i])
+
+                        else:  # When expanding, need to pad with zero kernels if needed
+                            n = 1
+                            for _ in range(kernel_size[ll][0] * kernel_size[ll][1]):
+                                col_target = add_kernel_data(ll, p, col_target, 0)
 
                     col += n  # Consume n
 
-            if kernels_used[p][kern_offs[ll] + col_target] > 0:  # Partials
+            if kern_offs[ll] + col_target < len(kernels_used[p]) \
+               and kernels_used[p][kern_offs[ll] + col_target] > 0:  # Partials
                 col_target += 1
             assert kern_len[ll] == col_target
             proc_kern_max[p] = kern_offs[ll] + kern_len[ll]

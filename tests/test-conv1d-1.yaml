@@ -1,0 +1,13 @@
+# Test Conv1D
+
+arch: test
+dataset: test_conv1d-1
+
+layers:
+- out_offset: 0x2000
+  processors: 0x0000000000000003
+  convolution: conv1d
+  kernel_size: 1
+  stride: 1
+  pad: 1
+

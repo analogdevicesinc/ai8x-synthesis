@@ -29,7 +29,7 @@ import stats
 import tornadocnn as tc
 import yamlcfg
 from simulate import cnn1d_layer, cnn2d_layer, linear_layer
-from utils import ffs, popcount
+from utils import ffs, fls, popcount
 
 
 def create_net(prefix, verbose, debug, debug_computation,
@@ -229,7 +229,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                       data, padding[0], split=split, debug=debug)
             # Pre-define the kernels and bias values
             kern_offs, kern_len = \
-                kernels.load(verbose, embedded_code, device, apb, layers, convolution,
+                kernels.load(verbose, embedded_code, device, apb, layers,
                              kernel, kernel_size,
                              quantization, processor_map, output_processor_map,
                              input_chan, output_chan, out_expand, out_expand_thresh,
@@ -282,7 +282,7 @@ def create_net(prefix, verbose, debug, debug_computation,
 
         if not embedded_code:
             kern_offs, kern_len = \
-                kernels.load(verbose, embedded_code, device, apb, layers, convolution,
+                kernels.load(verbose, embedded_code, device, apb, layers,
                              kernel, kernel_size,
                              quantization, processor_map, output_processor_map,
                              input_chan, output_chan, out_expand, out_expand_thresh,
@@ -334,7 +334,7 @@ def create_net(prefix, verbose, debug, debug_computation,
             print(f'Kernel lengths      = {kern_len}')
             if device >= 85:
                 print(f'Kernel dimensions   = {kernel_size}')
-                print(f'Kernel bits         = {quantization}')
+                print(f'Kernel size         = {quantization}')
             print(f'Convolution dim.    = {convolution}')
             print(f'Stride              = {stride}')
 
@@ -382,7 +382,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                 if convolution[ll] == 1 and device != 84:
                     #  [3:0] tscnt_max[3:0]      Maximum timeslot count register
                     #  [7:4] oned_sad[3:0]       Start mask address (offset within 9 byte mask)
-                    # [11:8] oned_width[3:0]     1D mask width (0-9).  Width > 0 enables 1D
+                    # [11:8] oned_width[3:0]     1D mask width (0-9). Width > 0 enables 1D.
                     apb.write_lreg(group, ll, tc.dev.LREG_ONED,
                                    kernel_size[ll][0] << 8,
                                    verbose, comment=' // 1D')
@@ -433,7 +433,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                 else:
                     # [15:0] Write Pointer Timeslot Offset Register
                     # Used for 1x1 convolution, and pooling without convolution
-                    if kernel_size[ll] == [1, 1]:
+                    if convolution[ll] == 2 and kernel_size[ll] == [1, 1]:
                         val = 1
                     else:
                         val = 0
@@ -481,7 +481,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                     # The threshold is adjusted based on whether the weights are 1, 2, 4, or 8 bit.
                     # One full weight size is subtracted from the shifted value.
                     val |= ((out_expand[ll] - 1) << 19) \
-                           | ((out_expand_thresh[ll] * quantization[ll] - 1) << 22) \
+                           | (((fls(output_processor_map[ll]) + 1) * quantization[ll] - 1) << 22) \
                            | (in_expand[ll] - 1) << 16
                     if output_width[ll] != 8:
                         val |= 1 << 31
@@ -549,7 +549,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                         # Enable bias only for one group
                         val |= (1 << 12) | bias_offs[ll]
 
-                    if kernel_size[ll] == [1, 1]:
+                    if convolution[ll] == 2 and kernel_size[ll] == [1, 1]:
                         val |= 3 << 24
 
                     apb.write_lreg(group, ll, tc.dev.LREG_POST, val,
@@ -800,7 +800,7 @@ def main():
     elif len(processor_map) == layers and output_processor_map[-1] is None:
         # Default to packed, 0-aligned output map
         expand = (output_channels[layers-1] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
-        expand_chunk = output_channels[layers-1] // expand
+        expand_chunk = (output_channels[layers-1] + expand-1) // expand
         output_processor_map[-1] = 2**expand_chunk-1
 
     # Remove extraneous layer configuration values (when --stop-after is used)
@@ -887,14 +887,20 @@ def main():
         else:
             # We don't have to consider padding for the width calculation,
             # since padding has to be a multiple of 3 and we check for that.
-            if args.device == 84 and pooled_size[0] % 3 != 0:
-                print(f'1D convolution in layer {ll} requires a multiple of 3 for the '
-                      f'pooled input length (currently {pooled_size[0]}).')
-                sys.exit(1)
-            if args.device == 84 and padding[ll][0] % 3 != 0:
-                print(f'1D convolution in layer {ll} requires a multiple of 3 for '
-                      f'`pad` (currently set to {padding[ll][0]}).')
-                sys.exit(1)
+            if args.device == 84:
+                if pooled_size[0] % 3 != 0:
+                    print(f'1D convolution in layer {ll} requires a multiple of 3 for the '
+                          f'pooled input length (currently {pooled_size[0]}).')
+                    sys.exit(1)
+                if padding[ll][0] % 3 != 0:
+                    print(f'1D convolution in layer {ll} requires a multiple of 3 for '
+                          f'`pad` (currently set to {padding[ll][0]}).')
+                    sys.exit(1)
+            else:
+                if padding[ll][0] >= 3:
+                    print(f'1D convolution in layer {ll} does not support `pad` >= 3 '
+                          f'(currently set to {padding[ll][0]}).')
+                    sys.exit(1)
             output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
                                2 * padding[ll][0]) // stride[ll][0] + 1,
                               1]
