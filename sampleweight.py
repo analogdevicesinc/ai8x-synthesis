@@ -33,9 +33,20 @@ def load(dataset, _quantization):
     #    w = np.random.randint(-128, 127, (2, 64, 64, 3, 3), dtype=np.int8)
     #    np.save(f'tests/{dataset}', w, allow_pickle=False, fix_imports=False)
 
-    w = np.load(os.path.join('tests', f'weights_{dataset}.npy'),
-                allow_pickle=False, fix_imports=False)
-    layers = w.shape[0]
+    w = []
+    layers = 0
+    with open(os.path.join('tests', f'weights_{dataset}.npy'), mode='rb') as file:
+        try:
+            while True:
+                w.append(np.load(file, allow_pickle=False, fix_imports=False))
+                layers += 1
+        except ValueError:
+            pass
+
+    if layers == 1:  # If the weights file wasn't a list
+        w = w[0]
+        layers = w.shape[0]
+
     for ll in range(layers):
         output_channels.append(w[ll].shape[0])  # Output channels
         input_channels.append(w[ll].shape[1])  # Input channels
