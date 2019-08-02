@@ -33,6 +33,23 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-8 --config-file tests/test-conv1d-8.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-9 --config-file tests/test-conv1d-9.yaml --ai85
 
+# ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1dII --config-file tests/test-ai85-conv1dII.yaml --ai85
+# ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-3II --config-file tests/test-conv1d-3II.yaml --ai85
+# ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-4II --config-file tests/test-conv1d-4II.yaml --ai85
+# ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-5II --config-file tests/test-conv1d-5II.yaml --ai85
+# ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-6II --config-file tests/test-conv1d-6II.yaml --ai85
+# ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-7II --config-file tests/test-conv1d-7II.yaml --ai85
+
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-pool-1 --config-file tests/test-conv1d-pool-1.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-pool-2 --config-file tests/test-conv1d-pool-2.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-pool-3 --config-file tests/test-conv1d-pool-3.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-pool-4 --config-file tests/test-conv1d-pool-4.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-pool-5 --config-file tests/test-conv1d-pool-5.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-pool-6 --config-file tests/test-conv1d-pool-6.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-pool-7 --config-file tests/test-conv1d-pool-7.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-pool-8 --config-file tests/test-conv1d-pool-8.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-pool-9 --config-file tests/test-conv1d-pool-9.yaml --ai85
+
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1x1 --config-file tests/test-conv1x1.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-cifar-conv1x1 --checkpoint-file trained/ai85-cifar10-1x1.pth.tar --config-file tests/test-ai85-cifar10-hwc-1x1.yaml --ai85
 

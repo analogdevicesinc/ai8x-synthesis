@@ -8,6 +8,7 @@ layers:
   processors: 0x0000000000000007
   convolution: conv1d
   kernel_size: 6
-  stride: 1
+  max_pool: 3
+  pool_stride: 3
   pad: 0
 

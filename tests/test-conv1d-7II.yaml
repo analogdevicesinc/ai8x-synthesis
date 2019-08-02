@@ -1,13 +1,13 @@
 # Test Conv1D
 
 arch: test
-dataset: test_conv1d-6
+dataset: test_conv1d-7
 
 layers:
 - out_offset: 0x2000
-  processors: 0x0000000000000007
+  processors: 0x000000000000007f
   convolution: conv1d
-  kernel_size: 6
-  stride: 1
+  kernel_size: 7
+  stride: 4
   pad: 0
 
