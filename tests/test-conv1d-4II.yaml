@@ -8,6 +8,6 @@ layers:
   processors: 0x1000000000000000
   convolution: conv1d
   kernel_size: 4
-  stride: 1
+  stride: 4
   pad: 2
 
