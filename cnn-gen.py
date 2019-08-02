@@ -520,13 +520,20 @@ def create_net(prefix, verbose, debug, debug_computation,
                 # AI85:
                 # [15:0]  Max count (output channels)
                 # [31:16] Starting address for group of 16
-                val = kern_offs[ll] << tc.dev.MCNT_SAD_OFFS \
-                    | (kern_len[ll] << tc.dev.MCNT_MAX_OFFS) \
-                    - (quantization[ll] if device >= 85 else 1)
                 if device == 84:
+                    val = kern_offs[ll] << tc.dev.MCNT_SAD_OFFS \
+                        | (kern_len[ll] << tc.dev.MCNT_MAX_OFFS) - 1
                     if group == bias_group[ll]:
                         # Enable bias only for one group
                         val |= 0x1000000 | bias_offs[ll] << 16
+                else:
+                    kl = (1 + fls(output_processor_map[ll])
+                          - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))
+                          + 8 // quantization[ll] - 1) // (8 // quantization[ll])
+                    kl *= out_expand[ll] * in_expand[ll]
+
+                    val = kern_offs[ll] << tc.dev.MCNT_SAD_OFFS \
+                        | (kl << tc.dev.MCNT_MAX_OFFS) - quantization[ll]
                 apb.write_lreg(group, ll, tc.dev.LREG_MCNT, val,
                                verbose, comment=' // Mask offset and count')
 
