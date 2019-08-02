@@ -125,6 +125,7 @@ def load(verbose, embedded_code, device, apb, layers,
         proc_mask = 2**(8 // quantization[ll]) - 1
         # Start at the first used instance
         this_map_init = next_layer_map >> ffs(next_layer_map)
+        ksize = kernel_size[ll][0] * kernel_size[ll][1]
 
         for p in range(first_proc, last_proc+1):
             if (processor_map[ll] >> p) & 1 == 0:
@@ -153,7 +154,7 @@ def load(verbose, embedded_code, device, apb, layers,
                         def add_kernel_data(ll, p, col_target, b):
                             col = kern_offs[ll] + col_target
                             boffs = kernels_used[p][col]
-                            kernel_data[p][col][boffs] = b & 0xff
+                            kernel_data[p][col][8 - boffs] = b & 0xff
                             kernels_used[p][col] += 1
 
                             if boffs == 0:  # Update kernel map
@@ -186,12 +187,12 @@ def load(verbose, embedded_code, device, apb, layers,
                                           f'{ch + ie * in_expand_thresh[ll]} m[{col}..{col+n-1}] '
                                           f'of {output_chan[ll]}: {k}')
 
-                            for i in range(kernel_size[ll][0] * kernel_size[ll][1]):
-                                col_target = add_kernel_data(ll, p, col_target, k[i])
+                            for i in range(ksize):
+                                col_target = add_kernel_data(ll, p, col_target, k[ksize - i - 1])
 
                         else:  # When expanding, need to pad with zero kernels if needed
                             n = 1
-                            for _ in range(kernel_size[ll][0] * kernel_size[ll][1]):
+                            for _ in range(ksize):
                                 col_target = add_kernel_data(ll, p, col_target, 0)
 
                     col += n  # Consume n
