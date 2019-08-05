@@ -777,7 +777,7 @@ def main():
                             args.fc_layer, params['quantization'])
     else:  # Get some hard-coded sample weights
         layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
-            sampleweight.load(cfg['dataset'], params['quantization'])
+            sampleweight.load(cfg['dataset'], params['quantization'], len(cfg['layers']))
 
     if layers != len(cfg['layers']):
         print(f"Number of layers in the YAML configuration file ({len(cfg['layers'])}) "
@@ -864,6 +864,9 @@ def main():
     else:
         input_dim[0] = conf_input_dim[0]
     for ll in range(layers):
+        assert weights[ll].min() >= -1 << quantization[ll] - 1
+        assert weights[ll].max() <= (1 << quantization[ll] - 1) - 1
+
         if input_dim[ll] is None:
             auto_input_dim[ll] = output_dim[ll-1]
             if conf_input_dim[ll] is None:

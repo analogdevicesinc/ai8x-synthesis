@@ -14,8 +14,10 @@ import os
 
 import numpy as np
 
+from utils import fls
 
-def load(dataset, _quantization):
+
+def load(dataset, quantization, cfg_layers):
     """
     Return sample weights.
     """
@@ -47,7 +49,14 @@ def load(dataset, _quantization):
         w = w[0]
         layers = w.shape[0]
 
+    layers = min(layers, cfg_layers)
+
     for ll in range(layers):
+        # Re-quantize if needed (these random sample weights, so no need to round etc.)
+        current_quant = max(fls(int(w[ll].max())), fls(int(w[ll].min() + 1))) + 2
+        if current_quant > quantization[ll]:
+            w[ll] >>= current_quant - quantization[ll]
+
         output_channels.append(w[ll].shape[0])  # Output channels
         input_channels.append(w[ll].shape[1])  # Input channels
         if len(w[ll].shape) == 4:
