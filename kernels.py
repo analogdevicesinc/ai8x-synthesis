@@ -111,8 +111,6 @@ def load(verbose, embedded_code, device, apb, layers, convolution,
         # This extends the kernels to the right on AI85 for input and output expansion
         if output_chan[ll] > tc.dev.MAX_PROC:
             kern_len[ll] = (kern_len[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
-        if input_chan[ll] > tc.dev.MAX_PROC:
-            kern_len[ll] = (kern_len[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
         kern_len[ll] *= out_expand[ll] * in_expand[ll]
         if device != 84:
             # Pack kernels when using 1D convolutions, or 1x1 kernels
@@ -181,12 +179,14 @@ def load(verbose, embedded_code, device, apb, layers, convolution,
                                 if mask & 1 and col + i < output_chan[ll]:
                                     # Cycle through phases
                                     idx = n + ie * (8 // quantization[ll])
-                                    this_kern = kernel[ll][src_offs + (idx % in_expand[ll])
-                                                           * in_expand_thresh[ll]
-                                                           + (idx // in_expand[ll])
-                                                           * input_chan[ll]].\
-                                        flatten() & (2**quantization[ll]-1)
-                                    k |= this_kern << (i * quantization[ll])
+                                    if src_offs + (idx % in_expand[ll]) * in_expand_thresh[ll] \
+                                       + (idx // in_expand[ll]) * input_chan[ll] < len(kernel[ll]):
+                                        this_kern = kernel[ll][src_offs + (idx % in_expand[ll])
+                                                               * in_expand_thresh[ll]
+                                                               + (idx // in_expand[ll])
+                                                               * input_chan[ll]].\
+                                            flatten() & (2**quantization[ll]-1)
+                                        k |= this_kern << (i * quantization[ll])
                                     n += 1
                                 mask >>= 1
 
