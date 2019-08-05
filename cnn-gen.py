@@ -79,8 +79,14 @@ def create_net(prefix, verbose, debug, debug_computation,
 
         out_expand[ll] = (output_chan[ll] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
         out_expand_thresh[ll] = (output_chan[ll] + out_expand[ll]-1) // out_expand[ll]
+        if output_chan[ll] > tc.dev.MAX_PROC:
+            out_expand_thresh[ll] = \
+                (out_expand_thresh[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
         in_expand[ll] = (input_chan[ll] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
         in_expand_thresh[ll] = (input_chan[ll] + in_expand[ll]-1) // in_expand[ll]
+        if input_chan[ll] > tc.dev.MAX_PROC:
+            in_expand_thresh[ll] = \
+                (in_expand_thresh[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
 
         # Data memory size check - 4 channels share one instance unless CHW format
         in_size = input_dim[ll][0] * input_dim[ll][1] * in_expand[ll] \
@@ -816,6 +822,8 @@ def main():
         # Default to packed, 0-aligned output map
         expand = (output_channels[layers-1] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
         expand_chunk = (output_channels[layers-1] + expand-1) // expand
+        if output_channels[layers-1] > tc.dev.MAX_PROC:
+            expand_chunk = (expand_chunk + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
         output_processor_map[-1] = 2**expand_chunk-1
 
     # Remove extraneous layer configuration values (when --stop-after is used)
