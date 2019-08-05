@@ -56,7 +56,7 @@ def combine_bias(b, quantization, start, out_chan):
     return val
 
 
-def load(verbose, embedded_code, device, apb, layers,
+def load(verbose, embedded_code, device, apb, layers, convolution,
          kernel, kernel_size, quantization, processor_map,
          output_processor_map, input_chan, output_chan, out_expand, out_expand_thresh,
          in_expand, in_expand_thresh, debug=False):
@@ -83,6 +83,11 @@ def load(verbose, embedded_code, device, apb, layers,
         print('\nLoading Kernels...')
 
     for ll in range(layers):
+        if convolution[ll] == 0:
+            kern_len[ll] = 0
+            kern_offs[ll] = 0
+            continue
+
         first_proc = ffs(processor_map[ll])
         last_proc = fls(processor_map[ll])
         ch = 0

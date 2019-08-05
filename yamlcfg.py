@@ -150,6 +150,8 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                 convolution[sequence] = 1
             elif conv == 'conv2d':
                 convolution[sequence] = 2
+            elif conv == 'none':
+                convolution[sequence] = 0
             else:
                 error_exit(f'Unknown value "{ll["convolution"]}" for `convolution`', sequence)
                 sys.exit(1)
@@ -202,12 +204,14 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                 # Stride can be set
                 stride[sequence] = [val, val]
 
-        # Fix up values for 1D Convolution
+        # Fix up values for 1D convolution or no convolution
         if convolution[sequence] == 1:
             padding[sequence][1] = 0
             pool[sequence][1] = 0
             pool_stride[sequence][1] = 1
             stride[sequence][1] = 1
+        elif convolution[sequence] == 0:
+            kernel_size[sequence] = [1, 1]
 
         sequence += 1
 
