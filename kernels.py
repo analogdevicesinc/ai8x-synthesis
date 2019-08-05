@@ -104,6 +104,10 @@ def load(verbose, embedded_code, device, apb, layers,
             (1 + fls(next_layer_map) - (ffs(next_layer_map) & ~(tc.dev.P_SHARED-1))
              + 8 // quantization[ll] - 1) // (8 // quantization[ll])
         # This extends the kernels to the right on AI85 for input and output expansion
+        if output_chan[ll] > tc.dev.MAX_PROC:
+            kern_len[ll] = (kern_len[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
+        if input_chan[ll] > tc.dev.MAX_PROC:
+            kern_len[ll] = (kern_len[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
         kern_len[ll] *= out_expand[ll] * in_expand[ll]
         if device != 84:
             # Pack kernels when using 1D convolutions, or 1x1 kernels
