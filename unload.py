@@ -144,14 +144,16 @@ def verify(verify_fn, ll, in_map, out_map,
                 for _ in range(4):
                     val >>= 8
                     if this_map & 1:
-                        val |= (out_buf[c][row][col] & 0xff) << 24
+                        if c < input_shape[0]:
+                            val |= (out_buf[c][row][col] & 0xff) << 24
                         c += 1
                     this_map >>= 1
             else:
                 val = [0] * 4
                 for i in range(4):
                     if this_map & 1:
-                        val[i] = out_buf[c][row][col] & 0xffffffff
+                        if c < input_shape[0]:
+                            val[i] = out_buf[c][row][col] & 0xffffffff
                         c += 1
                     this_map >>= 1
 
