@@ -891,6 +891,10 @@ def main():
                 print(f'2D convolution in layer {ll} does not support non-square '
                       f'stride (currently set to {stride[ll][0]}x{stride[ll][1]}).')
                 sys.exit(1)
+            if stride[ll][0] != 1:
+                print(f'2D convolution in layer {ll} does not support stride other than '
+                      f'1 (currently set to {stride[ll][0]}x{stride[ll][1]}).')
+                sys.exit(1)
             output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
                                2 * padding[ll][0]) // stride[ll][0] + 1,
                               (pooled_size[1] - dilation[ll][1] * (kernel_size[ll][1] - 1) - 1 +
