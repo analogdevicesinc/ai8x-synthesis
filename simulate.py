@@ -290,3 +290,73 @@ def linear_layer(verbose, do_activation,
         stats.sw_comp += out_features
 
     return out_buf, out_features
+
+
+def passthrough_layer(layer, verbose,
+                      input_size,
+                      pool, pool_stride, pool_average,
+                      data,
+                      device=84, debug=False,  # pylint: disable=unused-argument
+                      expand=None, expand_thresh=None):
+    """
+    2D pooling or passthrough for one layer.
+    """
+    int8_format = '{0:4}' if np.any(data < 0) else '{0:3}'
+    if verbose:
+        if expand_thresh is None:
+            expand_thresh = input_size[0]
+        print(f"LAYER {layer}...\n")
+
+        print(f"{input_size[0]}x{input_size[1]}x{input_size[2]} INPUT DATA:")
+        with np.printoptions(formatter={'int': int8_format.format}):
+            if input_size[1] == input_size[2] == 1:
+                for i in range(0, input_size[0], expand_thresh):
+                    last = min(i + expand_thresh, input_size[0])
+                    if last - 1 > i:
+                        print(f'Channels #{i} to #{last-1}', end='')
+                    else:
+                        print(f'Channel #{i}', end='')
+                    if expand and expand > 1:
+                        print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
+                    else:
+                        print('')
+                    print(np.squeeze(data[i:last]))
+            else:
+                for i in range(input_size[0]):
+                    print(f'Channel #{i}', end='')
+                    if expand and expand > 1:
+                        print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
+                    else:
+                        print('')
+                    print(data[i])
+        print('')
+
+    if pool[0] > 1 or pool[1] > 1:
+        pooled_size = [input_size[0],
+                       (input_size[1] + pool_stride[0] - pool[0]) // pool_stride[0],
+                       (input_size[2] + pool_stride[1] - pool[1]) // pool_stride[1]]
+        pooled = pool2d(data, input_size, pooled_size, pool, pool_stride, pool_average,
+                        floor=True, debug=debug)  # FIXME: Fix rounding for AI85?
+        if verbose:
+            print(f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
+                  f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]} "
+                  f"{input_size} -> {pooled_size}:")
+            with np.printoptions(formatter={'int': int8_format.format}):
+                for i in range(input_size[0]):
+                    print(f'Channel #{i}', end='')
+                    if expand and expand > 1:
+                        print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
+                    else:
+                        print('')
+                    print(pooled[i])
+            print('')
+
+        if pool_average:
+            stats.add += pool[0] * pool[1] * pooled_size[0] * pooled_size[1] * pooled_size[2]
+        else:
+            stats.comp += pool[0] * pool[1] * pooled_size[0] * pooled_size[1] * pooled_size[2]
+    else:
+        pooled_size = input_size
+        pooled = data
+
+    return pooled, pooled_size
