@@ -173,7 +173,8 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
                     this_c = c
                     for i in range(4):
                         if instance_map & 2**i:
-                            val |= (s2u(data[this_c][row][col]) & 0xff) << (i * 8)
+                            if this_c < len(data):
+                                val |= (s2u(data[this_c][row][col]) & 0xff) << (i * 8)
                             this_c += 1
 
                     apb.check_overwrite(data_offs)
