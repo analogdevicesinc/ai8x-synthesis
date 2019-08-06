@@ -98,6 +98,8 @@ def load(verbose, embedded_code, device, apb, layers, convolution,
             # Get highest offset for all used processors
             kern_offs[ll] = max(proc_kern_max[p], kern_offs[ll])
 
+        ksize = kernel_size[ll][0] * kernel_size[ll][1]
+        qfactor = 8 // quantization[ll]
         # Determine the number of kernels that need to be programmed. Since each instance
         # spans 4 processors, kernels for all instances that have a single processor enabled
         # need to be written, i.e. round down the first. The last does not need to be rounded
@@ -107,19 +109,19 @@ def load(verbose, embedded_code, device, apb, layers, convolution,
         # Gaps are accounted for like any other kernel.
         kern_len[ll] = \
             (1 + fls(next_layer_map) - (ffs(next_layer_map) & ~(tc.dev.P_SHARED-1))
-             + 8 // quantization[ll] - 1) // (8 // quantization[ll])
+             + qfactor - 1) // qfactor
         # This extends the kernels to the right on AI85 for input and output expansion
         if output_chan[ll] > tc.dev.MAX_PROC:
             kern_len[ll] = (kern_len[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
         kern_len[ll] *= out_expand[ll] * in_expand[ll]
         if device != 84:
             # Pack kernels when using 1D convolutions, or 1x1 kernels
-            kern_len[ll] = (kern_len[ll] * kernel_size[ll][0] * kernel_size[ll][1] + 8) // 9
+            kern_len[ll] = (kern_len[ll] * ksize + 8) // 9
 
         # We don't have to use dummy columns if there's space available on the left
         kern_offs[ll] = \
             max(0, kern_offs[ll] - (((ffs(next_layer_map) % tc.dev.P_SHARED)
-                                     + (8 // quantization[ll]) - 1) // (8 // quantization[ll])))
+                                     + qfactor - 1) // qfactor))
         # The kernel offset needs to start at a multiple of 4.
         kern_offs[ll] = (kern_offs[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
         if kern_offs[ll] + kern_len[ll] > tc.dev.MASK_WIDTH:
@@ -129,10 +131,9 @@ def load(verbose, embedded_code, device, apb, layers, convolution,
             print_map(layers, kernel_map)
             sys.exit(1)
 
-        proc_mask = 2**(8 // quantization[ll]) - 1
+        proc_mask = 2**qfactor - 1
         # Start at the first used instance
         this_map_init = next_layer_map >> ffs(next_layer_map)
-        ksize = kernel_size[ll][0] * kernel_size[ll][1]
 
         for p in range(first_proc, last_proc+1):
             if (processor_map[ll] >> p) & 1 == 0:
@@ -150,9 +151,9 @@ def load(verbose, embedded_code, device, apb, layers, convolution,
                         while this_map & proc_mask == 0:
                             assert this_map != 0
                             col_target += 1  # Completely skip
-                            this_map >>= 8 // quantization[ll]  # and slide forward
+                            this_map >>= qfactor  # and slide forward
                     this_mask = this_map & proc_mask
-                    this_map >>= 8 // quantization[ll]
+                    this_map >>= qfactor
 
                     src_offs = ch + col * input_chan[ll]
                     for ie in range(in_expand[ll]):
@@ -175,10 +176,10 @@ def load(verbose, embedded_code, device, apb, layers, convolution,
                         n = 0
                         if src_offs < len(kernel[ll]):
                             k = np.zeros_like(kernel[ll][src_offs].flatten())
-                            for i in range(8 // quantization[ll]):
+                            for i in range(qfactor):
                                 if mask & 1 and col + i < output_chan[ll]:
                                     # Cycle through phases
-                                    idx = n + ie * (8 // quantization[ll])
+                                    idx = n + ie * qfactor
                                     if src_offs + (idx % in_expand[ll]) * in_expand_thresh[ll] \
                                        + (idx // in_expand[ll]) * input_chan[ll] < len(kernel[ll]):
                                         this_kern = kernel[ll][src_offs + (idx % in_expand[ll])
@@ -200,15 +201,16 @@ def load(verbose, embedded_code, device, apb, layers, convolution,
                                 col_target = add_kernel_data(ll, p, col_target, k[ksize - i - 1])
 
                         else:  # When expanding, need to pad with zero kernels if needed
-                            n = 1
-                            for _ in range(ksize):
+                            for _ in range(ksize // qfactor):
                                 col_target = add_kernel_data(ll, p, col_target, 0)
 
-                    col += n  # Consume n
+                    col += qfactor  # Consume kernels
 
             if kern_offs[ll] + col_target < len(kernels_used[p]) \
                and kernels_used[p][kern_offs[ll] + col_target] > 0:  # Partials
                 col_target += 1
+            while col_target < kern_len[ll]:
+                col_target = add_kernel_data(ll, p, col_target, 0)
             assert kern_len[ll] == col_target
             proc_kern_max[p] = kern_offs[ll] + kern_len[ll]
             ch += 1
@@ -344,9 +346,10 @@ def load_bias(verbose, embedded_code, apb, layers,  # pylint: disable=unused-arg
                   f'of bias values {len(bias[ll])}.')
             sys.exit(1)
 
+        qfactor = 8 // quantization[ll]
         # Round up the divided length of bias values
         # FIXME: Is it necessary to handle gaps in the next layer?
-        bias_len = (output_chan[ll] + 8 // quantization[ll] - 1) // (8 // quantization[ll])
+        bias_len = (output_chan[ll] + qfactor-1) // qfactor
 
         # Pick the group with the least amount of data in it
         group = argmin(group_bias_max[t] for t in group_map[ll])
@@ -366,7 +369,7 @@ def load_bias(verbose, embedded_code, apb, layers,  # pylint: disable=unused-arg
             else:
                 # Store for later
                 bias_values[group][bias_offs[ll] + target_offs] = b & 0xff
-            i += 8 // quantization[ll]
+            i += qfactor
             target_offs += 1
         group_bias_max[group] += bias_len
 
