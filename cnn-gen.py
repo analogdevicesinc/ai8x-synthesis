@@ -21,6 +21,7 @@ import apbaccess
 import checkpoint
 import cmsisnn
 import commandline
+import kbias
 import kernels
 import load
 import rtlsim
@@ -252,8 +253,8 @@ def create_net(prefix, verbose, debug, debug_computation,
                              input_chan, output_chan, out_expand, out_expand_thresh,
                              in_expand, in_expand_thresh, debug)
             bias_offs, bias_group, group_bias_max = \
-                kernels.load_bias(verbose, embedded_code, apb, layers, bias,
-                                  quantization, group_map, output_chan, debug)
+                kbias.load(verbose, embedded_code, apb, layers, bias,
+                           quantization, group_map, output_chan, debug)
 
         apb.load_header()
 
@@ -305,8 +306,8 @@ def create_net(prefix, verbose, debug, debug_computation,
                              input_chan, output_chan, out_expand, out_expand_thresh,
                              in_expand, in_expand_thresh, debug)
             bias_offs, bias_group, group_bias_max = \
-                kernels.load_bias(verbose, embedded_code, apb, layers, bias,
-                                  quantization, group_map, output_chan, debug)
+                kbias.load(verbose, embedded_code, apb, layers, bias,
+                           quantization, group_map, output_chan, debug)
         else:
             apb.output('  load_kernels();\n')
             if max(group_bias_max) > 0:
@@ -810,7 +811,8 @@ def main():
                             args.fc_layer, params['quantization'])
     else:  # Get some hard-coded sample weights
         layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
-            sampleweight.load(cfg['dataset'], params['quantization'], len(cfg['layers']))
+            sampleweight.load(cfg['dataset'], params['quantization'], len(cfg['layers']),
+                              cfg['bias'] if 'bias' in cfg else None)
 
     if layers != len(cfg['layers']):
         print(f"Number of layers in the YAML configuration file ({len(cfg['layers'])}) "

@@ -51,6 +51,7 @@ This software consists of two related projects:
   - [Network Loader Configuration Language](#network-loader-configuration-language)
     - [Global Configuration](#global-configuration)
       - [`arch` (Mandatory)](#arch-mandatory)
+      - [`bias` (Optional, Test Only)](#bias-optional-test-only)
       - [`dataset` (Mandatory)](#dataset-mandatory)
       - [`output_map` (Optional)](#outputmap-optional)
       - [`layers` (Mandatory)](#layers-mandatory)
@@ -325,12 +326,13 @@ data word consists of four packed channels).
 
 ### Number Format
 
-All weights and data are stored and computed in Q7 format (signed two's complement 8-bit integers,
-[-128...+127]). See https://en.wikipedia.org/wiki/Q_%28number_format%29.
+All weights, bias values and data are stored and computed in Q7 format (signed two's complement
+8-bit integers, [-128...+127]). See https://en.wikipedia.org/wiki/Q_%28number_format%29.
 
-On **AI85**, _weights_ can be 1, 2, 4, or 8 bits wide (configurable per layer using the `quantization`
-key). Data is always 8 bits wide, except for the last layer that can optionally output 32 bits of
-unclipped data in Q25.7 format when not using activation.
+On **AI85**, _weights_ can be 1, 2, 4, or 8 bits wide (configurable per layer using the
+`quantization` key). Bias values are always 8 bits wide. Data is 8 bits wide, except for the last
+layer that can optionally output 32 bits of unclipped data in Q25.7 format when not using
+activation.
 
 |wt bits| min  | max  |
 |:-----:|-----:|-----:|
@@ -617,6 +619,10 @@ sections in each file - global statements and a sequence of layer descriptions.
 
 `arch` specifies the network architecture, for example `ai84net5`. This key is matched against
 the architecture embedded in the checkpoint file.
+
+##### `bias` (Optional, Test Only)
+
+`bias` is only used for test data.
 
 ##### `dataset` (Mandatory)
 

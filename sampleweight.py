@@ -17,12 +17,11 @@ import numpy as np
 from utils import fls
 
 
-def load(dataset, quantization, cfg_layers):
+def load(dataset, quantization, cfg_layers, cfg_bias):
     """
     Return sample weights.
     """
     weights = []
-    bias = []
     fc_weights = []
     fc_bias = []
     output_channels = []
@@ -37,7 +36,9 @@ def load(dataset, quantization, cfg_layers):
 
     w = []
     layers = 0
-    with open(os.path.join('tests', f'weights_{dataset}.npy'), mode='rb') as file:
+    fname = os.path.join('tests', f'weights_{dataset}.npy')
+    with open(fname, mode='rb') as file:
+        print(f'Reading weights from {fname}...')
         try:
             while True:
                 w.append(np.load(file, allow_pickle=False, fix_imports=False))
@@ -51,6 +52,20 @@ def load(dataset, quantization, cfg_layers):
 
     layers = min(layers, cfg_layers)
 
+    bias = [None] * layers
+
+    if cfg_bias is not None:
+        ll = 0
+        fname = os.path.join('tests', f'bias_{cfg_bias}.npy')
+        with open(fname, mode='rb') as file:
+            print(f'Reading bias from {fname}...')
+            try:
+                while ll < layers:
+                    bias[ll] = np.load(file, allow_pickle=False, fix_imports=False)
+                    ll += 1
+            except ValueError:
+                pass
+
     for ll in range(layers):
         # Re-quantize if needed (these random sample weights, so no need to round etc.)
         current_quant = max(fls(int(w[ll].max())), fls(int(w[ll].min() + 1))) + 2
@@ -63,6 +78,5 @@ def load(dataset, quantization, cfg_layers):
             weights.append(w[ll].reshape(-1, w[ll].shape[-2], w[ll].shape[-1]))
         else:
             weights.append(w[ll].reshape(-1, w[ll].shape[-1]))
-        bias.append(None)
 
     return layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels

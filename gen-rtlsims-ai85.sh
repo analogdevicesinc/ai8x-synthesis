@@ -141,3 +141,10 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-wideout-q1 --config-file tests/test-wideout-q1.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-wideout-q2 --config-file tests/test-wideout-q2.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-wideout-q4 --config-file tests/test-wideout-q4.yaml --ai85
+
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-widein-bias --config-file tests/test-widein-bias.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-widein-bias-q1 --config-file tests/test-widein-bias-q1.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-widein-bias-q2 --config-file tests/test-widein-bias-q2.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-widein-bias-q4 --config-file tests/test-widein-bias-q4.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-wide256in-bias-q1 --config-file tests/test-wide256in-bias-q1.yaml --ai85
+

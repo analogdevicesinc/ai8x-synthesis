@@ -37,7 +37,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
         print(f'Reading {config_file} to configure network...')
         cfg = yaml.load(cfg_file, Loader=yaml.SafeLoader)
 
-    if bool(set(cfg) - set(['dataset', 'layers', 'output_map', 'arch'])):
+    if bool(set(cfg) - set(['bias', 'dataset', 'layers', 'output_map', 'arch'])):
         print(f'Configuration file {config_file} contains unknown key(s).')
         sys.exit(1)
 
