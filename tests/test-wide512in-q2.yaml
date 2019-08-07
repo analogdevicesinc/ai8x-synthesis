@@ -1,0 +1,10 @@
+
+arch: test
+dataset: test_wide512in-q2
+
+layers:
+- pad: 0
+  out_offset: 0x2000
+  processors: 0xffffffffffffffff
+  data_format: HWC
+  quantization: 2

@@ -1,0 +1,9 @@
+
+arch: test
+dataset: test_255x1x1
+
+layers:
+- out_offset: 0x2000
+  processors: 0xffffffffffffffff
+  pad: 1
+
