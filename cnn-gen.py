@@ -404,7 +404,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                     if convolution[ll] == 1:
                         val = kernel_size[ll][0] << 8
                     else:
-                        val = 1 << 8 | output_chan[ll] - 1
+                        val = 1 << 8
                     apb.write_lreg(group, ll, tc.dev.LREG_ONED, val,
                                    verbose, comment=' // 1D')
 
