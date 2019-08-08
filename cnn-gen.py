@@ -464,10 +464,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                                    verbose, comment=' // Write ptr time slot offs')
 
                     # [15:0] Write Pointer Mask Offset Register
-                    if input_chan[ll] * kern_len[ll] > 4:
-                        val = 1 << tc.dev.INSTANCE_SHIFT
-                    else:
-                        val = 0
+                    val = 1 << tc.dev.INSTANCE_SHIFT
                     apb.write_lreg(group, ll, tc.dev.LREG_WPTR_MOFFS, val,
                                    verbose, comment=' // Write ptr mask offs')
 
@@ -495,18 +492,19 @@ def create_net(prefix, verbose, debug, debug_computation,
                 # [11]  sramlsrc: global/local SRAM data input select
                 # [15:12] cnnsiena: enable externally sourced summed values from other processors
                 # [21:19] wptr_inc (AI85 only)
+                # [30:22] xpch_max (AI85 only) Selects the maximum channel processor number used
+                #                  in channel expansion mode (bottom 3 are for bits)
+                # [31]  bigdwrt (AI85 only) Enables 32-bit output
                 val = (0x200 if activate[ll] else 0) | \
                       (0x100 if not pool_average[ll] else 0) | \
                       (0x80 if pool[ll][0] else 0) | \
                       (0x40 if big_data[ll] else 0) | \
                       (0x820)
                 if device >= 85:
-                    # The threshold is adjusted based on whether the weights are 1, 2, 4, or 8 bit.
-                    # One full weight size is subtracted from the shifted value.
                     val |= ((out_expand[ll] - 1) << 19) \
-                           | (((fls(output_processor_map[ll])
-                                - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED - 1)) + 1)
-                               * quantization[ll] - 1) << 22) \
+                           | (fls(output_processor_map[ll])
+                              - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) \
+                           * quantization[ll] << 22 \
                            | (in_expand[ll] - 1) << 16
                     if output_width[ll] != 8:
                         val |= 1 << 31
@@ -544,14 +542,12 @@ def create_net(prefix, verbose, debug, debug_computation,
                         # Enable bias only for one group
                         val |= 0x1000000 | bias_offs[ll] << 16
                 else:
-                    kl = (1 + fls(output_processor_map[ll])
-                          - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))
-                          + 8 // quantization[ll] - 1) // (8 // quantization[ll])
-                    kl *= out_expand[ll] * in_expand[ll]
-
+                    kl = (((fls(output_processor_map[ll])
+                            - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) + 1)
+                          * quantization[ll]) * out_expand[ll] * in_expand[ll] - quantization[ll]
                     if convolution[ll] != 0:
                         val = kern_offs[ll] << tc.dev.MCNT_SAD_OFFS \
-                            | (kl << tc.dev.MCNT_MAX_OFFS) - quantization[ll]
+                            | kl << tc.dev.MCNT_MAX_OFFS
                     else:
                         val = 0
                 apb.write_lreg(group, ll, tc.dev.LREG_MCNT, val,
