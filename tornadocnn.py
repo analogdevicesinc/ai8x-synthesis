@@ -115,6 +115,7 @@ class DevAI85(Dev):
     LREG_ENA = 14
     LREG_POST = 15
     MAX_LREG = LREG_POST
+    LREG_RFU = None
 
     # Global registers
     REG_CTL = 0
