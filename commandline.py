@@ -77,8 +77,8 @@ def get_parser():
                         help="set base directory name for auto-filing .mem files")
     parser.add_argument('--top-level', default=None, metavar='S',
                         help="top level name instead of block mode (default: None)")
-    parser.add_argument('--timeout', type=int, metavar='N', default=4,
-                        help="set timeout (units of 10ms, default 40ms)")
+    parser.add_argument('--timeout', type=int, metavar='N',
+                        help="set RTL sim timeout (units of 1ms, default based on test)")
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
                         help="verbose output (default: false)")
     parser.add_argument('--verify-writes', action='store_true', default=False,
