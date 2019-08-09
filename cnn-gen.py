@@ -181,7 +181,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                            f'pool with stride {pool_stride_str[ll]}')
             else:
                 apb.output(f'no pooling')
-            if convolution[ll] != 0:
+            if convolution[ll] > 0:
                 conv_str = f', {convolution[ll]}D convolution with kernel size ' \
                            f'{kernel_size_str[ll]}, '
             else:
@@ -456,7 +456,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                     # Used for 1x1 convolution, and pooling without convolution
                     if convolution[ll] == 2 and kernel_size[ll] == [1, 1]:
                         val = 1
-                    elif convolution[ll] == 0:
+                    elif convolution[ll] <= 0:
                         val = tc.dev.INSTANCE_SIZE
                     else:
                         val = 0

@@ -14,6 +14,11 @@ import yaml
 import tornadocnn as tc
 
 
+OP_NONE = 0
+OP_ELTWISE_ADD = -1
+OP_CONV1D = 1
+OP_CONV2D = 2
+
 DEFAULT_2D_KERNEL = [3, 3]
 DEFAULT_1D_KERNEL = [9, 1]
 
@@ -73,7 +78,8 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     for ll in cfg['layers']:
         if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'in_dim',
                                'in_offset', 'kernel_size', 'pool_stride', 'out_offset',
-                               'activate', 'data_format', 'output_processors', 'output_width',
+                               'activate', 'data_format', 'operation',
+                               'output_processors', 'output_width',
                                'processors', 'pad', 'quantization', 'sequence', 'stride'])):
             print(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
             sys.exit(1)
@@ -144,14 +150,16 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                 error_exit(f'Unknown value "{ll["activate"]}" for `activate`', sequence)
                 sys.exit(1)
 
-        if 'convolution' in ll:
-            conv = ll['convolution'].lower()
+        if 'convolution' in ll or 'operation' in ll:
+            conv = ll['convolution'].lower() if 'convolution' in ll else ll['operation'].lower()
             if conv == 'conv1d':
-                convolution[sequence] = 1
+                convolution[sequence] = OP_CONV1D
             elif conv == 'conv2d':
-                convolution[sequence] = 2
+                convolution[sequence] = OP_CONV2D
             elif conv == 'none':
-                convolution[sequence] = 0
+                convolution[sequence] = OP_NONE
+            elif conv == 'eltadd':
+                convolution[sequence] = OP_ELTWISE_ADD
             else:
                 error_exit(f'Unknown value "{ll["convolution"]}" for `convolution`', sequence)
                 sys.exit(1)
