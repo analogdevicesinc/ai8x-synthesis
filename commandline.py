@@ -54,6 +54,8 @@ def get_parser():
                         help="log file name (default: 'log.txt')")
     parser.add_argument('--init-tram', action='store_true', default=False,
                         help="initialize TRAM to 0 (default: False)")
+    parser.add_argument('--max-proc', type=int, metavar='N',
+                        help="override maximum number of processors")
     parser.add_argument('--no-error-stop', action='store_true', default=False,
                         help="do not stop on errors (default: stop)")
     parser.add_argument('--input-offset', type=lambda x: int(x, 0),
