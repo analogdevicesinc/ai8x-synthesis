@@ -795,6 +795,8 @@ def main():
         apb_base = args.apb_base
     else:
         apb_base = tc.dev.APB_BASE
+    if args.max_proc:
+        tc.dev.MAX_PROC = args.max_proc
 
     # Load configuration file
     cfg, params = yamlcfg.parse(args.config_file, args.device)
