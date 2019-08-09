@@ -16,6 +16,10 @@ import tornadocnn
 import unload
 
 
+READ_TIME_NS = 230
+WRITE_TIME_NS = 280
+
+
 class APB(object):
     """
     APB read and write functionality.
@@ -46,6 +50,14 @@ class APB(object):
         self.num = 0
         self.data_offs = 0
         self.mem = [None] * tornadocnn.dev.C_GROUP_OFFS * tornadocnn.dev.P_NUMGROUPS
+        self.writes = 0
+        self.reads = 0
+
+    def get_time(self):
+        """
+        Return total bus access time in ms based on number of writes and reads
+        """
+        return (WRITE_TIME_NS * self.writes + READ_TIME_NS * self.reads) // 1000000
 
     def write(self,
               addr,
@@ -386,9 +398,11 @@ class APBTopLevel(APB):
             return
 
         self.memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) = 0x{val:08x};{comment}\n')
+        self.writes += 1
         if self.verify_writes and not no_verify:
             self.memfile.write(f'  if (*((volatile uint32_t *) 0x{addr:08x}) != 0x{val:08x}) '
                                'return 0;\n')
+            self.reads += 1
 
     def verify(self,
                addr,
@@ -413,6 +427,7 @@ class APBTopLevel(APB):
         else:
             self.memfile.write(f'  if (*((volatile uint32_t *) 0x{addr:08x}) != 0x{val:08x}) '
                                f'return 0;{comment}\n')
+        self.reads += 1
 
     def copyright_header(self):
         """
