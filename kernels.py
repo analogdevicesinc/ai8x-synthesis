@@ -75,6 +75,7 @@ def load(verbose, embedded_code, device, apb, layers, convolution,
         first_proc = ffs(processor_map[ll])
         last_proc = fls(processor_map[ll])
         ch = 0
+        m = 0
         for p in range(first_proc, last_proc+1):
             if (processor_map[ll] >> p) & 1 == 0:
                 # Unused processor
@@ -101,6 +102,8 @@ def load(verbose, embedded_code, device, apb, layers, convolution,
         if device != 84:
             # Pack kernels when using 1D convolutions, or 1x1 kernels
             kern_len[ll] = (kern_len[ll] * ksize + 8) // 9
+            # FIXME: This creates too many kernels for, e.g., ai85-conv1d-pool-4-q1
+            #        But since it doesn't do harm, we'll fix this later
 
         # We don't have to use dummy columns if there's space available on the left
         kern_offs[ll] = \
@@ -139,7 +142,7 @@ def load(verbose, embedded_code, device, apb, layers, convolution,
                     this_mask = this_map & proc_mask
                     this_map >>= qfactor
 
-                    src_offs = ch + col * input_chan[ll]
+                    src_offs = ch + m * input_chan[ll]
                     for ie in range(in_expand[ll]):
                         mask = this_mask
 
@@ -161,16 +164,17 @@ def load(verbose, embedded_code, device, apb, layers, convolution,
                         if src_offs < len(kernel[ll]):
                             k = np.zeros_like(kernel[ll][src_offs].flatten())
                             for i in range(qfactor):
-                                if mask & 1 and col + i < output_chan[ll]:
+                                # if mask & 1 and m + i < output_chan[ll]:
+                                if m + i < output_chan[ll]:
                                     # Cycle through phases
                                     idx = n + ie * qfactor
-                                    if src_offs + (idx % in_expand[ll]) * in_expand_thresh[ll] \
-                                       + (idx // in_expand[ll]) * input_chan[ll] < len(kernel[ll]):
-                                        this_kern = kernel[ll][src_offs + (idx % in_expand[ll])
-                                                               * in_expand_thresh[ll]
-                                                               + (idx // in_expand[ll])
-                                                               * input_chan[ll]].\
-                                            flatten() & (2**quantization[ll]-1)
+                                    koffs = src_offs + (idx % in_expand[ll]) \
+                                        * in_expand_thresh[ll] \
+                                        + (idx // in_expand[ll]) \
+                                        * input_chan[ll]
+                                    if koffs < len(kernel[ll]):
+                                        this_kern = kernel[ll][koffs].flatten() \
+                                            & (2**quantization[ll]-1)
                                         k |= this_kern << (i * quantization[ll])
                                     n += 1
                                 mask >>= 1
@@ -178,7 +182,7 @@ def load(verbose, embedded_code, device, apb, layers, convolution,
                             if debug:
                                 with np.printoptions(formatter={'int': '{0:02x}'.format}):
                                     print(f'Layer {ll} processor {p} channel '
-                                          f'{ch + ie * in_expand_thresh[ll]} m[{col}..{col+n-1}] '
+                                          f'{ch + ie * in_expand_thresh[ll]} m[{m}..{m+n-1}] '
                                           f'of {output_chan[ll]}: {k}')
 
                             for i in range(ksize):
@@ -188,7 +192,8 @@ def load(verbose, embedded_code, device, apb, layers, convolution,
                             for _ in range(ksize // qfactor):
                                 col_target = add_kernel_data(ll, p, col_target, 0)
 
-                    col += qfactor  # Consume kernels
+                    m += qfactor  # Consume kernels
+                    col += qfactor
 
             if kern_offs[ll] + col_target < len(kernels_used[p]) \
                and kernels_used[p][kern_offs[ll] + col_target] > 0:  # Partials
@@ -198,6 +203,7 @@ def load(verbose, embedded_code, device, apb, layers, convolution,
             assert kern_len[ll] == col_target
             proc_kern_max[p] = kern_offs[ll] + kern_len[ll]
             ch += 1
+            m = 0
 
     if verbose:
         print('\nKernel map:')
