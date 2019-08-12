@@ -7,6 +7,7 @@ layers:
 - pad: 0
   out_offset: 0x2000
   processors: 0x0000000000011111
+  output_processors: 0x000000000001000f
   data_format: HWC
   convolution: None
   pool_stride: 2
