@@ -774,7 +774,7 @@ def create_net(prefix, verbose, debug, debug_computation,
     if not embedded_code:
         if not timeout:
             # If no timeout specified, calculate one based on reads/writes
-            timeout = apb.get_time() + 1
+            timeout = apb.get_time() + rtlsim.GLOBAL_TIME_OFFSET
         rtlsim.create_runtest_sv(block_mode, base_directory, test_name, runtest_filename,
                                  input_filename, timeout)
 

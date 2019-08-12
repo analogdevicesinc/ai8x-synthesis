@@ -12,6 +12,9 @@ RTL simulation support routines
 import os
 
 
+GLOBAL_TIME_OFFSET = 3
+
+
 def create_runtest_sv(block_mode, base_directory, test_name, runtest_filename,
                       input_filename, timeout):
     """
