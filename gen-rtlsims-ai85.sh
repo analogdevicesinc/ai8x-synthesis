@@ -158,4 +158,5 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-dataonexone2 --config-file tests/test-dataonexone2.yaml --ai85
 
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-widein-maxproc4 --config-file tests/test-widein-maxproc4.yaml --ai85 --max-proc 4
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-widein-maxproc4-q4 --config-file tests/test-widein-maxproc4-q4.yaml --ai85 --max-proc 4
 

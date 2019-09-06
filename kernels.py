@@ -164,8 +164,7 @@ def load(verbose, embedded_code, device, apb, layers, convolution,
                         if src_offs < len(kernel[ll]):
                             k = np.zeros_like(kernel[ll][src_offs].flatten())
                             for i in range(qfactor):
-                                # if mask & 1 and m + i < output_chan[ll]:
-                                if m + i < output_chan[ll]:
+                                if m < output_chan[ll]:
                                     # Cycle through phases
                                     idx = n + ie * qfactor
                                     koffs = src_offs + (idx % in_expand[ll]) \
