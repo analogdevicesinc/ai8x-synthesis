@@ -544,10 +544,11 @@ def create_net(prefix, verbose, debug, debug_computation,
                 else:
                     kl = (((fls(output_processor_map[ll])
                             - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) + 1)
-                          * quantization[ll]) * out_expand[ll] * in_expand[ll] - quantization[ll]
+                          * quantization[ll]) * out_expand[ll] * in_expand[ll] - quantization[ll] \
+                          + kern_offs[ll] * 8  # kern_offs is always bytes
                     if convolution[ll] != 0:
-                        val = kern_offs[ll] << tc.dev.MCNT_SAD_OFFS \
-                            | kl << tc.dev.MCNT_MAX_OFFS
+                        val = kern_offs[ll] * 8 << tc.dev.MCNT_SAD_OFFS \
+                            | kl << tc.dev.MCNT_MAX_OFFS  # kern_offs is always bytes
                     else:
                         val = 0
                 apb.write_lreg(group, ll, tc.dev.LREG_MCNT, val,
