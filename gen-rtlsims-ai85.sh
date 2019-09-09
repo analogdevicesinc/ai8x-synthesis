@@ -127,10 +127,10 @@
 
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-passthru --config-file tests/test-passthrough.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-passthru-2 --config-file tests/test-passthrough-2.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-passthru-2a --config-file tests/test-passthrough-2a.yaml --ai85
+# ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-passthru-2a --config-file tests/test-passthrough-2a.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-passthru-pool --config-file tests/test-passthrough-pool.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-passthru-2-pool --config-file tests/test-passthrough-2-pool.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-passthru-2a-pool --config-file tests/test-passthrough-2a-pool.yaml --ai85
+# ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-passthru-2a-pool --config-file tests/test-passthrough-2a-pool.yaml --ai85
 
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-widein --config-file tests/test-widein.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-widein-q1 --config-file tests/test-widein-q1.yaml --ai85
