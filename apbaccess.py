@@ -110,7 +110,7 @@ class APB(object):
             + tornadocnn.dev.C_CNN*4 + reg*4 * tornadocnn.dev.MAX_LAYERS + layer*4
         self.write(addr, val, comment)
         if debug:
-            print(f'G{group} L{layer} R{reg:02} ({addr:08x}): {val:08x}{comment}')
+            print(f'L{layer} G{group} R{reg:02} ({addr:08x}): {val:08x}{comment}')
 
     def write_bias(self, group, offs, bias):
         """
