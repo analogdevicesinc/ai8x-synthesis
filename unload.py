@@ -139,11 +139,13 @@ def verify(verify_fn, ll, in_map, out_map,
             proc = poffs & ~(tc.dev.P_SHARED-1)
 
             # Get four bytes or words either from output or zeros and construct HWC word
+            no_data = True
             if out_size == 1:
                 val = 0
                 for _ in range(4):
                     val >>= 8
                     if this_map & 1:
+                        no_data = False
                         if c < input_shape[0]:
                             val |= (out_buf[c][row][col] & 0xff) << 24
                         c += 1
@@ -152,6 +154,7 @@ def verify(verify_fn, ll, in_map, out_map,
                 val = [0] * 4
                 for i in range(4):
                     if this_map & 1:
+                        no_data = False
                         if c < input_shape[0]:
                             val[i] = out_buf[c][row][col] & 0xffffffff
                         c += 1
@@ -186,16 +189,17 @@ def verify(verify_fn, ll, in_map, out_map,
                     if not no_error_stop:
                         sys.exit(1)
 
-            if out_size == 1:
-                check_overwrite(proc, offs, in_map, out_map, this_c, row, col)
-                out_map[offs >> 2] = (this_c, row, col, val)
-                verify_fn(offs, val, rv=False, comment=f' // {row},{col},{c}')
-            else:
-                for i in range(out_size):
+            if not no_data:
+                if out_size == 1:
                     check_overwrite(proc, offs, in_map, out_map, this_c, row, col)
-                    out_map[offs >> 2] = (this_c, row, col, val[i])
-                    verify_fn(offs, val[i], rv=False, comment=f' // {row},{col},{c}')
-                    offs += out_size
+                    out_map[offs >> 2] = (this_c, row, col, val)
+                    verify_fn(offs, val, rv=False, comment=f' // {row},{col},{c}')
+                else:
+                    for i in range(out_size):
+                        check_overwrite(proc, offs, in_map, out_map, this_c, row, col)
+                        out_map[offs >> 2] = (this_c, row, col, val[i])
+                        verify_fn(offs, val[i], rv=False, comment=f' // {row},{col},{c}')
+                        offs += out_size
 
             coffs += 4
             poffs += 4
