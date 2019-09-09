@@ -369,9 +369,33 @@ def create_net(prefix, verbose, debug, debug_computation,
             print('-----------------------------')
 
         # Configure per-layer control registers
-        for _, group in enumerate(groups_used):
-            for ll in range(layers):
-                apb.output(f'\n  // Group {group} layer {ll}\n')
+        for ll in range(layers):
+
+            local_output = False
+            for _, group in enumerate(groups_used):
+                # Local output must be used:
+                # - When parallel processing is enabled (not currently supported), or
+                # - When there are gaps in the output, and
+                #   - the gaps are non-uniform, or
+                #   - the layer is in passthrough mode
+                # Uniform gaps (when not in passthrough mode) can be achieved using the
+                # time slot offset.
+
+                gap_max, gap_min = 0, tc.dev.MAX_PROC
+                gmap = output_processor_map[ll] & 2**tc.dev.P_NUMPRO - 1 << group*tc.dev.P_NUMPRO
+                if popcount(gmap) > 1:
+                    p = ffs(gmap)
+                    while p < fls(gmap):
+                        gap = ffs(gmap & ~(2**(p+1) - 1)) - p - 1
+                        gap_min, gap_max = min(gap, gap_min), max(gap, gap_max)
+                        p += gap + 1
+                    local_output = local_output or \
+                        (gap_min != gap_max or gap_max > 0 and convolution[ll] == 0)
+
+                # FIXME: Check that we don't overlap by-16 groups when in local_output mode
+
+            for _, group in enumerate(groups_used):
+                apb.output(f'\n  // Layer {ll} group {group}\n')
 
                 if convolution[ll] != 1 or device != 84:
                     # Configure row count
@@ -428,13 +452,18 @@ def create_net(prefix, verbose, debug, debug_computation,
                 apb.write_lreg(group, ll, tc.dev.LREG_STRIDE, val,
                                verbose, comment=' // Stride')
 
-                # Configure SRAM write pointer -- write ptr is global
-                # Get offset to first available instance of the first used processor of the next
-                # layer.
-                instance = ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1)
-                val = out_offset[ll] // 4 + \
-                    ((instance % tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE |
-                     ((instance // tc.dev.P_SHARED) << tc.dev.INSTANCE_SHIFT))
+                val = out_offset[ll] // 4
+                if not local_output:
+                    # Configure SRAM write pointer -- write ptr is global
+                    # Get offset to first available instance of the first used processor of the
+                    # next layer.
+                    instance = ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1)
+                    val |= (instance % tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE \
+                           | ((instance // tc.dev.P_SHARED) << tc.dev.INSTANCE_SHIFT)
+                else:
+                    instance = ffs(output_processor_map[ll] >> tc.dev.P_SHARED) \
+                           & ~(tc.dev.P_SHARED-1)
+                    val |= (instance + group * tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE * 4
                 apb.write_lreg(group, ll, tc.dev.LREG_WPTR_BASE, val,
                                verbose, comment=' // SRAM write ptr')
 
@@ -489,7 +518,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                 # [8]   maxpool_enable
                 # [9]   activation_enable
                 # [10]  cpad_only (column pad only, no row pad) for parallel processing
-                # [11]  sramlsrc: global/local SRAM data input select
+                # [11]  sramlsrc: global/local output SRAM data memory input select
                 # [15:12] cnnsiena: enable externally sourced summed values from other processors
                 # [21:19] wptr_inc (AI85 only)
                 # [30:22] xpch_max (AI85 only) Selects the maximum channel processor number used
@@ -499,7 +528,9 @@ def create_net(prefix, verbose, debug, debug_computation,
                       (0x100 if not pool_average[ll] else 0) | \
                       (0x80 if pool[ll][0] else 0) | \
                       (0x40 if big_data[ll] else 0) | \
-                      (0x820)
+                      (0x20)
+                if not local_output:
+                    val |= 0x800
                 if device >= 85:
                     val |= ((out_expand[ll] - 1) << 19) \
                            | (fls(output_processor_map[ll])
@@ -601,8 +632,9 @@ def create_net(prefix, verbose, debug, debug_computation,
                 apb.write_lreg(group, ll, tc.dev.LREG_ENA, val,
                                verbose, comment=' // Mask and processor enables')
 
-            if zero_unused:
-                for ll in range(layers, tc.dev.MAX_LAYERS):
+        if zero_unused:
+            for ll in range(layers, tc.dev.MAX_LAYERS):
+                for _, group in enumerate(groups_used):
                     for reg in range(tc.dev.MAX_LREG+1):
                         if reg == tc.dev.LREG_RFU:  # Register 2 not implemented
                             continue
