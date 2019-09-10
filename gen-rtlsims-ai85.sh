@@ -160,3 +160,6 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-widein-maxproc4 --config-file tests/test-widein-maxproc4.yaml --ai85 --max-proc 4
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-widein-maxproc4-q4 --config-file tests/test-widein-maxproc4-q4.yaml --ai85 --max-proc 4
 
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv2Dk1x1 --config-file tests/test-conv2Dk1x1.yaml --ai85 --debug-computation --debug
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv2Dk1x1-b --config-file tests/test-conv2Dk1x1-b.yaml --ai85 --debug-computation --debug
+
