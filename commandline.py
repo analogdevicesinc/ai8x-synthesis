@@ -33,6 +33,12 @@ def get_parser():
                         help="sample data header file name (default: 'sampledata.h')")
     parser.add_argument('-e', '--embedded-code', action='store_true', default=False,
                         help="generate embedded code for device instead of RTL simulation")
+    parser.add_argument('--compact-data', action='store_true', default=False,
+                        help="use memcpy() to load input data in order "
+                             "to save code space in RTL simulation")
+    parser.add_argument('--compact-weights', action='store_true', default=False,
+                        help="use memcpy() to load weights in order "
+                             "to save code space in RTL simulation")
     parser.add_argument('-f', '--fc-layer', action='store_true', default=False,
                         help="add a fully connected classification layer in software "
                              "(default: false)")

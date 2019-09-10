@@ -64,9 +64,9 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
             print(f'G{group} L0 data_offs:      {data_offs:08x}')
 
         if input_size[2] == 1:
-            data_len = 3 * ((input_size[1] + 2) // 3)
+            data_len = 3 * ((input_size[1] + 2) // 3) * in_expand
         else:
-            data_len = input_size[1] * input_size[2]
+            data_len = input_size[1] * input_size[2] * in_expand
 
         if chw:
             assert split > 0

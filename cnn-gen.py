@@ -47,7 +47,8 @@ def create_net(prefix, verbose, debug, debug_computation,
                input_filename, output_filename, c_filename,
                base_directory, runtest_filename, log_filename,
                zero_unused, timeout, block_mode, verify_writes,
-               embedded_code=False, weight_filename=None, sample_filename=None,
+               embedded_code=False, compact_weights=False, compact_data=False,
+               weight_filename=None, sample_filename=None,
                device=84, init_tram=False):
     """
     Chain multiple CNN layers, create and save input and output
@@ -152,13 +153,16 @@ def create_net(prefix, verbose, debug, debug_computation,
         filename = input_filename + '.mem'
     else:
         filename = c_filename + '.c'
-    if embedded_code:
+    if embedded_code or compact_data:
         sampledata_header = \
             open(os.path.join(base_directory, test_name, sample_filename), mode='w')
+    else:
+        sampledata_header = None
+    if embedded_code or compact_weights:
         weight_header = \
             open(os.path.join(base_directory, test_name, weight_filename), mode='w')
     else:
-        sampledata_header = weight_header = None
+        weight_header = None
 
     with open(os.path.join(base_directory, test_name, filename), mode='w') as memfile:
         apb = apbaccess.apbwriter(memfile, apb_base, block_mode, verify_writes, no_error_stop,
@@ -239,21 +243,22 @@ def create_net(prefix, verbose, debug, debug_computation,
             print('Group 0 is not used, this currently does not work.')
             sys.exit(1)
 
-        if embedded_code:
+        if embedded_code or compact_data:
             # Pre-define data memory loader. Inline later when generating RTL sim.
-            load.load(embedded_code, apb, big_data[0], processor_map[0], in_offset[0],
+            load.load(True, apb, big_data[0], processor_map[0], in_offset[0],
                       [input_chan[0], input_dim[0][0], input_dim[0][1]],
                       in_expand[0], in_expand_thresh[0],
                       data, padding[0], split=split, debug=debug)
+        if embedded_code or compact_weights:
             # Pre-define the kernels and bias values
             kern_offs, kern_len = \
-                kernels.load(verbose, embedded_code, device, apb, layers, convolution,
+                kernels.load(verbose, True, device, apb, layers, convolution,
                              kernel, kernel_size,
                              quantization, processor_map, output_processor_map,
                              input_chan, output_chan, out_expand, out_expand_thresh,
                              in_expand, in_expand_thresh, debug)
             bias_offs, bias_group, group_bias_max = \
-                kbias.load(verbose, embedded_code, apb, layers, bias,
+                kbias.load(verbose, True, apb, layers, bias,
                            quantization, group_map, output_chan, debug)
 
         apb.load_header()
@@ -298,7 +303,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                           verbose, comment=' // Layer count')
             apb.output('\n')
 
-        if not embedded_code:
+        if not (embedded_code or compact_weights):
             kern_offs, kern_len = \
                 kernels.load(verbose, embedded_code, device, apb, layers, convolution,
                              kernel, kernel_size,
@@ -459,7 +464,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                     # next layer.
                     instance = ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1)
                     val |= (instance % tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE \
-                           | ((instance // tc.dev.P_SHARED) << tc.dev.INSTANCE_SHIFT)
+                        | ((instance // tc.dev.P_SHARED) << tc.dev.INSTANCE_SHIFT)
                 else:
                     instance = ffs(output_processor_map[ll] >> tc.dev.P_SHARED) \
                            & ~(tc.dev.P_SHARED-1)
@@ -642,7 +647,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                                        verbose, comment=f' // Zero unused layer {ll} registers')
 
         # Load data memory
-        if embedded_code:
+        if embedded_code or compact_data:
             # Do the actual code generation later
             apb.output('\n  load_input(); // Load data input\n\n')
         else:
@@ -799,8 +804,9 @@ def create_net(prefix, verbose, debug, debug_computation,
         apb.main(fc_weights)
 
     # Close header files
-    if embedded_code:
+    if embedded_code or compact_data:
         sampledata_header.close()
+    if embedded_code or compact_weights:
         weight_header.close()
 
     # Create run_test.sv
@@ -1031,7 +1037,8 @@ def main():
                         args.input_filename, args.output_filename, args.c_filename,
                         args.test_dir, args.runtest_filename, args.log_filename,
                         args.zero_unused, args.timeout, not args.top_level, args.verify_writes,
-                        args.embedded_code, args.weight_filename, args.sample_filename,
+                        args.embedded_code, args.compact_weights, args.compact_data,
+                        args.weight_filename, args.sample_filename,
                         args.device, args.init_tram)
         if not args.embedded_code:
             rtlsim.append_regression(args.top_level, tn, args.queue_name, args.autogen)
