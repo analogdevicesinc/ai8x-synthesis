@@ -398,6 +398,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                         (gap_min != gap_max or gap_max > 0 and convolution[ll] == 0)
 
                 # FIXME: Check that we don't overlap by-16 groups when in local_output mode
+                # FIXME: Non-uniform gaps are not supported
 
             for _, group in enumerate(groups_used):
                 apb.output(f'\n  // Layer {ll} group {group}\n')
