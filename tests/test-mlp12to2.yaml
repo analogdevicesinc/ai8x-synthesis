@@ -6,8 +6,5 @@ dataset: test_mlp12to2
 layers:
 - out_offset: 0x2000
   processors: 0x0000000000000fff
-  convolution: conv2d
-  kernel_size: 1x1
-  stride: 1
-  pad: 0
+  operation: linear
 

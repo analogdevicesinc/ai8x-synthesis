@@ -6,7 +6,7 @@ dataset: test_conv1d-1-pool-wide
 layers:
 - out_offset: 0x2000
   processors: 0x0000000000000003
-  convolution: conv1d
+  operation: conv1d
   kernel_size: 1
   max_pool: 2
   pool_stride: 2

@@ -8,6 +8,6 @@ layers:
   out_offset: 0x2000
   processors: 0x0000000000000007
   data_format: HWC
-  convolution: None
+  operation: none
   pool_stride: 2
   max_pool: 2

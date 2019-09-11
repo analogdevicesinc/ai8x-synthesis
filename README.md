@@ -1,7 +1,7 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_8/9/2019_
+_9/11/2019_
 
 _Open this file in a markdown enabled viewer, for example Visual Studio Code
 (https://code.visualstudio.com). See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet
@@ -69,7 +69,7 @@ This software consists of two related projects:
       - [`in_offset` (Optional)](#inoffset-optional)
       - [`output_width` (Optional)](#outputwidth-optional)
       - [`data_format` (Optional)](#dataformat-optional)
-      - [`convolution` or `operation` (Optional)](#convolution-or-operation-optional)
+      - [`operation` (Optional)](#operation-optional)
       - [`activate` (Optional)](#activate-optional)
       - [`quantization` (Optional)](#quantization-optional)
       - [`kernel_size` (Optional)](#kernelsize-optional)
@@ -878,13 +878,22 @@ in Q25.7 format. The default is `8` bits.
 When specified for the first layer only, `data_format` can be either `chw`/`big` or `hwc`/`little`.
 The default is `hwc`. Note that the data format interacts with `processors`. 
 
-##### `convolution` or `operation` (Optional)
+##### `operation` (Optional)
 
-This selects between a 2D convolution (`Conv2d`) and a 1D convolution (`Conv1d`). On AI85, the
-passthrough operation can be selected using `convolution: None`. The default is `Conv2d`.
+This key (which can also be specified using `op` or `convolution`) selects a layer's main
+operation after the optional input pooling.
+The default is `Conv2d`. AI84 only supports `Conv1d` and `Conv2d`.
 
-`operation` is an alias for the `convolution` key. To select element-wise addition, use
-`operation: eltadd`.
+| Operation	                | Description                                                   |
+|:--------------------------|:--------------------------------------------------------------|
+| `Conv1d`                  | 1D convolution over an input composed of several input planes |
+| `Conv2d` (default)        | 2D convolution over an input composed of several input planes |
+| `None` or `Passthrough`   | No operation                                                  |
+| `Linear` or `FC` or `MLP` | Linear transformation to the incoming data                    |
+| `Add`                     | Element-wise addition                                         |
+| `Sub`                     | Element-wise subtraction                                      |
+| `Mul`                     | Element-wise multiplication                                   |
+| `Xor`                     | Element-wise XOR                                              |
 
 ##### `activate` (Optional)
 
