@@ -18,6 +18,14 @@ import numpy as np
 d = np.random.randint(-128, 127, (1, 2, 5, 1, 1), dtype=np.int64)
 np.save('weights_test_conv2Dk1x1', d, allow_pickle=False, fix_imports=False)
 
+# Sample with known data for MLP:
+# 1, 2, 12, 1, 1
+# d = np.array([[[[[-29]], [[-101]], [[67]], [[-37]], [[19]], [[-89]], [[121]], [[63]],
+#                 [[116]], [[44]], [[51]], [[84]]],
+#                [[[-99]], [[-2]], [[24]], [[41]], [[-31]], [[71]], [[71]], [[82]],
+#                 [[41]], [[2]], [[-128]], [[68]]]]], dtype=np.int64)
+# np.save('weights_test_mlp12to2', d, allow_pickle=False, fix_imports=False)
+
 # 2) Four-dimensional NP array (Layers, ChOut, ChIn, KernL) for Conv1D
 # 3) Sequence of four-dimensional NP arrays (ChOut, ChIn, KernX, KernY) for Conv2D cases where the
 #    input channels and output channels aren't the same. In that case, use "with open() as fhandle:"
@@ -30,3 +38,5 @@ np.save('weights_test_conv2Dk1x1', d, allow_pickle=False, fix_imports=False)
 #  np.save(fhandle, d, allow_pickle=False, fix_imports=False)
 #  d = np.random.randint(-128, 127, (3, 96, 3, 3), dtype=np.int64)
 #  np.save(fhandle, d, allow_pickle=False, fix_imports=False)
+
+
