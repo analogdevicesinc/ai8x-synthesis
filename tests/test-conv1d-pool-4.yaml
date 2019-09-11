@@ -6,7 +6,7 @@ dataset: test_conv1d-4
 layers:
 - out_offset: 0x2000
   processors: 0x1000000000000000
-  convolution: conv1d
+  operation: conv1d
   kernel_size: 4
   max_pool: 4
   pool_stride: 2

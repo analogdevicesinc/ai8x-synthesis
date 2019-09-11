@@ -16,11 +16,16 @@ import tornadocnn as tc
 
 OP_NONE = 0
 OP_ELTWISE_ADD = -1
+OP_ELTWISE_SUB = -2
+OP_ELTWISE_MUL = -3
+OP_ELTWISE_XOR = -4
 OP_CONV1D = 1
 OP_CONV2D = 2
+OP_FC = OP_CONV2D  # Emulation using Conv2D with 1x1 kernels and 1x1 data
 
 DEFAULT_2D_KERNEL = [3, 3]
 DEFAULT_1D_KERNEL = [9, 1]
+FC_KERNEL = [1, 1]
 
 
 def parse(config_file, device=84):  # pylint: disable=unused-argument
@@ -78,7 +83,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     for ll in cfg['layers']:
         if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'in_dim',
                                'in_offset', 'kernel_size', 'pool_stride', 'out_offset',
-                               'activate', 'data_format', 'operation',
+                               'activate', 'data_format', 'op', 'operation',
                                'output_processors', 'output_width',
                                'processors', 'pad', 'quantization', 'sequence', 'stride'])):
             print(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
@@ -150,18 +155,31 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                 error_exit(f'Unknown value "{ll["activate"]}" for `activate`', sequence)
                 sys.exit(1)
 
-        if 'convolution' in ll or 'operation' in ll:
-            conv = ll['convolution'].lower() if 'convolution' in ll else ll['operation'].lower()
+        if 'convolution' in ll or 'operation' in ll or 'op'in ll:
+            key = 'convolution' if 'convolution' in ll else \
+                  'operation' if 'operation' in ll else \
+                  'op'
+            conv = ll[key].lower()
             if conv == 'conv1d':
                 convolution[sequence] = OP_CONV1D
             elif conv == 'conv2d':
                 convolution[sequence] = OP_CONV2D
-            elif conv == 'none':
+            elif conv in ['none', 'passthrough']:
                 convolution[sequence] = OP_NONE
-            elif conv == 'eltadd':
+            elif conv == 'add':
                 convolution[sequence] = OP_ELTWISE_ADD
+            elif conv == 'sub':
+                convolution[sequence] = OP_ELTWISE_SUB
+            elif conv == 'mul':
+                convolution[sequence] = OP_ELTWISE_MUL
+            elif conv == 'xor':
+                convolution[sequence] = OP_ELTWISE_XOR
+            elif conv in ['linear', 'fc', 'mlp']:
+                convolution[sequence] = OP_FC
+                kernel_size[sequence] = FC_KERNEL
+                padding[sequence] = [0, 0]
             else:
-                error_exit(f'Unknown value "{ll["convolution"]}" for `convolution`', sequence)
+                error_exit(f'Unknown value "{ll[key]}" for `{key}`', sequence)
                 sys.exit(1)
 
         if 'data_format' in ll:
@@ -183,6 +201,9 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             output_width[sequence] = val
 
         if 'kernel_size' in ll:
+            if kernel_size[sequence] != DEFAULT_2D_KERNEL:
+                error_exit('Cannot configure `kernel_size` for fully connected layers', sequence)
+
             val = str(ll['kernel_size']).lower()
             if convolution[sequence] == 2:
                 if device == 84 and val not in ['3x3'] \

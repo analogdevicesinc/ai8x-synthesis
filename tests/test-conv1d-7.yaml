@@ -6,7 +6,7 @@ dataset: test_conv1d-7
 layers:
 - out_offset: 0x2000
   processors: 0x000000000000007f
-  convolution: conv1d
+  operation: conv1d
   kernel_size: 7
   stride: 1
   pad: 0
