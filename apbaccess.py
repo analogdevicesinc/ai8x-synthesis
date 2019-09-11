@@ -33,6 +33,10 @@ class APB(object):
                  weight_header=None,
                  sampledata_header=None,
                  embedded_code=False,
+                 compact_weights=False,
+                 compact_data=False,
+                 weight_filename=None,
+                 sample_filename=None,
                  device=84):
         """
         Create an APB class object that writes to memfile.
@@ -44,6 +48,10 @@ class APB(object):
         self.weight_header = weight_header
         self.sampledata_header = sampledata_header
         self.embedded_code = embedded_code
+        self.compact_weights = compact_weights
+        self.compact_data = compact_data
+        self.weight_filename = weight_filename
+        self.sample_filename = sample_filename
         self.device = device
 
         self.data = 0
@@ -328,14 +336,22 @@ class APBBlockLevel(APB):
                  no_error_stop=False,
                  weight_header=None,
                  sampledata_header=None,
-                 embedded_code=False):
+                 compact_weights=False,
+                 compact_data=False,
+                 embedded_code=False,
+                 weight_filename=None,
+                 sample_filename=None):
         super(APBBlockLevel, self).__init__(memfile,
                                             apb_base,
                                             verify_writes=verify_writes,
                                             no_error_stop=no_error_stop,
                                             weight_header=weight_header,
                                             sampledata_header=sampledata_header,
-                                            embedded_code=embedded_code)
+                                            embedded_code=embedded_code,
+                                            compact_weights=False,
+                                            compact_data=False,
+                                            weight_filename=None,
+                                            sample_filename=None)
         self.foffs = 0
 
     def write(self,
@@ -439,7 +455,13 @@ class APBTopLevel(APB):
         """
         Write include files and forward definitions to .c file.
         """
-        toplevel.header(self.memfile, self.apb_base, embedded_code=self.embedded_code)
+        toplevel.header(self.memfile,
+                        self.apb_base,
+                        embedded_code=self.embedded_code,
+                        compact_weights=self.compact_weights,
+                        compact_data=self.compact_data,
+                        weight_filename=self.weight_filename,
+                        sample_filename=self.sample_filename)
 
     def verify_header(self):
         """
@@ -538,6 +560,10 @@ def apbwriter(memfile,
               weight_header=None,
               sampledata_header=None,
               embedded_code=False,
+              compact_weights=False,
+              compact_data=False,
+              weight_filename=None,
+              sample_filename=None,
               device=84):
     """
     Depending on `block_level`, return a block level .mem file writer or a top level .c file
@@ -554,4 +580,8 @@ def apbwriter(memfile,
                     weight_header=weight_header,
                     sampledata_header=sampledata_header,
                     embedded_code=embedded_code,
+                    compact_weights=compact_weights,
+                    compact_data=compact_data,
+                    weight_filename=weight_filename,
+                    sample_filename=sample_filename,
                     device=device)
