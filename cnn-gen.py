@@ -165,9 +165,19 @@ def create_net(prefix, verbose, debug, debug_computation,
         weight_header = None
 
     with open(os.path.join(base_directory, test_name, filename), mode='w') as memfile:
-        apb = apbaccess.apbwriter(memfile, apb_base, block_mode, verify_writes, no_error_stop,
-                                  weight_header=weight_header, sampledata_header=sampledata_header,
-                                  embedded_code=embedded_code, device=device)
+        apb = apbaccess.apbwriter(memfile,
+                                  apb_base,
+                                  block_mode,
+                                  verify_writes,
+                                  no_error_stop,
+                                  weight_header=weight_header,
+                                  sampledata_header=sampledata_header,
+                                  embedded_code=embedded_code,
+                                  compact_weights=compact_weights,
+                                  compact_data=compact_data,
+                                  weight_filename=weight_filename,
+                                  sample_filename=sample_filename,
+                                  device=device)
 
         apb.copyright_header()
 

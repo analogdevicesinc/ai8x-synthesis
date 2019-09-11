@@ -27,7 +27,14 @@ def copyright_header(memfile):
     memfile.write(COPYRIGHT)
 
 
-def header(memfile, apb_base, embedded_code=False, cmsis_nn=False):
+def header(memfile,
+           apb_base,
+           embedded_code=False,
+           cmsis_nn=False,
+           compact_weights=False,
+           compact_data=False,
+           weight_filename='weights.h',
+           sample_filename='sampledata.h'):
     """
     Write include files and forward definitions to .c file handle `memfile`.
     The APB base address is passed in `apb_base`.
@@ -43,8 +50,11 @@ def header(memfile, apb_base, embedded_code=False, cmsis_nn=False):
             memfile.write('#include "tmr_utils.h"\n')
     if embedded_code:
         memfile.write('#include "tornadocnn.h"\n')
-        memfile.write('#include "weights.h"\n')
-        memfile.write('#include "sampledata.h"\n\n')
+    if embedded_code or compact_weights:
+        memfile.write(f'#include "{weight_filename}"\n')
+    if embedded_code or compact_data:
+        memfile.write(f'#include "{sample_filename}"\n')
+    memfile.write('\n')
 
     if not cmsis_nn:
         if embedded_code:
