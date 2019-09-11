@@ -386,7 +386,7 @@ def create_net(prefix, verbose, debug, debug_computation,
         # Configure per-layer control registers
         for ll in range(layers):
 
-            local_output = False
+            local_source = convolution[ll] == 0
             for _, group in enumerate(groups_used):
                 # Local output must be used:
                 # - When parallel processing is enabled (not currently supported), or
@@ -396,6 +396,9 @@ def create_net(prefix, verbose, debug, debug_computation,
                 # Uniform gaps (when not in passthrough mode) can be achieved using the
                 # time slot offset.
 
+                if local_source:
+                    break
+
                 gap_max, gap_min = 0, tc.dev.MAX_PROC
                 gmap = output_processor_map[ll] & 2**tc.dev.P_NUMPRO - 1 << group*tc.dev.P_NUMPRO
                 if popcount(gmap) > 1:
@@ -404,10 +407,9 @@ def create_net(prefix, verbose, debug, debug_computation,
                         gap = ffs(gmap & ~(2**(p+1) - 1)) - p - 1
                         gap_min, gap_max = min(gap, gap_min), max(gap, gap_max)
                         p += gap + 1
-                    local_output = local_output or \
-                        (gap_min != gap_max or gap_max > 0 and convolution[ll] == 0)
+                    local_source = gap_min != gap_max or gap_max > 0 and convolution[ll] == 0
 
-                # FIXME: Check that we don't overlap by-16 groups when in local_output mode
+                # FIXME: Check that we don't overlap by-16 groups when in local_source mode
                 # FIXME: Non-uniform gaps are not supported
 
             for _, group in enumerate(groups_used):
@@ -469,7 +471,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                                verbose, comment=' // Stride')
 
                 val = out_offset[ll] // 4
-                if not local_output:
+                if not local_source:
                     # Configure SRAM write pointer -- write ptr is global
                     # Get offset to first available instance of the first used processor of the
                     # next layer.
@@ -477,9 +479,9 @@ def create_net(prefix, verbose, debug, debug_computation,
                     val |= (instance % tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE \
                         | ((instance // tc.dev.P_SHARED) << tc.dev.INSTANCE_SHIFT)
                 else:
-                    instance = ffs(output_processor_map[ll] >> tc.dev.P_SHARED) \
+                    instance = ffs(output_processor_map[ll] >> group * tc.dev.P_SHARED) \
                            & ~(tc.dev.P_SHARED-1)
-                    val |= (instance + group * tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE * 4
+                    val |= (instance + group * tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE
                 apb.write_lreg(group, ll, tc.dev.LREG_WPTR_BASE, val,
                                verbose, comment=' // SRAM write ptr')
 
@@ -545,7 +547,7 @@ def create_net(prefix, verbose, debug, debug_computation,
                       (0x80 if pool[ll][0] else 0) | \
                       (0x40 if big_data[ll] else 0) | \
                       (0x20)
-                if not local_output:
+                if not local_source:
                     val |= 0x800
                 if device >= 85:
                     val |= ((out_expand[ll] - 1) << 19) \
@@ -589,11 +591,11 @@ def create_net(prefix, verbose, debug, debug_computation,
                         # Enable bias only for one group
                         val |= 0x1000000 | bias_offs[ll] << 16
                 else:
-                    kl = (((fls(output_processor_map[ll])
-                            - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) + 1)
-                          * quantization[ll]) * out_expand[ll] * in_expand[ll] - quantization[ll] \
-                          + kern_offs[ll] * 8  # kern_offs is always bytes
                     if convolution[ll] != 0:
+                        kl = (((fls(output_processor_map[ll])
+                                - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) + 1)
+                              * quantization[ll]) * out_expand[ll] * in_expand[ll] \
+                              - quantization[ll] + kern_offs[ll] * 8  # kern_offs is always bytes
                         val = kern_offs[ll] * 8 << tc.dev.MCNT_SAD_OFFS \
                             | kl << tc.dev.MCNT_MAX_OFFS  # kern_offs is always bytes
                     else:
