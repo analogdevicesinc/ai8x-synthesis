@@ -24,13 +24,14 @@ import commandline
 import kbias
 import kernels
 import load
+import op
 import rtlsim
 import sampledata
 import sampleweight
 import stats
 import tornadocnn as tc
 import yamlcfg
-from simulate import cnn1d_layer, cnn2d_layer, linear_layer, passthrough_layer
+from simulate import cnn1d_layer, cnn2d_layer, linear_layer, passthrough_layer, eltwise_layer
 from utils import ffs, fls, popcount
 
 
@@ -43,7 +44,7 @@ def create_net(prefix,
                log,
                apb_base,
                layers,
-               convolution,
+               operator,
                input_dim,
                pooled_dim,
                output_dim,
@@ -144,7 +145,7 @@ def create_net(prefix,
                   f'exceeds data memory instance size of {tc.dev.INSTANCE_SIZE*16}.')
             sys.exit(1)
 
-        if convolution[ll] != 1:
+        if operator[ll] != op.CONV1D:
             input_dim_str[ll] = f'{input_dim[ll][0]}x{input_dim[ll][1]}'
             output_dim_str[ll] = f'{output_dim[ll][0]}x{output_dim[ll][1]}'
             kernel_size_str[ll] = f'{kernel_size[ll][0]}x{kernel_size[ll][1]}'
@@ -233,8 +234,8 @@ def create_net(prefix,
                            f'pool with stride {pool_stride_str[ll]}')
             else:
                 apb.output(f'no pooling')
-            if convolution[ll] > 0:
-                conv_str = f', {convolution[ll]}D convolution with kernel size ' \
+            if operator[ll] in [op.CONV1D, op.CONV2D]:
+                conv_str = f', {op.string(operator[ll])} with kernel size ' \
                            f'{kernel_size_str[ll]}, '
             else:
                 conv_str = ', no convolution, '
@@ -300,7 +301,7 @@ def create_net(prefix,
         if embedded_code or compact_weights:
             # Pre-define the kernels and bias values
             kern_offs, kern_len = \
-                kernels.load(verbose, True, device, apb, layers, convolution,
+                kernels.load(verbose, True, device, apb, layers, operator,
                              kernel, kernel_size,
                              quantization, processor_map, output_processor_map,
                              input_chan, output_chan, out_expand, out_expand_thresh,
@@ -353,7 +354,7 @@ def create_net(prefix,
 
         if not (embedded_code or compact_weights):
             kern_offs, kern_len = \
-                kernels.load(verbose, embedded_code, device, apb, layers, convolution,
+                kernels.load(verbose, embedded_code, device, apb, layers, operator,
                              kernel, kernel_size,
                              quantization, processor_map, output_processor_map,
                              input_chan, output_chan, out_expand, out_expand_thresh,
@@ -406,7 +407,8 @@ def create_net(prefix,
             if device >= 85:
                 print(f'Kernel dimensions   = {kernel_size}')
                 print(f'Kernel size         = {quantization}')
-            print(f'Convolution dim.    = {convolution}')
+            print(f'Operator            = [',
+                  ', '.join(op.string(k) for k in operator), ']', sep='',)
             print(f'Stride              = {stride}')
 
             print(f'Padding             = {padding}')
@@ -425,7 +427,7 @@ def create_net(prefix,
         # Configure per-layer control registers
         for ll in range(layers):
 
-            local_source = convolution[ll] == 0
+            local_source = operator[ll] == op.NONE
             for _, group in enumerate(groups_used):
                 # Local output must be used:
                 # - When parallel processing is enabled (not currently supported), or
@@ -446,7 +448,7 @@ def create_net(prefix,
                         gap = ffs(gmap & ~(2**(p+1) - 1)) - p - 1
                         gap_min, gap_max = min(gap, gap_min), max(gap, gap_max)
                         p += gap + 1
-                    local_source = gap_min != gap_max or gap_max > 0 and convolution[ll] == 0
+                    local_source = gap_min != gap_max or gap_max > 0 and operator[ll] == op.NONE
 
                 # FIXME: Check that we don't overlap by-16 groups when in local_source mode
                 # FIXME: Non-uniform gaps are not supported
@@ -454,7 +456,7 @@ def create_net(prefix,
             for _, group in enumerate(groups_used):
                 apb.output(f'\n  // Layer {ll} group {group}\n')
 
-                if convolution[ll] != 1 or device != 84:
+                if operator[ll] != op.CONV1D or device != 84:
                     # Configure row count
                     # [7:0] maxcount: lower 8 bits = total of width + pad - 1
                     # [9:8] pad: 2 bits pad
@@ -478,11 +480,11 @@ def create_net(prefix,
                     apb.write_lreg(group, ll, tc.dev.LREG_CCNT, 2,
                                    verbose, comment=' // Columns')
 
-                if convolution[ll] != 2 and device != 84:
+                if operator[ll] != op.CONV2D and device != 84:
                     #  [3:0] tscnt_max[3:0]      Maximum timeslot count register
                     #  [7:4] oned_sad[3:0]       Start mask address (offset within 9 byte mask)
                     # [11:8] oned_width[3:0]     1D mask width (0-9). Width > 0 enables 1D.
-                    if convolution[ll] == 1:
+                    if operator[ll] == op.CONV1D:
                         val = kernel_size[ll][0] << 8
                     else:
                         val = 1 << 8
@@ -504,7 +506,7 @@ def create_net(prefix,
                     val = pool_stride[ll][0]-1
                 else:
                     val = stride[ll][0]-1
-                if device == 84 and convolution[ll] == 1:
+                if device == 84 and operator[ll] == op.CONV1D:
                     val //= 3
                 apb.write_lreg(group, ll, tc.dev.LREG_STRIDE, val,
                                verbose, comment=' // Stride')
@@ -540,9 +542,9 @@ def create_net(prefix,
                 else:
                     # [15:0] Write Pointer Timeslot Offset Register
                     # Used for 1x1 convolution, and pooling without convolution
-                    if convolution[ll] == 2 and kernel_size[ll] == [1, 1]:
+                    if operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]:
                         val = 1
-                    elif convolution[ll] <= 0:
+                    elif operator[ll] not in [op.CONV1D, op.CONV2D]:
                         val = tc.dev.INSTANCE_SIZE
                     else:
                         val = 0
@@ -630,7 +632,7 @@ def create_net(prefix,
                         # Enable bias only for one group
                         val |= 0x1000000 | bias_offs[ll] << 16
                 else:
-                    if convolution[ll] != 0:
+                    if operator[ll] != op.NONE:
                         kl = (((fls(output_processor_map[ll])
                                 - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) + 1)
                               * quantization[ll]) * out_expand[ll] * in_expand[ll] \
@@ -643,7 +645,7 @@ def create_net(prefix,
                                verbose, comment=' // Mask offset and count')
 
                 # Configure tram pointer max
-                if convolution[ll] != 1:
+                if operator[ll] != op.CONV1D:
                     val = max(0, pooled_dim[ll][1] + 2*padding[ll][1] - kernel_size[ll][1])
                 else:
                     val = 0
@@ -669,7 +671,7 @@ def create_net(prefix,
                         # Enable bias only for one group
                         val |= (1 << 12) | bias_offs[ll]
 
-                    if convolution[ll] != 1 and kernel_size[ll] == [1, 1]:
+                    if operator[ll] != op.CONV1D and kernel_size[ll] == [1, 1]:
                         val |= 3 << 24
 
                     apb.write_lreg(group, ll, tc.dev.LREG_POST, val,
@@ -684,7 +686,7 @@ def create_net(prefix,
                 #
                 # Enable at most 16 processors and masks
                 val = (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO
-                if convolution[ll] > 0:
+                if operator[ll] in [op.CONV1D, op.CONV2D]:
                     val = val << 16 | val
                 apb.write_lreg(group, ll, tc.dev.LREG_ENA, val,
                                verbose, comment=' // Mask and processor enables')
@@ -748,9 +750,10 @@ def create_net(prefix,
 
     # Compute layer-by-layer output and chain results into input
     for ll in range(layers):
-        if convolution[ll] == 2:
+        if operator[ll] == op.CONV2D:
             data = data.reshape(input_chan[ll], input_dim[ll][0], input_dim[ll][1])
-            out_buf, out_size = cnn2d_layer(ll, verbose,
+            out_buf, out_size = cnn2d_layer(ll,
+                                            verbose,
                                             data.shape,
                                             kernel_size[ll], quantization[ll],
                                             output_chan[ll],
@@ -770,9 +773,10 @@ def create_net(prefix,
                                             debug=debug_computation,
                                             expand=in_expand[ll],
                                             expand_thresh=in_expand_thresh[ll])
-        elif convolution[ll] == 1:
+        elif operator[ll] == op.CONV1D:
             data = data.reshape(input_chan[ll], input_dim[ll][0])
-            out_buf, out_size = cnn1d_layer(ll, verbose,
+            out_buf, out_size = cnn1d_layer(ll,
+                                            verbose,
                                             data.shape,
                                             kernel_size[ll][0], quantization[ll],
                                             output_chan[ll],
@@ -789,9 +793,10 @@ def create_net(prefix,
                                             output_width=output_width[ll],
                                             device=device,
                                             debug=debug_computation)
-        else:  # '0'D (pooling only or passthrough)
+        elif operator[ll] == op.NONE:  # '0'D (pooling only or passthrough)
             data = data.reshape(input_chan[ll], input_dim[ll][0], input_dim[ll][1])
-            out_buf, out_size = passthrough_layer(ll, verbose,
+            out_buf, out_size = passthrough_layer(ll,
+                                                  verbose,
                                                   data.shape,
                                                   pool[ll],
                                                   pool_stride[ll],
@@ -801,6 +806,23 @@ def create_net(prefix,
                                                   debug=debug_computation,
                                                   expand=in_expand[ll],
                                                   expand_thresh=in_expand_thresh[ll])
+        elif operator[ll] in [op.ELTWISE_ADD, op.ELTWISE_SUB, op.ELTWISE_MUL, op.ELTWISE_XOR]:
+            data = data.reshape(input_chan[ll], input_dim[ll][0], input_dim[ll][1])
+            out_buf, out_size = eltwise_layer(operator[ll],
+                                              ll,
+                                              verbose,
+                                              data.shape,
+                                              activate[ll],
+                                              data,
+                                              data,
+                                              output_width=output_width[ll],
+                                              device=device,
+                                              debug=debug_computation,
+                                              expand=in_expand[ll],
+                                              expand_thresh=in_expand_thresh[ll])
+        else:
+            print(f'Unknown operator `{op.string(operator[ll])}`.')
+            sys.exit(1)
 
         assert out_size[0] == output_chan[ll] \
             and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
@@ -973,7 +995,7 @@ def main():
     dilation = params['dilation'][:layers]
     big_data = params['big_data'][:layers]
     output_width = params['output_width'][:layers]
-    convolution = params['convolution'][:layers]
+    operator = params['operator'][:layers]
     streaming = params['streaming'][:layers]
 
     # Command line override
@@ -994,7 +1016,7 @@ def main():
     pooled_dim = [None] * layers
     output_dim = [None] * layers
 
-    if convolution[0] != 1:
+    if operator[0] != op.CONV1D:
         auto_input_dim[0] = [input_size[1], input_size[2]]
     else:
         auto_input_dim[0] = [input_size[1], 1]
@@ -1013,10 +1035,11 @@ def main():
             else:
                 input_dim[ll] = conf_input_dim[ll]
         if pool[ll][0]:
-            if convolution[ll] != 1:
+            if operator[ll] != op.CONV1D:
                 if pool_stride[ll][0] != pool_stride[ll][1]:
-                    print(f'2D convolution in layer {ll} does not support non-square pooling '
-                          f'stride (currently set to {pool_stride[ll][0]}x{pool_stride[ll][1]}).')
+                    print(f'{op.string(operator[ll])} in layer {ll} does not support non-square'
+                          f'pooling stride (currently set to '
+                          f'{pool_stride[ll][0]}x{pool_stride[ll][1]}).')
                     sys.exit(1)
                 pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])
                                // pool_stride[ll][0],
@@ -1028,21 +1051,21 @@ def main():
                                1]
         else:
             pooled_size = input_dim[ll]
-        if convolution[ll] != 1:
+        if operator[ll] != op.CONV1D:
             if stride[ll][0] != stride[ll][1]:
-                print(f'2D convolution in layer {ll} does not support non-square '
+                print(f'{op.string(operator[ll])} in layer {ll} does not support non-square '
                       f'stride (currently set to {stride[ll][0]}x{stride[ll][1]}).')
                 sys.exit(1)
             if stride[ll][0] != 1:
-                print(f'2D convolution in layer {ll} does not support stride other than '
-                      f'1 (currently set to {stride[ll][0]}x{stride[ll][1]}).')
+                print(f'{op.string(operator[ll])} in layer {ll} does not support stride other '
+                      f'than 1 (currently set to {stride[ll][0]}x{stride[ll][1]}).')
                 sys.exit(1)
             output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
                                2 * padding[ll][0]) // stride[ll][0] + 1,
                               (pooled_size[1] - dilation[ll][1] * (kernel_size[ll][1] - 1) - 1 +
                                2 * padding[ll][1]) // stride[ll][1] + 1]
             if padding[ll][0] >= 3:
-                print(f'2D convolution in layer {ll} does not support `pad` >= 3 '
+                print(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
                       f'(currently set to {padding[ll][0]}).')
                 sys.exit(1)
         else:
@@ -1050,16 +1073,16 @@ def main():
             # since padding has to be a multiple of 3 and we check for that.
             if args.device == 84:
                 if pooled_size[0] % 3 != 0:
-                    print(f'1D convolution in layer {ll} requires a multiple of 3 for the '
-                          f'pooled input length (currently {pooled_size[0]}).')
+                    print(f'{op.string(operator[ll])} in layer {ll} requires a multiple of 3 for'
+                          f'the pooled input length (currently {pooled_size[0]}).')
                     sys.exit(1)
                 if padding[ll][0] % 3 != 0:
-                    print(f'1D convolution in layer {ll} requires a multiple of 3 for '
+                    print(f'{op.string(operator[ll])} in layer {ll} requires a multiple of 3 for '
                           f'`pad` (currently set to {padding[ll][0]}).')
                     sys.exit(1)
             else:
                 if padding[ll][0] >= 3:
-                    print(f'1D convolution in layer {ll} does not support `pad` >= 3 '
+                    print(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
                           f'(currently set to {padding[ll][0]}).')
                     sys.exit(1)
             output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
@@ -1092,7 +1115,7 @@ def main():
                         args.log,
                         apb_base,
                         layers,
-                        convolution,
+                        operator,
                         input_dim,
                         pooled_dim,
                         output_dim,
@@ -1148,7 +1171,7 @@ def main():
                            args.debug,
                            args.log,
                            layers,
-                           convolution,
+                           operator,
                            auto_input_dim,
                            input_dim,
                            pooled_dim,

@@ -11,17 +11,8 @@ YAML Configuration Routines
 """
 import sys
 import yaml
+import op
 import tornadocnn as tc
-
-
-OP_NONE = 0
-OP_ELTWISE_ADD = -1
-OP_ELTWISE_SUB = -2
-OP_ELTWISE_MUL = -3
-OP_ELTWISE_XOR = -4
-OP_CONV1D = 1
-OP_CONV2D = 2
-OP_FC = OP_CONV2D  # Emulation using Conv2D with 1x1 kernels and 1x1 data
 
 DEFAULT_2D_KERNEL = [3, 3]
 DEFAULT_1D_KERNEL = [9, 1]
@@ -73,7 +64,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     relu = [0] * tc.dev.MAX_LAYERS
     big_data = [False] * tc.dev.MAX_LAYERS
     output_width = [8] * tc.dev.MAX_LAYERS
-    convolution = [2] * tc.dev.MAX_LAYERS
+    operator = [op.CONV2D] * tc.dev.MAX_LAYERS
     # We don't support changing the following (yet), but leave as parameters:
     dilation = [[1, 1]] * tc.dev.MAX_LAYERS
     kernel_size = [DEFAULT_2D_KERNEL] * tc.dev.MAX_LAYERS
@@ -84,7 +75,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     for ll in cfg['layers']:
         if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'in_dim',
                                'in_offset', 'kernel_size', 'pool_stride', 'out_offset',
-                               'activate', 'data_format', 'op', 'operation',
+                               'activate', 'data_format', 'op', 'operation', 'operator',
                                'output_processors', 'output_width',
                                'processors', 'pad', 'quantization',
                                'sequence', 'streaming', 'stride'])):
@@ -157,27 +148,29 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                 error_exit(f'Unknown value "{ll["activate"]}" for `activate`', sequence)
                 sys.exit(1)
 
-        if 'convolution' in ll or 'operation' in ll or 'op'in ll:
+        if 'convolution' in ll or 'operation' in ll or 'op' in ll or 'operator' in ll:
             key = 'convolution' if 'convolution' in ll else \
                   'operation' if 'operation' in ll else \
+                  'operator' if 'operator' in ll else \
                   'op'
             conv = ll[key].lower()
             if conv == 'conv1d':
-                convolution[sequence] = OP_CONV1D
+                operator[sequence] = op.CONV1D
             elif conv == 'conv2d':
-                convolution[sequence] = OP_CONV2D
+                operator[sequence] = op.CONV2D
             elif conv in ['none', 'passthrough']:
-                convolution[sequence] = OP_NONE
+                operator[sequence] = op.NONE
             elif conv == 'add':
-                convolution[sequence] = OP_ELTWISE_ADD
+                operator[sequence] = op.ELTWISE_ADD
             elif conv == 'sub':
-                convolution[sequence] = OP_ELTWISE_SUB
+                operator[sequence] = op.ELTWISE_SUB
             elif conv == 'mul':
-                convolution[sequence] = OP_ELTWISE_MUL
+                operator[sequence] = op.ELTWISE_MUL
             elif conv == 'xor':
-                convolution[sequence] = OP_ELTWISE_XOR
+                operator[sequence] = op.ELTWISE_XOR
             elif conv in ['linear', 'fc', 'mlp']:
-                convolution[sequence] = OP_FC
+                # Emulate using Conv2D with 1x1 kernels and 1x1 data
+                operator[sequence] = op.CONV2D
                 kernel_size[sequence] = FC_KERNEL
                 padding[sequence] = [0, 0]
             else:
@@ -207,7 +200,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                 error_exit('Cannot configure `kernel_size` for fully connected layers', sequence)
 
             val = str(ll['kernel_size']).lower()
-            if convolution[sequence] == 2:
+            if operator[sequence] == op.CONV2D:
                 if device == 84 and val not in ['3x3'] \
                         or device >= 85 and val not in ['1x1', '3x3']:
                     error_exit('Unsupported value for `kernel_size`', sequence)
@@ -220,16 +213,16 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                 if device == 84 and val != 9 or val < 1 or val > 9:
                     error_exit('Unsupported value for `kernel_size`', sequence)
                 kernel_size[sequence] = [val, 1]
-        elif convolution[sequence] == 1:  # Set default for 1D convolution
+        elif operator[sequence] == op.CONV1D:  # Set default for 1D convolution
             kernel_size[sequence] = DEFAULT_1D_KERNEL
 
         if 'stride' in ll:
             val = ll['stride']
             if pooling_enabled[sequence]:
                 # Must use the default stride when pooling, otherwise stride can be set
-                if convolution == 2 and val != 1 or val != 3:
+                if operator == op.CONV2D and val != 1 or val != 3:
                     error_exit('Cannot set `stride` to non-default value when pooling', sequence)
-                if convolution != 2:
+                if operator != op.CONV2D:
                     stride[sequence] = [3, 1]  # Fix default for 1D
             else:
                 # Stride can be set
@@ -243,13 +236,17 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                 error_exit(f'Unsupported value `{val}` for `streaming`', sequence)
 
         # Fix up values for 1D convolution or no convolution
-        if convolution[sequence] == 1:
+        if operator[sequence] == op.CONV1D:
             padding[sequence][1] = 0
             pool[sequence][1] = 0
             pool_stride[sequence][1] = 1
             stride[sequence][1] = 1
-        elif convolution[sequence] == 0:
+        elif operator[sequence] == op.NONE:
             kernel_size[sequence] = [1, 1]
+        elif operator[sequence] in [op.ELTWISE_ADD, op.ELTWISE_SUB,
+                                    op.ELTWISE_MUL, op.ELTWISE_XOR]:
+            if pooling_enabled[sequence]:
+                error_exit('Element-wise operators do not support pooling', sequence)
 
         sequence += 1
 
@@ -269,7 +266,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             del quantization[ll]
             del output_map[ll]
             del output_width[ll]
-            del convolution[ll]
+            del operator[ll]
             del dilation[ll]
             del kernel_size[ll]
             del stride[ll]
@@ -299,8 +296,8 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
 
     if device == 84:
         # Fix up defaults for Conv1D:
-        for ll, e in enumerate(convolution):
-            if e == 1:
+        for ll, e in enumerate(operator):
+            if e == op.CONV1D:
                 kernel_size[ll] = [9, 1]
 
     settings = {}
@@ -318,7 +315,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     settings['quantization'] = quantization
     settings['output_processor_map'] = output_map
     settings['output_width'] = output_width
-    settings['convolution'] = convolution
+    settings['operator'] = operator
     settings['dilation'] = dilation
     settings['kernel_size'] = kernel_size
     settings['stride'] = stride

@@ -12,6 +12,7 @@ Routines to generate software CNNs using Arm's CMSIS NN library
 import os
 import sys
 import numpy as np
+import op
 import toplevel
 from simulate import cnn1d_layer, cnn2d_layer, linear_layer
 
@@ -142,7 +143,7 @@ def create_net(prefix, verbose, debug, log,
                          f'{input_dim[ll][1]}] -> ')
             if pool[ll][0]:
                 c_file.write(f'[{input_chan[ll]}, {pooled_dim[ll][0]}, {pooled_dim[ll][1]}] -> ')
-            if convolution[ll] == 2:
+            if convolution[ll] == op.CONV2D:
                 data = data.reshape(input_chan[ll], input_dim[ll][0], input_dim[ll][1])
                 out_buf, out_size = cnn2d_layer(ll, verbose,
                                                 data.shape,

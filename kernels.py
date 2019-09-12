@@ -12,6 +12,7 @@ Kernel related functions
 import math
 import sys
 import numpy as np
+import op
 import tornadocnn as tc
 from utils import ffs, fls
 
@@ -40,7 +41,7 @@ def print_map(layers, kmap):
     print('-' * kmap.shape[1] * width)
 
 
-def load(verbose, embedded_code, device, apb, layers, convolution,
+def load(verbose, embedded_code, device, apb, layers, operator,
          kernel, kernel_size, quantization, processor_map,
          output_processor_map, input_chan, output_chan, out_expand, out_expand_thresh,
          in_expand, in_expand_thresh, debug=False):
@@ -67,7 +68,7 @@ def load(verbose, embedded_code, device, apb, layers, convolution,
         print('\nLoading Kernels...')
 
     for ll in range(layers):
-        if convolution[ll] == 0:
+        if operator[ll] == op.NONE:
             kern_len[ll] = 0
             kern_offs[ll] = 0
             continue

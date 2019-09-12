@@ -17,6 +17,7 @@ import sys
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
 
+import op
 import stats
 
 
@@ -245,3 +246,29 @@ def pool1d(data, input_size, output_size, pool, stride, average,
             pooled[c][x//stride] = val
 
     return pooled
+
+
+def eltwise(operator,
+            data1,
+            data2,
+            input_size,
+            debug=False):  # pylint: disable=unused-argument
+    """
+    Compute element-wise operation.
+    """
+    assert data1.shape == tuple(input_size) and data2.shape == tuple(input_size)
+
+    if operator == op.ELTWISE_ADD:
+        output = np.add(data1, data2)
+    elif operator == op.ELTWISE_SUB:
+        output = np.subtract(data1, data2)
+    elif operator == op.ELTWISE_MUL:
+        output = np.multiply(data1, data2)
+    elif operator == op.ELTWISE_XOR:
+        output = np.bitwise_xor(data1, data2)
+    else:
+        print(f"Unknown operator `{op.string(operator)}`")
+        raise NotImplementedError
+
+    assert output.shape == tuple(input_size)
+    return output

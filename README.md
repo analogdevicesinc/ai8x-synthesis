@@ -1,7 +1,7 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_9/11/2019_
+_9/12/2019_
 
 _Open this file in a markdown enabled viewer, for example Visual Studio Code
 (https://code.visualstudio.com). See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet
@@ -880,8 +880,8 @@ The default is `hwc`. Note that the data format interacts with `processors`.
 
 ##### `operation` (Optional)
 
-This key (which can also be specified using `op` or `convolution`) selects a layer's main
-operation after the optional input pooling.
+This key (which can also be specified using `op`, `operator`, or `convolution`) selects a layer's
+main operation after the optional input pooling.
 The default is `Conv2d`. AI84 only supports `Conv1d` and `Conv2d`.
 
 | Operation	                | Description                                                   |
