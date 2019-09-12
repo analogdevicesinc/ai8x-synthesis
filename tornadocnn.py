@@ -114,7 +114,9 @@ class DevAI85(Dev):
     LREG_TPTR = 13
     LREG_ENA = 14
     LREG_POST = 15
-    MAX_LREG = LREG_POST
+    LREG_STREAM1 = 16
+    LREG_STREAM2 = 17
+    MAX_LREG = LREG_STREAM2
     LREG_RFU = None
 
     # Global registers

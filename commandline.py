@@ -23,7 +23,8 @@ def get_parser():
     parser.add_argument('--apb-base', type=lambda x: int(x, 0), metavar='N',
                         help=f"APB base address (default: device specific)")
     parser.add_argument('--autogen', default='tests', metavar='S',
-                        help="directory location for autogen_list (default: 'tests')")
+                        help="directory location for autogen_list (default: 'tests'); "
+                             "don't add if 'None'")
     parser.add_argument('--c-filename', metavar='S',
                         help="C file name base (RTL sim default: 'test' -> 'test.c', "
                              "otherwise 'main' -> 'main.c')")

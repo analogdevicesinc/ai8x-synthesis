@@ -78,6 +78,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     dilation = [[1, 1]] * tc.dev.MAX_LAYERS
     kernel_size = [DEFAULT_2D_KERNEL] * tc.dev.MAX_LAYERS
     stride = [[1, 1]] * tc.dev.MAX_LAYERS
+    streaming = [False] * tc.dev.MAX_LAYERS
 
     sequence = 0
     for ll in cfg['layers']:
@@ -85,7 +86,8 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                                'in_offset', 'kernel_size', 'pool_stride', 'out_offset',
                                'activate', 'data_format', 'op', 'operation',
                                'output_processors', 'output_width',
-                               'processors', 'pad', 'quantization', 'sequence', 'stride'])):
+                               'processors', 'pad', 'quantization',
+                               'sequence', 'streaming', 'stride'])):
             print(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
             sys.exit(1)
 
@@ -233,6 +235,13 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                 # Stride can be set
                 stride[sequence] = [val, val]
 
+        if 'streaming' in ll:
+            val = ll['streaming']
+            try:
+                streaming[sequence] = bool(val)
+            except ValueError:
+                error_exit(f'Unsupported value `{val}` for `streaming`', sequence)
+
         # Fix up values for 1D convolution or no convolution
         if convolution[sequence] == 1:
             padding[sequence][1] = 0
@@ -265,6 +274,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             del kernel_size[ll]
             del stride[ll]
             del pooling_enabled[ll]
+            del streaming[ll]
 
     # Check all but last layer
     for ll in range(len(output_map) - 1):
@@ -312,5 +322,6 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     settings['dilation'] = dilation
     settings['kernel_size'] = kernel_size
     settings['stride'] = stride
+    settings['streaming'] = streaming
 
     return cfg, settings
