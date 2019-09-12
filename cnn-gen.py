@@ -34,22 +34,60 @@ from simulate import cnn1d_layer, cnn2d_layer, linear_layer, passthrough_layer
 from utils import ffs, fls, popcount
 
 
-def create_net(prefix, verbose, debug, debug_computation,
-               no_error_stop, overwrite_ok, log, apb_base,
-               layers, convolution, input_dim, pooled_dim, output_dim,
-               processor_map, output_processor_map,
-               kernel_size, quantization,
-               input_chan, output_chan, output_width, padding, dilation, stride,
-               pool, pool_stride, pool_average, activate,
-               data, kernel, bias, big_data, fc_weights, fc_bias,
+def create_net(prefix,
+               verbose,
+               debug,
+               debug_computation,
+               no_error_stop,
+               overwrite_ok,
+               log,
+               apb_base,
+               layers,
+               convolution,
+               input_dim,
+               pooled_dim,
+               output_dim,
+               processor_map,
+               output_processor_map,
+               kernel_size,
+               quantization,
+               input_chan,
+               output_chan,
+               output_width,
+               padding,
+               dilation,
+               stride,
+               pool,
+               pool_stride,
+               pool_average,
+               activate,
+               data,
+               kernel,
+               bias,
+               big_data,
+               fc_weights,
+               fc_bias,
                split,
-               in_offset, out_offset,
-               input_filename, output_filename, c_filename,
-               base_directory, runtest_filename, log_filename,
-               zero_unused, timeout, block_mode, verify_writes,
-               embedded_code=False, compact_weights=False, compact_data=False,
-               weight_filename=None, sample_filename=None,
-               device=84, init_tram=False):
+               in_offset,
+               out_offset,
+               streaming,
+               input_filename,
+               output_filename,
+               c_filename,
+               base_directory,
+               runtest_filename,
+               log_filename,
+               zero_unused,
+               timeout,
+               block_mode,
+               verify_writes,
+               embedded_code=False,
+               compact_weights=False,
+               compact_data=False,
+               weight_filename=None,
+               sample_filename=None,
+               device=84,
+               init_tram=False):
     """
     Chain multiple CNN layers, create and save input and output
     """
@@ -377,6 +415,7 @@ def create_net(prefix, verbose, debug, debug_computation,
             print(f'Pooling             = {pool}')
             print(f'Pooling stride      = {pool_stride}')
             print(f'Pooled dimensions   = {pooled_dim}')
+            print(f'Streaming           = {streaming}')
             print('')
 
         if verbose:
@@ -649,6 +688,13 @@ def create_net(prefix, verbose, debug, debug_computation,
                     val = val << 16 | val
                 apb.write_lreg(group, ll, tc.dev.LREG_ENA, val,
                                verbose, comment=' // Mask and processor enables')
+
+                if streaming[ll]:  # FIXME: Write 0 if not streaming, not implemented yet
+                    val = 0
+                    apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, val,
+                                   verbose, comment=' // Stream processing 1')
+                    apb.write_lreg(group, ll, tc.dev.LREG_STREAM2, val,
+                                   verbose, comment=' // Stream processing 2')
 
         if zero_unused:
             for ll in range(layers, tc.dev.MAX_LAYERS):
@@ -928,6 +974,7 @@ def main():
     big_data = params['big_data'][:layers]
     output_width = params['output_width'][:layers]
     convolution = params['convolution'][:layers]
+    streaming = params['streaming'][:layers]
 
     # Command line override
     if args.input_offset is not None:
@@ -1036,36 +1083,98 @@ def main():
             sys.exit(1)
 
     if not args.cmsis_software_nn:
-        tn = create_net(args.prefix, args.verbose,
-                        args.debug, args.debug_computation, args.no_error_stop,
-                        args.overwrite_ok, args.log, apb_base,
-                        layers, convolution, input_dim, pooled_dim, output_dim,
-                        processor_map, output_processor_map,
-                        kernel_size, quantization,
-                        input_channels, output_channels, output_width, padding,
-                        dilation, stride,
-                        pool, pool_stride, pool_average, activate,
-                        data, weights, bias, big_data, fc_weights, fc_bias,
-                        args.input_split, input_offset, output_offset,
-                        args.input_filename, args.output_filename, args.c_filename,
-                        args.test_dir, args.runtest_filename, args.log_filename,
-                        args.zero_unused, args.timeout, not args.top_level, args.verify_writes,
-                        args.embedded_code, args.compact_weights, args.compact_data,
-                        args.weight_filename, args.sample_filename,
-                        args.device, args.init_tram)
-        if not args.embedded_code:
-            rtlsim.append_regression(args.top_level, tn, args.queue_name, args.autogen)
+        tn = create_net(args.prefix,
+                        args.verbose,
+                        args.debug,
+                        args.debug_computation,
+                        args.no_error_stop,
+                        args.overwrite_ok,
+                        args.log,
+                        apb_base,
+                        layers,
+                        convolution,
+                        input_dim,
+                        pooled_dim,
+                        output_dim,
+                        processor_map,
+                        output_processor_map,
+                        kernel_size,
+                        quantization,
+                        input_channels,
+                        output_channels,
+                        output_width,
+                        padding,
+                        dilation,
+                        stride,
+                        pool,
+                        pool_stride,
+                        pool_average,
+                        activate,
+                        data,
+                        weights,
+                        bias,
+                        big_data,
+                        fc_weights,
+                        fc_bias,
+                        args.input_split,
+                        input_offset,
+                        output_offset,
+                        streaming,
+                        args.input_filename,
+                        args.output_filename,
+                        args.c_filename,
+                        args.test_dir,
+                        args.runtest_filename,
+                        args.log_filename,
+                        args.zero_unused,
+                        args.timeout,
+                        not args.top_level,
+                        args.verify_writes,
+                        args.embedded_code,
+                        args.compact_weights,
+                        args.compact_data,
+                        args.weight_filename,
+                        args.sample_filename,
+                        args.device,
+                        args.init_tram)
+        if not args.embedded_code and args.autogen.lower() != 'none':
+            rtlsim.append_regression(args.top_level,
+                                     tn,
+                                     args.queue_name,
+                                     args.autogen)
     else:
-        cmsisnn.create_net(args.prefix, args.verbose, args.debug, args.log,
-                           layers, convolution, auto_input_dim, input_dim, pooled_dim, output_dim,
-                           kernel_size, quantization,
-                           input_channels, output_channels, output_width, padding,
-                           dilation, stride,
-                           pool, pool_stride, pool_average, activate,
-                           data, weights, bias, fc_weights, fc_bias,
+        cmsisnn.create_net(args.prefix,
+                           args.verbose,
+                           args.debug,
+                           args.log,
+                           layers,
+                           convolution,
+                           auto_input_dim,
+                           input_dim,
+                           pooled_dim,
+                           output_dim,
+                           kernel_size,
+                           quantization,
+                           input_channels,
+                           output_channels,
+                           output_width,
+                           padding,
+                           dilation,
+                           stride,
+                           pool,
+                           pool_stride,
+                           pool_average,
+                           activate,
+                           data,
+                           weights,
+                           bias,
+                           fc_weights,
+                           fc_bias,
                            args.c_filename,
-                           args.test_dir, args.log_filename,
-                           args.weight_filename, args.sample_filename,
+                           args.test_dir,
+                           args.log_filename,
+                           args.weight_filename,
+                           args.sample_filename,
                            args.device)
 
     print("SUMMARY OF OPS")
