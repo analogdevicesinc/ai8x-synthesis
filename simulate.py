@@ -11,50 +11,83 @@ Simulate a single CNN layer
 """
 import numpy as np
 
+import op
 import stats
 import tornadocnn as tc
-from compute import conv1d, conv2d, linear, pool1d, pool2d
+from compute import conv1d, conv2d, linear, pool1d, pool2d, eltwise
 
 
-def cnn2d_layer(layer, verbose,
-                input_size, kernel_size, quantization,
-                output_channels, padding, dilation, stride,
-                pool, pool_stride, pool_average, do_activation,
-                kernel, bias, data, bits=8, output_width=8,
-                device=84, debug=False,  # pylint: disable=unused-argument
-                expand=None, expand_thresh=None):
+def print_data(header,
+               data,
+               input_size,
+               expand,
+               expand_thresh):
+    """
+    Print `data` of dimensions `input_size` with `expand` and `expand_thresh`,
+    prefixed by `header`.
+    """
+    int8_format = '{0:4}' if np.any(data < 0) else '{0:3}'
+
+    print(header)
+
+    with np.printoptions(formatter={'int': int8_format.format}):
+        if input_size[1] == input_size[2] == 1:
+            for i in range(0, input_size[0], expand_thresh):
+                last = min(i + expand_thresh, input_size[0])
+                if last - 1 > i:
+                    print(f'Channels #{i} to #{last-1}', end='')
+                else:
+                    print(f'Channel #{i}', end='')
+                if expand and expand > 1:
+                    print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
+                else:
+                    print('')
+                print(np.squeeze(data[i:last]))
+        else:
+            for i in range(input_size[0]):
+                print(f'Channel #{i}', end='')
+                if expand and expand > 1:
+                    print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
+                else:
+                    print('')
+                print(data[i])
+    print('')
+
+
+def cnn2d_layer(layer,
+                verbose,
+                input_size,
+                kernel_size,
+                quantization,
+                output_channels,
+                padding,
+                dilation,
+                stride,
+                pool,
+                pool_stride,
+                pool_average,
+                do_activation,
+                kernel,
+                bias,
+                data,
+                bits=8,
+                output_width=8,
+                device=84,  # pylint: disable=unused-argument
+                debug=False,
+                expand=None,
+                expand_thresh=None):
     """
     Perform 2D pooling and 2D convolution for one layer.
     """
-    int8_format = '{0:4}' if np.any(data < 0) else '{0:3}'
     if verbose:
         if expand_thresh is None:
             expand_thresh = input_size[0]
-        print(f"LAYER {layer}...\n")
-
-        print(f"{input_size[0]}x{input_size[1]}x{input_size[2]} INPUT DATA:")
-        with np.printoptions(formatter={'int': int8_format.format}):
-            if input_size[1] == input_size[2] == 1:
-                for i in range(0, input_size[0], expand_thresh):
-                    last = min(i + expand_thresh, input_size[0])
-                    if last - 1 > i:
-                        print(f'Channels #{i} to #{last-1}', end='')
-                    else:
-                        print(f'Channel #{i}', end='')
-                    if expand and expand > 1:
-                        print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
-                    else:
-                        print('')
-                    print(np.squeeze(data[i:last]))
-            else:
-                for i in range(input_size[0]):
-                    print(f'Channel #{i}', end='')
-                    if expand and expand > 1:
-                        print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
-                    else:
-                        print('')
-                    print(data[i])
-        print('')
+        print_data(f"LAYER {layer} (CONV2D)...\n\n"
+                   f"{input_size[0]}x{input_size[1]}x{input_size[2]} INPUT DATA:",
+                   data,
+                   input_size,
+                   expand,
+                   expand_thresh)
 
     if pool[0] > 1 or pool[1] > 1:
         pooled_size = [input_size[0],
@@ -63,18 +96,13 @@ def cnn2d_layer(layer, verbose,
         pooled = pool2d(data, input_size, pooled_size, pool, pool_stride, pool_average,
                         floor=True, debug=debug)  # FIXME: Fix rounding for AI85?
         if verbose:
-            print(f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
-                  f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]} "
-                  f"{input_size} -> {pooled_size}:")
-            with np.printoptions(formatter={'int': int8_format.format}):
-                for i in range(input_size[0]):
-                    print(f'Channel #{i}', end='')
-                    if expand and expand > 1:
-                        print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
-                    else:
-                        print('')
-                    print(pooled[i])
-            print('')
+            print_data(f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
+                       f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]} "
+                       f"{input_size} -> {pooled_size}:",
+                       pooled,
+                       pooled_size,
+                       expand,
+                       expand_thresh)
 
         if pool_average:
             stats.add += pool[0] * pool[1] * pooled_size[0] * pooled_size[1] * pooled_size[2]
@@ -156,17 +184,31 @@ def cnn2d_layer(layer, verbose,
     return out_buf, out_size
 
 
-def cnn1d_layer(layer, verbose,
-                input_size, kernel_size, quantization,
-                output_channels, padding, dilation, stride,
-                pool, pool_stride, pool_average, do_activation,
-                kernel, bias, data, bits=8, output_width=8,
-                device=84, debug=False):  # pylint: disable=unused-argument
+def cnn1d_layer(layer,
+                verbose,
+                input_size,
+                kernel_size,
+                quantization,
+                output_channels,
+                padding,
+                dilation,
+                stride,
+                pool,
+                pool_stride,
+                pool_average,
+                do_activation,
+                kernel,
+                bias,
+                data,
+                bits=8,
+                output_width=8,
+                device=84,  # pylint: disable=unused-argument
+                debug=False):
     """
     Perform 1D pooling and 1D convolution for one layer.
     """
     if verbose:
-        print(f"LAYER {layer}...\n")
+        print(f"LAYER {layer} (CONV1D)...\n")
 
         print(f"{input_size[0]}x{input_size[1]} INPUT DATA:")
         print(np.squeeze(data))
@@ -248,8 +290,13 @@ def cnn1d_layer(layer, verbose,
     return out_buf, out_size
 
 
-def linear_layer(verbose, do_activation,
-                 weight, bias, data, bits=16, debug=False):
+def linear_layer(verbose,
+                 do_activation,
+                 weight,
+                 bias,
+                 data,
+                 bits=16,
+                 debug=False):
     """
     Perform one linear layer.
     """
@@ -257,7 +304,7 @@ def linear_layer(verbose, do_activation,
     out_features = weight.shape[0]
 
     if verbose:
-        print("CLASSIFICATION LAYER...\n")
+        print("CLASSIFICATION LAYER (LINEAR)...\n")
         print(f"INPUT DATA (size {in_features}):")
         print(data)
         print('')
@@ -292,44 +339,29 @@ def linear_layer(verbose, do_activation,
     return out_buf, out_features
 
 
-def passthrough_layer(layer, verbose,
+def passthrough_layer(layer,
+                      verbose,
                       input_size,
-                      pool, pool_stride, pool_average,
+                      pool,
+                      pool_stride,
+                      pool_average,
                       data,
-                      device=84, debug=False,  # pylint: disable=unused-argument
-                      expand=None, expand_thresh=None):
+                      device=84,  # pylint: disable=unused-argument
+                      debug=False,
+                      expand=None,
+                      expand_thresh=None):
     """
     2D pooling or passthrough for one layer.
     """
-    int8_format = '{0:4}' if np.any(data < 0) else '{0:3}'
     if verbose:
         if expand_thresh is None:
             expand_thresh = input_size[0]
-        print(f"LAYER {layer}...\n")
-
-        print(f"{input_size[0]}x{input_size[1]}x{input_size[2]} INPUT DATA:")
-        with np.printoptions(formatter={'int': int8_format.format}):
-            if input_size[1] == input_size[2] == 1:
-                for i in range(0, input_size[0], expand_thresh):
-                    last = min(i + expand_thresh, input_size[0])
-                    if last - 1 > i:
-                        print(f'Channels #{i} to #{last-1}', end='')
-                    else:
-                        print(f'Channel #{i}', end='')
-                    if expand and expand > 1:
-                        print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
-                    else:
-                        print('')
-                    print(np.squeeze(data[i:last]))
-            else:
-                for i in range(input_size[0]):
-                    print(f'Channel #{i}', end='')
-                    if expand and expand > 1:
-                        print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
-                    else:
-                        print('')
-                    print(data[i])
-        print('')
+        print_data(f"LAYER {layer} (PASSTHROUGH)...\n\n"
+                   f"{input_size[0]}x{input_size[1]}x{input_size[2]} INPUT DATA:",
+                   data,
+                   input_size,
+                   expand,
+                   expand_thresh)
 
     if pool[0] > 1 or pool[1] > 1:
         pooled_size = [input_size[0],
@@ -338,18 +370,13 @@ def passthrough_layer(layer, verbose,
         pooled = pool2d(data, input_size, pooled_size, pool, pool_stride, pool_average,
                         floor=True, debug=debug)  # FIXME: Fix rounding for AI85?
         if verbose:
-            print(f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
-                  f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]} "
-                  f"{input_size} -> {pooled_size}:")
-            with np.printoptions(formatter={'int': int8_format.format}):
-                for i in range(input_size[0]):
-                    print(f'Channel #{i}', end='')
-                    if expand and expand > 1:
-                        print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
-                    else:
-                        print('')
-                    print(pooled[i])
-            print('')
+            print_data(f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
+                       f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]} "
+                       f"{input_size} -> {pooled_size}:",
+                       pooled,
+                       pooled_size,
+                       expand,
+                       expand_thresh)
 
         if pool_average:
             stats.add += pool[0] * pool[1] * pooled_size[0] * pooled_size[1] * pooled_size[2]
@@ -360,3 +387,85 @@ def passthrough_layer(layer, verbose,
         pooled = data
 
     return pooled, pooled_size
+
+
+def eltwise_layer(operator,
+                  layer,
+                  verbose,
+                  input_size,
+                  do_activation,
+                  data1,
+                  data2,
+                  output_width=8,
+                  device=84,  # pylint: disable=unused-argument
+                  debug=False,
+                  expand=None,
+                  expand_thresh=None):
+    """
+    Element-wise operators for one layer.
+    """
+    quantization = bits = 8
+
+    if verbose:
+        if expand_thresh is None:
+            expand_thresh = input_size[0]
+        print_data(f"LAYER {layer} ({op.string(operator).upper()})...\n\n"
+                   f"{input_size[0]}x{input_size[1]}x{input_size[2]} INPUT DATA 1:",
+                   data1,
+                   input_size,
+                   expand,
+                   expand_thresh)
+        print_data(f"{input_size[0]}x{input_size[1]}x{input_size[2]} INPUT DATA 2:",
+                   data2,
+                   input_size,
+                   expand,
+                   expand_thresh)
+
+    out_buf = eltwise(operator=operator,
+                      data1=data1,
+                      data2=data2,
+                      input_size=input_size,
+                      debug=debug)
+
+    if verbose:
+        print(f"{input_size[0]}x{input_size[1]}x{input_size[2]} FULL-RES OUTPUT:")
+        if input_size[1] == input_size[2] == 1:
+            print(np.squeeze(out_buf))
+        else:
+            print(out_buf)
+        print('')
+
+    if operator in [op.ELTWISE_ADD, op.ELTWISE_SUB]:
+        stats.add += out_buf.size
+    elif operator == op.ELTWISE_MUL:
+        stats.mul += out_buf.size
+    elif operator == op.ELTWISE_XOR:
+        stats.xor += out_buf.size
+
+    if output_width != 32:
+        out_buf = np.floor(0.5 + out_buf / (16*quantization)).astype(np.int64). \
+            clip(-(2**(bits-1)), 2**(bits-1)-1)
+
+        if verbose:
+            print(f"{input_size[0]}x{input_size[1]}x{input_size[2]} OUTPUT "
+                  f"{'BEFORE ACTIVATION' if do_activation else '(NO ACTIVATION)'}:")
+            if input_size[1] == input_size[2] == 1:
+                print(np.squeeze(out_buf))
+            else:
+                print(out_buf)
+            print('')
+
+    if do_activation:
+        np.clip(out_buf, 0, 2**(bits-1)-1, out_buf)
+
+        if verbose:
+            print(f"{input_size[0]}x{input_size[1]}x{input_size[2]} ACTIVATED OUTPUT:")
+            if input_size[1] == input_size[2] == 1:
+                print(np.squeeze(out_buf))
+            else:
+                print(out_buf)
+            print('')
+
+        stats.comp += input_size[0] * input_size[1] * input_size[2]
+
+    return out_buf, input_size

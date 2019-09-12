@@ -14,6 +14,7 @@ import numpy as np
 import pytest
 
 import cmsisnn
+import op
 
 
 @pytest.mark.parametrize('test_no', [0, 1, 2, 3, 4])
@@ -34,7 +35,7 @@ def test_cmsis(test_no):
     activate = [False]
     bias = [None]
     output_width = [8]
-    convolution = [2]
+    convolution = [op.CONV2D]
 
     assert 0 <= test_no <= 4
     if test_no == 0:  # Passes
