@@ -26,10 +26,12 @@ layers:
   activate: ReLU
   out_offset: 0x2000
   processors: 0xfffefffefffefffe
+  streaming: true
 - avg_pool: 2
   pool_stride: 2
   pad: 1
   activate: ReLU
   out_offset: 0
   processors: 0x7ffe7ffe7ffe7ffe
+  streaming: true
 

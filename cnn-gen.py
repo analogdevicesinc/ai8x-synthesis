@@ -96,6 +96,7 @@ def create_net(prefix,
     out_expand = [0] * layers
     in_expand_thresh = [0] * layers
     out_expand_thresh = [0] * layers
+    tram_max = [0] * layers
 
     input_dim_str = [None] * layers
     output_dim_str = [None] * layers
@@ -161,6 +162,8 @@ def create_net(prefix,
             padding_str[ll] = f'{padding[ll][0]}'
             pool_stride_str[ll] = f'{pool_stride[ll][0]}'
             stride_str[ll] = f'{stride[ll][0]}'
+
+        tram_max[ll] = max(0, pooled_dim[ll][1] + 2*padding[ll][1] - kernel_size[ll][1]) + 1
 
     # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
     test_name = prefix
@@ -484,8 +487,9 @@ def create_net(prefix,
                     #  [3:0] tscnt_max[3:0]      Maximum timeslot count register
                     #  [7:4] oned_sad[3:0]       Start mask address (offset within 9 byte mask)
                     # [11:8] oned_width[3:0]     1D mask width (0-9). Width > 0 enables 1D.
+                    #   [12] oned_iena           Input data is 1-dimensional
                     if operator[ll] == op.CONV1D:
-                        val = kernel_size[ll][0] << 8
+                        val = kernel_size[ll][0] << 8 | 1 << 12
                     else:
                         val = 1 << 8
                     apb.write_lreg(group, ll, tc.dev.LREG_ONED, val,
@@ -646,7 +650,11 @@ def create_net(prefix,
 
                 # Configure tram pointer max
                 if operator[ll] != op.CONV1D:
-                    val = max(0, pooled_dim[ll][1] + 2*padding[ll][1] - kernel_size[ll][1])
+                    val = tram_max[ll] - 1
+                    if ll > 0 and streaming[ll]:
+                        prev_max = sum(tram_max[:ll])
+                        val += prev_max
+                        val |= prev_max << 16
                 else:
                     val = 0
                 apb.write_lreg(group, ll, tc.dev.LREG_TPTR, val,
@@ -691,10 +699,45 @@ def create_net(prefix,
                 apb.write_lreg(group, ll, tc.dev.LREG_ENA, val,
                                verbose, comment=' // Mask and processor enables')
 
-                if streaming[ll]:  # FIXME: Write 0 if not streaming, not implemented yet
-                    val = 0
+                if ll > 0 and streaming[ll]:
+                    # [11:0]:  strm_isval[11:0]  Per stream start count - based on previous layer
+                    #                            tptr_inc count
+                    # [16:12]: strm_dsval1[4:0]  Per stream in-row delta count - based on previous
+                    #                            layer tptr_inc count
+                    # [31:20]: strm_dsval2[11:0] Per stream multi-row delta count - based on
+                    #                            previous layer tptr_inc count
+                    # Start count – defines the current layer rcnt (TRAM shift count) that
+                    # triggers processing of the next layer
+                    # Delta1 count – defines the current layer count once the start count is
+                    # triggered that enables incremental layer processing.  This count is
+                    # used when layer processing is contained within a single row.
+                    # Delta2 count – defines the current layer count once the start count is
+                    # triggered that enables incremental layer processing.  This count is
+                    # used when layer processing spans multiple rows.
+
+                    this_pool = [max(1, pool[ll][0]), max(1, pool[ll][1])]
+
+                    # Start: Prior layer's padded pooled row width * prior layer's kernel height
+                    # + prior layer's kernel width + prior layer's pad
+                    stream_start = (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
+                        * kernel_size[ll-1][0] + padding[ll-1][1] + kernel_size[ll-1][1] - 1
+                    # print(f'Stream: start = {stream_start} (0x{stream_start:03x})')
+                    val = stream_start
+                    # Delta 1: This layer's pooling stride
+                    delta1 = pool_stride[ll][1] - 1
+                    # print(f'Stream: delta1 = {delta1} (0x{delta1:02x})')
+                    val |= delta1 << 12
+                    # Delta 2: (This layer's pooling - 1) * full prior layer's padded rows + prior
+                    # layer's pad
+                    delta2 = this_pool[0] * (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
+                        + padding[ll-1][1] - 1
+                    # print(f'Stream: delta2 = {delta2} (0x{delta2:03x})')
+                    val |= delta2 << 20
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, val,
                                    verbose, comment=' // Stream processing 1')
+                    # [3:0]:   strm_invol[3:0]   Per stream invol offset - based on stream count
+                    val = sum(in_expand[:ll])
+                    print(f'Stream: invol = {val} (0x{val:01x})')
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM2, val,
                                    verbose, comment=' // Stream processing 2')
 
@@ -721,23 +764,29 @@ def create_net(prefix,
             print('\nGlobal registers:')
             print('-----------------')
 
+        # [0]    enable
+        # [2:1]  rdy_sel  (wait states - set to max)
+        # [3]    RFU
+        # [4]    calcmax
+        # [5]    poolena
+        # [6]    bigdata
+        # [7]    actena
+        # [8]    one-shot (stop after single layer)
+        # [11:9] ext_sync (slave to other group)
+        # [12]   irq
+        # [14]   strm_ena -  cnn_ctl register bit 14. Master stream processor enable. Layers are
+        #        processed up to the first layer with a zero start count value. After the last
+        #        stream layer (non-zero start and delta >> values) processing is complete,
+        #        standard processing follows for the remaining layers.
+        val = 1 << 14 if any(streaming) else 0
+
         # Enable all needed groups except the first one
         for _, group in enumerate(groups_used[1:]):
-            # [0]    enable
-            # [2:1]  rdy_sel  (wait states - set to max)
-            # [3]    RFU
-            # [4]    calcmax
-            # [5]    poolena
-            # [6]    bigdata
-            # [7]    actena
-            # [8]    one-shot (stop after single layer)
-            # [11:9] ext_sync (slave to other group)
-            # [12]   irq
-            apb.write_ctl(group, tc.dev.REG_CTL, 0x807 | groups_used[0] << 9,
+            apb.write_ctl(group, tc.dev.REG_CTL, val | 0x807 | groups_used[0] << 9,
                           verbose, comment=f' // Enable group {group}')
 
         # Master control - go
-        apb.write_ctl(groups_used[0], tc.dev.REG_CTL, 0x07,
+        apb.write_ctl(groups_used[0], tc.dev.REG_CTL, val | 0x07,
                       verbose, comment=f' // Master enable group {groups_used[0]}')
 
         apb.load_footer()

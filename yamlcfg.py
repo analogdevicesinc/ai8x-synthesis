@@ -285,6 +285,9 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
         # Fix up default input maps
         if input_offset[ll] is None:
             input_offset[ll] = output_offset[ll-1]
+        # Check we don't turn on streaming too late
+        if streaming[ll] and not streaming[ll-1]:
+            error_exit('Enable streaming from the first layer on', ll)
     # Check first layer
     if input_offset[0] is None:
         input_offset[0] = 0
