@@ -150,7 +150,8 @@ def create_net(prefix,
             input_dim_str[ll] = f'{input_dim[ll][0]}x{input_dim[ll][1]}'
             output_dim_str[ll] = f'{output_dim[ll][0]}x{output_dim[ll][1]}'
             kernel_size_str[ll] = f'{kernel_size[ll][0]}x{kernel_size[ll][1]}'
-            pool_str[ll] = f'{pool[ll][0]}x{pool[ll][1]}'
+            pool_str[ll] = f'{pool[ll][0]}x{pool[ll][1]}' \
+                if pool[ll][0] > 1 or pool[ll][1] > 1 else '0x0'
             padding_str[ll] = f'{padding[ll][0]}/{padding[ll][1]}'
             pool_stride_str[ll] = f'{pool_stride[ll][0]}/{pool_stride[ll][1]}'
             stride_str[ll] = f'{stride[ll][0]}/{stride[ll][1]}'
@@ -158,7 +159,8 @@ def create_net(prefix,
             input_dim_str[ll] = f'{input_dim[ll][0]}'
             output_dim_str[ll] = f'{output_dim[ll][0]}'
             kernel_size_str[ll] = f'{kernel_size[ll][0]}'
-            pool_str[ll] = f'{pool[ll][0]}'
+            pool_str[ll] = f'{pool[ll][0]}' \
+                if pool[ll][0] > 1 or pool[ll][1] > 1 else '0'
             padding_str[ll] = f'{padding[ll][0]}'
             pool_stride_str[ll] = f'{pool_stride[ll][0]}'
             stride_str[ll] = f'{stride[ll][0]}'
@@ -171,9 +173,11 @@ def create_net(prefix,
         for ll in range(layers):
             test_name += f'-{input_chan[ll]}x{input_dim_str[ll]}' \
                          f'{"b" if big_data[ll] else "l"}_' \
-                         f'{"avg" if pool_average[ll] and pool[ll][0] else ""}' \
-                         f'{"max" if not pool_average[ll] and pool[ll][0] else ""}' \
-                         f'{pool_str[ll]}s{pool_stride[ll][0]}' \
+                         + ("avg" if pool_average[ll]
+                            and (pool[ll][0] > 1 or pool[ll][1] > 1) else "") \
+                         + ("max" if not pool_average[ll]
+                            and (pool[ll][0] > 1 or pool[ll][1] > 1) else "") \
+                         + f'{pool_str[ll]}s{pool_stride[ll][0]}' \
                          f'p{padding[ll][0]}' \
                          f'm{output_chan[ll]}' \
                          f'{"_relu" if activate[ll] else ""}'
@@ -232,7 +236,7 @@ def create_net(prefix,
         for ll in range(layers):
             apb.output(f'// Layer {ll}: {input_chan[ll]}x{input_dim_str[ll]} '
                        f'{"(CHW/big data)" if big_data[ll] else "(HWC/little data)"}, ')
-            if pool[ll][0]:
+            if pool[ll][0] > 1 or pool[ll][1] > 1:
                 apb.output(f'{pool_str[ll]} {"avg" if pool_average[ll] else "max"} '
                            f'pool with stride {pool_stride_str[ll]}')
             else:
@@ -497,17 +501,24 @@ def create_net(prefix,
                                    verbose, comment=' // 1D')
 
                 # Configure pooling row count
-                val = max(1, pool[ll][0]-1) if device == 84 else max(0, pool[ll][0]-1)
+                val = pool[ll][0]-1
+                if device == 84 and pool[ll][0] == 1:
+                    val = 1
+                else:
+                    val = pool[ll][0]-1
                 apb.write_lreg(group, ll, tc.dev.LREG_PRCNT, val,
                                verbose, comment=' // Pooling rows')
 
                 # Configure pooling column count
-                val = max(1, pool[ll][1]-1) if device == 84 else max(0, pool[ll][1]-1)
+                if device == 84 and pool[ll][1] == 1:
+                    val = 1
+                else:
+                    val = pool[ll][1]-1
                 apb.write_lreg(group, ll, tc.dev.LREG_PCCNT, val,
                                verbose, comment=' // Pooling columns')
 
                 # Configure pooling stride count
-                if pool[ll][0]:
+                if pool[ll][0] > 1 or pool[ll][1] > 1:
                     val = pool_stride[ll][0]-1
                 else:
                     val = stride[ll][0]-1
@@ -590,7 +601,7 @@ def create_net(prefix,
                 # [31]  bigdwrt (AI85 only) Enables 32-bit output
                 val = (0x200 if activate[ll] else 0) | \
                       (0x100 if not pool_average[ll] else 0) | \
-                      (0x80 if pool[ll][0] else 0) | \
+                      (0x80 if pool[ll][0] > 1 or pool[ll][1] > 1 else 0) | \
                       (0x40 if big_data[ll] else 0) | \
                       (0x20)
                 if not local_source:
@@ -717,8 +728,6 @@ def create_net(prefix,
                     # triggered that enables incremental layer processing.  This count is
                     # used when layer processing spans multiple rows.
 
-                    this_pool = [max(1, pool[ll][0]), max(1, pool[ll][1])]
-
                     # Start: Prior layer's padded pooled row width * prior layer's kernel height
                     # + prior layer's kernel width + prior layer's pad
                     stream_start = (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
@@ -727,7 +736,7 @@ def create_net(prefix,
                     delta1 = pool_stride[ll][1]
                     # Delta 2: (This layer's pooling - 1) * full prior layer's padded rows + prior
                     # layer's pad
-                    delta2 = (this_pool[0] - 1) * (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
+                    delta2 = (pool[ll][0] - 1) * (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
                         + 2 * padding[ll-1][1]
                     val = delta2 << 20 | delta1 << 12 | stream_start
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, val,
@@ -1079,7 +1088,7 @@ def main():
                 input_dim[ll] = auto_input_dim[ll]
             else:
                 input_dim[ll] = conf_input_dim[ll]
-        if pool[ll][0]:
+        if pool[ll][0] > 1 or pool[ll][1] > 1:
             if operator[ll] != op.CONV1D:
                 if pool_stride[ll][0] != pool_stride[ll][1]:
                     print(f'{op.string(operator[ll])} in layer {ll} does not support non-square'
