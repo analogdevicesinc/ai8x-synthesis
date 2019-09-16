@@ -202,7 +202,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             val = str(ll['kernel_size']).lower()
             if operator[sequence] == op.CONV2D:
                 if device == 84 and val not in ['3x3'] \
-                        or device >= 85 and val not in ['1x1', '3x3']:
+                        or device != 84 and val not in ['1x1', '3x3']:
                     error_exit('Unsupported value for `kernel_size`', sequence)
                 kernel_size[sequence] = [int(val[0]), int(val[2])]
             else:
