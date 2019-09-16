@@ -722,24 +722,18 @@ def create_net(prefix,
                     # Start: Prior layer's padded pooled row width * prior layer's kernel height
                     # + prior layer's kernel width + prior layer's pad
                     stream_start = (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
-                        * kernel_size[ll-1][0] + padding[ll-1][1] + kernel_size[ll-1][1] - 1
-                    # print(f'Stream: start = {stream_start} (0x{stream_start:03x})')
-                    val = stream_start
+                        * kernel_size[ll-1][0] + padding[ll-1][1] + kernel_size[ll-1][1]
                     # Delta 1: This layer's pooling stride
-                    delta1 = pool_stride[ll][1] - 1
-                    # print(f'Stream: delta1 = {delta1} (0x{delta1:02x})')
-                    val |= delta1 << 12
+                    delta1 = pool_stride[ll][1]
                     # Delta 2: (This layer's pooling - 1) * full prior layer's padded rows + prior
                     # layer's pad
-                    delta2 = this_pool[0] * (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
-                        + padding[ll-1][1] - 1
-                    # print(f'Stream: delta2 = {delta2} (0x{delta2:03x})')
-                    val |= delta2 << 20
+                    delta2 = (this_pool[0] - 1) * (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
+                        + 2 * padding[ll-1][1]
+                    val = delta2 << 20 | delta1 << 12 | stream_start
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, val,
                                    verbose, comment=' // Stream processing 1')
                     # [3:0]:   strm_invol[3:0]   Per stream invol offset - based on stream count
                     val = sum(in_expand[:ll])
-                    print(f'Stream: invol = {val} (0x{val:01x})')
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM2, val,
                                    verbose, comment=' // Stream processing 2')
 
