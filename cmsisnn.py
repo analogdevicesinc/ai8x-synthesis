@@ -62,7 +62,7 @@ def create_net(prefix, verbose, debug, log,
         for ll in range(layers):
             c_file.write(f'// Layer {ll}: '
                          f'{input_chan[ll]}x{input_dim[ll][0]}x{input_dim[ll][1]}, ')
-            if pool[ll][0]:
+            if pool[ll][0] > 1 or pool[ll][1] > 1:
                 c_file.write(f'{pool[ll][0]}x{pool[ll][1]} {"avg" if pool_average[ll] else "max"} '
                              f'pool with stride {pool_stride[ll]}')
             else:
@@ -121,7 +121,7 @@ def create_net(prefix, verbose, debug, log,
         for ll in range(layers):
             col_buffer_size = max(col_buffer_size,
                                   2*input_chan[ll]*kernel_size[ll][0]*kernel_size[ll][1])
-            if pool[ll][0]:
+            if pool[ll][0] > 1 or pool[ll][1] > 1:
                 col_buffer_size = max(col_buffer_size,
                                       pooled_dim[ll][0]*input_chan[ll])  # q15_t doesn't need 2*
             img_buffer_size = max(img_buffer_size,
@@ -141,7 +141,7 @@ def create_net(prefix, verbose, debug, log,
         for ll in range(layers):
             c_file.write(f'  // Layer {ll}: [{input_chan[ll]}, {input_dim[ll][0]}, '
                          f'{input_dim[ll][1]}] -> ')
-            if pool[ll][0]:
+            if pool[ll][0] > 1 or pool[ll][1] > 1:
                 c_file.write(f'[{input_chan[ll]}, {pooled_dim[ll][0]}, {pooled_dim[ll][1]}] -> ')
             if convolution[ll] == op.CONV2D:
                 data = data.reshape(input_chan[ll], input_dim[ll][0], input_dim[ll][1])
@@ -189,7 +189,7 @@ def create_net(prefix, verbose, debug, log,
 
             source = 'input_data' if ll == 0 else buffer0
 
-            if pool[ll][0]:
+            if pool[ll][0] > 1 or pool[ll][1] > 1:
                 if ll == 0:
                     c_file.write('  memcpy(buffer0, input, input_size);'
                                  ' // Pooling may destroy input\n')

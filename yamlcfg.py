@@ -55,7 +55,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     input_dim = [None] * tc.dev.MAX_LAYERS
     # All other variables are initialized with the default values
     padding = [[1, 1]] * tc.dev.MAX_LAYERS
-    pool = [[0, 0]] * tc.dev.MAX_LAYERS
+    pool = [[1, 1]] * tc.dev.MAX_LAYERS
     pooling_enabled = [False] * tc.dev.MAX_LAYERS
     average = [0] * tc.dev.MAX_LAYERS
     pool_stride = [[1, 1]] * tc.dev.MAX_LAYERS
@@ -238,7 +238,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
         # Fix up values for 1D convolution or no convolution
         if operator[sequence] == op.CONV1D:
             padding[sequence][1] = 0
-            pool[sequence][1] = 0
+            pool[sequence][1] = 1
             pool_stride[sequence][1] = 1
             stride[sequence][1] = 1
         elif operator[sequence] == op.NONE:
