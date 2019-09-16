@@ -386,7 +386,7 @@ def create_net(prefix,
             print(f'Input channels      = {input_chan}')
             print('Processor map       = [',
                   ', '.join('0x{:016x}'.format(k) for k in processor_map), ']', sep='',)
-            if device >= 85:
+            if device != 84:
                 print(f'Input expansion     = {in_expand}')
                 print(f'Expansion threshold = {in_expand_thresh}')
             print('Input offsets       = [',
@@ -396,7 +396,7 @@ def create_net(prefix,
             print(f'Output channels     = {output_chan}')
             print('Output processors   = [',
                   ', '.join('0x{:016x}'.format(k) for k in output_processor_map), ']', sep='',)
-            if device >= 85:
+            if device != 84:
                 print(f'Output expansion    = {out_expand}')
                 print(f'Expansion threshold = {out_expand_thresh}')
                 print(f'Output data bits    = {output_width}')
@@ -407,7 +407,7 @@ def create_net(prefix,
 
             print(f'Kernel offsets      = {kern_offs}')
             print(f'Kernel lengths      = {kern_len}')
-            if device >= 85:
+            if device != 84:
                 print(f'Kernel dimensions   = {kernel_size}')
                 print(f'Kernel size         = {quantization}')
             print(f'Operator            = [',
@@ -459,21 +459,7 @@ def create_net(prefix,
             for _, group in enumerate(groups_used):
                 apb.output(f'\n  // Layer {ll} group {group}\n')
 
-                if operator[ll] != op.CONV1D or device != 84:
-                    # Configure row count
-                    # [7:0] maxcount: lower 8 bits = total of width + pad - 1
-                    # [9:8] pad: 2 bits pad
-                    apb.write_lreg(group, ll, tc.dev.LREG_RCNT,
-                                   (padding[ll][0] << 8) | (input_dim[ll][0]-1 + 2*padding[ll][0]),
-                                   verbose, comment=' // Rows')
-
-                    # Configure column count (evaluates to 0 for 1D convolutions)
-                    # [7:0] width including padding - 1
-                    # [9:8] pad count (0 = no pad, 1 = half pad, 2 = full pad)
-                    apb.write_lreg(group, ll, tc.dev.LREG_CCNT,
-                                   padding[ll][1] << 8 | (input_dim[ll][1]-1 + 2 * padding[ll][1]),
-                                   verbose, comment=' // Columns')
-                else:
+                if device == 84 and operator[ll] == op.CONV1D:
                     # For 1D convolutions on AI84, the column count is always 3, and the
                     # row count is divided by 3. Padding is divided by 3.
                     val = (padding[ll][0] // 3 << 8) \
@@ -482,8 +468,23 @@ def create_net(prefix,
                                    verbose, comment=' // Rows')
                     apb.write_lreg(group, ll, tc.dev.LREG_CCNT, 2,
                                    verbose, comment=' // Columns')
+                else:
+                    # Configure row count
+                    # [7:0] maxcount: lower 8 bits = total of width + pad - 1
+                    # [9:8] pad: 2 bits pad
+                    apb.write_lreg(group, ll, tc.dev.LREG_RCNT,
+                                   padding[ll][0] << 8 | input_dim[ll][0]-1 + 2*padding[ll][0],
+                                   verbose, comment=' // Rows')
 
-                if operator[ll] != op.CONV2D and device != 84:
+                    # Configure column count (evaluates to 0 for 1D convolutions)
+                    # [7:0] width including padding - 1
+                    # [9:8] pad count (0 = no pad, 1 = half pad, 2 = full pad)
+                    apb.write_lreg(group, ll, tc.dev.LREG_CCNT,
+                                   padding[ll][1] << 8 | input_dim[ll][1]-1 + 2 * padding[ll][1],
+                                   verbose, comment=' // Columns')
+
+                if operator[ll] != op.CONV2D and device != 84 or \
+                   operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]:
                     #  [3:0] tscnt_max[3:0]      Maximum timeslot count register
                     #  [7:4] oned_sad[3:0]       Start mask address (offset within 9 byte mask)
                     # [11:8] oned_width[3:0]     1D mask width (0-9). Width > 0 enables 1D.
@@ -522,7 +523,7 @@ def create_net(prefix,
                     # next layer.
                     instance = ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1)
                     val |= (instance % tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE \
-                        | ((instance // tc.dev.P_SHARED) << tc.dev.INSTANCE_SHIFT)
+                        | (instance // tc.dev.P_SHARED) << tc.dev.INSTANCE_SHIFT
                 else:
                     instance = ffs(output_processor_map[ll] >> group * tc.dev.P_SHARED) \
                            & ~(tc.dev.P_SHARED-1)
@@ -594,7 +595,7 @@ def create_net(prefix,
                       (0x20)
                 if not local_source:
                     val |= 0x800
-                if device >= 85:
+                if device != 84:
                     val |= ((out_expand[ll] - 1) << 19) \
                            | (fls(output_processor_map[ll])
                               - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) \
@@ -649,25 +650,26 @@ def create_net(prefix,
                                verbose, comment=' // Mask offset and count')
 
                 # Configure tram pointer max
-                if operator[ll] != op.CONV1D:
+                if operator[ll] == op.CONV1D or \
+                   operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]:
+                    val = 0
+                else:
                     val = tram_max[ll] - 1
                     if ll > 0 and streaming[ll]:
                         prev_max = sum(tram_max[:ll])
                         val += prev_max
                         val |= prev_max << 16
-                else:
-                    val = 0
                 apb.write_lreg(group, ll, tc.dev.LREG_TPTR, val,
                                verbose, comment=' // TRAM ptr max')
 
-                if device >= 85:
+                if device != 84:
                     # Compensate for the smaller weights by adjusting the output shift
                     if quantization[ll] == 1:
-                        val = (1 << 22) | (3 << 13)  # Shift left 3
+                        val = 1 << 22 | 3 << 13  # Shift left 3
                     elif quantization[ll] == 2:
-                        val = (2 << 22) | (2 << 13)  # Shift left 2
+                        val = 2 << 22 | 2 << 13  # Shift left 2
                     elif quantization[ll] == 4:
-                        val = (3 << 22) | (1 << 13)  # Shift left 1
+                        val = 3 << 22 | 1 << 13  # Shift left 1
                     else:
                         assert quantization[ll] == 8
                         val = 0  # Do not shift
@@ -677,9 +679,9 @@ def create_net(prefix,
 
                     if group == bias_group[ll]:
                         # Enable bias only for one group
-                        val |= (1 << 12) | bias_offs[ll]
+                        val |= 1 << 12 | bias_offs[ll]
 
-                    if operator[ll] != op.CONV1D and kernel_size[ll] == [1, 1]:
+                    if operator[ll] == op.NONE:
                         val |= 3 << 24
 
                     apb.write_lreg(group, ll, tc.dev.LREG_POST, val,
