@@ -1,0 +1,37 @@
+# CHW (big data) configuration for CIFAR-10
+# Note: This does not work past the third layer due to lack of weight memory
+# Used for testing the CHW input with gaps
+
+arch: ai84net5
+dataset: CIFAR-10
+
+# Define layer parameters in order of the layer sequence
+layers:
+- pad: 1
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0x0000000000000007
+  data_format: HWC
+  streaming: true
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0
+  processors: 0xfffffffffffffff0
+  streaming: true
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0xfffefffefffefffe
+  streaming: true
+- avg_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0
+  processors: 0x7ffe7ffe7ffe7ffe
+  streaming: true
+
