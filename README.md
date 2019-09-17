@@ -1,9 +1,9 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_9/12/2019_
+_9/17/2019_
 
-_Open this file in a markdown enabled viewer, for example Visual Studio Code
+_Open this file in a markdown enabled viewer, for example Typora (http://typora.io) or Visual Studio Code
 (https://code.visualstudio.com). See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet
 for a description of Markdown._
 
@@ -126,10 +126,11 @@ The following software is optional, and can be replaced with other similar softw
 user's choosing.
 
 1. Visual Studio Code (Editor, Free), https://code.visualstudio.com
-2. CoolTerm (Serial Terminal, Free), http://freeware.the-meiers.org
+2. Typora (Markdown Editor, Free during beta), http://typora.io
+3. CoolTerm (Serial Terminal, Free), http://freeware.the-meiers.org
    or Serial ($30), https://apps.apple.com/us/app/serial/id877615577?mt=12
-3. Git Fork (Graphical Git Client, Free), https://git-fork.com
-4. Beyond Compare (Diff and Merge Tool, $60), https://scootersoftware.com
+4. Git Fork (Graphical Git Client, Free), https://git-fork.com
+5. Beyond Compare (Diff and Merge Tool, $60), https://scootersoftware.com
 
 ### Project Installation
 
@@ -335,6 +336,7 @@ data word consists of four packed channels).
     required that four channels fit into a single memory instance -- or 91x90 pixels per channel.
     Note that the first layer commonly creates a wide expansion (i.e., large number of output
     channels) that needs to fit into data memory, so the input size limit is mostly theoretical.
+  * When using streaming, the data sizes are limited to 512x512, subject to available TRAM.
 
 ### Number Format
 
@@ -502,7 +504,7 @@ All internal data are stored in HWC format, 4 channels per 32-bit word. Assuming
 #### CHW
 
 The input layer can also use the CHW format (sequence of channels), for example:
-  
+
 ![RRRRRR...GGGGGG...BBBBBB...](docs/CHW.png)
 
 ### CHW Data Format and Consequences for Weight Memory Layout
@@ -639,12 +641,14 @@ The AI85 hardware does not support arbitrary network parameters. Specifically,
 * The number of input or output channels must not exceed 512.
 * The number of layers must not exceed 32.
 * The maximum dimension (number of rows or columns) for input or output data is 256.
+  * When using data greater than 90x91, `streaming` mode must be used.
 * Overall weight storage is limited to 64*768 3x3 8-bit kernels (and proportionally more when
   using smaller weights, or smaller kernels). However, weights must be arranged in a certain order,
   see above.
-* The hardware supports 1D and 2D convolution layers, as well as a fully connected layer
-  (implemented using a `flatten` operator and 1x1 convolutions on 1x1 data). For convenience,
-  a `SoftMax` operator is supported in software.
+* The hardware supports 1D and 2D convolution layers, elementwise addition, subtraction, and binary XOR as well as a fully connected layer (`Linear`) (implemented using 1x1 convolutions on 1x1 data):
+  * The maximum number of input neurons is 512, and the maximum number of output neurons is 512 (8 each per processor used).
+  *  `Flatten` functionality is available to convert 2D input data.
+  * For convenience, a `SoftMax` operator is supported in software.
 * Since the internal network format is HWC in groups of four channels, output concatenation only
   works properly when all components of the concatenation other than the last have multiples
   of four channels.
@@ -743,10 +747,10 @@ The `cnn-gen.py` program needs two inputs:
 An example network description for the ai84net5 architecture and FashionMNIST is shown below:
 
     # CHW (big data) configuration for FashionMNIST
-
+    
     arch: ai84net5
     dataset: FashionMNIST
-
+    
     # Define layer parameters in order of the layer sequence
     layers:
     - pad: 1
@@ -884,16 +888,15 @@ This key (which can also be specified using `op`, `operator`, or `convolution`) 
 main operation after the optional input pooling.
 The default is `Conv2d`. AI84 only supports `Conv1d` and `Conv2d`.
 
-| Operation	                | Description                                                   |
-|:--------------------------|:--------------------------------------------------------------|
+| Operation                 | Description                                                  |
+| :------------------------ | :----------------------------------------------------------- |
 | `Conv1d`                  | 1D convolution over an input composed of several input planes |
 | `Conv2d` (default)        | 2D convolution over an input composed of several input planes |
-| `None` or `Passthrough`   | No operation                                                  |
-| `Linear` or `FC` or `MLP` | Linear transformation to the incoming data                    |
-| `Add`                     | Element-wise addition                                         |
-| `Sub`                     | Element-wise subtraction                                      |
-| `Mul`                     | Element-wise multiplication                                   |
-| `Xor`                     | Element-wise XOR                                              |
+| `None` or `Passthrough`   | No operation                                                 |
+| `Linear` or `FC` or `MLP` | Linear transformation to the incoming data                   |
+| `Add`                     | Element-wise addition                                        |
+| `Sub`                     | Element-wise subtraction                                     |
+| `Xor`                     | Element-wise binary XOR                                      |
 
 ##### `activate` (Optional)
 
@@ -961,11 +964,24 @@ Example: `pool_stride: 2`
 
 `in_dim` specifies the dimensions of the input data. This is usually automatically computed;
 however, when merging layers or flattening data, this key allows overriding of the dimensions.
-The value `"flatten"` is equivalent to `[1, 1]`.
 
-Examples:  
-  `in_dim: [64, 64]`  
-  `in_dim: "flatten"`.
+Example:  
+  `in_dim: [64, 64]` 
+
+##### `streaming` (Optional)
+
+`streaming` specifies that the layer is using streaming mode. this is necessary when the input data dimensions exceed the available data memory. When enabling `streaming`, all prior layers have to enable `streaming` as well. `streaming` can be enabled for up to 8 layers.
+
+Example:
+
+​	`streaming: true`
+
+##### `flatten` (Optional)
+
+`flatten` specifies that 2D input data should be transformed to 1D data for use by a `Linear` layer.
+
+Example:
+	`flatten: true`
 
 
 ### Adding Datasets to the Network Loader
@@ -1074,9 +1090,11 @@ The `--ai85` option enables:
 * 1D convolutions.
 * 1x1 kernels for 2D convolutions.
 * Data 'flattening', allowing the use of 1x1 kernels to emulate fully connected layers.
+* Element-wise addition, subtraction, and binary xor.
 * Support for more weight memory, and more input and output channels.
 * Support for non-square data and non-square pooling kernels.
 * Support for 32-bit Q25.7 data output for last layer when not using ReLU.
+* Support for streaming mode to allow for larger data sizes.
 
 ---
 
@@ -1106,7 +1124,7 @@ Do not try to push any changes into the master branch. Instead, create a local "
 The easiest way to do this is using a graphical client such as [Fork](#Recommended-Software).
 The command line equivalent is:
 
-    $ git checkout ​-​b my-new-feature
+    $ git checkout -b my-new-feature
     $ git status
     On branch my-new-feature
     ...
@@ -1128,11 +1146,11 @@ Install a commit hook:
 And push the changes to Maxim's Gerrit server (do not change 'master' to anything else even
 though the local branch is called 'my-new-feature'):
 
-    $ git push https://first.last@gerrit.maxim-ic.com:8443/ai8x-synthesis HEAD​:​refs​/f​or​/m​aster
+    $ git push https://first.last@gerrit.maxim-ic.com:8443/ai8x-synthesis HEAD:refs/for/master
     ...
-    remote​:
-    To​ URL
-    ​*​ ​[​new​ branch​]​ my-new-feature ​->​ refs​/​for​/​master
+    remote:
+    To URL
+    * [new branch] my-new-feature -> refs/for/master
 
 Open the URL in a web browser and request a review for the change list.
 
