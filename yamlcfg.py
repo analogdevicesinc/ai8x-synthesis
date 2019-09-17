@@ -70,12 +70,14 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     kernel_size = [DEFAULT_2D_KERNEL] * tc.dev.MAX_LAYERS
     stride = [[1, 1]] * tc.dev.MAX_LAYERS
     streaming = [False] * tc.dev.MAX_LAYERS
+    flatten = [False] * tc.dev.MAX_LAYERS
 
     sequence = 0
     for ll in cfg['layers']:
         if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'in_dim',
                                'in_offset', 'kernel_size', 'pool_stride', 'out_offset',
-                               'activate', 'data_format', 'op', 'operation', 'operator',
+                               'activate', 'data_format', 'flatten',
+                               'op', 'operation', 'operator',
                                'output_processors', 'output_width',
                                'processors', 'pad', 'quantization',
                                'sequence', 'streaming', 'stride'])):
@@ -132,10 +134,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             quantization[sequence] = val
 
         if 'in_dim' in ll:
-            if ll['in_dim'].lower() == 'flatten':
-                input_dim[sequence] = [1, 1]
-            else:
-                input_dim[sequence] = ll['in_dim']
+            input_dim[sequence] = ll['in_dim']
         if 'in_offset' in ll:
             input_offset[sequence] = ll['in_offset']
         if 'out_offset' in ll:
@@ -235,6 +234,13 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             except ValueError:
                 error_exit(f'Unsupported value `{val}` for `streaming`', sequence)
 
+        if 'flatten' in ll:
+            val = ll['flatten']
+            try:
+                flatten[sequence] = bool(val)
+            except ValueError:
+                error_exit(f'Unsupported value `{val}` for `flatten`', sequence)
+
         # Fix up values for 1D convolution or no convolution
         if operator[sequence] == op.CONV1D:
             padding[sequence][1] = 0
@@ -272,6 +278,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             del stride[ll]
             del pooling_enabled[ll]
             del streaming[ll]
+            del flatten[ll]
 
     # Check all but last layer
     for ll in range(len(output_map) - 1):
@@ -323,5 +330,6 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     settings['kernel_size'] = kernel_size
     settings['stride'] = stride
     settings['streaming'] = streaming
+    settings['flatten'] = flatten
 
     return cfg, settings

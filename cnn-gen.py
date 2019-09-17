@@ -72,6 +72,7 @@ def create_net(prefix,
                in_offset,
                out_offset,
                streaming,
+               flatten,
                input_filename,
                output_filename,
                c_filename,
@@ -129,6 +130,8 @@ def create_net(prefix,
         if input_chan[ll] > tc.dev.MAX_PROC:
             in_expand_thresh[ll] = \
                 (in_expand_thresh[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
+        if flatten[ll]:
+            in_expand[ll] *= input_dim[ll][0] * input_dim[ll][1]
 
         # Data memory size check - 4 channels share one instance unless CHW format
         in_size = input_dim[ll][0] * input_dim[ll][1] * in_expand[ll] \
@@ -388,6 +391,7 @@ def create_net(prefix,
             print('------------------------')
             print(f'Input dimensions    = {input_dim}')
             print(f'Input channels      = {input_chan}')
+            print(f'Flatten             = {flatten}')
             print('Processor map       = [',
                   ', '.join('0x{:016x}'.format(k) for k in processor_map), ']', sep='',)
             if device != 84:
@@ -805,7 +809,12 @@ def create_net(prefix,
     # Compute layer-by-layer output and chain results into input
     for ll in range(layers):
         if operator[ll] == op.CONV2D:
-            data = data.reshape(input_chan[ll], input_dim[ll][0], input_dim[ll][1])
+            if flatten[ll]:
+                in_chan = input_chan[ll] * input_dim[ll][0] * input_dim[ll][1]
+                data = data.reshape(in_chan, 1, 1)
+            else:
+                in_chan = input_chan[ll]
+                data = data.reshape(in_chan, input_dim[ll][0], input_dim[ll][1])
             out_buf, out_size = cnn2d_layer(ll,
                                             verbose,
                                             data.shape,
@@ -817,7 +826,7 @@ def create_net(prefix,
                                             pool_stride[ll],
                                             pool_average[ll],
                                             activate[ll],
-                                            kernel[ll].reshape(output_chan[ll], input_chan[ll],
+                                            kernel[ll].reshape(output_chan[ll], in_chan,
                                                                kernel_size[ll][0],
                                                                kernel_size[ll][1]),
                                             bias[ll],
@@ -1051,6 +1060,7 @@ def main():
     output_width = params['output_width'][:layers]
     operator = params['operator'][:layers]
     streaming = params['streaming'][:layers]
+    flatten = params['flatten'][:layers]
 
     # Command line override
     if args.input_offset is not None:
@@ -1118,6 +1128,8 @@ def main():
                                2 * padding[ll][0]) // stride[ll][0] + 1,
                               (pooled_size[1] - dilation[ll][1] * (kernel_size[ll][1] - 1) - 1 +
                                2 * padding[ll][1]) // stride[ll][1] + 1]
+            if flatten[ll]:
+                output_dim[ll] = [1, 1]
             if padding[ll][0] >= 3:
                 print(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
                       f'(currently set to {padding[ll][0]}).')
@@ -1197,6 +1209,7 @@ def main():
                         input_offset,
                         output_offset,
                         streaming,
+                        flatten,
                         args.input_filename,
                         args.output_filename,
                         args.c_filename,
