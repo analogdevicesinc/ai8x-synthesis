@@ -237,8 +237,10 @@ def create_net(prefix,
         apb.output(f'\n// Configuring {layers} layer{"s" if layers > 1 else ""}:\n')
 
         for ll in range(layers):
-            apb.output(f'// Layer {ll}: {input_chan[ll]}x{input_dim_str[ll]} '
-                       f'{"(CHW/big data)" if big_data[ll] else "(HWC/little data)"}, ')
+            apb.output(f'// Layer {ll}: {input_chan[ll]}x{input_dim_str[ll]} ('
+                       f'{"streaming " if streaming[ll] else ""}'
+                       f'{"flattened " if flatten[ll] else ""}'
+                       f'{"CHW/big data)" if big_data[ll] else "HWC/little data)"}, ')
             if pool[ll][0] > 1 or pool[ll][1] > 1:
                 apb.output(f'{pool_str[ll]} {"avg" if pool_average[ll] else "max"} '
                            f'pool with stride {pool_stride_str[ll]}')
@@ -315,7 +317,7 @@ def create_net(prefix,
                              kernel, kernel_size,
                              quantization, processor_map, output_processor_map,
                              input_chan, output_chan, out_expand, out_expand_thresh,
-                             in_expand, in_expand_thresh, debug)
+                             in_expand, in_expand_thresh, flatten, debug)
             bias_offs, bias_group, group_bias_max = \
                 kbias.load(verbose, True, apb, layers, bias,
                            quantization, group_map, output_chan, debug)
@@ -368,7 +370,7 @@ def create_net(prefix,
                              kernel, kernel_size,
                              quantization, processor_map, output_processor_map,
                              input_chan, output_chan, out_expand, out_expand_thresh,
-                             in_expand, in_expand_thresh, debug)
+                             in_expand, in_expand_thresh, flatten, debug)
             bias_offs, bias_group, group_bias_max = \
                 kbias.load(verbose, embedded_code, apb, layers, bias,
                            quantization, group_map, output_chan, debug)
@@ -1130,6 +1132,7 @@ def main():
                                2 * padding[ll][1]) // stride[ll][1] + 1]
             if flatten[ll]:
                 output_dim[ll] = [1, 1]
+                input_channels[ll] //= input_dim[ll][0] * input_dim[ll][1]
             if padding[ll][0] >= 3:
                 print(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
                       f'(currently set to {padding[ll][0]}).')
