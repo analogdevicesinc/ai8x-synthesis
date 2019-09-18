@@ -249,26 +249,30 @@ def pool1d(data, input_size, output_size, pool, stride, average,
 
 
 def eltwise(operator,
-            data1,
-            data2,
+            data,
             input_size,
             debug=False):  # pylint: disable=unused-argument
     """
     Compute element-wise operation.
     """
-    assert data1.shape == tuple(input_size) and data2.shape == tuple(input_size)
+    assert data[0].shape == tuple(input_size)
+    operands = len(data)
 
-    if operator == op.ELTWISE_ADD:
-        output = np.add(data1, data2)
-    elif operator == op.ELTWISE_SUB:
-        output = np.subtract(data1, data2)
-    elif operator == op.ELTWISE_MUL:
-        output = np.multiply(data1, data2)
-    elif operator == op.ELTWISE_XOR:
-        output = np.bitwise_xor(data1, data2)
-    else:
-        print(f"Unknown operator `{op.string(operator)}`")
-        raise NotImplementedError
+    output = data[0]
+    for i in range(1, operands):
+        if operator == op.ELTWISE_ADD:
+            output = np.add(output, data[i])
+        elif operator == op.ELTWISE_MUL:
+            output = np.multiply(output, data[i])
+        elif operator == op.ELTWISE_OR:
+            output = np.bitwise_or(output, data[i])
+        elif operator == op.ELTWISE_SUB:
+            output = np.subtract(output, data[i])
+        elif operator == op.ELTWISE_XOR:
+            output = np.bitwise_xor(output, data[i])
+        else:
+            print(f"Unknown operator `{op.string(operator)}`")
+            raise NotImplementedError
 
     assert output.shape == tuple(input_size)
     return output

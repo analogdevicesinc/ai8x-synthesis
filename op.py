@@ -10,20 +10,28 @@
 Operators
 """
 NONE = 0
-ELTWISE_ADD = -1
-ELTWISE_SUB = -2
-ELTWISE_MUL = -3
-ELTWISE_XOR = -4
 CONV1D = 1
 CONV2D = 2
+LINEAR = 3
+ELTWISE_ADD = -1
+ELTWISE_MUL = -2
+ELTWISE_OR = -3
+ELTWISE_SUB = -4
+ELTWISE_XOR = -5
 
 NAMES = {NONE: 'none',
          ELTWISE_ADD: 'add',
          ELTWISE_SUB: 'sub',
          ELTWISE_MUL: 'mul',
          ELTWISE_XOR: 'xor',
+         ELTWISE_OR: 'or',
          CONV1D: 'conv1d',
          CONV2D: 'conv2d'}
+
+ENCODING = {ELTWISE_ADD: 0b01,
+            ELTWISE_SUB: 0b00,
+            ELTWISE_XOR: 0b11,
+            ELTWISE_OR: 0b10}
 
 
 def string(op):
@@ -31,3 +39,19 @@ def string(op):
     Return string rep[reaentation of operator `op`
     """
     return NAMES[op] if op in NAMES else '????'
+
+
+def eltwise(op):
+    """
+    Returns `True` when `op` is an element-wise operator.
+    """
+    return op in [ELTWISE_ADD, ELTWISE_MUL, ELTWISE_SUB, ELTWISE_XOR, ELTWISE_OR]
+
+
+def eltwise_fn(op):
+    """
+    Returns the bit encoding for `op`, where `op` is an element-wise operator.
+    """
+    if op in ENCODING:
+        return ENCODING[op]
+    raise NotImplementedError

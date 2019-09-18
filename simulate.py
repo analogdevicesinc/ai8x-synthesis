@@ -394,36 +394,32 @@ def eltwise_layer(operator,
                   verbose,
                   input_size,
                   do_activation,
-                  data1,
-                  data2,
+                  data,
                   output_width=8,
                   device=84,  # pylint: disable=unused-argument
                   debug=False,
                   expand=None,
+                  operands=1,
                   expand_thresh=None):
     """
     Element-wise operators for one layer.
     """
     quantization = bits = 8
+    assert operands == len(data)
 
     if verbose:
         if expand_thresh is None:
             expand_thresh = input_size[0]
-        print_data(f"LAYER {layer} ({op.string(operator).upper()})...\n\n"
-                   f"{input_size[0]}x{input_size[1]}x{input_size[2]} INPUT DATA 1:",
-                   data1,
-                   input_size,
-                   expand,
-                   expand_thresh)
-        print_data(f"{input_size[0]}x{input_size[1]}x{input_size[2]} INPUT DATA 2:",
-                   data2,
-                   input_size,
-                   expand,
-                   expand_thresh)
+        print(f"LAYER {layer} ({operands}-OPERAND {op.string(operator).upper()})...\n")
+        for i in range(operands):
+            print_data(f"{input_size[0]}x{input_size[1]}x{input_size[2]} INPUT DATA {i}:",
+                       data[i],
+                       input_size,
+                       expand,
+                       expand_thresh)
 
     out_buf = eltwise(operator=operator,
-                      data1=data1,
-                      data2=data2,
+                      data=data,
                       input_size=input_size,
                       debug=debug)
 
@@ -436,15 +432,18 @@ def eltwise_layer(operator,
         print('')
 
     if operator in [op.ELTWISE_ADD, op.ELTWISE_SUB]:
-        stats.add += out_buf.size
+        stats.add += (operands - 1) * out_buf.size
     elif operator == op.ELTWISE_MUL:
-        stats.mul += out_buf.size
-    elif operator == op.ELTWISE_XOR:
-        stats.xor += out_buf.size
+        stats.mul += (operands - 1) * out_buf.size
+    elif operator in [op.ELTWISE_OR, op.ELTWISE_XOR]:
+        stats.bitwise += (operands - 1) * out_buf.size
 
     if output_width != 32:
-        out_buf = np.floor(0.5 + out_buf / (16*quantization)).astype(np.int64). \
-            clip(-(2**(bits-1)), 2**(bits-1)-1)
+        if operator == op.ELTWISE_MUL:
+            out_buf = np.floor(0.5 + out_buf / (16*quantization)).astype(np.int64). \
+                clip(-(2**(bits-1)), 2**(bits-1)-1)
+        else:
+            np.clip(out_buf, -(2**(bits-1)), 2**(bits-1)-1, out_buf)
 
         if verbose:
             print(f"{input_size[0]}x{input_size[1]}x{input_size[2]} OUTPUT "
