@@ -86,6 +86,7 @@ def create_net(prefix,
                embedded_code=False,
                compact_weights=False,
                compact_data=False,
+               write_zero_regs=False,
                weight_filename=None,
                sample_filename=None,
                device=84,
@@ -224,6 +225,7 @@ def create_net(prefix,
                                   embedded_code=embedded_code,
                                   compact_weights=compact_weights,
                                   compact_data=compact_data,
+                                  write_zero_registers=write_zero_regs,
                                   weight_filename=weight_filename,
                                   sample_filename=sample_filename,
                                   device=device)
@@ -759,7 +761,8 @@ def create_net(prefix,
                         if reg == tc.dev.LREG_RFU:  # Register 2 not implemented
                             continue
                         apb.write_lreg(group, ll, reg, 0,
-                                       verbose, comment=f' // Zero unused layer {ll} registers')
+                                       verbose, force_write=True,
+                                       comment=f' // Zero unused layer {ll} registers')
 
         # Load data memory
         if embedded_code or compact_data:
@@ -1226,6 +1229,7 @@ def main():
                         args.embedded_code,
                         args.compact_weights,
                         args.compact_data,
+                        args.write_zero_registers,
                         args.weight_filename,
                         args.sample_filename,
                         args.device,
