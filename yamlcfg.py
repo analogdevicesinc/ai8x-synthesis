@@ -71,13 +71,14 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     stride = [[1, 1]] * tc.dev.MAX_LAYERS
     streaming = [False] * tc.dev.MAX_LAYERS
     flatten = [False] * tc.dev.MAX_LAYERS
+    operands = [1] * tc.dev.MAX_LAYERS
 
     sequence = 0
     for ll in cfg['layers']:
         if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'in_dim',
                                'in_offset', 'kernel_size', 'pool_stride', 'out_offset',
                                'activate', 'data_format', 'flatten',
-                               'op', 'operation', 'operator',
+                               'op', 'operands', 'operation', 'operator',
                                'output_processors', 'output_width',
                                'processors', 'pad', 'quantization',
                                'sequence', 'streaming', 'stride'])):
@@ -161,12 +162,16 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                 operator[sequence] = op.NONE
             elif conv == 'add':
                 operator[sequence] = op.ELTWISE_ADD
+                operands[sequence] = 2
+            elif conv == 'or':
+                operator[sequence] = op.ELTWISE_OR
+                operands[sequence] = 2
             elif conv == 'sub':
                 operator[sequence] = op.ELTWISE_SUB
-            elif conv == 'mul':
-                operator[sequence] = op.ELTWISE_MUL
+                operands[sequence] = 2
             elif conv == 'xor':
                 operator[sequence] = op.ELTWISE_XOR
+                operands[sequence] = 2
             elif conv in ['linear', 'fc', 'mlp']:
                 # Emulate using Conv2D with 1x1 kernels and 1x1 data
                 operator[sequence] = op.CONV2D
@@ -175,6 +180,14 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             else:
                 error_exit(f'Unknown value "{ll[key]}" for `{key}`', sequence)
                 sys.exit(1)
+
+        if 'operands' in ll:
+            if not op.eltwise(operator[sequence]):
+                error_exit('`operands` can only be used with element-wise operations', sequence)
+            val = ll['operands']
+            if val < 2 or val > 16:
+                error_exit('`operands` has to be 2..16', sequence)
+            operands[sequence] = val
 
         if 'data_format' in ll:
             if sequence:
@@ -249,8 +262,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             stride[sequence][1] = 1
         elif operator[sequence] == op.NONE:
             kernel_size[sequence] = [1, 1]
-        elif operator[sequence] in [op.ELTWISE_ADD, op.ELTWISE_SUB,
-                                    op.ELTWISE_MUL, op.ELTWISE_XOR]:
+        elif op.eltwise(operator[sequence]):
             if pooling_enabled[sequence]:
                 error_exit('Element-wise operators do not support pooling', sequence)
 
@@ -279,6 +291,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             del pooling_enabled[ll]
             del streaming[ll]
             del flatten[ll]
+            del operands[ll]
 
     # Check all but last layer
     for ll in range(len(output_map) - 1):
@@ -331,5 +344,6 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     settings['stride'] = stride
     settings['streaming'] = streaming
     settings['flatten'] = flatten
+    settings['operands'] = operands
 
     return cfg, settings

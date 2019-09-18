@@ -68,7 +68,7 @@ def load(verbose, embedded_code, device, apb, layers, operator,
         print('\nLoading Kernels...')
 
     for ll in range(layers):
-        if operator[ll] == op.NONE:
+        if operator[ll] not in [op.CONV1D, op.CONV2D, op.LINEAR]:
             kern_len[ll] = 0
             kern_offs[ll] = 0
             continue

@@ -73,6 +73,7 @@ def create_net(prefix,
                out_offset,
                streaming,
                flatten,
+               operands,
                input_filename,
                output_filename,
                c_filename,
@@ -128,6 +129,7 @@ def create_net(prefix,
                 (out_expand_thresh[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
         in_expand[ll] = (input_chan[ll] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
         in_expand_thresh[ll] = (input_chan[ll] + in_expand[ll]-1) // in_expand[ll]
+
         if input_chan[ll] > tc.dev.MAX_PROC:
             in_expand_thresh[ll] = \
                 (in_expand_thresh[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
@@ -135,7 +137,7 @@ def create_net(prefix,
             in_expand[ll] *= input_dim[ll][0] * input_dim[ll][1]
 
         # Data memory size check - 4 channels share one instance unless CHW format
-        in_size = input_dim[ll][0] * input_dim[ll][1] * in_expand[ll] \
+        in_size = input_dim[ll][0] * input_dim[ll][1] * in_expand[ll] * operands[ll] \
             * (1 if big_data[ll] else 4)
         if in_size + in_offset[ll] > tc.dev.INSTANCE_SIZE*16:
             print(f'Layer {ll}: {1 if big_data[ll] else 4}-channel input size {in_size} '
@@ -248,7 +250,7 @@ def create_net(prefix,
                            f'pool with stride {pool_stride_str[ll]}')
             else:
                 apb.output(f'no pooling')
-            if operator[ll] in [op.CONV1D, op.CONV2D]:
+            if operator[ll] in [op.CONV1D, op.CONV2D, op.LINEAR]:
                 conv_str = f', {op.string(operator[ll])} with kernel size ' \
                            f'{kernel_size_str[ll]}, '
             else:
@@ -310,7 +312,7 @@ def create_net(prefix,
             # Pre-define data memory loader. Inline later when generating RTL sim.
             load.load(True, apb, big_data[0], processor_map[0], in_offset[0],
                       [input_chan[0], input_dim[0][0], input_dim[0][1]],
-                      in_expand[0], in_expand_thresh[0],
+                      in_expand[0], operands[0], in_expand_thresh[0],
                       data, padding[0], split=split, debug=debug)
         if embedded_code or compact_weights:
             # Pre-define the kernels and bias values
@@ -401,6 +403,7 @@ def create_net(prefix,
             if device != 84:
                 print(f'Input expansion     = {in_expand}')
                 print(f'Expansion threshold = {in_expand_thresh}')
+                print(f'Operand expansion   = {operands}')
             print('Input offsets       = [',
                   ', '.join('0x{:04x}'.format(k) for k in in_offset), ']', sep='',)
 
@@ -442,7 +445,7 @@ def create_net(prefix,
         # Configure per-layer control registers
         for ll in range(layers):
 
-            local_source = operator[ll] == op.NONE
+            local_source = operator[ll] not in [op.CONV1D, op.CONV2D, op.LINEAR]
             for _, group in enumerate(groups_used):
                 # Local output must be used:
                 # - When parallel processing is enabled (not currently supported), or
@@ -495,16 +498,33 @@ def create_net(prefix,
                                    padding[ll][1] << 8 | input_dim[ll][1]-1 + 2 * padding[ll][1],
                                    verbose, comment=' // Columns')
 
-                if operator[ll] != op.CONV2D and device != 84 or \
-                   operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]:
-                    #  [3:0] tscnt_max[3:0]      Maximum timeslot count register
-                    #  [7:4] oned_sad[3:0]       Start mask address (offset within 9 byte mask)
-                    # [11:8] oned_width[3:0]     1D mask width (0-9). Width > 0 enables 1D.
-                    #   [12] oned_iena           Input data is 1-dimensional
+                if device != 84:
+                    #   [3:0] tscnt_max[3:0]      Maximum timeslot count register
+                    #   [7:4] oned_sad[3:0]       Start mask address (offset within 9 byte mask)
+                    #  [11:8] oned_width[3:0]     1D mask width (0-9). Width > 0 enables 1D.
+                    #    [12] oned_iena           Input data is 1-dimensional
+                    #    [13] ewise_ena           Enable element-wise operation
+                    # [17:14] ewise_fun           Elementwise function select
+                    #         .3   - Enables 2D convolution of the ewise result.
+                    #                Standard 2D processing applies.
+                    #         .2   - Enables pre-pooling of the input data before element-wise
+                    #                operation.
+                    #         .1/0 - 2'b00 = add
+                    #                2'b01 = subtract
+                    #                2'b10 = bitwise XOR
+                    #                2'b11 = bitwise OR.
+                    # [21:18] ewise_cnt           Element wise operand count
+
                     if operator[ll] == op.CONV1D:
                         val = kernel_size[ll][0] << 8 | 1 << 12
-                    else:
+                    elif (operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]
+                          or operator[ll] in [op.NONE, op.LINEAR]):
                         val = 1 << 8
+                    elif op.eltwise(operator[ll]):
+                        val = 1 << 13 | op.eltwise_fn(operator[ll]) << 14 | operands[ll] - 1 << 18
+                    else:
+                        val = 0
+
                     apb.write_lreg(group, ll, tc.dev.LREG_ONED, val,
                                    verbose, comment=' // 1D')
 
@@ -566,9 +586,15 @@ def create_net(prefix,
                 else:
                     # [15:0] Write Pointer Timeslot Offset Register
                     # Used for 1x1 convolution, and pooling without convolution
+                    # FIXME: Multipass-Elementwise-Passthrough broken
                     if operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]:
                         val = 1
-                    elif operator[ll] not in [op.CONV1D, op.CONV2D]:
+                    elif op.eltwise(operator[ll]):
+                        if in_expand[ll] > 1:
+                            val = 1
+                        else:
+                            val = tc.dev.INSTANCE_SIZE
+                    elif operator[ll] not in [op.CONV1D, op.CONV2D, op.LINEAR]:
                         val = tc.dev.INSTANCE_SIZE
                     else:
                         val = 0
@@ -656,7 +682,7 @@ def create_net(prefix,
                         # Enable bias only for one group
                         val |= 0x1000000 | bias_offs[ll] << 16
                 else:
-                    if operator[ll] != op.NONE:
+                    if operator[ll] in [op.CONV1D, op.CONV2D, op.LINEAR]:
                         kl = (((fls(output_processor_map[ll])
                                 - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) + 1)
                               * quantization[ll]) * out_expand[ll] * in_expand[ll] \
@@ -703,6 +729,9 @@ def create_net(prefix,
                     if operator[ll] == op.NONE:
                         val |= 3 << 24
 
+                    if op.eltwise(operator[ll]):
+                        val |= 1 << 24
+
                     apb.write_lreg(group, ll, tc.dev.LREG_POST, val,
                                    verbose, comment=' // AI85/86 post processing register')
 
@@ -715,7 +744,7 @@ def create_net(prefix,
                 #
                 # Enable at most 16 processors and masks
                 val = (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO
-                if operator[ll] in [op.CONV1D, op.CONV2D]:
+                if operator[ll] in [op.CONV1D, op.CONV2D, op.LINEAR]:
                     val = val << 16 | val
                 apb.write_lreg(group, ll, tc.dev.LREG_ENA, val,
                                verbose, comment=' // Mask and processor enables')
@@ -771,7 +800,7 @@ def create_net(prefix,
         else:
             load.load(embedded_code, apb, big_data[0], processor_map[0], in_offset[0],
                       [input_chan[0], input_dim[0][0], input_dim[0][1]],
-                      in_expand[0], in_expand_thresh[0],
+                      in_expand[0], operands[0], in_expand_thresh[0],
                       data, padding[0], split=split, debug=debug)
 
         if verbose:
@@ -874,19 +903,21 @@ def create_net(prefix,
                                                   debug=debug_computation,
                                                   expand=in_expand[ll],
                                                   expand_thresh=in_expand_thresh[ll])
-        elif operator[ll] in [op.ELTWISE_ADD, op.ELTWISE_SUB, op.ELTWISE_MUL, op.ELTWISE_XOR]:
-            data = data.reshape(input_chan[ll], input_dim[ll][0], input_dim[ll][1])
+        elif op.eltwise(operator[ll]):
+            data = np.split(data.reshape(input_chan[ll] * operands[ll],
+                                         input_dim[ll][0], input_dim[ll][1]),
+                            operands[ll], axis=0)
             out_buf, out_size = eltwise_layer(operator[ll],
                                               ll,
                                               verbose,
-                                              data.shape,
+                                              data[0].shape,
                                               activate[ll],
-                                              data,
                                               data,
                                               output_width=output_width[ll],
                                               device=device,
                                               debug=debug_computation,
                                               expand=in_expand[ll],
+                                              operands=operands[ll],
                                               expand_thresh=in_expand_thresh[ll])
         else:
             print(f'Unknown operator `{op.string(operator[ll])}`.')
@@ -1066,6 +1097,7 @@ def main():
     operator = params['operator'][:layers]
     streaming = params['streaming'][:layers]
     flatten = params['flatten'][:layers]
+    operands = params['operands'][:layers]
 
     # Command line override
     if args.input_offset is not None:
@@ -1129,10 +1161,13 @@ def main():
                 print(f'{op.string(operator[ll])} in layer {ll} does not support stride other '
                       f'than 1 (currently set to {stride[ll][0]}x{stride[ll][1]}).')
                 sys.exit(1)
-            output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
-                               2 * padding[ll][0]) // stride[ll][0] + 1,
-                              (pooled_size[1] - dilation[ll][1] * (kernel_size[ll][1] - 1) - 1 +
-                               2 * padding[ll][1]) // stride[ll][1] + 1]
+            if operator[ll] in [op.NONE, op.CONV2D, op.LINEAR]:
+                output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1)
+                                   - 1 + 2 * padding[ll][0]) // stride[ll][0] + 1,
+                                  (pooled_size[1] - dilation[ll][1] * (kernel_size[ll][1] - 1)
+                                   - 1 + 2 * padding[ll][1]) // stride[ll][1] + 1]
+            else:  # Element-wise
+                output_dim[ll] = [pooled_size[0], pooled_size[1]]
             if flatten[ll]:
                 output_dim[ll] = [1, 1]
                 input_channels[ll] //= input_dim[ll][0] * input_dim[ll][1]
@@ -1216,6 +1251,7 @@ def main():
                         output_offset,
                         streaming,
                         flatten,
+                        operands,
                         args.input_filename,
                         args.output_filename,
                         args.c_filename,

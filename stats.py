@@ -15,7 +15,7 @@ macc = 0  # Hardware multiply-accumulates (Conv2D, etc.)
 comp = 0  # Comparisons (ReLU, MaxPool)
 add = 0  # Additions (EltwiseAdd, EltwiseSub, AvgPool)
 mul = 0  # Multiplications (EltwiseMul)
-xor = 0  # Bitwise XOR (EltwiseXOR)
+bitwise = 0  # Bitwise OR/XOR (EltwiseXOR)
 # div = 0  # Divisions (BatchNorm, SoftMax)
 # exp = 0  # Exponentiations (SoftMax)
 
@@ -30,7 +30,7 @@ def ops():
     """
     Return number of ops computed in the simulator.
     """
-    return macc + comp + add + mul + xor
+    return macc + comp + add + mul + bitwise
 
 
 def sw_ops():
@@ -45,7 +45,7 @@ def print_summary(debug=False):
     Print ops summary stats.
     """
     print(f'Hardware: {ops():,} ops ({macc:,} macc; {comp:,} comp; {add:,} add; '
-          f'{mul:,} mul; {xor:,} xor)')
+          f'{mul:,} mul; {bitwise:,} bitwise)')
     if debug:
         print(f'          True MACs: {true_macc:,}')
     if sw_macc:

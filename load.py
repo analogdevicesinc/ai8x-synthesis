@@ -16,7 +16,7 @@ from utils import s2u, popcount
 
 
 def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
-         in_expand, in_expand_thresh,
+         in_expand, operands, in_expand_thresh,
          data, padding, split=1, debug=False):
     """
     Create C code to load data input to offset `input_offset` in CHW format (if `chw` is `True`)
@@ -38,6 +38,8 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
     c = 0
     data_offs = None
     step = 1 if chw else 4
+    assert operands == data.shape[0] // input_size[0]
+
     for ch in range(0, tc.dev.MAX_CHANNELS, step):
         instance_map = (processor_map >> (ch % tc.dev.MAX_PROC)) % 2**step
         if not instance_map:
@@ -50,7 +52,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
         expand = c // in_expand_thresh  # Channels 64+ handled by processors 0+
         instance = (ch % tc.dev.P_NUMPRO) // tc.dev.P_SHARED
         new_data_offs = tc.dev.C_SRAM_BASE + tc.dev.C_GROUP_OFFS*group \
-            + tc.dev.INSTANCE_SIZE*16*instance + expand*4
+            + tc.dev.INSTANCE_SIZE*16*instance + expand*4 * operands
 
         if expand == 0:
             new_data_offs += input_offset
@@ -70,6 +72,8 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
 
         if chw:
             assert split > 0
+            assert operands == 1  # We don't support multiple operands here (yet)
+            # FIXME: Support multiple operands for CHW data
 
             # CHW ("Big Data") - Separate channel sequences (BBBBB....GGGGG....RRRRR....)
             if embedded_code and split == 1:
@@ -167,25 +171,30 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
 
             for row in range(input_size[1]):
                 for col in range(input_size[2]):
-                    # Always write multiple of four bytes even for last input
-                    # Handle gaps and fill with 0
-                    val = 0
-                    this_c = c
-                    for i in range(4):
-                        if instance_map & 2**i:
-                            if this_c < len(data):
-                                val |= (s2u(data[this_c][row][col]) & 0xff) << (i * 8)
-                            this_c += 1
+                    for op in range(operands):
+                        # Always write multiple of four bytes even for last input
+                        # Handle gaps and fill with 0
+                        val = 0
+                        this_c = c
+                        for i in range(4):
+                            if instance_map & 2**i:
+                                if this_c < len(data):
+                                    val |= (s2u(data[this_c + op*input_size[0]][row][col])
+                                            & 0xff) << (i * 8)
+                                this_c += 1
 
-                    apb.check_overwrite(data_offs)
-                    out_map[data_offs >> 2] = (this_c, row, col, val)
-                    if not embedded_code:
-                        apb.write(data_offs, val)
-                    else:
-                        code_buffer[offs] = val
-                        offs += in_expand
-                    apb.data_offs = data_offs  # For mixed HWC/CHW operation
-                    data_offs += 4 * in_expand
+                        apb.check_overwrite(data_offs)
+                        out_map[data_offs >> 2] = (this_c, row, col, val)
+                        if not embedded_code:
+                            apb.write(data_offs, val)
+                        else:
+                            code_buffer[offs] = val
+                            offs += 4
+                        apb.data_offs = data_offs  # For mixed HWC/CHW operation
+                        data_offs += 4
+                    data_offs += 4 * (in_expand - 1) * operands
+                    if embedded_code:
+                        offs += 4 * (in_expand - 1) * operands
 
             if embedded_code:
                 apb.output_define(code_buffer, f'INPUT_{ch}', '0x%08x', 8, weights=False)

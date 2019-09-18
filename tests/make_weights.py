@@ -18,6 +18,10 @@ import numpy as np
 d = np.random.randint(-128, 127, (1, 2, 5, 1, 1), dtype=np.int64)
 np.save('weights_test_conv2Dk1x1', d, allow_pickle=False, fix_imports=False)
 
+# Same for element-wise (ChIn == ChOut)
+# d = np.zeros((1, 7, 7, 1, 1), dtype=np.int64)
+# np.save('weights_test_eltwise7', d, allow_pickle=False, fix_imports=False)
+
 # Sample with known data for MLP:
 # 1, 2, 12, 1, 1
 # d = np.array([[[[[-29]], [[-101]], [[67]], [[-37]], [[19]], [[-89]], [[121]], [[63]],
