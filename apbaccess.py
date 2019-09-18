@@ -35,6 +35,7 @@ class APB(object):
                  embedded_code=False,
                  compact_weights=False,
                  compact_data=False,
+                 write_zero_registers=False,
                  weight_filename=None,
                  sample_filename=None,
                  device=84):
@@ -50,6 +51,7 @@ class APB(object):
         self.embedded_code = embedded_code
         self.compact_weights = compact_weights
         self.compact_data = compact_data
+        self.write_zero_regs = write_zero_registers
         self.weight_filename = weight_filename
         self.sample_filename = sample_filename
         self.device = device
@@ -97,26 +99,34 @@ class APB(object):
         """
         self.memfile = memfile
 
-    def write_ctl(self, group, reg, val, debug=False, comment=''):
+    def write_ctl(self, group, reg, val, debug=False, force_write=False, comment=''):
         """
         Set global control register `reg` in group `group` to value `val`.
+        Unless `force_write` is set, zero values will not be written.
         """
         if comment is None:
             comment = f' // global ctl {reg}'
+        if val == 0:
+            comment += ' *'
         addr = tornadocnn.dev.C_GROUP_OFFS*group + tornadocnn.dev.C_CNN_BASE + reg*4
-        self.write(addr, val, comment)
+        if force_write or val != 0 or self.write_zero_regs:
+            self.write(addr, val, comment)
         if debug:
             print(f'R{reg:02} ({addr:08x}): {val:08x}{comment}')
 
-    def write_lreg(self, group, layer, reg, val, debug=False, comment=''):
+    def write_lreg(self, group, layer, reg, val, debug=False, force_write=False, comment=''):
         """
         Set layer `layer` register `reg` in group `group` to value `val`.
+        Unless `force_write` is set, zero values will not be written.
         """
         if comment is None:
             comment = f' // reg {reg}'
+        if val == 0:
+            comment += ' *'
         addr = tornadocnn.dev.C_GROUP_OFFS*group + tornadocnn.dev.C_CNN_BASE \
             + tornadocnn.dev.C_CNN*4 + reg*4 * tornadocnn.dev.MAX_LAYERS + layer*4
-        self.write(addr, val, comment)
+        if force_write or val != 0 or self.write_zero_regs:
+            self.write(addr, val, comment)
         if debug:
             print(f'L{layer} G{group} R{reg:02} ({addr:08x}): {val:08x}{comment}')
 
@@ -562,6 +572,7 @@ def apbwriter(memfile,
               embedded_code=False,
               compact_weights=False,
               compact_data=False,
+              write_zero_registers=False,
               weight_filename=None,
               sample_filename=None,
               device=84):
@@ -582,6 +593,7 @@ def apbwriter(memfile,
                     embedded_code=embedded_code,
                     compact_weights=compact_weights,
                     compact_data=compact_data,
+                    write_zero_registers=write_zero_registers,
                     weight_filename=weight_filename,
                     sample_filename=sample_filename,
                     device=device)
