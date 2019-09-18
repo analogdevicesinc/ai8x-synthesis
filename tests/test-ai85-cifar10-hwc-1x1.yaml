@@ -34,4 +34,4 @@ layers:
   out_offset: 0x2000
   kernel_size: 1x1
   flatten: true
-  processors: 0xffffffffffffffff
+  processors: 0x0000000000000fff

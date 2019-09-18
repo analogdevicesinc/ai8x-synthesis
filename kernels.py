@@ -44,7 +44,7 @@ def print_map(layers, kmap):
 def load(verbose, embedded_code, device, apb, layers, operator,
          kernel, kernel_size, quantization, processor_map,
          output_processor_map, input_chan, output_chan, out_expand, out_expand_thresh,
-         in_expand, in_expand_thresh, debug=False):
+         in_expand, in_expand_thresh, flatten, debug=False):
     """
     Stack `kernel` values and write them to C code (for `embedded_code` if `True` or
     RTL simulation). The output is written to the `apb` object.
@@ -72,6 +72,12 @@ def load(verbose, embedded_code, device, apb, layers, operator,
             kern_len[ll] = 0
             kern_offs[ll] = 0
             continue
+
+        if flatten[ll]:
+            kernel_reshaped = kernel[ll].reshape(output_chan[ll] * input_chan[ll], -1,
+                                                 kernel_size[ll][0], kernel_size[ll][1])
+        else:
+            kernel_reshaped = kernel[ll]
 
         first_proc = ffs(processor_map[ll])
         last_proc = fls(processor_map[ll])
@@ -162,8 +168,8 @@ def load(verbose, embedded_code, device, apb, layers, operator,
                             return col_target
 
                         n = 0
-                        if src_offs < len(kernel[ll]):
-                            k = np.zeros_like(kernel[ll][src_offs].flatten())
+                        if src_offs < len(kernel_reshaped):
+                            k = np.zeros_like(kernel_reshaped[src_offs].flatten())
                             for i in range(qfactor):
                                 if m < output_chan[ll]:
                                     # Cycle through phases
@@ -172,8 +178,8 @@ def load(verbose, embedded_code, device, apb, layers, operator,
                                         * in_expand_thresh[ll] \
                                         + (idx // in_expand[ll]) \
                                         * input_chan[ll]
-                                    if koffs < len(kernel[ll]):
-                                        this_kern = kernel[ll][koffs].flatten() \
+                                    if koffs < len(kernel_reshaped):
+                                        this_kern = kernel_reshaped[koffs].flatten() \
                                             & (2**quantization[ll]-1)
                                         k |= this_kern << (i * quantization[ll])
                                     n += 1
