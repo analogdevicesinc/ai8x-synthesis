@@ -13,20 +13,23 @@ NONE = 0
 CONV1D = 1
 CONV2D = 2
 LINEAR = 3
+
 ELTWISE_ADD = -1
 ELTWISE_MUL = -2
 ELTWISE_OR = -3
 ELTWISE_SUB = -4
 ELTWISE_XOR = -5
 
-NAMES = {NONE: 'none',
-         ELTWISE_ADD: 'add',
-         ELTWISE_SUB: 'sub',
-         ELTWISE_MUL: 'mul',
-         ELTWISE_XOR: 'xor',
-         ELTWISE_OR: 'or',
+NAMES = {NONE: 'passthrough',
          CONV1D: 'conv1d',
          CONV2D: 'conv2d'}
+
+ELT_NAMES = {NONE: 'none',
+             ELTWISE_ADD: 'add',
+             ELTWISE_SUB: 'sub',
+             ELTWISE_MUL: 'mul',
+             ELTWISE_XOR: 'xor',
+             ELTWISE_OR: 'or'}
 
 ENCODING = {ELTWISE_ADD: 0b01,
             ELTWISE_SUB: 0b00,
@@ -34,11 +37,14 @@ ENCODING = {ELTWISE_ADD: 0b01,
             ELTWISE_OR: 0b10}
 
 
-def string(op):
+def string(op, elt=False):
     """
     Return string rep[reaentation of operator `op`
     """
-    return NAMES[op] if op in NAMES else '????'
+    if not elt:
+        return NAMES[op] if op in NAMES else '????'
+    else:
+        return ELT_NAMES[op] if op in ELT_NAMES else '????'
 
 
 def eltwise(op):

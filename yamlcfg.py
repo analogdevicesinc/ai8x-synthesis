@@ -72,12 +72,13 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     streaming = [False] * tc.dev.MAX_LAYERS
     flatten = [False] * tc.dev.MAX_LAYERS
     operands = [1] * tc.dev.MAX_LAYERS
+    eltwise = [op.NONE] * tc.dev.MAX_LAYERS
 
     sequence = 0
     for ll in cfg['layers']:
         if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'in_dim',
                                'in_offset', 'kernel_size', 'pool_stride', 'out_offset',
-                               'activate', 'data_format', 'flatten',
+                               'activate', 'data_format', 'eltwise', 'flatten',
                                'op', 'operands', 'operation', 'operator',
                                'output_processors', 'output_width',
                                'processors', 'pad', 'quantization',
@@ -161,16 +162,20 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             elif conv in ['none', 'passthrough']:
                 operator[sequence] = op.NONE
             elif conv == 'add':
-                operator[sequence] = op.ELTWISE_ADD
+                operator[sequence] = op.NONE
+                eltwise[sequence] = op.ELTWISE_ADD
                 operands[sequence] = 2
             elif conv == 'or':
-                operator[sequence] = op.ELTWISE_OR
+                operator[sequence] = op.NONE
+                eltwise[sequence] = op.ELTWISE_OR
                 operands[sequence] = 2
             elif conv == 'sub':
-                operator[sequence] = op.ELTWISE_SUB
+                operator[sequence] = op.NONE
+                eltwise[sequence] = op.ELTWISE_SUB
                 operands[sequence] = 2
             elif conv == 'xor':
-                operator[sequence] = op.ELTWISE_XOR
+                operator[sequence] = op.NONE
+                eltwise[sequence] = op.ELTWISE_XOR
                 operands[sequence] = 2
             elif conv in ['linear', 'fc', 'mlp']:
                 # Emulate using Conv2D with 1x1 kernels and 1x1 data
@@ -181,8 +186,26 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                 error_exit(f'Unknown value "{ll[key]}" for `{key}`', sequence)
                 sys.exit(1)
 
+        if 'eltwise' in ll:
+            conv = ll['eltwise'].lower()
+            if conv == 'add':
+                eltwise[sequence] = op.ELTWISE_ADD
+                operands[sequence] = 2
+            elif conv == 'or':
+                eltwise[sequence] = op.ELTWISE_OR
+                operands[sequence] = 2
+            elif conv == 'sub':
+                eltwise[sequence] = op.ELTWISE_SUB
+                operands[sequence] = 2
+            elif conv == 'xor':
+                eltwise[sequence] = op.ELTWISE_XOR
+                operands[sequence] = 2
+            else:
+                error_exit(f'Unknown value "{ll["eltwise"]}" for `eltwise`', sequence)
+                sys.exit(1)
+
         if 'operands' in ll:
-            if not op.eltwise(operator[sequence]):
+            if not op.eltwise(eltwise[sequence]):
                 error_exit('`operands` can only be used with element-wise operations', sequence)
             val = ll['operands']
             if val < 2 or val > 16:
@@ -262,9 +285,6 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             stride[sequence][1] = 1
         elif operator[sequence] == op.NONE:
             kernel_size[sequence] = [1, 1]
-        elif op.eltwise(operator[sequence]):
-            if pooling_enabled[sequence]:
-                error_exit('Element-wise operators do not support pooling', sequence)
 
         sequence += 1
 
@@ -292,6 +312,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             del streaming[ll]
             del flatten[ll]
             del operands[ll]
+            del eltwise[ll]
 
     # Check all but last layer
     for ll in range(len(output_map) - 1):
@@ -345,5 +366,6 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     settings['streaming'] = streaming
     settings['flatten'] = flatten
     settings['operands'] = operands
+    settings['eltwise'] = eltwise
 
     return cfg, settings
