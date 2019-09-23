@@ -1,7 +1,7 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_9/20/2019_
+_9/23/2019_
 
 _Open this file in a markdown enabled viewer, for example Typora (http://typora.io) or Visual Studio Code 
 (https://code.visualstudio.com). See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown._
@@ -72,6 +72,7 @@ This software consists of two related projects:
       - [`output_width` (Optional)](#outputwidth-optional)
       - [`data_format` (Optional)](#dataformat-optional)
       - [`operation` (Optional)](#operation-optional)
+      - [`eltwise` (Optional)](#eltwise-optional)
       - [`operands` (Optional)](#operands-optional)
       - [`activate` (Optional)](#activate-optional)
       - [`quantization` (Optional)](#quantization-optional)
@@ -836,6 +837,13 @@ The default is `Conv2d`. AI84 only supports `Conv1d` and `Conv2d`.
 | `Or`                      | Element-wise binary OR                                      |
 
 Element-wise operations default to two operands. This can be changed using the `operands` key.
+
+##### `eltwise` (Optional)
+
+Element-wise operations can also be added “in-flight” to `Conv2d`. In this case, the element-wise operation is specified using the `eltwise` key.
+
+Example:
+  `eltwise: add`
 
 ##### `operands` (Optional)
 

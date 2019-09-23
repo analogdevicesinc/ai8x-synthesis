@@ -178,7 +178,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
                         this_c = c
                         for i in range(4):
                             if instance_map & 2**i:
-                                if this_c < len(data):
+                                if this_c + op*input_size[0] < len(data):
                                     val |= (s2u(data[this_c + op*input_size[0]][row][col])
                                             & 0xff) << (i * 8)
                                 this_c += 1

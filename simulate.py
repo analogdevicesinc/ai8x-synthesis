@@ -54,7 +54,7 @@ def print_data(header,
     print('')
 
 
-def cnn2d_layer(layer,
+def cnn2d_layer(layer,  # pylint: disable=unused-argument
                 verbose,
                 input_size,
                 kernel_size,
@@ -63,9 +63,6 @@ def cnn2d_layer(layer,
                 padding,
                 dilation,
                 stride,
-                pool,
-                pool_stride,
-                pool_average,
                 do_activation,
                 kernel,
                 bias,
@@ -73,45 +70,10 @@ def cnn2d_layer(layer,
                 bits=8,
                 output_width=8,
                 device=84,  # pylint: disable=unused-argument
-                debug=False,
-                expand=None,
-                expand_thresh=None):
+                debug=False):
     """
-    Perform 2D pooling and 2D convolution for one layer.
+    Perform 2D convolution for one layer.
     """
-    if verbose:
-        if expand_thresh is None:
-            expand_thresh = input_size[0]
-        print_data(f"LAYER {layer} (CONV2D)...\n\n"
-                   f"{input_size[0]}x{input_size[1]}x{input_size[2]} INPUT DATA:",
-                   data,
-                   input_size,
-                   expand,
-                   expand_thresh)
-
-    if pool[0] > 1 or pool[1] > 1:
-        pooled_size = [input_size[0],
-                       (input_size[1] + pool_stride[0] - pool[0]) // pool_stride[0],
-                       (input_size[2] + pool_stride[1] - pool[1]) // pool_stride[1]]
-        pooled = pool2d(data, input_size, pooled_size, pool, pool_stride, pool_average,
-                        floor=True, debug=debug)  # FIXME: Fix rounding for AI85?
-        if verbose:
-            print_data(f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
-                       f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]} "
-                       f"{input_size} -> {pooled_size}:",
-                       pooled,
-                       pooled_size,
-                       expand,
-                       expand_thresh)
-
-        if pool_average:
-            stats.add += pool[0] * pool[1] * pooled_size[0] * pooled_size[1] * pooled_size[2]
-        else:
-            stats.comp += pool[0] * pool[1] * pooled_size[0] * pooled_size[1] * pooled_size[2]
-    else:
-        pooled_size = input_size
-        pooled = data
-
     if verbose:
         print(f"{kernel_size[0]}x{kernel_size[1]} KERNEL(S):")
         with np.printoptions(formatter={'int': '{0:4}'.format}):
@@ -124,18 +86,18 @@ def cnn2d_layer(layer,
         print(f"BIAS: {bias}\n")
 
     out_size = [output_channels,
-                (pooled_size[1] - dilation[0] * (kernel_size[0] - 1) - 1 +
+                (input_size[1] - dilation[0] * (kernel_size[0] - 1) - 1 +
                  2 * padding[0]) // stride[0] + 1,
-                (pooled_size[2] - dilation[1] * (kernel_size[1] - 1) - 1 +
+                (input_size[2] - dilation[1] * (kernel_size[1] - 1) - 1 +
                  2 * padding[1]) // stride[1] + 1]
 
     if bias is not None:
         bias = bias * tc.dev.BIAS_DIV
 
-    out_buf = conv2d(data=pooled,
+    out_buf = conv2d(data=data,
                      weight=kernel,
                      bias=bias,
-                     input_size=pooled_size,
+                     input_size=input_size,
                      output_size=out_size,
                      out_channels=output_channels,
                      kernel_size=kernel_size,
@@ -152,7 +114,7 @@ def cnn2d_layer(layer,
             print(out_buf)
         print('')
 
-    stats.macc += pooled_size[0] * kernel_size[0] * kernel_size[1] * out_size[0] \
+    stats.macc += input_size[0] * kernel_size[0] * kernel_size[1] * out_size[0] \
         * out_size[1] * out_size[2]
 
     if output_width != 32:
@@ -184,7 +146,7 @@ def cnn2d_layer(layer,
     return out_buf, out_size
 
 
-def cnn1d_layer(layer,
+def cnn1d_layer(layer,  # pylint: disable=unused-argument
                 verbose,
                 input_size,
                 kernel_size,
@@ -193,9 +155,6 @@ def cnn1d_layer(layer,
                 padding,
                 dilation,
                 stride,
-                pool,
-                pool_stride,
-                pool_average,
                 do_activation,
                 kernel,
                 bias,
@@ -205,52 +164,25 @@ def cnn1d_layer(layer,
                 device=84,  # pylint: disable=unused-argument
                 debug=False):
     """
-    Perform 1D pooling and 1D convolution for one layer.
+    Perform 1D convolution for one layer.
     """
-    if verbose:
-        print(f"LAYER {layer} (CONV1D)...\n")
-
-        print(f"{input_size[0]}x{input_size[1]} INPUT DATA:")
-        print(np.squeeze(data))
-        print('')
-
-    if pool > 1:
-        pooled_size = [input_size[0],
-                       (input_size[1] + pool_stride - pool) // pool_stride]
-        pooled = pool1d(data, input_size, pooled_size, pool, pool_stride, pool_average,
-                        floor=True, debug=debug)  # FIXME: Fix rounding for AI85?
-        if verbose:
-            print(f"{pool} {'AVERAGE' if pool_average else 'MAX'} "
-                  f"POOLING, STRIDE {pool_stride} "
-                  f"{input_size} -> {pooled_size}:")
-            print(pooled)
-            print('')
-
-        if pool_average:
-            stats.add += pool * pooled_size[0] * pooled_size[1]
-        else:
-            stats.comp += pool * pooled_size[0] * pooled_size[1]
-    else:
-        pooled_size = input_size
-        pooled = data
-
     if verbose:
         print(f"KERNEL SIZE {kernel_size}:")
         print(kernel)
         print(f"BIAS: {bias}\n")
 
     out_size = [output_channels,
-                (pooled_size[1] - dilation * (kernel_size - 1) - 1 +
+                (input_size[1] - dilation * (kernel_size - 1) - 1 +
                  2 * padding) // stride + 1,
                 1]
 
     if bias is not None:
         bias = bias * tc.dev.BIAS_DIV
 
-    out_buf = conv1d(data=pooled,
+    out_buf = conv1d(data=data,
                      weight=kernel,
                      bias=bias,
-                     input_size=pooled_size,
+                     input_size=input_size,
                      output_size=out_size,
                      out_channels=output_channels,
                      kernel_size=kernel_size,
@@ -264,7 +196,7 @@ def cnn1d_layer(layer,
         print(out_buf.squeeze(axis=-1))
         print('')
 
-    stats.macc += pooled_size[0] * kernel_size * out_size[0] \
+    stats.macc += input_size[0] * kernel_size * out_size[0] \
         * out_size[1]
 
     if output_width != 32:
@@ -339,58 +271,21 @@ def linear_layer(verbose,
     return out_buf, out_features
 
 
-def passthrough_layer(layer,
-                      verbose,
+def passthrough_layer(layer,  # pylint: disable=unused-argument
+                      verbose,  # pylint: disable=unused-argument
                       input_size,
-                      pool,
-                      pool_stride,
-                      pool_average,
                       data,
                       device=84,  # pylint: disable=unused-argument
-                      debug=False,
-                      expand=None,
-                      expand_thresh=None):
+                      debug=False):  # pylint: disable=unused-argument
     """
-    2D pooling or passthrough for one layer.
+    2D passthrough for one layer.
     """
-    if verbose:
-        if expand_thresh is None:
-            expand_thresh = input_size[0]
-        print_data(f"LAYER {layer} (PASSTHROUGH)...\n\n"
-                   f"{input_size[0]}x{input_size[1]}x{input_size[2]} INPUT DATA:",
-                   data,
-                   input_size,
-                   expand,
-                   expand_thresh)
 
-    if pool[0] > 1 or pool[1] > 1:
-        pooled_size = [input_size[0],
-                       (input_size[1] + pool_stride[0] - pool[0]) // pool_stride[0],
-                       (input_size[2] + pool_stride[1] - pool[1]) // pool_stride[1]]
-        pooled = pool2d(data, input_size, pooled_size, pool, pool_stride, pool_average,
-                        floor=True, debug=debug)  # FIXME: Fix rounding for AI85?
-        if verbose:
-            print_data(f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
-                       f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]} "
-                       f"{input_size} -> {pooled_size}:",
-                       pooled,
-                       pooled_size,
-                       expand,
-                       expand_thresh)
-
-        if pool_average:
-            stats.add += pool[0] * pool[1] * pooled_size[0] * pooled_size[1] * pooled_size[2]
-        else:
-            stats.comp += pool[0] * pool[1] * pooled_size[0] * pooled_size[1] * pooled_size[2]
-    else:
-        pooled_size = input_size
-        pooled = data
-
-    return pooled, pooled_size
+    return data, input_size
 
 
 def eltwise_layer(operator,
-                  layer,
+                  layer,  # pylint: disable=unused-argument
                   verbose,
                   input_size,
                   do_activation,
@@ -398,9 +293,7 @@ def eltwise_layer(operator,
                   output_width=8,
                   device=84,  # pylint: disable=unused-argument
                   debug=False,
-                  expand=None,
-                  operands=1,
-                  expand_thresh=None):
+                  operands=1):
     """
     Element-wise operators for one layer.
     """
@@ -408,15 +301,7 @@ def eltwise_layer(operator,
     assert operands == len(data)
 
     if verbose:
-        if expand_thresh is None:
-            expand_thresh = input_size[0]
-        print(f"LAYER {layer} ({operands}-OPERAND {op.string(operator).upper()})...\n")
-        for i in range(operands):
-            print_data(f"{input_size[0]}x{input_size[1]}x{input_size[2]} INPUT DATA {i}:",
-                       data[i],
-                       input_size,
-                       expand,
-                       expand_thresh)
+        print(f"{operands}-OPERAND {op.string(operator, elt=True).upper()}:\n")
 
     out_buf = eltwise(operator=operator,
                       data=data,
@@ -468,3 +353,113 @@ def eltwise_layer(operator,
         stats.comp += input_size[0] * input_size[1] * input_size[2]
 
     return out_buf, input_size
+
+
+def pooling_layer(layer,
+                  verbose,
+                  input_size,
+                  pool,
+                  pool_stride,
+                  pool_average,
+                  data,
+                  debug=False,
+                  expand=None,
+                  expand_thresh=None,
+                  operation=None,
+                  operands=1):
+    """
+    Perform pooling for one layer.
+    """
+    if verbose:
+        if expand_thresh is None:
+            expand_thresh = input_size[0]
+
+        if operation != op.CONV1D:
+            if operands == 1:
+                op_string = f"LAYER {layer} ({op.string(operation).upper()})...\n"
+                in_chan = input_size[0]
+            else:
+                op_string = f"LAYER {layer} ({op.string(operation).upper()}, " \
+                            f"{operands} OPERANDS)...\n"
+                in_chan = input_size[0] // operands
+            print(op_string)
+
+            if operands == 1:
+                print_data(f"{in_chan}x{input_size[1]}x{input_size[2]} INPUT DATA:",
+                           data,
+                           [in_chan, input_size[1], input_size[2]],
+                           expand,
+                           expand_thresh)
+            else:
+                d = np.split(data.reshape(input_size[0], input_size[1], input_size[2]),
+                             operands,
+                             axis=0)
+                for i in range(operands):
+                    print_data(f"{in_chan}x{input_size[1]}x{input_size[2]} INPUT DATA {i}:",
+                               d[i],
+                               [in_chan, input_size[1], input_size[2]],
+                               expand,
+                               expand_thresh)
+        else:
+            print(f"LAYER {layer} ({op.string(operation).upper()})...\n")
+            print(f"{input_size[0]}x{input_size[1]} INPUT DATA:")
+            print(np.squeeze(data))
+            print('')
+
+    if pool[0] > 1 or pool[1] > 1:
+        if operation != op.CONV1D:
+            pooled_size = [input_size[0],
+                           (input_size[1] + pool_stride[0] - pool[0]) // pool_stride[0],
+                           (input_size[2] + pool_stride[1] - pool[1]) // pool_stride[1]]
+            pooled = pool2d(data, input_size, pooled_size, pool, pool_stride, pool_average,
+                            floor=True, debug=debug)  # FIXME: Fix rounding for AI85?
+            if verbose:
+                if operands == 1:
+                    print_data(f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
+                               f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]} "
+                               f"{input_size} -> {pooled_size}:",
+                               pooled,
+                               pooled_size,
+                               expand,
+                               expand_thresh)
+                else:
+                    d = np.split(pooled,
+                                 operands,
+                                 axis=0)
+                    for i in range(operands):
+                        print_data(f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
+                                   f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]} "
+                                   f"{[in_chan, input_size[1], input_size[2]]} -> "
+                                   f"{[in_chan, pooled_size[1], pooled_size[2]]}, "
+                                   f"POOLED DATA {i}:",
+                                   d[i],
+                                   [in_chan, pooled_size[1], pooled_size[2]],
+                                   expand,
+                                   expand_thresh)
+
+            if pool_average:
+                stats.add += pool[0] * pool[1] * pooled_size[0] * pooled_size[1] * pooled_size[2]
+            else:
+                stats.comp += pool[0] * pool[1] * pooled_size[0] * pooled_size[1] * pooled_size[2]
+        else:
+            pooled_size = [input_size[0],
+                           (input_size[1] + pool_stride[0] - pool[0]) // pool_stride[0]]
+            pooled = pool1d(data, input_size, pooled_size, pool[0], pool_stride[0],
+                            pool_average, floor=True, debug=debug)  # FIXME: Fix rounding for AI85?
+            if verbose:
+                print(f"{pool[0]} {'AVERAGE' if pool_average else 'MAX'} "
+                      f"POOLING, STRIDE {pool_stride[0]} "
+                      f"{input_size} -> {pooled_size}:")
+                print(pooled)
+                print('')
+
+            if pool_average:
+                stats.add += pool[0] * pooled_size[0] * pooled_size[1]
+            else:
+                stats.comp += pool[0] * pooled_size[0] * pooled_size[1]
+
+    else:
+        pooled_size = input_size
+        pooled = data
+
+    return pooled, pooled_size
