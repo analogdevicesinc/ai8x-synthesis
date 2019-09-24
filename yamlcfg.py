@@ -73,6 +73,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     flatten = [False] * tc.dev.MAX_LAYERS
     operands = [1] * tc.dev.MAX_LAYERS
     eltwise = [op.NONE] * tc.dev.MAX_LAYERS
+    pool_first = [True] * tc.dev.MAX_LAYERS
 
     sequence = 0
     for ll in cfg['layers']:
@@ -81,7 +82,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                                'activate', 'data_format', 'eltwise', 'flatten',
                                'op', 'operands', 'operation', 'operator',
                                'output_processors', 'output_width',
-                               'processors', 'pad', 'quantization',
+                               'pool_first', 'processors', 'pad', 'quantization',
                                'sequence', 'streaming', 'stride'])):
             print(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
             sys.exit(1)
@@ -101,11 +102,6 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             if not output_map[sequence]:
                 error_exit('output_processors` cannot be zero', sequence)
 
-        if 'pad' in ll:
-            val = ll['pad']
-            if val < 0:
-                error_exit(f'Unsupported value {val} for `pad`', sequence)
-            padding[sequence] = [val, val]
         if 'max_pool' in ll:
             val = ll['max_pool']
             if not isinstance(val, list):
@@ -161,22 +157,27 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                 operator[sequence] = op.CONV2D
             elif conv in ['none', 'passthrough']:
                 operator[sequence] = op.NONE
+                padding[sequence] = [0, 0]
             elif conv == 'add':
                 operator[sequence] = op.NONE
                 eltwise[sequence] = op.ELTWISE_ADD
                 operands[sequence] = 2
+                padding[sequence] = [0, 0]
             elif conv == 'or':
                 operator[sequence] = op.NONE
                 eltwise[sequence] = op.ELTWISE_OR
                 operands[sequence] = 2
+                padding[sequence] = [0, 0]
             elif conv == 'sub':
                 operator[sequence] = op.NONE
                 eltwise[sequence] = op.ELTWISE_SUB
                 operands[sequence] = 2
+                padding[sequence] = [0, 0]
             elif conv == 'xor':
                 operator[sequence] = op.NONE
                 eltwise[sequence] = op.ELTWISE_XOR
                 operands[sequence] = 2
+                padding[sequence] = [0, 0]
             elif conv in ['linear', 'fc', 'mlp']:
                 # Emulate using Conv2D with 1x1 kernels and 1x1 data
                 operator[sequence] = op.CONV2D
@@ -185,6 +186,12 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             else:
                 error_exit(f'Unknown value "{ll[key]}" for `{key}`', sequence)
                 sys.exit(1)
+
+        if 'pad' in ll:
+            val = ll['pad']
+            if val < 0:
+                error_exit(f'Unsupported value {val} for `pad`', sequence)
+            padding[sequence] = [val, val]
 
         if 'eltwise' in ll:
             conv = ll['eltwise'].lower()
@@ -203,6 +210,13 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             else:
                 error_exit(f'Unknown value "{ll["eltwise"]}" for `eltwise`', sequence)
                 sys.exit(1)
+
+        if 'pool_first' in ll:
+            val = ll['pool_first']
+            try:
+                pool_first[sequence] = bool(val)
+            except ValueError:
+                error_exit(f'Unsupported value `{val}` for `pool_first`', sequence)
 
         if 'operands' in ll:
             if not op.eltwise(eltwise[sequence]):
@@ -321,6 +335,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
         # Fix up default output maps
         if output_map[ll] is None:
             output_map[ll] = processor_map[ll+1]
+
     # Check all but first layer
     for ll in range(1, len(input_offset)):
         # Fix up default input maps
@@ -337,6 +352,20 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
         output_map[-1] = cfg['output_map']
     if output_width[-1] != 8 and relu[-1]:
         error_exit('`output_width` must be 8 when activation is used', len(relu))
+
+    # Check all layers
+    for ll, e in enumerate(operator):
+        # Check that pass-through does not use activation
+        if e == op.NONE:
+            if relu[ll]:
+                error_exit('Pass-through layers must not use activation', ll)
+            if padding[ll][0] != 0 or padding[ll][1] != 0:
+                error_exit('Padding must be zero for passthrough layers', ll)
+        # Check that element-wise does not use Conv1d
+        if e == op.CONV1D and operands[ll] > 1:
+            error_exit('Element-wise operations cannot be combined with Conv1d', ll)
+        if not pool_first[ll] and (operands[ll] == 1 or pool[ll][0] == 1 and pool[ll][1] == 1):
+            error_exit('`pool_first: False` requires both pooling and element-wise operations', ll)
 
     if device == 84:
         # Fix up defaults for Conv1D:
@@ -367,5 +396,6 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     settings['flatten'] = flatten
     settings['operands'] = operands
     settings['eltwise'] = eltwise
+    settings['pool_first'] = pool_first
 
     return cfg, settings

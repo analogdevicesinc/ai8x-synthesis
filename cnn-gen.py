@@ -32,7 +32,7 @@ import stats
 import tornadocnn as tc
 import yamlcfg
 from simulate import cnn1d_layer, cnn2d_layer, linear_layer, passthrough_layer, eltwise_layer, \
-    pooling_layer
+    pooling_layer, show_data
 from utils import ffs, fls, popcount
 
 
@@ -76,6 +76,7 @@ def create_net(prefix,
                flatten,
                operands,
                eltwise,
+               pool_first,
                input_filename,
                output_filename,
                c_filename,
@@ -531,12 +532,14 @@ def create_net(prefix,
                     elif (operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]
                           or operator[ll] in [op.NONE, op.LINEAR] and operands[ll] == 1):
                         val = 1 << 8
+                    if operator[ll] == op.NONE:
+                        val |= (popcount(processor_map[ll]) - 1) // 4
                     if operands[ll] > 1:
                         val |= 1 << 13 | op.eltwise_fn(eltwise[ll]) << 14 | operands[ll] - 1 << 18
-                        if pool[ll][0] > 1 or pool[ll][1] > 1:
-                            val |= 1 << 15
-                        if operator[ll] == op.CONV2D:
+                        if (pool[ll][0] > 1 or pool[ll][1] > 1) and pool_first[ll]:
                             val |= 1 << 16
+                        if operator[ll] == op.CONV2D:
+                            val |= 1 << 17
 
                     apb.write_lreg(group, ll, tc.dev.LREG_ONED, val,
                                    verbose, comment=' // 1D')
@@ -599,15 +602,16 @@ def create_net(prefix,
                 else:
                     # [15:0] Write Pointer Timeslot Offset Register
                     # Used for 1x1 convolution, and pooling without convolution
-                    # FIXME: Multipass-Elementwise-Passthrough broken
                     if operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]:
                         val = 1
+                    elif operator[ll] == op.NONE and popcount(processor_map[ll]) > 4:
+                        val = tc.dev.INSTANCE_SIZE * 4
                     elif operands[ll] > 1:
                         if in_expand[ll] > 1:
-                            val = 1
+                            val = tc.dev.INSTANCE_SIZE * 4
                         else:
                             val = tc.dev.INSTANCE_SIZE
-                    elif operator[ll] not in [op.CONV1D, op.CONV2D, op.LINEAR]:
+                    elif operator[ll] == op.NONE:
                         val = tc.dev.INSTANCE_SIZE
                     else:
                         val = 0
@@ -654,11 +658,12 @@ def create_net(prefix,
                 if not local_source:
                     val |= 0x800
                 if device != 84:
-                    val |= ((out_expand[ll] - 1) << 19) \
-                           | (fls(output_processor_map[ll])
-                              - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) \
+                    val |= (fls(output_processor_map[ll])
+                            - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) \
                            * quantization[ll] << 22 \
                            | (in_expand[ll] - 1) << 16
+                    if operator[ll] != op.NONE:
+                        val |= (out_expand[ll] - 1) << 19
                     if output_width[ll] != 8:
                         val |= 1 << 31
                 if group == groups_used[0]:
@@ -703,7 +708,8 @@ def create_net(prefix,
                         val = kern_offs[ll] * 8 << tc.dev.MCNT_SAD_OFFS \
                             | kl << tc.dev.MCNT_MAX_OFFS  # kern_offs is always bytes
                     else:
-                        val = 0
+                        assert operator[ll] == op.NONE
+                        val = (out_expand[ll] - 1) * 8
                 apb.write_lreg(group, ll, tc.dev.LREG_MCNT, val,
                                verbose, comment=' // Mask offset and count')
 
@@ -853,11 +859,54 @@ def create_net(prefix,
     if verbose:
         print('')
 
+    def run_eltwise(data, ll, in_chan, dim):
+        # In-flight element-wise operations
+        if operator[ll] == op.NONE:
+            # Let element-wise do 32-bit, else 8-bit only
+            o_width = output_width[ll]
+        else:
+            o_width = 8
+
+        data = np.split(data.reshape(in_chan * operands[ll],
+                                     dim[0], dim[1]),
+                        operands[ll], axis=0)
+        data, out_size = eltwise_layer(eltwise[ll],
+                                       ll,
+                                       verbose,
+                                       data[0].shape,
+                                       data,
+                                       output_width=o_width,
+                                       device=device,
+                                       debug=debug_computation,
+                                       operands=operands[ll])
+        assert out_size[0] == in_chan \
+            and out_size[1] == dim[0] and out_size[2] == dim[1]
+
+        return data
+
     # Compute layer-by-layer output and chain results into input
     for ll in range(layers):
-
-        # In-flight pooling first
         in_chan = input_chan[ll]
+
+        show_data(ll,
+                  verbose,
+                  data.shape,
+                  data,
+                  debug=debug_computation,
+                  expand=in_expand[ll],
+                  expand_thresh=in_expand_thresh[ll],
+                  operation=operator[ll],
+                  operands=operands[ll])
+
+        # Run in-flight element-wise operations first?
+        if operands[ll] > 1 and not pool_first[ll]:
+            data = run_eltwise(data, ll, in_chan, input_dim[ll])
+            in_chan //= operands[ll]
+            num_operands = 1
+        else:
+            num_operands = operands[ll]
+
+        # In-flight pooling
         if operator[ll] == op.CONV1D:
             data = data.reshape(in_chan, input_dim[ll][0])
         else:
@@ -878,7 +927,7 @@ def create_net(prefix,
                                        expand=in_expand[ll],
                                        expand_thresh=in_expand_thresh[ll],
                                        operation=operator[ll],
-                                       operands=operands[ll])
+                                       operands=num_operands)
 
         if operator[ll] == op.CONV1D:
             assert out_size[0] == in_chan * operands[ll] \
@@ -887,23 +936,8 @@ def create_net(prefix,
             assert out_size[0] == in_chan * operands[ll] \
                 and out_size[1] == pooled_dim[ll][0] and out_size[2] == pooled_dim[ll][1]
 
-        # In-flight element-wise operations
-        if operands[ll] > 1:
-            data = np.split(data.reshape(in_chan * operands[ll],
-                                         pooled_dim[ll][0], pooled_dim[ll][1]),
-                            operands[ll], axis=0)
-            data, out_size = eltwise_layer(eltwise[ll],
-                                           ll,
-                                           verbose,
-                                           data[0].shape,
-                                           activate[ll],
-                                           data,
-                                           output_width=output_width[ll],
-                                           device=device,
-                                           debug=debug_computation,
-                                           operands=operands[ll])
-            assert out_size[0] == in_chan \
-                and out_size[1] == pooled_dim[ll][0] and out_size[2] == pooled_dim[ll][1]
+        if operands[ll] > 1 and pool_first[ll]:
+            data = run_eltwise(data, ll, in_chan, pooled_dim[ll])
 
         # Convolution or passthrough
         if operator[ll] == op.CONV2D:
@@ -1127,6 +1161,7 @@ def main():
     flatten = params['flatten'][:layers]
     operands = params['operands'][:layers]
     eltwise = params['eltwise'][:layers]
+    pool_first = params['pool_first'][:layers]
 
     # Command line override
     if args.input_offset is not None:
@@ -1287,6 +1322,7 @@ def main():
                         flatten,
                         operands,
                         eltwise,
+                        pool_first,
                         args.input_filename,
                         args.output_filename,
                         args.c_filename,

@@ -288,7 +288,6 @@ def eltwise_layer(operator,
                   layer,  # pylint: disable=unused-argument
                   verbose,
                   input_size,
-                  do_activation,
                   data,
                   output_width=8,
                   device=84,  # pylint: disable=unused-argument
@@ -331,31 +330,17 @@ def eltwise_layer(operator,
             np.clip(out_buf, -(2**(bits-1)), 2**(bits-1)-1, out_buf)
 
         if verbose:
-            print(f"{input_size[0]}x{input_size[1]}x{input_size[2]} OUTPUT "
-                  f"{'BEFORE ACTIVATION' if do_activation else '(NO ACTIVATION)'}:")
+            print(f"{input_size[0]}x{input_size[1]}x{input_size[2]} OUTPUT:")
             if input_size[1] == input_size[2] == 1:
                 print(np.squeeze(out_buf))
             else:
                 print(out_buf)
             print('')
-
-    if do_activation:
-        np.clip(out_buf, 0, 2**(bits-1)-1, out_buf)
-
-        if verbose:
-            print(f"{input_size[0]}x{input_size[1]}x{input_size[2]} ACTIVATED OUTPUT:")
-            if input_size[1] == input_size[2] == 1:
-                print(np.squeeze(out_buf))
-            else:
-                print(out_buf)
-            print('')
-
-        stats.comp += input_size[0] * input_size[1] * input_size[2]
 
     return out_buf, input_size
 
 
-def pooling_layer(layer,
+def pooling_layer(layer,  # pylint: disable=unused-argument
                   verbose,
                   input_size,
                   pool,
@@ -370,44 +355,10 @@ def pooling_layer(layer,
     """
     Perform pooling for one layer.
     """
-    if verbose:
-        if expand_thresh is None:
-            expand_thresh = input_size[0]
-
-        if operation != op.CONV1D:
-            if operands == 1:
-                op_string = f"LAYER {layer} ({op.string(operation).upper()})...\n"
-                in_chan = input_size[0]
-            else:
-                op_string = f"LAYER {layer} ({op.string(operation).upper()}, " \
-                            f"{operands} OPERANDS)...\n"
-                in_chan = input_size[0] // operands
-            print(op_string)
-
-            if operands == 1:
-                print_data(f"{in_chan}x{input_size[1]}x{input_size[2]} INPUT DATA:",
-                           data,
-                           [in_chan, input_size[1], input_size[2]],
-                           expand,
-                           expand_thresh)
-            else:
-                d = np.split(data.reshape(input_size[0], input_size[1], input_size[2]),
-                             operands,
-                             axis=0)
-                for i in range(operands):
-                    print_data(f"{in_chan}x{input_size[1]}x{input_size[2]} INPUT DATA {i}:",
-                               d[i],
-                               [in_chan, input_size[1], input_size[2]],
-                               expand,
-                               expand_thresh)
-        else:
-            print(f"LAYER {layer} ({op.string(operation).upper()})...\n")
-            print(f"{input_size[0]}x{input_size[1]} INPUT DATA:")
-            print(np.squeeze(data))
-            print('')
-
     if pool[0] > 1 or pool[1] > 1:
         if operation != op.CONV1D:
+            in_chan = input_size[0] // operands
+
             pooled_size = [input_size[0],
                            (input_size[1] + pool_stride[0] - pool[0]) // pool_stride[0],
                            (input_size[2] + pool_stride[1] - pool[1]) // pool_stride[1]]
@@ -463,3 +414,52 @@ def pooling_layer(layer,
         pooled = data
 
     return pooled, pooled_size
+
+
+def show_data(layer,
+              verbose,
+              input_size,
+              data,
+              debug=False,  # pylint: disable=unused-argument
+              expand=None,
+              expand_thresh=None,
+              operation=None,
+              operands=1):
+    """
+    Show input data.
+    """
+    if verbose:
+        if expand_thresh is None:
+            expand_thresh = input_size[0]
+
+        if operation != op.CONV1D:
+            if operands == 1:
+                op_string = f"LAYER {layer} ({op.string(operation).upper()})...\n"
+                in_chan = input_size[0]
+            else:
+                op_string = f"LAYER {layer} ({op.string(operation).upper()}, " \
+                            f"{operands} OPERANDS)...\n"
+                in_chan = input_size[0] // operands
+            print(op_string)
+
+            if operands == 1:
+                print_data(f"{in_chan}x{input_size[1]}x{input_size[2]} INPUT DATA:",
+                           data,
+                           [in_chan, input_size[1], input_size[2]],
+                           expand,
+                           expand_thresh)
+            else:
+                d = np.split(data.reshape(input_size[0], input_size[1], input_size[2]),
+                             operands,
+                             axis=0)
+                for i in range(operands):
+                    print_data(f"{in_chan}x{input_size[1]}x{input_size[2]} INPUT DATA {i}:",
+                               d[i],
+                               [in_chan, input_size[1], input_size[2]],
+                               expand,
+                               expand_thresh)
+        else:
+            print(f"LAYER {layer} ({op.string(operation).upper()})...\n")
+            print(f"{input_size[0]}x{input_size[1]} INPUT DATA:")
+            print(np.squeeze(data))
+            print('')
