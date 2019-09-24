@@ -1,7 +1,7 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_9/23/2019_
+_9/24/2019_
 
 _Open this file in a markdown enabled viewer, for example Typora (http://typora.io) or Visual Studio Code 
 (https://code.visualstudio.com). See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown._
@@ -73,6 +73,7 @@ This software consists of two related projects:
       - [`data_format` (Optional)](#dataformat-optional)
       - [`operation` (Optional)](#operation-optional)
       - [`eltwise` (Optional)](#eltwise-optional)
+      - [`pool_first` (Optional)](#poolfirst-optional)
       - [`operands` (Optional)](#operands-optional)
       - [`activate` (Optional)](#activate-optional)
       - [`quantization` (Optional)](#quantization-optional)
@@ -268,19 +269,24 @@ $ source bin/activate
 
 ## AI8X Hardware and Resources
 
-AI8X are embedded accelerators. Unlike GPUs, AI8X does not have gigabytes of memory, and cannot support arbitrary data (image) sizes.
-
-To minimize data movement, the accelerator is optimized for convolutions with in-flight pooling on a sequence of layers.
-
-![Example](docs/CNNOverview.png)
+AI8X are embedded accelerators. Unlike GPUs, AI8X do not have gigabytes of memory, and cannot support arbitrary data (image) sizes.
 
 ### Overview
+
+A typical CNN operation consists of pooling followed by a convolution. While these are traditionally expressed as separate layers, pooling can be done “in-flight” on AI8X for greater efficiency.
+
+To minimize data movement, the accelerator is optimized for convolutions with in-flight pooling on a sequence of layers. AI85 and AI86 also support in-flight element-wise operations, pass-through layers and 1D convolutions (without element-wise operations):
+
+![CNNInFlight](docs/CNNInFlight.png)
 
 The AI8X accelerator consists of 64 parallel processors. Each processor includes a pooling unit and a convolutional engine with dedicated weight memory:
 
 ![Overview](docs/Overview.png)
 
-Data is read from data memory associated with the processor, and written out to any data memory located within the accelerator. To run a deep convolutional neural network, multiple layers are chained together, where each layer’s operation is individually configurable. The output data from one layer is used as the input data for the next layer, for up to 32 layers.
+Data is read from data memory associated with the processor, and written out to any data memory located within the accelerator. To run a deep convolutional neural network, multiple layers are chained together, where each layer’s operation is individually configurable. The output data from one layer is used as the input data for the next layer, for up to 32 layers (where in-flight pooling operations do not count as layers).
+
+The following picture shows an example view of a 2D convolution with pooling:
+![Example](docs/CNNOverview.png)
 
 ### Data, Weights, and Processors
 
@@ -334,13 +340,13 @@ The number of discarded pixels is network specific and dependent on pooling stri
 ### Accelerator Limits
 
 * AI84:
-  * The maximum number of layers is 32.
+  * The maximum number of layers is 32 (pooling layers do not count).
   * The maximum number of input or output channels in any layer is 64 each.
   * The weight memory supports up to 128 * 64 3×3 Q7 kernels (see [Number Format](#Number-Format)).
     However, weights must be arranged according to specific rules detailed below.
   * There are 16 instances of 16 KB data memory. Any data channel (input, intermediate, or output) must completely fit into one memory instance. This limits the first-layer input to 128×128 pixels per channel in the CHW format. However, when using more than one input channel, the HWC format may be preferred, and all layer output are in HWC format as well. In those cases, it is required that four channels fit into a single memory instance -- or 64×64 pixels per channel. Note that the first layer commonly creates a wide expansion (i.e., large number of output channels) that needs to fit into data memory, so the input size limit is mostly theoretical.
 * AI85:
-  * The maximum number of layers is 32.
+  * The maximum number of layers is 32 (pooling layers do not count).
   * The maximum number of input or output channels in any layer is 512 each.
   * The weight memory supports up to 768 * 64 3×3 Q7 kernels (see [Number Format](#Number-Format)).
     When using 1-, 2- or 4 bit weights, the capacity increases accordingly.
@@ -615,7 +621,7 @@ The AI85 hardware does not support arbitrary network parameters. Specifically,
   * The maximum number of input neurons is 512, and the maximum number of output neurons is 512 (8 each per processor used).
   *  `Flatten` functionality is available to convert 2D input data.
   *  Element-wise operators support 2 to 16 inputs.
-  *  Element-wise operators can be chained in-flight with pooling and 2D convolution.
+  *  Element-wise operators can be chained in-flight with pooling and 2D convolution (where pooling and element-wise operations can be swapped).
   * For convenience, a `SoftMax` operator is supported in software.
 * Since the internal network format is HWC in groups of four channels, output concatenation only works properly when all components of the concatenation other than the last have multiples of four channels.
 
@@ -772,7 +778,8 @@ Data sets are for example `mnist`, `fashionmnist`, and `cifar-10`.
 
 The global `output_map`, if specified, overrides the memory instances where the last layer outputs its results. If not specified, this will be either the `output_processors` specified for the last layer, or, if that key does not exist, default to the number of processors needed for the output channels, starting at 0.
 
-Example: `output_map: 0x0000000000000ff0`
+Example:
+	`output_map: 0x0000000000000ff0`
 
 ##### `layers` (Mandatory)
 
@@ -792,7 +799,8 @@ This key allows overriding of the processing sequence. The default is `0` for th
 
 `processors` specifies which processors will handle the input data. The processor map must match the number of input channels, and the input data format. For example, in CHW format, processors must be attached to different data memory instances.
 
-Example: `processors: 0x0000000000000111`
+Example:
+	 `processors: 0x0000000000000111`
 
 ##### `output_processors` (Optional)
 
@@ -802,19 +810,24 @@ Example: `processors: 0x0000000000000111`
 
 `out_offset` specifies the relative offset inside the data memory instance where the output data should be written to. When not specified, `out_offset` defaults to `0`.
 
-Example: `out_offset: 0x2000`.
+Example:
+	 `out_offset: 0x2000`
 
 ##### `in_offset` (Optional)
 
 `in_offset` specifies the offset into the data memory instances where the input data should be loaded from. When not specified, this key defaults to the previous layer’s `out_offset`, or `0` for the first layer.
 
-Example: `in_offset: 0x2000`.
+Example:
+	 `in_offset: 0x2000`
 
 ##### `output_width` (Optional)
 
 On AI84, this value (if specified) has to be `8`.
 
 On AI85, when __not__ using an `activation`, the last layer can output `32` bits of unclipped data in Q25.7 format. The default is `8` bits.
+
+Example:
+	`output_width: 32`
 
 ##### `data_format` (Optional)
 
@@ -845,6 +858,13 @@ Element-wise operations can also be added “in-flight” to `Conv2d`. In this c
 Example:
   `eltwise: add`
 
+##### `pool_first` (Optional)
+
+When using both pooling and element-wise operations, pooling is performed first by default. Optionally, the element-wise operation can be performed before the pooling operation by setting `pool_first` to `False`.
+
+Example:
+	`pool_first: false`
+
 ##### `operands` (Optional)
 
 For any element-wise `operation`, this key configures the number of operands from `2` to `16` inclusive. The default is `2`.
@@ -863,6 +883,9 @@ On AI84, this key must always be `8` (the default value).
 
 On AI85, this key describes the width of the weight memory in bits and can be `1`, `2`, `4`, or `8` (`8` is the default).
 
+Example:
+	`quantization: 4`
+
 ##### `kernel_size` (Optional)
 
 2D convolutions:
@@ -874,6 +897,9 @@ On AI85, this key describes the width of the weight memory in bits and can be `1
 
 ​	On AI84, this key must always be `9` (the default).
 ​	On AI85, `1` through `9` are permitted.
+
+Example:
+	`kernel_size: 1x1`
 
 ##### `stride` (Optional)
 
@@ -887,31 +913,38 @@ On AI84, this key must be set to `3`. On AI85, this key must be `1`.
 
 ##### `pad` (Optional)
 
-`pad` sets the padding for the convolution. For `Conv2d`, this value can be `0`, `1` (the default), or `2`. For `Conv1d`, the value can be `0`, `3` (the default), or `6` on AI84 or `0`, `1`, `2` on AI85.
+`pad` sets the padding for the convolution.
+
+* For `Conv2d`, this value can be `0`, `1` (the default), or `2`.
+* For `Conv1d`, the value can be `0`, `3` (the default), or `6` on AI84 or `0`, `1`, `2` on AI85.
+* For `Passthrough`, this value must be `0` (the default).
 
 ##### `max_pool` (Optional)
 
 When specified, performs a `MaxPool` before the convolution. On AI84, `max_pool` is only supported for 2D convolutions. The pooling size can specified as an integer (when the value is identical for both dimensions, or for 1D convolutions), or as two values in order `[H, W]`.
 
-Example: `max_pool: 2`
+Example:
+	 `max_pool: 2`
 
 ##### `avg_pool` (Optional)
 
 When specified, performs an `AvgPool` before the convolution. On AI84, `avg_pool` is only supported for 2D convolutions. The pooling size can specified as an integer (when the value is identical for both dimensions, or for 1D convolutions), or as two values in order `[H, W]`.
 
-Example: `avg_pool: 2`
+Example:
+	 `avg_pool: 2`
 
 ##### `pool_stride` (Optional)
 
 When performing a pooling operation, this key describes the pool stride. The pooling stride can be specified as an integer (when the value is identical for both dimensions, or for 1D convolutions), or as two values in order `[H, W]`. The default is `1` or `[1, 1]`.
 
-Example: `pool_stride: 2`
+Example:
+	 `pool_stride: 2`
 
 ##### `in_dim` (Optional)
 
 `in_dim` specifies the dimensions of the input data. This is usually automatically computed; however, when merging layers or flattening data, this key allows overriding of the dimensions.
 
-Example:  
+Example:
   `in_dim: [64, 64]` 
 
 ##### `streaming` (Optional)
@@ -919,8 +952,7 @@ Example:
 `streaming` specifies that the layer is using streaming mode. this is necessary when the input data dimensions exceed the available data memory. When enabling `streaming`, all prior layers have to enable `streaming` as well. `streaming` can be enabled for up to 8 layers.
 
 Example:
-
-​	`streaming: true`
+	`streaming: true`
 
 ##### `flatten` (Optional)
 
