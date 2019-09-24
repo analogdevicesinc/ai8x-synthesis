@@ -351,7 +351,8 @@ def pooling_layer(layer,  # pylint: disable=unused-argument
                   expand=None,
                   expand_thresh=None,
                   operation=None,
-                  operands=1):
+                  operands=1,
+                  rounding=False):
     """
     Perform pooling for one layer.
     """
@@ -363,7 +364,7 @@ def pooling_layer(layer,  # pylint: disable=unused-argument
                            (input_size[1] + pool_stride[0] - pool[0]) // pool_stride[0],
                            (input_size[2] + pool_stride[1] - pool[1]) // pool_stride[1]]
             pooled = pool2d(data, input_size, pooled_size, pool, pool_stride, pool_average,
-                            floor=True, debug=debug)  # FIXME: Fix rounding for AI85?
+                            floor=not rounding, debug=debug)
             if verbose:
                 if operands == 1:
                     print_data(f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
@@ -396,7 +397,7 @@ def pooling_layer(layer,  # pylint: disable=unused-argument
             pooled_size = [input_size[0],
                            (input_size[1] + pool_stride[0] - pool[0]) // pool_stride[0]]
             pooled = pool1d(data, input_size, pooled_size, pool[0], pool_stride[0],
-                            pool_average, floor=True, debug=debug)  # FIXME: Fix rounding for AI85?
+                            pool_average, floor=not rounding, debug=debug)
             if verbose:
                 print(f"{pool[0]} {'AVERAGE' if pool_average else 'MAX'} "
                       f"POOLING, STRIDE {pool_stride[0]} "
