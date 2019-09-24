@@ -25,6 +25,8 @@ def get_parser():
     parser.add_argument('--autogen', default='tests', metavar='S',
                         help="directory location for autogen_list (default: 'tests'); "
                              "don't add if 'None'")
+    parser.add_argument('--avg-pool-rounding', action='store_true', default=False,
+                        help="round average pooling results on AI85 and AI86 (default: False)")
     parser.add_argument('--c-filename', metavar='S',
                         help="C file name base (RTL sim default: 'test' -> 'test.c', "
                              "otherwise 'main' -> 'main.c')")

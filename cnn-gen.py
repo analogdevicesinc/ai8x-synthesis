@@ -94,7 +94,8 @@ def create_net(prefix,
                weight_filename=None,
                sample_filename=None,
                device=84,
-               init_tram=False):
+               init_tram=False,
+               avg_pool_rounding=False):
     """
     Chain multiple CNN layers, create and save input and output
     """
@@ -836,11 +837,14 @@ def create_net(prefix,
         # [8]    one-shot (stop after single layer)
         # [11:9] ext_sync (slave to other group)
         # [12]   irq
+        # [13]   pool_rnd
         # [14]   strm_ena -  cnn_ctl register bit 14. Master stream processor enable. Layers are
         #        processed up to the first layer with a zero start count value. After the last
         #        stream layer (non-zero start and delta >> values) processing is complete,
         #        standard processing follows for the remaining layers.
         val = 1 << 14 if any(streaming) else 0
+        if avg_pool_rounding:
+            val |= 1 << 13
 
         # Enable all needed groups except the first one
         for _, group in enumerate(groups_used[1:]):
@@ -927,7 +931,8 @@ def create_net(prefix,
                                        expand=in_expand[ll],
                                        expand_thresh=in_expand_thresh[ll],
                                        operation=operator[ll],
-                                       operands=num_operands)
+                                       operands=num_operands,
+                                       rounding=avg_pool_rounding)
 
         if operator[ll] == op.CONV1D:
             assert out_size[0] == in_chan * operands[ll] \
@@ -1340,7 +1345,8 @@ def main():
                         args.weight_filename,
                         args.sample_filename,
                         args.device,
-                        args.init_tram)
+                        args.init_tram,
+                        args.avg_pool_rounding)
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(args.top_level,
                                      tn,
