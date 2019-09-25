@@ -190,15 +190,20 @@ def verify(verify_fn, ll, in_map, out_map,
                         sys.exit(1)
 
             if not no_data:
+                num_bytes = min(c - this_c, input_shape[0] - this_c)
                 if out_size == 1:
                     check_overwrite(proc, offs, in_map, out_map, this_c, row, col)
                     out_map[offs >> 2] = (this_c, row, col, val)
-                    verify_fn(offs, val, rv=False, comment=f' // {row},{col},{c}')
+                    verify_fn(offs, val, rv=False,
+                              comment=f' // {row},{col},{this_c}-{this_c+num_bytes-1}',
+                              num_bytes=num_bytes)
                 else:
                     for i in range(out_size):
                         check_overwrite(proc, offs, in_map, out_map, this_c, row, col)
                         out_map[offs >> 2] = (this_c, row, col, val[i])
-                        verify_fn(offs, val[i], rv=False, comment=f' // {row},{col},{c}')
+                        verify_fn(offs, val[i], rv=False,
+                                  comment=f' // {row},{col},{this_c}-{this_c+num_bytes-1}',
+                                  num_bytes=num_bytes)
                         offs += out_size
 
             coffs += 4
