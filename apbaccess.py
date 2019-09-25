@@ -85,6 +85,7 @@ class APB(object):
     def verify(self,
                addr,
                val,
+               num_bytes=4,
                comment='',
                rv=False):  # pylint: disable=unused-argument
         """
@@ -383,6 +384,7 @@ class APBBlockLevel(APB):
     def verify(self,
                addr,
                val,
+               num_bytes=4,
                comment='',
                rv=False):  # pylint: disable=unused-argument
         """
@@ -433,6 +435,7 @@ class APBTopLevel(APB):
     def verify(self,
                addr,
                val,
+               num_bytes=4,
                comment='',
                rv=False):
         """
@@ -447,12 +450,25 @@ class APBTopLevel(APB):
         if self.memfile is None:
             return
 
-        if rv:
-            self.memfile.write(f'  if (*((volatile uint32_t *) 0x{addr:08x}) != 0x{val:08x}) '
-                               f'rv = 0;{comment}\n')
+        if num_bytes == 4:
+            mask = ''
+        elif num_bytes == 3:
+            mask = ' & 0xffffff'
+        elif num_bytes == 2:
+            mask = ' & 0xffff'
+        elif num_bytes == 1:
+            mask = ' & 0xff'
         else:
-            self.memfile.write(f'  if (*((volatile uint32_t *) 0x{addr:08x}) != 0x{val:08x}) '
-                               f'return 0;{comment}\n')
+            raise NotImplementedError
+
+        if rv:
+            action = 'rv = 0;'
+        else:
+            action = 'return 0;'
+
+        self.memfile.write(f'  if ((*((volatile uint32_t *) 0x{addr:08x}){mask})'
+                           f' != 0x{val:0{2*num_bytes}x}) '
+                           f'{action}{comment}\n')
         self.reads += 1
 
     def copyright_header(self):
