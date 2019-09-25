@@ -551,7 +551,7 @@ def create_net(prefix,
                         val = 1 << 8
                     if operator[ll] == op.NONE:
                         val |= (popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
-                                         % 2**tc.dev.P_NUMPRO) - 1) // 4
+                                         % 2**tc.dev.P_NUMPRO) * output_width[ll]//8 - 1) // 4
                     if operands[ll] > 1:
                         val |= 1 << 13 | op.eltwise_fn(eltwise[ll]) << 14 | operands[ll] - 1 << 18
                         if (pool[ll][0] > 1 or pool[ll][1] > 1) and pool_first[ll]:
