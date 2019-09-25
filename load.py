@@ -17,7 +17,7 @@ from utils import s2u, popcount
 
 def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
          in_expand, operands, in_expand_thresh,
-         data, padding, split=1, debug=False):
+         data, padding, split=1, fifo=False, debug=False):
     """
     Create C code to load data input to offset `input_offset` in CHW format (if `chw` is `True`)
     or HWC format for the `processor_map`. Data `data` is organized in `input_size` channels and
@@ -74,6 +74,9 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
             assert split > 0
             assert operands == 1  # We don't support multiple operands here (yet)
             # FIXME: Support multiple operands for CHW data
+
+            if fifo:
+                raise NotImplementedError  # FIXME
 
             # CHW ("Big Data") - Separate channel sequences (BBBBB....GGGGG....RRRRR....)
             if embedded_code and split == 1:
@@ -186,7 +189,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
                         apb.check_overwrite(data_offs)
                         out_map[data_offs >> 2] = (this_c, row, col, val)
                         if not embedded_code:
-                            apb.write(data_offs, val)
+                            apb.write(data_offs, val, fifo=group if fifo else None)
                         else:
                             code_buffer[offs] = val
                             offs += 4

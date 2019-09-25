@@ -45,6 +45,8 @@ def get_parser():
     parser.add_argument('-f', '--fc-layer', action='store_true', default=False,
                         help="add a fully connected classification layer in software "
                              "(default: false)")
+    parser.add_argument('--fifo', action='store_true', default=False,
+                        help="use FIFOs to load streaming data (default: false)")
     parser.add_argument('-D', '--debug', action='store_true', default=False,
                         help="debug mode (default: false)")
     parser.add_argument('--debug-computation', action='store_true', default=False,
