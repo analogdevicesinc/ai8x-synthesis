@@ -87,6 +87,7 @@ class DevAI85(Dev):
     """
     AI85 hardware constants
     """
+    FIFO_BASE = 0x50000000
     APB_BASE = 0x50100000
     MAX_LAYERS = 32
     C_CNN = 4

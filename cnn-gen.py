@@ -95,7 +95,8 @@ def create_net(prefix,
                sample_filename=None,
                device=84,
                init_tram=False,
-               avg_pool_rounding=False):
+               avg_pool_rounding=False,
+               fifo=False):
     """
     Chain multiple CNN layers, create and save input and output
     """
@@ -112,6 +113,21 @@ def create_net(prefix,
     padding_str = [None] * layers
     pool_stride_str = [None] * layers
     stride_str = [None] * layers
+
+    # Check streaming and FIFO constraints
+    if fifo:
+        if not streaming[0]:
+            print("--fifo argument given, but streaming not enabled for layer 0.")
+            sys.exit(1)
+        if input_chan[0] > 16 or big_data[0] and input_chan[0] > 4:
+            print("Using the FIFO is restricted to a maximum of 4 input channels (CHW) or "
+                  "16 channels (HWC).")
+            sys.exit(1)
+        if big_data[0] and processor_map[0] & ~0x0001000100010001 != 0 \
+           or not big_data[0] and processor_map[0] & ~0x000f000f000f000f != 0:
+            print("The FIFO is restricted to processors 0, 16, 32, 48 (CHW) or "
+                  "0-3, 16-19, 32-35, 48-51 (HWC).")
+            sys.exit(1)
 
     # Check that input channels are in separate memory instances if CHW (big) data format is used,
     # and calculate input and output expansion
@@ -322,7 +338,7 @@ def create_net(prefix,
             load.load(True, apb, big_data[0], processor_map[0], in_offset[0],
                       [input_chan[0], input_dim[0][0], input_dim[0][1]],
                       in_expand[0], operands[0], in_expand_thresh[0],
-                      data, padding[0], split=split, debug=debug)
+                      data, padding[0], split=split, fifo=fifo, debug=debug)
         if embedded_code or compact_weights:
             # Pre-define the kernels and bias values
             kern_offs, kern_len = \
@@ -828,7 +844,7 @@ def create_net(prefix,
             load.load(embedded_code, apb, big_data[0], processor_map[0], in_offset[0],
                       [input_chan[0], input_dim[0][0], input_dim[0][1]],
                       in_expand[0], operands[0], in_expand_thresh[0],
-                      data, padding[0], split=split, debug=debug)
+                      data, padding[0], split=split, fifo=fifo, debug=debug)
 
         if verbose:
             print('\nGlobal registers:')
@@ -1353,7 +1369,8 @@ def main():
                         args.sample_filename,
                         args.device,
                         args.init_tram,
-                        args.avg_pool_rounding)
+                        args.avg_pool_rounding,
+                        args.fifo)
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(args.top_level,
                                      tn,

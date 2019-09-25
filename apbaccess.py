@@ -73,7 +73,8 @@ class APB(object):
               addr,
               val,
               comment='',
-              no_verify=False):  # pylint: disable=unused-argument
+              no_verify=False,
+              fifo=None):  # pylint: disable=unused-argument
         """
         Write address `addr` and data `val` to the output file.
         if `no_verify` is `True`, do not check the result of the write operation, even if
@@ -369,7 +370,8 @@ class APBBlockLevel(APB):
               addr,
               val,
               comment='',
-              no_verify=False):  # pylint: disable=unused-argument
+              no_verify=False,
+              fifo=None):  # pylint: disable=unused-argument
         """
         Write address `addr` and data `val` to the .mem file.
         """
@@ -411,7 +413,8 @@ class APBTopLevel(APB):
               addr,
               val,
               comment='',
-              no_verify=False):
+              no_verify=False,
+              fifo=None):
         """
         Write address `addr` and data `val` to the .c file.
         if `no_verify` is `True`, do not check the result of the write operation, even if
@@ -425,12 +428,20 @@ class APBTopLevel(APB):
         if self.memfile is None:
             return
 
-        self.memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) = 0x{val:08x};{comment}\n')
-        self.writes += 1
-        if self.verify_writes and not no_verify:
-            self.memfile.write(f'  if (*((volatile uint32_t *) 0x{addr:08x}) != 0x{val:08x}) '
-                               'return 0;\n')
-            self.reads += 1
+        if fifo is None:
+            self.memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) = '
+                               f'0x{val:08x};{comment}\n')
+            self.writes += 1
+            if self.verify_writes and not no_verify:
+                self.memfile.write(f'  if (*((volatile uint32_t *) 0x{addr:08x}) != 0x{val:08x}) '
+                                   'return 0;\n')
+                self.reads += 1
+        else:
+            self.memfile.write(f'  while ((*((volatile uint32_t *) 0x50000000) & (1<<16))) '
+                               '!= 0; // Wait for FIFO\n')
+            self.memfile.write(f'  *((volatile uint32_t *) 0x{0x50000004 + fifo*4:08x}) = '
+                               f'0x{val:08x};{comment}\n')
+            self.writes += 1
 
     def verify(self,
                addr,
