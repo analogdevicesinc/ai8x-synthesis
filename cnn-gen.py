@@ -457,7 +457,7 @@ def create_net(prefix,
         # Configure per-layer control registers
         for ll in range(layers):
 
-            local_source = operator[ll] not in [op.CONV1D, op.CONV2D, op.LINEAR]
+            local_source = False
             for _, group in enumerate(groups_used):
                 # Local output must be used:
                 # - When parallel processing is enabled (not currently supported), or
@@ -534,7 +534,8 @@ def create_net(prefix,
                           or operator[ll] in [op.NONE, op.LINEAR] and operands[ll] == 1):
                         val = 1 << 8
                     if operator[ll] == op.NONE:
-                        val |= (popcount(processor_map[ll]) - 1) // 4
+                        val |= (popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
+                                         % 2**tc.dev.P_NUMPRO) - 1) // 4
                     if operands[ll] > 1:
                         val |= 1 << 13 | op.eltwise_fn(eltwise[ll]) << 14 | operands[ll] - 1 << 18
                         if (pool[ll][0] > 1 or pool[ll][1] > 1) and pool_first[ll]:
@@ -577,7 +578,13 @@ def create_net(prefix,
                     # Configure SRAM write pointer -- write ptr is global
                     # Get offset to first available instance of the first used processor of the
                     # next layer.
-                    instance = ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1)
+                    if operator[ll] != op.NONE:
+                        instance = ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1)
+                    else:
+                        instance = ffs(output_processor_map[ll]
+                                       & 2**tc.dev.P_NUMPRO - 1 << group*tc.dev.P_NUMPRO) \
+                            & ~(tc.dev.P_SHARED-1)
+
                     val |= (instance % tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE \
                         | (instance // tc.dev.P_SHARED) << tc.dev.INSTANCE_SHIFT
                 else:
@@ -667,7 +674,7 @@ def create_net(prefix,
                         val |= (out_expand[ll] - 1) << 19
                     if output_width[ll] != 8:
                         val |= 1 << 31
-                if group == groups_used[0]:
+                if operator[ll] != op.NONE and group == groups_used[0]:
                     # Set external source for other active processing groups (can be zero if no
                     # other groups are processing). Do not set the bit corresponding to this group
                     # (e.g., if group == 0, do not set bit 12)
