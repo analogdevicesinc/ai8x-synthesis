@@ -382,8 +382,11 @@ def create_net(prefix,
                                    f'{tc.dev.TRAM_SIZE}); // Zero TRAM {group}\n')
                         apb.output('\n')
 
-            # Stop state machine - will be overwritten later
-            apb.write_ctl(group, tc.dev.REG_CTL, 0x06,
+            # Stop state machine - will be overwritten later; enable FIFO
+            val = 0x06
+            if fifo:
+                val |= 1 << 15
+            apb.write_ctl(group, tc.dev.REG_CTL, val,
                           verbose, comment=' // Stop SM')
             # SRAM Control - does not need to be changed
             apb.write_ctl(group, tc.dev.REG_SRAM, 0x40e,
@@ -836,15 +839,16 @@ def create_net(prefix,
                                        verbose, force_write=True,
                                        comment=f' // Zero unused layer {ll} registers')
 
-        # Load data memory
-        if embedded_code or compact_data:
-            # Do the actual code generation later
-            apb.output('\n  load_input(); // Load data input\n\n')
-        else:
-            load.load(embedded_code, apb, big_data[0], processor_map[0], in_offset[0],
-                      [input_chan[0], input_dim[0][0], input_dim[0][1]],
-                      in_expand[0], operands[0], in_expand_thresh[0],
-                      data, padding[0], split=split, fifo=fifo, debug=debug)
+        if not fifo:
+            # Load data memory
+            if embedded_code or compact_data:
+                # Do the actual code generation later
+                apb.output('\n  load_input(); // Load data input\n\n')
+            else:
+                load.load(embedded_code, apb, big_data[0], processor_map[0], in_offset[0],
+                          [input_chan[0], input_dim[0][0], input_dim[0][1]],
+                          in_expand[0], operands[0], in_expand_thresh[0],
+                          data, padding[0], split=split, fifo=fifo, debug=debug)
 
         if verbose:
             print('\nGlobal registers:')
@@ -865,9 +869,43 @@ def create_net(prefix,
         #        processed up to the first layer with a zero start count value. After the last
         #        stream layer (non-zero start and delta >> values) processing is complete,
         #        standard processing follows for the remaining layers.
+        # [15]   fifo_ena
         val = 1 << 14 if any(streaming) else 0
+        if fifo:
+            val |= 1 << 15
         if avg_pool_rounding:
             val |= 1 << 13
+
+        # Configure the FIFOs when we're using them
+        if fifo:
+            # [1:0] rdy_sel[1:0]      Sets the number of wait states added to the APB access.
+            # [4:2] fthres[2:0]       FIFO almost full threshold. If the difference between the
+            #                         write and read pointer exceeds this number of bytes, the
+            #                         almost full flag is set.
+            # [9:7] ethres[2:0]       FIFO almost empty threshold. If the difference between the
+            #                         write and read pointer falls below this number of bytes, the
+            #                         almost empty flag is set.
+            # [12]  full_iena         FIFO full interrupt enable. Logic '1' enables the interrupt
+            #                         request based on the fifo full flag.
+            # [13]  empty_iena	      FIFO empty interrupt enable. Logic '1' enables the interrupt
+            #                         request based on the fifo empty flag.
+            # [14]  almost_full_iena  FIFO almost full interrupt enable. Logic '1' enables the
+            #                         interrupt request based on the fifo almost full threshold
+            #                         flag.
+            # [15]  almost_empty_iena FIFO almost empty interrupt enable. Logic '1' enables the
+            #                         interrupt request based on the fifo almost empty threshold
+            #                         flag.
+            # [16]  fifo_full         FIFO full status flag.  Logical OR of all enabled FIFO
+            #                         statuses.
+            # [17]  fifo_empty        FIFO empty status flag.  Logical OR of all enabled FIFO
+            #                         statuses.
+            # [18]  fifo_almost_full  FIFO almost full status flag.  Logical OR of all enabled
+            #                         FIFO statuses.
+            # [19]  fifo_almost_empty FIFO almost empty status flag.  Logical OR of all enabled
+            #                         FIFO statuses.
+            val = 0x02 << 2 | 0x02 << 7
+            apb.write_fifo_ctl(tc.dev.FIFO_CTL, val,
+                               verbose, comment=f' // FIFO control')
 
         # Enable all needed groups except the first one
         for _, group in enumerate(groups_used[1:]):
@@ -877,6 +915,17 @@ def create_net(prefix,
         # Master control - go
         apb.write_ctl(groups_used[0], tc.dev.REG_CTL, val | 0x07,
                       verbose, comment=f' // Master enable group {groups_used[0]}')
+
+        if fifo:
+            # Load data memory
+            if embedded_code or compact_data:
+                # Do the actual code generation later
+                apb.output('\n  load_input(); // Load data input\n\n')
+            else:
+                load.load(embedded_code, apb, big_data[0], processor_map[0], in_offset[0],
+                          [input_chan[0], input_dim[0][0], input_dim[0][1]],
+                          in_expand[0], operands[0], in_expand_thresh[0],
+                          data, padding[0], split=split, fifo=fifo, debug=debug)
 
         apb.load_footer()
         # End of input

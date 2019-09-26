@@ -101,6 +101,21 @@ class APB(object):
         """
         self.memfile = memfile
 
+    def write_fifo_ctl(self, reg, val, debug=False, force_write=False, comment=''):
+        """
+        Set FIFO control register `reg` to value `val`.
+        Unless `force_write` is set, zero values will not be written.
+        """
+        if comment is None:
+            comment = f' // fifo ctl {reg}'
+        if val == 0:
+            comment += ' *'
+        addr = tornadocnn.dev.C_FIFO_BASE + reg*4
+        if force_write or val != 0 or self.write_zero_regs:
+            self.write(addr, val, comment)
+        if debug:
+            print(f'F{reg:02} ({addr:08x}): {val:08x}{comment}')
+
     def write_ctl(self, group, reg, val, debug=False, force_write=False, comment=''):
         """
         Set global control register `reg` in group `group` to value `val`.
