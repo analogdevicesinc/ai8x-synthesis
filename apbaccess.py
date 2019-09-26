@@ -480,10 +480,13 @@ class APBTopLevel(APB):
             mask = ''
         elif num_bytes == 3:
             mask = ' & 0xffffff'
+            val &= 0xffffff
         elif num_bytes == 2:
             mask = ' & 0xffff'
+            val &= 0xffff
         elif num_bytes == 1:
             mask = ' & 0xff'
+            val &= 0xff
         else:
             raise NotImplementedError
 
