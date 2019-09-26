@@ -205,7 +205,7 @@ class APB(object):
             if not self.no_error_stop:
                 sys.exit(1)
 
-    def write_byte_flush(self, offs, comment=''):
+    def write_byte_flush(self, offs, comment='', fifo=None):
         """
         Flush the contents of the internal buffer at offset `offs`, adding an optional
         `comment` to the output.
@@ -215,13 +215,13 @@ class APB(object):
         if self.num > 0:
             woffs = self.data_offs - self.num
             self.check_overwrite(woffs)
-            self.write(woffs, self.data, comment)
+            self.write(woffs, self.data, comment, fifo=fifo)
             self.mem[woffs >> 2] = True
             self.num = 0
             self.data = 0
         self.data_offs = offs
 
-    def write_byte(self, offs, val, comment=''):
+    def write_byte(self, offs, val, comment='', fifo=None):
         """
         Add byte `val` that should be written at offset `offs` to the internal buffer.
         When reaching 4 bytes, or when the offset is not contiguous, pad with zeros and
@@ -236,7 +236,7 @@ class APB(object):
         self.num += 1
         self.data_offs += 1
         if self.num == 4:
-            self.write_byte_flush(offs+1, comment)
+            self.write_byte_flush(offs+1, comment, fifo=fifo)
 
     def get_mem(self):
         """
@@ -452,8 +452,8 @@ class APBTopLevel(APB):
                                    'return 0;\n')
                 self.reads += 1
         else:
-            self.memfile.write(f'  while ((*((volatile uint32_t *) 0x50000000) & (1<<16))) '
-                               '!= 0; // Wait for FIFO\n')
+            self.memfile.write(f'  while (((*((volatile uint32_t *) 0x50000000) & (1<<16))) '
+                               '!= 0); // Wait for FIFO\n')
             self.memfile.write(f'  *((volatile uint32_t *) 0x{0x50000004 + fifo*4:08x}) = '
                                f'0x{val:08x};{comment}\n')
             self.writes += 1

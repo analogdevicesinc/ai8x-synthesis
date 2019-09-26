@@ -49,6 +49,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
 
         # Load channel into shared memory
         group = (ch % tc.dev.MAX_PROC) // tc.dev.P_NUMPRO
+        fifo_group = group if fifo else None
         expand = c // in_expand_thresh  # Channels 64+ handled by processors 0+
         instance = (ch % tc.dev.P_NUMPRO) // tc.dev.P_SHARED
         new_data_offs = tc.dev.C_SRAM_BASE + tc.dev.C_GROUP_OFFS*group \
@@ -74,9 +75,6 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
             assert split > 0
             assert operands == 1  # We don't support multiple operands here (yet)
             # FIXME: Support multiple operands for CHW data
-
-            if fifo:
-                raise NotImplementedError  # FIXME
 
             # CHW ("Big Data") - Separate channel sequences (BBBBB....GGGGG....RRRRR....)
             if embedded_code and split == 1:
@@ -125,7 +123,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
                     # Add top pad
                     for _ in range(padding[0]):
                         for _ in range(input_size[2]):
-                            apb.write_byte(data_offs, 0)
+                            apb.write_byte(data_offs, 0, fifo=fifo_group)
                             data_offs += 1
                             if data_offs & ~3 == 0:
                                 data_offs += 4 * (in_expand - 1)
@@ -137,7 +135,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
                         overlap = 0
                     while row < (s + 1) * chunk + overlap:
                         for col in range(input_size[2]):
-                            apb.write_byte(data_offs, s2u(data[c][row][col]))
+                            apb.write_byte(data_offs, s2u(data[c][row][col]), fifo=fifo_group)
                             data_offs += 1
                             if data_offs & ~3 == 0:
                                 data_offs += 4 * (in_expand - 1)
@@ -148,13 +146,13 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
                         new_data_offs = ((data_offs + tc.dev.INSTANCE_SIZE - 1) //
                                          tc.dev.INSTANCE_SIZE) * tc.dev.INSTANCE_SIZE
                         if new_data_offs != data_offs:
-                            apb.write_byte_flush(0)
+                            apb.write_byte_flush(0, fifo=fifo_group)
                         data_offs = new_data_offs
                 if split > 1:
                     # Add bottom pad
                     for _ in range(padding[0]):
                         for _ in range(input_size[2]):
-                            apb.write_byte(data_offs, 0)
+                            apb.write_byte(data_offs, 0, fifo=fifo_group)
                             data_offs += 1
                             if data_offs & ~3 == 0:
                                 data_offs += 4 * (in_expand - 1)
@@ -189,7 +187,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
                         apb.check_overwrite(data_offs)
                         out_map[data_offs >> 2] = (this_c, row, col, val)
                         if not embedded_code:
-                            apb.write(data_offs, val, fifo=group if fifo else None)
+                            apb.write(data_offs, val, fifo=fifo_group)
                         else:
                             code_buffer[offs] = val
                             offs += 4
@@ -206,7 +204,7 @@ def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
 
             c += num_ch
 
-        apb.write_byte_flush(0)
+        apb.write_byte_flush(0, fifo=fifo_group)
         if c >= chan:
             # Consumed all available channels
             break
