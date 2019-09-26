@@ -851,30 +851,11 @@ def create_net(prefix,
             print('\nGlobal registers:')
             print('-----------------')
 
-        # [0]    enable
-        # [2:1]  rdy_sel  (wait states - set to max)
-        # [3]    RFU
-        # [4]    calcmax
-        # [5]    poolena
-        # [6]    bigdata
-        # [7]    actena
-        # [8]    one-shot (stop after single layer)
-        # [11:9] ext_sync (slave to other group)
-        # [12]   irq
-        # [13]   pool_rnd
-        # [14]   strm_ena -  cnn_ctl register bit 14. Master stream processor enable. Layers are
-        #        processed up to the first layer with a zero start count value. After the last
-        #        stream layer (non-zero start and delta >> values) processing is complete,
-        #        standard processing follows for the remaining layers.
-        # [15]   fifo_ena
-        val = 1 << 14 if any(streaming) else 0
-        if fifo:
-            val |= 1 << 15
-        if avg_pool_rounding:
-            val |= 1 << 13
-
         # Configure the FIFOs when we're using them
         if fifo:
+            apb.output('\n')
+
+            # FIFO control
             # [1:0] rdy_sel[1:0]      Sets the number of wait states added to the APB access.
             # [4:2] fthres[2:0]       FIFO almost full threshold. If the difference between the
             #                         write and read pointer exceeds this number of bytes, the
@@ -904,12 +885,36 @@ def create_net(prefix,
             apb.write_fifo_ctl(tc.dev.FIFO_CTL, val,
                                verbose, comment=f' // FIFO control')
 
+        # [0]    enable
+        # [2:1]  rdy_sel  (wait states - set to max)
+        # [3]    RFU
+        # [4]    calcmax
+        # [5]    poolena
+        # [6]    bigdata
+        # [7]    actena
+        # [8]    one-shot (stop after single layer)
+        # [11:9] ext_sync (slave to other group)
+        # [12]   irq
+        # [13]   pool_rnd
+        # [14]   strm_ena -  cnn_ctl register bit 14. Master stream processor enable. Layers are
+        #        processed up to the first layer with a zero start count value. After the last
+        #        stream layer (non-zero start and delta >> values) processing is complete,
+        #        standard processing follows for the remaining layers.
+        # [15]   fifo_ena
+        val = 1 << 14 if any(streaming) else 0
+        if avg_pool_rounding:
+            val |= 1 << 13
+
         # Enable all needed groups except the first one
         for _, group in enumerate(groups_used[1:]):
-            apb.write_ctl(group, tc.dev.REG_CTL, val | 0x807 | groups_used[0] << 9,
+            # Turn on the FIFO for this group if it's being loaded
+            fval = 1 << 15 if fifo and processor_map[0] >> group*tc.dev.P_NUMPRO & 1 != 0 else 0
+            apb.write_ctl(group, tc.dev.REG_CTL, val | 0x807 | fval | groups_used[0] << 9,
                           verbose, comment=f' // Enable group {group}')
 
         # Master control - go
+        if fifo and processor_map[0] & 1 != 0:
+            val |= 1 << 15
         apb.write_ctl(groups_used[0], tc.dev.REG_CTL, val | 0x07,
                       verbose, comment=f' // Master enable group {groups_used[0]}')
 
