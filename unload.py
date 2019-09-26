@@ -202,7 +202,7 @@ def verify(verify_fn, ll, in_map, out_map,
                         check_overwrite(proc, offs, in_map, out_map, this_c, row, col)
                         out_map[offs >> 2] = (this_c, row, col, val[i])
                         verify_fn(offs, val[i], rv=False,
-                                  comment=f' // {row},{col},{this_c}-{this_c+num_bytes-1}')
+                                  comment=f' // {row},{col},{this_c+i}')
                         offs += out_size
 
             coffs += 4

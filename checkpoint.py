@@ -19,7 +19,8 @@ def load(checkpoint_file, arch, fc_layer, quantization):
     """
     Load weights and biases from `checkpoint_file`. If `arch` is not None and does not match
     the architecuture in the checkpoint file, abort with an error message. If `fc_layer` is
-    `True`, configure a single fully connected classification layer.
+    `True`, configure a single fully connected classification layer for software rather than
+    hardware.
     `quantization` is a list of expected bit widths for the layer weights (always 8 for AI84).
     This value is checked against the weight inputs.
     In addition to returning weights anf biases, this function configures the network output
@@ -51,7 +52,7 @@ def load(checkpoint_file, arch, fc_layer, quantization):
         operation, parameter = k.rsplit(sep='.', maxsplit=1)
         if parameter in ['weight']:
             module, _ = k.split(sep='.', maxsplit=1)
-            if module != 'fc':
+            if module != 'fc' or module == 'fc' and not fc_layer:
                 if layers >= num_conv_layers:
                     continue
                 w = checkpoint_state[k].numpy().astype(np.int64)

@@ -191,8 +191,13 @@ def load(verbose, embedded_code, device, apb, layers, operator,
                                           f'{ch + ie * in_expand_thresh[ll]} m[{m}..{m+n-1}] '
                                           f'of {output_chan[ll]}: {k}')
 
-                            for i in range(ksize):
-                                col_target = add_kernel_data(ll, p, col_target, k[ksize - i - 1])
+                            if flatten[ll]:
+                                for _, e in enumerate(k):
+                                    col_target = add_kernel_data(ll, p, col_target, e)
+                            else:
+                                for i in range(ksize):
+                                    col_target = add_kernel_data(ll, p, col_target,
+                                                                 k[ksize - i - 1])
 
                         else:  # When expanding, need to pad with zero kernels if needed
                             for _ in range(ksize // qfactor):
@@ -206,7 +211,10 @@ def load(verbose, embedded_code, device, apb, layers, operator,
                 col_target += 1
             while col_target < kern_len[ll]:
                 col_target = add_kernel_data(ll, p, col_target, 0)
-            assert kern_len[ll] == col_target
+            if flatten[ll]:
+                kern_len[ll] = col_target
+            else:
+                assert kern_len[ll] == col_target
             proc_kern_max[p] = kern_offs[ll] + kern_len[ll]
             ch += 1
             m = 0
