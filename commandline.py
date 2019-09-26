@@ -44,7 +44,7 @@ def get_parser():
                              "to save code space in RTL simulation")
     parser.add_argument('-f', '--fc-layer', action='store_true', default=False,
                         help="add a fully connected classification layer in software "
-                             "(default: false)")
+                             "(default: false; AI85 uses hardware)")
     parser.add_argument('--fifo', action='store_true', default=False,
                         help="use FIFOs to load streaming data (default: false)")
     parser.add_argument('-D', '--debug', action='store_true', default=False,

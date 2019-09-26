@@ -155,8 +155,6 @@ def create_net(prefix,
             in_expand_thresh[ll] = \
                 min((in_expand_thresh[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1),
                     tc.dev.MAX_PROC)
-        if flatten[ll]:
-            in_expand[ll] *= input_dim[ll][0] * input_dim[ll][1]
 
         # Data memory size check - 4 channels share one instance unless CHW format
         in_size = input_dim[ll][0] * input_dim[ll][1] * in_expand[ll] * operands[ll] \
@@ -203,7 +201,8 @@ def create_net(prefix,
     if not embedded_code:
         for ll in range(layers):
             test_name += f'-{input_chan[ll]}x{input_dim_str[ll]}' \
-                         f'{"b" if big_data[ll] else "l"}_' \
+                         f'{"b" if big_data[ll] else "l"}' \
+                         f'{"f" if flatten[ll] else ""}_' \
                          + ("avg" if pool_average[ll]
                             and (pool[ll][0] > 1 or pool[ll][1] > 1) else "") \
                          + ("max" if not pool_average[ll]
@@ -518,15 +517,23 @@ def create_net(prefix,
                     # Configure row count
                     # [7:0] maxcount: lower 8 bits = total of width + pad - 1
                     # [9:8] pad: 2 bits pad
+                    if flatten[ll]:
+                        val = 0
+                    else:
+                        val = input_dim[ll][0]-1
                     apb.write_lreg(group, ll, tc.dev.LREG_RCNT,
-                                   padding[ll][0] << 8 | input_dim[ll][0]-1 + 2*padding[ll][0],
+                                   padding[ll][0] << 8 | val + 2*padding[ll][0],
                                    verbose, comment=' // Rows')
 
                     # Configure column count (evaluates to 0 for 1D convolutions)
                     # [7:0] width including padding - 1
                     # [9:8] pad count (0 = no pad, 1 = half pad, 2 = full pad)
+                    if flatten[ll]:
+                        val = 0
+                    else:
+                        val = input_dim[ll][1]-1
                     apb.write_lreg(group, ll, tc.dev.LREG_CCNT,
-                                   padding[ll][1] << 8 | input_dim[ll][1]-1 + 2 * padding[ll][1],
+                                   padding[ll][1] << 8 | val + 2 * padding[ll][1],
                                    verbose, comment=' // Columns')
 
                 if device != 84:
@@ -682,10 +689,13 @@ def create_net(prefix,
                 if not local_source:
                     val |= 0x800
                 if device != 84:
+                    in_exp = in_expand[ll]
+                    if flatten[ll]:
+                        in_exp *= pooled_dim[ll][0] * pooled_dim[ll][1]
                     val |= (fls(output_processor_map[ll])
                             - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) \
-                           * quantization[ll] << 22 \
-                           | (in_expand[ll] - 1) << 16
+                        * quantization[ll] << 22 \
+                        | (in_exp - 1) << 16
                     if operator[ll] != op.NONE:
                         val |= (out_expand[ll] - 1) << 19
                     if output_width[ll] != 8:
@@ -725,10 +735,13 @@ def create_net(prefix,
                         val |= 0x1000000 | bias_offs[ll] << 16
                 else:
                     if operator[ll] in [op.CONV1D, op.CONV2D, op.LINEAR]:
+                        in_exp = in_expand[ll]
+                        if flatten[ll]:
+                            in_exp *= pooled_dim[ll][0] * pooled_dim[ll][1]
                         kl = (((fls(output_processor_map[ll])
                                 - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) + 1)
-                              * quantization[ll]) * out_expand[ll] * in_expand[ll] \
-                              - quantization[ll] + kern_offs[ll] * 8  # kern_offs is always bytes
+                              * quantization[ll]) * out_expand[ll] * in_exp \
+                            - quantization[ll] + kern_offs[ll] * 8  # kern_offs is always bytes
                         val = kern_offs[ll] * 8 << tc.dev.MCNT_SAD_OFFS \
                             | kl << tc.dev.MCNT_MAX_OFFS  # kern_offs is always bytes
                     else:
@@ -988,11 +1001,7 @@ def create_net(prefix,
         if operator[ll] == op.CONV1D:
             data = data.reshape(in_chan, input_dim[ll][0])
         else:
-            if flatten[ll]:
-                in_chan = in_chan * input_dim[ll][0] * input_dim[ll][1]
-                data = data.reshape(in_chan * operands[ll], 1, 1)
-            else:
-                data = data.reshape(in_chan * operands[ll], input_dim[ll][0], input_dim[ll][1])
+            data = data.reshape(in_chan * operands[ll], input_dim[ll][0], input_dim[ll][1])
 
         data, out_size = pooling_layer(ll,
                                        verbose,
@@ -1020,6 +1029,12 @@ def create_net(prefix,
 
         # Convolution or passthrough
         if operator[ll] == op.CONV2D:
+            if flatten[ll]:
+                in_chan *= input_dim[ll][0] * input_dim[ll][1]
+                data = data.reshape(in_chan * operands[ll], 1, 1)
+                if verbose:
+                    print(f"FLATTEN TO {in_chan}x1x1...\n")
+
             out_buf, out_size = cnn2d_layer(ll,
                                             verbose,
                                             data.shape,
@@ -1295,9 +1310,6 @@ def main():
                                1]
         else:
             pooled_size = input_dim[ll]
-
-        if flatten[ll]:
-            pooled_size = [1, 1]
 
         pooled_dim[ll] = pooled_size
 
