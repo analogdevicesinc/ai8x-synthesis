@@ -631,15 +631,12 @@ def create_net(prefix,
                     # Used for 1x1 convolution, and pooling without convolution
                     if operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]:
                         val = 1
-                    elif operator[ll] == op.NONE and popcount(processor_map[ll]) > 4:
-                        val = tc.dev.INSTANCE_SIZE * 4
-                    elif operands[ll] > 1:
-                        if in_expand[ll] > 1:
+                    elif operator[ll] == op.NONE:
+                        if popcount(processor_map[ll]) > 4 \
+                           or operands[ll] > 1 and in_expand[ll] > 1:
                             val = tc.dev.INSTANCE_SIZE * 4
                         else:
                             val = tc.dev.INSTANCE_SIZE
-                    elif operator[ll] == op.NONE:
-                        val = tc.dev.INSTANCE_SIZE
                     else:
                         val = 0
                     apb.write_lreg(group, ll, tc.dev.LREG_WPTR_TOFFS, val,
@@ -772,11 +769,11 @@ def create_net(prefix,
                         # Enable bias only for one group
                         val |= 1 << 12 | bias_offs[ll]
 
-                    if operator[ll] == op.NONE and operands[ll] == 1:
-                        val |= 3 << 24
-
-                    if operands[ll] > 1:
-                        val |= 1 << 24
+                    if operator[ll] == op.NONE:
+                        if operands[ll] == 1:
+                            val |= 3 << 24
+                        else:
+                            val |= 1 << 24
 
                     apb.write_lreg(group, ll, tc.dev.LREG_POST, val,
                                    verbose, comment=' // AI85/86 post processing register')
