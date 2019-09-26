@@ -87,11 +87,11 @@ class DevAI85(Dev):
     """
     AI85 hardware constants
     """
-    FIFO_BASE = 0x50000000
-    APB_BASE = 0x50100000
+    APB_BASE = 0x50000000
     MAX_LAYERS = 32
     C_CNN = 4
-    C_CNN_BASE = 0
+    C_FIFO_BASE = 0
+    C_CNN_BASE = 0x100000
     P_NUMGROUPS = 4
     P_NUMPRO = 16  # Processors per group
     P_SHARED = 4  # Processors sharing a data memory
@@ -124,6 +124,8 @@ class DevAI85(Dev):
     REG_CTL = 0
     REG_SRAM = 1
     REG_LCNT_MAX = 2
+
+    FIFO_CTL = 0
 
     DEFAULT_WEIGHT_BITS = 8
     ACTIVATION_BITS = 8
