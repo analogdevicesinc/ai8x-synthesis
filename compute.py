@@ -182,13 +182,13 @@ def pool2d(data, input_size, output_size, pool, stride, average, floor=True, deb
                 for col in range(0, output_size[2]*stride[1], stride[1]):
                     if average:
                         avg = np.average(data[c][row:row+pool[0], col:col+pool[1]])
-                        if avg < 0:
-                            val = np.ceil(avg).astype(np.int64).clip(min=-128, max=127)
-                        else:
-                            if floor:
-                                val = np.floor(avg).astype(np.int64).clip(min=-128, max=127)
+                        if floor:
+                            if avg < 0:
+                                val = np.ceil(avg).astype(np.int64).clip(min=-128, max=127)
                             else:
-                                val = np.floor(avg + 0.5).astype(np.int64).clip(min=-128, max=127)
+                                val = np.floor(avg).astype(np.int64).clip(min=-128, max=127)
+                        else:
+                            val = np.floor(avg + 0.5).astype(np.int64).clip(min=-128, max=127)
                     else:
                         val = np.amax(data[c][row:row+pool[0], col:col+pool[1]])
                     ref[c][row//stride[0]][col//stride[1]] = val
@@ -210,7 +210,7 @@ def pool2d(data, input_size, output_size, pool, stride, average, floor=True, deb
         if floor:
             pooled = np.nanmean(view, dtype=np.int64, axis=(3, 4))
         else:
-            pooled = (np.nanmean(view, axis=(3, 4)) + 0.5).astype(np.int64)
+            pooled = np.round(np.nanmean(view, axis=(3, 4))).astype(np.int64)
     else:
         pooled = np.nanmax(view, axis=(3, 4))
 
