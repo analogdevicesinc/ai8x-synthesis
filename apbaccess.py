@@ -94,6 +94,16 @@ class APB(object):
         """
         raise NotImplementedError
 
+    def wait(self,
+             addr,
+             mask,
+             val,
+             comment=''):  # pylint: disable=unused-argument
+        """
+        Wait until memory at address `addr` masked with `mask` equals `val`.
+        """
+        raise NotImplementedError
+
     def set_memfile(self,
                     memfile):
         """
@@ -130,6 +140,15 @@ class APB(object):
             self.write(addr, val, comment)
         if debug:
             print(f'R{reg:02} ({addr:08x}): {val:08x}{comment}')
+
+    def verify_ctl(self, group, reg, mask, val, comment=''):
+        """
+        Reads from global control register `reg` in group `group` to value `val`.
+        Unless `force_write` is set, zero values will not be written.
+        An optional `comment` can be added to the output.
+        """
+        addr = tornadocnn.dev.C_GROUP_OFFS*group + tornadocnn.dev.C_CNN_BASE + reg*4
+        self.wait(addr, mask, val, comment)
 
     def write_lreg(self, group, layer, reg, val, debug=False, force_write=False, comment=''):
         """
@@ -412,6 +431,19 @@ class APBBlockLevel(APB):
         assert val >= 0
         assert addr >= 0
 
+    def wait(self,
+             addr,
+             mask,
+             val,
+             comment=''):  # pylint: disable=unused-argument
+        """
+        Wait until memory at address `addr` masked with `mask` equals `val`.
+        For block level tests, this function does nothing useful other than ensuring the inputs
+        address and data are not negative.
+        """
+        assert val >= 0
+        assert addr >= 0
+
     def set_memfile(self, memfile):
         """
         Change the file handle to `memfile` and reset the .mem output location to 0.
@@ -499,6 +531,25 @@ class APBTopLevel(APB):
                            f' != 0x{val:0{2*num_bytes}x}) '
                            f'{action}{comment}\n')
         self.reads += 1
+
+    def wait(self,
+             addr,
+             mask,
+             val,
+             comment=''):
+        """
+        Waits until memory at address `addr` masked with `mask` contains data `val`.
+        """
+        assert val >= 0
+        assert addr >= 0
+        addr += self.apb_base
+
+        if self.memfile is None:
+            return
+
+        self.memfile.write(f'  while ((*((volatile uint32_t *) 0x{addr:08x}) & 0x{mask:0x})'
+                           f' != 0x{val:0x});'
+                           f'{comment}\n')
 
     def copyright_header(self):
         """

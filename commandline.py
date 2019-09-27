@@ -98,6 +98,8 @@ def get_parser():
                         help="verify write operations (toplevel only, default: false)")
     parser.add_argument('--write-zero-registers', action='store_true', default=False,
                         help="write registers even if the value is zero (default: do not write)")
+    parser.add_argument('--zero-sram', action='store_true', default=False,
+                        help="zero memories (default: false)")
     parser.add_argument('--zero-unused', action='store_true', default=False,
                         help="zero unused registers (default: do not touch)")
     parser.add_argument('--cmsis-software-nn', action='store_true', default=False,
