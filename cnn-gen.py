@@ -96,7 +96,8 @@ def create_net(prefix,
                device=84,
                init_tram=False,
                avg_pool_rounding=False,
-               fifo=False):
+               fifo=False,
+               zero_sram=False):
     """
     Chain multiple CNN layers, create and save input and output
     """
@@ -393,6 +394,15 @@ def create_net(prefix,
             # Number of layers
             apb.write_ctl(group, tc.dev.REG_LCNT_MAX, layers-1,
                           verbose, comment=' // Layer count')
+            apb.output('\n')
+
+        if device != 84 and zero_sram:
+            for group in range(tc.dev.P_NUMGROUPS):
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0b101010,
+                              verbose, comment=' // Zero SRAM')
+            for group in range(tc.dev.P_NUMGROUPS):
+                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 28, 1 << 28,
+                               comment=' // Wait for zeroization')
             apb.output('\n')
 
         if not (embedded_code or compact_weights):
@@ -1433,7 +1443,8 @@ def main():
                         args.device,
                         args.init_tram,
                         args.avg_pool_rounding,
-                        args.fifo)
+                        args.fifo,
+                        args.zero_sram)
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(args.top_level,
                                      tn,

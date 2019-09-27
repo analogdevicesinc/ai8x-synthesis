@@ -124,6 +124,8 @@ class DevAI85(Dev):
     REG_CTL = 0
     REG_SRAM = 1
     REG_LCNT_MAX = 2
+    REG_SRAM_TEST = 3
+    REG_MLAT = 4
 
     FIFO_CTL = 0
 
