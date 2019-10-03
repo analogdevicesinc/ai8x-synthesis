@@ -168,13 +168,13 @@
 
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-wide3to508to3 --config-file tests/test-wide3to508to3.yaml --ai85
 
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-cifar --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar.yaml --ai85 --stop-after 1
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-cifar2 --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar.yaml --ai85 --stop-after 2
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-cifar2 --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-cifar-hwc --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar-hwc.yaml --ai85 --stop-after 1
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-cifar2-hwc --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar-hwc.yaml --ai85 --stop-after 2
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-cifar2-hwc --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar-hwc.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-transition --config-file tests/test-stream-transition.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-cifar --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar.yaml --ai85 --stop-after 1 --overwrite-ok
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-cifar2 --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar.yaml --ai85 --stop-after 2 --overwrite-ok
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-cifar2 --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar.yaml --ai85 --overwrite-ok
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-cifar-hwc --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar-hwc.yaml --ai85 --stop-after 1 --overwrite-ok
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-cifar2-hwc --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar-hwc.yaml --ai85 --stop-after 2 --overwrite-ok
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-cifar2-hwc --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar-hwc.yaml --ai85 --overwrite-ok
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-transition --config-file tests/test-stream-transition.yaml --ai85 --overwrite-ok
 
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-add --config-file tests/test-eltwiseadd.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-sub --config-file tests/test-eltwisesub.yaml --ai85
@@ -199,9 +199,13 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-poolafter-avg --config-file tests/test-eltwiseadd-poolafter-avg.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-q4-16x16avgpool-round --checkpoint-file trained/ai85-cifar10-bias-quant4.pth.tar --config-file tests/test-ai85-cifar10-hwc-16x16avgpool.yaml --stop-after 0 --ai85 --avg-pool-rounding
 
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-cifar2 --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar.yaml --ai85 --fifo
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-cifar2-hwc --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar-hwc.yaml --ai85 --fifo
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-cifar2 --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-fifostream-cifar.yaml --ai85 --fifo
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-cifar2-hwc --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-fifostream-cifar-hwc.yaml --ai85 --fifo
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-cifar-mlp --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-cifar10-chw-mlp.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-cifar-transition --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar-transition.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-cifar-transition-zeroize --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar-transition.yaml --ai85 --zero-sram
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-transition-early --config-file tests/test-stream-transition-early.yaml --ai85 --fifo --stop-after 5
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-cifar-transition --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar-transition.yaml --ai85 --overwrite-ok
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-cifar-transition-zeroize --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar-transition.yaml --ai85 --zero-sram --overwrite-ok
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-transition-early --config-file tests/test-fifostream-transition-early.yaml --ai85 --fifo --stop-after 5
+
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlator --checkpoint-file trained/ai85-cifar10-bias.pth.tar --config-file networks/cifar10-hwc.yaml --stop-after 0 --ai85 --mlator
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlator --checkpoint-file trained/ai85-cifar10-bias.pth.tar --config-file networks/cifar10-hwc.yaml --stop-after 1 --ai85 --mlator
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlator --checkpoint-file trained/ai85-cifar10-bias.pth.tar --config-file networks/cifar10-hwc.yaml --stop-after 2 --ai85 --mlator
