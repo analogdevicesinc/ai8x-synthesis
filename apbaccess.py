@@ -12,7 +12,7 @@ Routines to read and write the APB peripherals.
 import sys
 
 import toplevel
-import tornadocnn
+import tornadocnn as tc
 import unload
 
 
@@ -59,7 +59,7 @@ class APB(object):
         self.data = 0
         self.num = 0
         self.data_offs = 0
-        self.mem = [None] * tornadocnn.dev.C_GROUP_OFFS * tornadocnn.dev.P_NUMGROUPS
+        self.mem = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
         self.writes = 0
         self.reads = 0
 
@@ -120,7 +120,7 @@ class APB(object):
             comment = f' // fifo ctl {reg}'
         if val == 0:
             comment += ' *'
-        addr = tornadocnn.dev.C_FIFO_BASE + reg*4
+        addr = tc.dev.C_FIFO_BASE + reg*4
         if force_write or val != 0 or self.write_zero_regs:
             self.write(addr, val, comment)
         if debug:
@@ -135,7 +135,7 @@ class APB(object):
             comment = f' // global ctl {reg}'
         if val == 0:
             comment += ' *'
-        addr = tornadocnn.dev.C_GROUP_OFFS*group + tornadocnn.dev.C_CNN_BASE + reg*4
+        addr = tc.dev.C_GROUP_OFFS*group + tc.dev.C_CNN_BASE + reg*4
         if force_write or val != 0 or self.write_zero_regs:
             self.write(addr, val, comment)
         if debug:
@@ -147,7 +147,7 @@ class APB(object):
         Unless `force_write` is set, zero values will not be written.
         An optional `comment` can be added to the output.
         """
-        addr = tornadocnn.dev.C_GROUP_OFFS*group + tornadocnn.dev.C_CNN_BASE + reg*4
+        addr = tc.dev.C_GROUP_OFFS*group + tc.dev.C_CNN_BASE + reg*4
         self.wait(addr, mask, val, comment)
 
     def write_lreg(self, group, layer, reg, val, debug=False, force_write=False, comment=''):
@@ -159,8 +159,8 @@ class APB(object):
             comment = f' // reg {reg}'
         if val == 0:
             comment += ' *'
-        addr = tornadocnn.dev.C_GROUP_OFFS*group + tornadocnn.dev.C_CNN_BASE \
-            + tornadocnn.dev.C_CNN*4 + reg*4 * tornadocnn.dev.MAX_LAYERS + layer*4
+        addr = tc.dev.C_GROUP_OFFS*group + tc.dev.C_CNN_BASE \
+            + tc.dev.C_CNN*4 + reg*4 * tc.dev.MAX_LAYERS + layer*4
         if force_write or val != 0 or self.write_zero_regs:
             self.write(addr, val, comment)
         if debug:
@@ -170,15 +170,15 @@ class APB(object):
         """
         Write bias value `bias` to offset `offs` in bias memory #`group`.
         """
-        addr = tornadocnn.dev.C_GROUP_OFFS*group + tornadocnn.dev.C_BRAM_BASE + offs * 4
+        addr = tc.dev.C_GROUP_OFFS*group + tc.dev.C_BRAM_BASE + offs * 4
         self.write(addr, bias & 0xff, f' // Bias')
 
     def write_tram(self, group, proc, offs, d, comment=''):
         """
         Write value `d` to TRAM in group `group` and processor `proc` to offset `offs`.
         """
-        addr = tornadocnn.dev.C_GROUP_OFFS*group + tornadocnn.dev.C_TRAM_BASE \
-            + proc * tornadocnn.dev.TRAM_OFFS * 4 + offs * 4
+        addr = tc.dev.C_GROUP_OFFS*group + tc.dev.C_TRAM_BASE \
+            + proc * tc.dev.TRAM_OFFS * 4 + offs * 4
         self.write(addr, d, f' // {comment}TRAM G{group} P{proc} #{offs}')
 
     def write_kern(self, ll, p, idx, k, size=9):
@@ -186,11 +186,11 @@ class APB(object):
         Write single kernel `k` of length `size` for layer `ll`, processor `p` to index `idx` in
         weight memory.
         """
-        assert p < tornadocnn.dev.MAX_PROC
-        assert idx < tornadocnn.dev.MASK_WIDTH
-        addr = tornadocnn.dev.C_GROUP_OFFS * (p // tornadocnn.dev.P_NUMPRO) \
-            + tornadocnn.dev.C_MRAM_BASE \
-            + (p % tornadocnn.dev.P_NUMPRO) * tornadocnn.dev.MASK_OFFS * 16 + idx * 16
+        assert p < tc.dev.MAX_PROC
+        assert idx < tc.dev.MASK_WIDTH
+        addr = tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
+            + tc.dev.C_MRAM_BASE \
+            + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16 + idx * 16
 
         self.write(addr, k[0] & 0xff, no_verify=True,
                    comment=f' // Layer {ll}: processor {p} kernel #{idx}')
@@ -340,7 +340,8 @@ class APB(object):
     def unload(self, processor_map, input_shape,  # pylint: disable=unused-argument
                output_offset=0, out_expand=1,  # pylint: disable=unused-argument
                out_expand_thresh=64, output_width=8,  # pylint: disable=unused-argument
-               pool=None, pool_stride=1):  # pylint: disable=unused-argument
+               pool=None, pool_stride=1,  # pylint: disable=unused-argument
+               mlator=False):  # pylint: disable=unused-argument
         """
         Write the unload function. The layer to unload has the shape `input_shape`,
         and the optional `output_offset` argument can shift the output.
@@ -353,7 +354,8 @@ class APB(object):
                       out_offset=0, out_expand=1,  # pylint: disable=unused-argument
                       out_expand_thresh=64, output_width=8,  # pylint: disable=unused-argument
                       pool=None, pool_stride=1,  # pylint: disable=unused-argument
-                      overwrite_ok=False, no_error_stop=False):  # pylint: disable=unused-argument
+                      overwrite_ok=False, no_error_stop=False,  # pylint: disable=unused-argument
+                      mlator=False):  # pylint: disable=unused-argument
         """
         Write a verification function. The layer to unload has the shape `input_shape`,
         and the optional `output_offset` argument can shift the output.
@@ -484,9 +486,12 @@ class APBTopLevel(APB):
                                    'return 0;\n')
                 self.reads += 1
         else:
-            self.memfile.write(f'  while (((*((volatile uint32_t *) 0x50000000) & (1<<16))) '
-                               '!= 0); // Wait for FIFO\n')
-            self.memfile.write(f'  *((volatile uint32_t *) 0x{0x50000004 + fifo*4:08x}) = '
+            addr = self.apb_base + tc.dev.C_FIFO_BASE
+            self.memfile.write('  while (((*((volatile uint32_t *) '
+                               f'0x{addr + tc.dev.FIFO_CTL*4:08x})'
+                               ' & (1<<16))) != 0); // Wait for FIFO\n')
+            self.memfile.write('  *((volatile uint32_t *) '
+                               f'0x{addr + tc.dev.FIFO_REG*4 + fifo*4:08x}) = '
                                f'0x{val:08x};{comment}\n')
             self.writes += 1
 
@@ -620,31 +625,48 @@ class APBTopLevel(APB):
 
     def unload(self, processor_map, input_shape, output_offset=0,
                out_expand=1, out_expand_thresh=64, output_width=8,
-               pool=None, pool_stride=1):
+               pool=None, pool_stride=1,
+               mlator=False):
         """
         Write the unload function. The layer to unload has the shape `input_shape`,
         and the optional `output_offset` argument can shift the output.
         """
         unload.unload(self.memfile, self.apb_base, processor_map, input_shape,
                       output_offset, out_expand, out_expand_thresh, output_width,
-                      pool=pool, pool_stride=pool_stride, device=self.device)
+                      pool=pool, pool_stride=pool_stride, device=self.device,
+                      mlator=mlator)
 
     def verify_unload(self, ll, in_map, out_map, out_buf,
                       processor_map, input_shape,
                       out_offset=0, out_expand=1,
                       out_expand_thresh=64, output_width=8,
                       pool=None, pool_stride=1,
-                      overwrite_ok=False, no_error_stop=False):
+                      overwrite_ok=False, no_error_stop=False,
+                      mlator=False):
         """
         Write a verification function. The layer to unload has the shape `input_shape`,
         and the optional `output_offset` argument can shift the output.
         The base class does nothing.
         """
-        unload.verify(self.verify, ll, in_map, out_map, out_buf,
-                      processor_map, input_shape, out_offset, out_expand, out_expand_thresh,
-                      output_width, pool=pool, pool_stride=pool_stride,
-                      overwrite_ok=overwrite_ok, no_error_stop=no_error_stop,
-                      device=self.device)
+        unload.verify(self.verify,
+                      ll,
+                      in_map,
+                      out_map,
+                      out_buf,
+                      processor_map,
+                      input_shape,
+                      out_offset,
+                      out_expand,
+                      out_expand_thresh,
+                      output_width,
+                      pool=pool,
+                      pool_stride=pool_stride,
+                      overwrite_ok=overwrite_ok,
+                      no_error_stop=no_error_stop,
+                      device=self.device,
+                      mlator=mlator,
+                      apb_base=self.apb_base,
+                      stream=self.memfile)
 
     def output_define(self, array, define_name, fmt, columns, weights=True):
         """

@@ -104,6 +104,8 @@ def get_parser():
                         help="zero unused registers (default: do not touch)")
     parser.add_argument('--cmsis-software-nn', action='store_true', default=False,
                         help="create code for an Arm CMSIS NN software network instead")
+    parser.add_argument('--mlator', action='store_true', default=False,
+                        help="use hardware to swap output bytes (default: false)")
     args = parser.parse_args()
 
     if not args.c_filename:
