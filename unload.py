@@ -218,7 +218,6 @@ def verify(verify_fn,
     def check_overwrite(p, target_offs, in_map, out_map, c, row, col):
         # If using single layer, make sure we're not overwriting the input
         if (not overwrite_ok) and in_map[target_offs >> 2] is not None:
-            print(in_map[target_offs >> 2])
             print(f'Processor {p}: '
                   f'Layer {ll} output for CHW={c},{row},{col} is overwriting '
                   f'input at offset 0x{target_offs:08x}.')

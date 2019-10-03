@@ -119,7 +119,8 @@ class DevAI85(Dev):
     LREG_POST = 15
     LREG_STREAM1 = 16
     LREG_STREAM2 = 17
-    MAX_LREG = LREG_STREAM2
+    LREG_FMAX = 18
+    MAX_LREG = LREG_FMAX
     LREG_RFU = None
 
     # Global registers
@@ -127,6 +128,7 @@ class DevAI85(Dev):
     REG_SRAM = 1
     REG_LCNT_MAX = 2
     REG_SRAM_TEST = 3
+    REG_IFRM = 612
     REG_MLAT = 644
 
     FIFO_CTL = 0

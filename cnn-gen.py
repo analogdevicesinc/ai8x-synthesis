@@ -816,7 +816,23 @@ def create_net(prefix,
                 apb.write_lreg(group, ll, tc.dev.LREG_ENA, val,
                                verbose, comment=' // Mask and processor enables')
 
-                if ll > 0 and streaming[ll]:
+                if ll == 0 and streaming[ll] and fifo:
+                    # Start: Prior layer's padded pooled row width * prior layer's kernel height
+                    # + prior layer's kernel width + prior layer's pad
+                    stream_start = (input_dim[0][1] + 2 * padding[0][1]) \
+                        * kernel_size[0][0] + padding[0][1] + kernel_size[0][1]
+                    # Delta 1: This layer's pooling stride
+                    delta1 = pool_stride[0][1]
+                    # Delta 2: (This layer's pooling - 1) * full prior layer's padded rows + prior
+                    # layer's pad
+                    delta2 = (pool[0][0] - 1) * (input_dim[0][1] + 2 * padding[0][1]) \
+                        + 2 * padding[0][1]
+                    val = delta2 << 20 | delta1 << 12 | stream_start
+                    apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, val,
+                                   verbose, comment=' // Stream processing 1')
+                    apb.write_lreg(group, ll, tc.dev.LREG_STREAM2, 0,
+                                   verbose, comment=' // Stream processing 2')
+                elif ll > 0 and streaming[ll]:
                     # [11:0]:  strm_isval[11:0]  Per stream start count - based on previous layer
                     #                            tptr_inc count
                     # [16:12]: strm_dsval1[4:0]  Per stream in-row delta count - based on previous
@@ -842,6 +858,7 @@ def create_net(prefix,
                     # layer's pad
                     delta2 = (pool[ll][0] - 1) * (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
                         + 2 * padding[ll-1][1]
+
                     val = delta2 << 20 | delta1 << 12 | stream_start
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, val,
                                    verbose, comment=' // Stream processing 1')
@@ -849,6 +866,11 @@ def create_net(prefix,
                     val = sum(in_expand[:ll])
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM2, val,
                                    verbose, comment=' // Stream processing 2')
+
+                if fifo and streaming[ll]:
+                    val = stream_start + 1
+                    apb.write_lreg(group, ll, tc.dev.LREG_FMAX, val,
+                                   comment=' // Rollover')
 
         if zero_unused:
             for ll in range(layers, tc.dev.MAX_LAYERS):
@@ -909,28 +931,38 @@ def create_net(prefix,
             apb.write_fifo_ctl(tc.dev.FIFO_CTL, val,
                                verbose, comment=f' // FIFO control')
 
-        # [0]    enable
-        # [2:1]  rdy_sel  (wait states - set to max)
-        # [3]    RFU
-        # [4]    calcmax
-        # [5]    poolena
-        # [6]    bigdata
-        # [7]    actena
-        # [8]    one-shot (stop after single layer)
-        # [10:9] ext_sync[1:0] (slave to other group)
-        # [11]   ext_sync[2] (external slave)
-        # [12]   irq
-        # [13]   pool_rnd
-        # [14]   strm_ena -  cnn_ctl register bit 14. Master stream processor enable. Layers are
-        #        processed up to the first layer with a zero start count value. After the last
-        #        stream layer (non-zero start and delta >> values) processing is complete,
-        #        standard processing follows for the remaining layers.
-        # [15]   fifo_ena
+        if fifo and any(streaming):
+            val = input_dim[0][0] * input_dim[0][1] - 1
+            apb.write_ctl(group, tc.dev.REG_IFRM, val, verbose,
+                          comment=' // Input frame size')
+
+        # [0]     enable
+        # [2:1]   rdy_sel  (wait states - set to max)
+        # [3]     RFU
+        # [4]     calcmax
+        # [5]     poolena
+        # [6]     bigdata
+        # [7]     actena
+        # [8]     one-shot (stop after single layer)
+        # [10:9]  ext_sync[1:0] (slave to other group)
+        # [11]    ext_sync[2] (external slave)
+        # [12]    irq
+        # [13]    pool_rnd
+        # [14]    strm_ena -  cnn_ctl register bit 14. Master stream processor enable. Layers are
+        #         processed up to the first layer with a zero start count value. After the last
+        #         stream layer (non-zero start and delta >> values) processing is complete,
+        #         standard processing follows for the remaining layers.
+        # [15]    fifo_ena
+        # [16]    mlat_ena
+        # [18:17] mlat_sel
+        # [19]    lil_buf  - enables ifrm and frm_max
         val = 1 << 14 if any(streaming) else 0
         if avg_pool_rounding:
             val |= 1 << 13
         if fifo:
             val |= 1 << 11
+        if fifo and any(streaming):
+            val |= 1 << 19
 
         # Enable all needed groups except the first one
         for _, group in enumerate(groups_used[1:]):
@@ -1120,7 +1152,7 @@ def create_net(prefix,
 
             apb.output(f'// {test_name}\n// Expected output of layer {ll}\n')
             apb.verify_header()
-            if mlator:
+            if ll == layers-1 and mlator:
                 apb.verify_unload(ll, in_map, None,
                                   out_buf, output_processor_map[ll], out_size,
                                   out_offset[ll], out_expand[ll],
@@ -1132,15 +1164,19 @@ def create_net(prefix,
                               out_offset[ll], out_expand[ll],
                               out_expand_thresh[ll], output_width[ll],
                               pool[ll], pool_stride[ll], overwrite_ok, no_error_stop,
-                              mlator=mlator)
+                              mlator=mlator if ll == layers-1 else False)
             apb.verify_footer()
         finally:
             if memfile:
                 memfile.close()
 
         data = out_buf.reshape(out_size)
-        # FIXME: FIFO streaming requires an OR operation
-        in_map = out_map
+        if streaming[ll]:
+            # When streaming, the output should not overwrite the input of prior layers since
+            # these layers are still needed.
+            in_map = [a if a is not None else b for a, b, in zip(in_map, out_map)]
+        else:
+            in_map = out_map
 
     with open(os.path.join(base_directory, test_name, filename), mode=filemode) as memfile:
         apb.set_memfile(memfile)

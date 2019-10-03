@@ -139,7 +139,8 @@ class APB(object):
         if force_write or val != 0 or self.write_zero_regs:
             self.write(addr, val, comment)
         if debug:
-            print(f'R{reg:02} ({addr:08x}): {val:08x}{comment}')
+            reg = f'{reg:02}'
+            print(f'R{reg:<3}({addr:08x}): {val:08x}{comment}')
 
     def verify_ctl(self, group, reg, mask, val, comment=''):
         """
