@@ -57,6 +57,8 @@ class DevAI84(Dev):
     REG_SRAM = 1
     REG_LCNT_MAX = 2
 
+    READY_SEL = 0x03
+
     DEFAULT_WEIGHT_BITS = 8
     ACTIVATION_BITS = 8
 
@@ -125,9 +127,13 @@ class DevAI85(Dev):
     REG_SRAM = 1
     REG_LCNT_MAX = 2
     REG_SRAM_TEST = 3
-    REG_MLAT = 4
+    REG_MLAT = 644
 
     FIFO_CTL = 0
+    FIFO_REG = 1
+
+    READY_SEL = 0x03
+    FIFO_READY_SEL = 0x03
 
     DEFAULT_WEIGHT_BITS = 8
     ACTIVATION_BITS = 8

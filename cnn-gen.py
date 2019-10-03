@@ -97,7 +97,8 @@ def create_net(prefix,
                init_tram=False,
                avg_pool_rounding=False,
                fifo=False,
-               zero_sram=False):
+               zero_sram=False,
+               mlator=False):
     """
     Chain multiple CNN layers, create and save input and output
     """
@@ -383,7 +384,7 @@ def create_net(prefix,
                         apb.output('\n')
 
             # Stop state machine - will be overwritten later; enable FIFO
-            val = 0x06
+            val = tc.dev.READY_SEL << 1
             if fifo:
                 val |= 1 << 15
             apb.write_ctl(group, tc.dev.REG_CTL, val,
@@ -904,7 +905,7 @@ def create_net(prefix,
             #                         FIFO statuses.
             # [19]  fifo_almost_empty FIFO almost empty status flag.  Logical OR of all enabled
             #                         FIFO statuses.
-            val = 0x02 << 2 | 0x02 << 7
+            val = 0x02 << 2 | 0x02 << 7 | tc.dev.FIFO_READY_SEL
             apb.write_fifo_ctl(tc.dev.FIFO_CTL, val,
                                verbose, comment=f' // FIFO control')
 
@@ -916,7 +917,8 @@ def create_net(prefix,
         # [6]    bigdata
         # [7]    actena
         # [8]    one-shot (stop after single layer)
-        # [11:9] ext_sync (slave to other group)
+        # [10:9] ext_sync[1:0] (slave to other group)
+        # [11]   ext_sync[2] (external slave)
         # [12]   irq
         # [13]   pool_rnd
         # [14]   strm_ena -  cnn_ctl register bit 14. Master stream processor enable. Layers are
@@ -927,18 +929,21 @@ def create_net(prefix,
         val = 1 << 14 if any(streaming) else 0
         if avg_pool_rounding:
             val |= 1 << 13
+        if fifo:
+            val |= 1 << 11
 
         # Enable all needed groups except the first one
         for _, group in enumerate(groups_used[1:]):
             # Turn on the FIFO for this group if it's being loaded
             fval = 1 << 15 if fifo and processor_map[0] >> group*tc.dev.P_NUMPRO & 1 != 0 else 0
-            apb.write_ctl(group, tc.dev.REG_CTL, val | 0x807 | fval | groups_used[0] << 9,
+            apb.write_ctl(group, tc.dev.REG_CTL, val | 0x801 | tc.dev.READY_SEL << 1
+                          | fval | groups_used[0] << 9,
                           verbose, comment=f' // Enable group {group}')
 
         # Master control - go
         if fifo and processor_map[0] & 1 != 0:
             val |= 1 << 15
-        apb.write_ctl(groups_used[0], tc.dev.REG_CTL, val | 0x07,
+        apb.write_ctl(groups_used[0], tc.dev.REG_CTL, val | tc.dev.READY_SEL << 1 | 0x01,
                       verbose, comment=f' // Master enable group {groups_used[0]}')
 
         if fifo:
@@ -1115,28 +1120,39 @@ def create_net(prefix,
 
             apb.output(f'// {test_name}\n// Expected output of layer {ll}\n')
             apb.verify_header()
+            if mlator:
+                apb.verify_unload(ll, in_map, None,
+                                  out_buf, output_processor_map[ll], out_size,
+                                  out_offset[ll], out_expand[ll],
+                                  out_expand_thresh[ll], output_width[ll],
+                                  pool[ll], pool_stride[ll], overwrite_ok, no_error_stop,
+                                  mlator=False)
             apb.verify_unload(ll, in_map, out_map,
                               out_buf, output_processor_map[ll], out_size,
                               out_offset[ll], out_expand[ll],
                               out_expand_thresh[ll], output_width[ll],
-                              pool[ll], pool_stride[ll], overwrite_ok, no_error_stop)
+                              pool[ll], pool_stride[ll], overwrite_ok, no_error_stop,
+                              mlator=mlator)
             apb.verify_footer()
         finally:
             if memfile:
                 memfile.close()
 
         data = out_buf.reshape(out_size)
+        # FIXME: FIFO streaming requires an OR operation
         in_map = out_map
 
     with open(os.path.join(base_directory, test_name, filename), mode=filemode) as memfile:
         apb.set_memfile(memfile)
 
         if fc_weights:
-            data = data.flatten()
+            apb.unload(output_processor_map[-1], out_size,
+                       out_offset[layers-1], out_expand[-1],
+                       out_expand_thresh[-1], output_width[-1],
+                       pool[-1], pool_stride[-1],
+                       mlator=mlator)
 
-            apb.unload(output_processor_map[-1], out_size, out_offset[layers-1],
-                       out_expand[-1], out_expand_thresh[-1], output_width[-1],
-                       pool[-1], pool_stride[-1])
+            data = data.flatten()
 
             out_buf, out_size = linear_layer(verbose=verbose,
                                              do_activation=False,
@@ -1444,7 +1460,8 @@ def main():
                         args.init_tram,
                         args.avg_pool_rounding,
                         args.fifo,
-                        args.zero_sram)
+                        args.zero_sram,
+                        args.mlator)
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(args.top_level,
                                      tn,
