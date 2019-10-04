@@ -160,7 +160,7 @@ def unload(
                             memfile.write(f'  *((volatile uint32_t *) 0x{val:08x}) = '
                                           f'0x{expand:08x}; // Set pointer increment\n')
                             # Set mlatorld enable bit to load write ptr; select byte 0..3
-                            val = tc.dev.READY_SEL << 1 | 1 << 16 | shift << 17
+                            val = tc.dev.READY_SEL << 1 | 1 << 16 | (3 - shift) << 17
                             memfile.write(f'  *ctrl = 0x{val:08x}; '
                                           f'// Enable mlator, byte {shift}\n')
                             # memfile.write('  val = *mlat; // Prime\n')
@@ -368,19 +368,19 @@ def verify(
                                              f'0x{tc.dev.READY_SEL << 1:08x}; '
                                              '// Disable mlator\n')
                             # Set wptr to start address
-                            val = apb_base + addr + tc.dev.C_CNN*4 \
+                            w = apb_base + addr + tc.dev.C_CNN*4 \
                                 + tc.dev.LREG_WPTR_BASE*4 * tc.dev.MAX_LAYERS
-                            stream.write(f'  *((volatile uint32_t *) 0x{val:08x}) = '
+                            stream.write(f'  *((volatile uint32_t *) 0x{w:08x}) = '
                                          f'0x{doffs:08x}; // Set SRAM address\n')
                             # Set wptr_inc to set increment value (default: 1)
-                            val = apb_base + addr + tc.dev.C_CNN*4 \
+                            w = apb_base + addr + tc.dev.C_CNN*4 \
                                 + tc.dev.LREG_LCTL*4 * tc.dev.MAX_LAYERS
-                            stream.write(f'  *((volatile uint32_t *) 0x{val:08x}) = '
+                            stream.write(f'  *((volatile uint32_t *) 0x{w:08x}) = '
                                          f'0x{expand:08x}; // Set pointer increment\n')
                             # Set mlatorld enable bit to load write ptr; select byte 0..3
-                            val = tc.dev.READY_SEL << 1 | 1 << 16 | shift << 17
+                            w = tc.dev.READY_SEL << 1 | 1 << 16 | (3 - shift) << 17
                             stream.write(f'  *((volatile uint32_t *) 0x{apb_base + ctrl:08x}) ='
-                                         f' 0x{val:08x}; '
+                                         f' 0x{w:08x}; '
                                          f'// Enable mlator, byte {shift}\n')
                             stream.write('  asm volatile ("" : "=m" (*((volatile uint32_t *) '
                                          f'0x{apb_base + mlat:08x})) : "r" '
