@@ -18,7 +18,12 @@ from utils import argmin
 _INVALID_VALUE = -(2**63)
 
 
-def combine(b, quantization, start, out_chan):
+def combine(
+        b,
+        quantization,
+        start,
+        out_chan,
+):
     """
     When quantizing, combine multiple bias values `b` based on `quantization`. The first kernel
     index is `start`. `out_chan` is used to determine whether to pad the result with zeros,
@@ -34,9 +39,17 @@ def combine(b, quantization, start, out_chan):
     return val
 
 
-def load(verbose, embedded_code, apb, layers,  # pylint: disable=unused-argument
-         bias, quantization, group_map, output_chan,  # pylint: disable=unused-argument
-         debug):  # pylint: disable=unused-argument
+def load(
+        verbose,
+        embedded_code,
+        apb,
+        layers,
+        bias,
+        quantization,
+        group_map,
+        output_chan,
+        debug,
+):  # pylint: disable=unused-argument
     """
     Write `bias` values for the network to C code.
     """

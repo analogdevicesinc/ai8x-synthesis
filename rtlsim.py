@@ -15,8 +15,14 @@ import os
 GLOBAL_TIME_OFFSET = 3
 
 
-def create_runtest_sv(block_mode, base_directory, test_name, runtest_filename,
-                      input_filename, timeout):
+def create_runtest_sv(
+        block_mode,
+        base_directory,
+        test_name,
+        runtest_filename,
+        input_filename,
+        timeout,
+):
     """
     For for test `test_name`, create the runtest.sv file named `runtest_filename`, in the
     directory `base_directory`. The file contains the timeout value `timeout`.
@@ -61,7 +67,12 @@ def create_runtest_sv(block_mode, base_directory, test_name, runtest_filename,
                 runfile.write(f'defparam REPEAT_TIMEOUT = {timeout};\n\n')
 
 
-def append_regression(top_level, test_name, queue_name, autogen_dir):
+def append_regression(
+        top_level,
+        test_name,
+        queue_name,
+        autogen_dir,
+):
     """
     Append test `test_name` to the regression list in directory `autogen_dir` with
     queue `queue_name`.

@@ -17,11 +17,13 @@ import tornadocnn as tc
 from compute import conv1d, conv2d, linear, pool1d, pool2d, eltwise
 
 
-def print_data(header,
-               data,
-               input_size,
-               expand,
-               expand_thresh):
+def print_data(
+        header,
+        data,
+        input_size,
+        expand,
+        expand_thresh,
+):
     """
     Print `data` of dimensions `input_size` with `expand` and `expand_thresh`,
     prefixed by `header`.
@@ -54,23 +56,25 @@ def print_data(header,
     print('')
 
 
-def cnn2d_layer(layer,  # pylint: disable=unused-argument
-                verbose,
-                input_size,
-                kernel_size,
-                quantization,
-                output_channels,
-                padding,
-                dilation,
-                stride,
-                do_activation,
-                kernel,
-                bias,
-                data,
-                bits=8,
-                output_width=8,
-                device=84,  # pylint: disable=unused-argument
-                debug=False):
+def cnn2d_layer(
+        layer,  # pylint: disable=unused-argument
+        verbose,
+        input_size,
+        kernel_size,
+        quantization,
+        output_channels,
+        padding,
+        dilation,
+        stride,
+        do_activation,
+        kernel,
+        bias,
+        data,
+        bits=8,
+        output_width=8,
+        device=84,  # pylint: disable=unused-argument
+        debug=False,
+):
     """
     Perform 2D convolution for one layer.
     """
@@ -146,23 +150,25 @@ def cnn2d_layer(layer,  # pylint: disable=unused-argument
     return out_buf, out_size
 
 
-def cnn1d_layer(layer,  # pylint: disable=unused-argument
-                verbose,
-                input_size,
-                kernel_size,
-                quantization,
-                output_channels,
-                padding,
-                dilation,
-                stride,
-                do_activation,
-                kernel,
-                bias,
-                data,
-                bits=8,
-                output_width=8,
-                device=84,  # pylint: disable=unused-argument
-                debug=False):
+def cnn1d_layer(
+        layer,  # pylint: disable=unused-argument
+        verbose,
+        input_size,
+        kernel_size,
+        quantization,
+        output_channels,
+        padding,
+        dilation,
+        stride,
+        do_activation,
+        kernel,
+        bias,
+        data,
+        bits=8,
+        output_width=8,
+        device=84,  # pylint: disable=unused-argument
+        debug=False,
+):
     """
     Perform 1D convolution for one layer.
     """
@@ -222,13 +228,15 @@ def cnn1d_layer(layer,  # pylint: disable=unused-argument
     return out_buf, out_size
 
 
-def linear_layer(verbose,
-                 do_activation,
-                 weight,
-                 bias,
-                 data,
-                 bits=16,
-                 debug=False):
+def linear_layer(
+        verbose,
+        do_activation,
+        weight,
+        bias,
+        data,
+        bits=16,
+        debug=False,
+):
     """
     Perform one linear layer.
     """
@@ -271,12 +279,14 @@ def linear_layer(verbose,
     return out_buf, out_features
 
 
-def passthrough_layer(layer,  # pylint: disable=unused-argument
-                      verbose,  # pylint: disable=unused-argument
-                      input_size,
-                      data,
-                      device=84,  # pylint: disable=unused-argument
-                      debug=False):  # pylint: disable=unused-argument
+def passthrough_layer(
+        layer,  # pylint: disable=unused-argument
+        verbose,  # pylint: disable=unused-argument
+        input_size,
+        data,
+        device=84,  # pylint: disable=unused-argument
+        debug=False,  # pylint: disable=unused-argument
+):
     """
     2D passthrough for one layer.
     """
@@ -284,15 +294,17 @@ def passthrough_layer(layer,  # pylint: disable=unused-argument
     return data, input_size
 
 
-def eltwise_layer(operator,
-                  layer,  # pylint: disable=unused-argument
-                  verbose,
-                  input_size,
-                  data,
-                  output_width=8,
-                  device=84,  # pylint: disable=unused-argument
-                  debug=False,
-                  operands=1):
+def eltwise_layer(
+        operator,
+        layer,  # pylint: disable=unused-argument
+        verbose,
+        input_size,
+        data,
+        output_width=8,
+        device=84,  # pylint: disable=unused-argument
+        debug=False,
+        operands=1,
+):
     """
     Element-wise operators for one layer.
     """
@@ -340,19 +352,21 @@ def eltwise_layer(operator,
     return out_buf, input_size
 
 
-def pooling_layer(layer,  # pylint: disable=unused-argument
-                  verbose,
-                  input_size,
-                  pool,
-                  pool_stride,
-                  pool_average,
-                  data,
-                  debug=False,
-                  expand=None,
-                  expand_thresh=None,
-                  operation=None,
-                  operands=1,
-                  rounding=False):
+def pooling_layer(
+        layer,  # pylint: disable=unused-argument
+        verbose,
+        input_size,
+        pool,
+        pool_stride,
+        pool_average,
+        data,
+        debug=False,
+        expand=None,
+        expand_thresh=None,
+        operation=None,
+        operands=1,
+        rounding=False,
+):
     """
     Perform pooling for one layer.
     """
@@ -417,15 +431,17 @@ def pooling_layer(layer,  # pylint: disable=unused-argument
     return pooled, pooled_size
 
 
-def show_data(layer,
-              verbose,
-              input_size,
-              data,
-              debug=False,  # pylint: disable=unused-argument
-              expand=None,
-              expand_thresh=None,
-              operation=None,
-              operands=1):
+def show_data(
+        layer,
+        verbose,
+        input_size,
+        data,
+        debug=False,  # pylint: disable=unused-argument
+        expand=None,
+        expand_thresh=None,
+        operation=None,
+        operands=1,
+):
     """
     Show input data.
     """

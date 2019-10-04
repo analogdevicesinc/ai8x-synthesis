@@ -15,9 +15,22 @@ import tornadocnn as tc
 from utils import s2u, popcount
 
 
-def load(embedded_code, apb, chw, processor_map, input_offset, input_size,
-         in_expand, operands, in_expand_thresh,
-         data, padding, split=1, fifo=False, debug=False):
+def load(
+        embedded_code,
+        apb,
+        chw,
+        processor_map,
+        input_offset,
+        input_size,
+        in_expand,
+        operands,
+        in_expand_thresh,
+        data,
+        padding,
+        split=1,
+        fifo=False,
+        debug=False,
+):
     """
     Create C code to load data input to offset `input_offset` in CHW format (if `chw` is `True`)
     or HWC format for the `processor_map`. Data `data` is organized in `input_size` channels and

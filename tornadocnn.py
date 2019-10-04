@@ -162,7 +162,9 @@ class DevAI85(Dev):
     BIAS_DIV = 128
 
 
-def get_device(device):
+def get_device(
+        device,
+):
     """
     Change implementation configuration to match the AI84 or AI85, depending on the `device`
     integer input value.

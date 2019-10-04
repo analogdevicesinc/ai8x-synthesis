@@ -14,18 +14,20 @@ import tornadocnn as tc
 from utils import ffs, popcount
 
 
-def unload(memfile,
-           apb_base,
-           processor_map,
-           input_shape,
-           out_offset,
-           out_expand,
-           out_expand_thresh,
-           output_width=8,
-           pool=None,
-           pool_stride=None,
-           device=84,
-           mlator=False):
+def unload(
+        memfile,
+        apb_base,
+        processor_map,
+        input_shape,
+        out_offset,
+        out_expand,
+        out_expand_thresh,
+        output_width=8,
+        pool=None,
+        pool_stride=None,
+        device=84,
+        mlator=False,
+):
     """
     Unload HWC memory from AI84, writing C code to the `memfile` handle.
     The generated C code is specific to the network configuration passed in in `processor_map`,
@@ -185,25 +187,27 @@ def unload(memfile,
     memfile.write('}\n\n')
 
 
-def verify(verify_fn,
-           ll,
-           in_map,
-           out_map,
-           out_buf,
-           processor_map,
-           input_shape,
-           out_offset,
-           out_expand,
-           out_expand_thresh,
-           output_width=8,
-           pool=None,
-           pool_stride=None,
-           overwrite_ok=False,
-           no_error_stop=False,
-           device=84,
-           mlator=False,
-           apb_base=0,
-           stream=None):
+def verify(
+        verify_fn,
+        ll,
+        in_map,
+        out_map,
+        out_buf,
+        processor_map,
+        input_shape,
+        out_offset,
+        out_expand,
+        out_expand_thresh,
+        output_width=8,
+        pool=None,
+        pool_stride=None,
+        overwrite_ok=False,
+        no_error_stop=False,
+        device=84,
+        mlator=False,
+        apb_base=0,
+        stream=None,
+):
     """
     Verify HWC memory from AI84, writing C or mem code using the `verify_fn` function.
     The generated code is specific to the network configuration passed in in `processor_map`,
@@ -215,7 +219,15 @@ def verify(verify_fn,
     When `mlator` is set, use the hardware mechanism to rearrange 4-channel data into single
     channels.
     """
-    def check_overwrite(p, target_offs, in_map, out_map, c, row, col):
+    def check_overwrite(
+            p,
+            target_offs,
+            in_map,
+            out_map,
+            c,
+            row,
+            col,
+    ):
         # If using single layer, make sure we're not overwriting the input
         if (not overwrite_ok) and in_map[target_offs >> 2] is not None:
             print(f'Processor {p}: '
