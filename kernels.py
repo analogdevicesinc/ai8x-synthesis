@@ -21,7 +21,10 @@ _INVALID_VALUE = -(2**63)
 _WORDS_PER_KERNEL = 3
 
 
-def print_map(layers, kmap):
+def print_map(
+        layers,
+        kmap,
+):
     """
     Print map of all used kernels in kernel map `kmap`. `layers` describes the number of layers
     in the network and is used to align the map.
@@ -41,10 +44,27 @@ def print_map(layers, kmap):
     print('-' * kmap.shape[1] * width)
 
 
-def load(verbose, embedded_code, device, apb, layers, operator,
-         kernel, kernel_size, quantization, processor_map,
-         output_processor_map, input_chan, output_chan, out_expand, out_expand_thresh,
-         in_expand, in_expand_thresh, flatten, debug=False):
+def load(
+        verbose,
+        embedded_code,
+        device,
+        apb,
+        layers,
+        operator,
+        kernel,
+        kernel_size,
+        quantization,
+        processor_map,
+        output_processor_map,
+        input_chan,
+        output_chan,
+        out_expand,
+        out_expand_thresh,
+        in_expand,
+        in_expand_thresh,
+        flatten,
+        debug=False,
+):
     """
     Stack `kernel` values and write them to C code (for `embedded_code` if `True` or
     RTL simulation). The output is written to the `apb` object.

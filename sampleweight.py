@@ -17,7 +17,12 @@ import numpy as np
 from utils import fls
 
 
-def load(dataset, quantization, cfg_layers, cfg_bias):
+def load(
+        dataset,
+        quantization,
+        cfg_layers,
+        cfg_bias,
+):
     """
     Return sample weights.
     """

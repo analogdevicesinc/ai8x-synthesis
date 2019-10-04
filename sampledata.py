@@ -15,7 +15,9 @@ import os
 import numpy as np
 
 
-def get(dataset):
+def get(
+        dataset,
+):
     """
     Return a sample input image for the dataset `dataset` (MNIST/FashionMNIST/CIFAR-10/etc.)
     in CHW format.

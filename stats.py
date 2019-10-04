@@ -40,7 +40,9 @@ def sw_ops():
     return sw_macc + sw_comp
 
 
-def print_summary(debug=False):
+def print_summary(
+        debug=False,
+):
     """
     Print ops summary stats.
     """

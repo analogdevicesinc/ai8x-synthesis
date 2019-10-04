@@ -21,8 +21,19 @@ import op
 import stats
 
 
-def conv2d(data, weight, bias, input_size, output_size, out_channels, kernel_size, stride, pad,
-           dilation, debug=False):
+def conv2d(
+        data,
+        weight,
+        bias,
+        input_size,
+        output_size,
+        out_channels,
+        kernel_size,
+        stride,
+        pad,
+        dilation,
+        debug=False,
+):
     """
     Compute a 2D convolution.
 
@@ -101,8 +112,19 @@ def conv2d(data, weight, bias, input_size, output_size, out_channels, kernel_siz
     return output
 
 
-def conv1d(data, weight, bias, input_size, output_size, out_channels, kernel_size, stride, pad,
-           dilation, debug=False):
+def conv1d(
+        data,
+        weight,
+        bias,
+        input_size,
+        output_size,
+        out_channels,
+        kernel_size,
+        stride,
+        pad,
+        dilation,
+        debug=False,
+):
     """
     Compute a 1D convolution.
 
@@ -144,7 +166,14 @@ def conv1d(data, weight, bias, input_size, output_size, out_channels, kernel_siz
     return output.reshape((output_size))
 
 
-def linear(data, weight, bias, in_features, out_features, debug=False):
+def linear(
+        data,
+        weight,
+        bias,
+        in_features,
+        out_features,
+        debug=False,
+):
     """
     Compute a fully connected layer.
     """
@@ -167,7 +196,16 @@ def linear(data, weight, bias, in_features, out_features, debug=False):
     return output
 
 
-def pool2d(data, input_size, output_size, pool, stride, average, floor=True, debug=False):
+def pool2d(
+        data,
+        input_size,
+        output_size,
+        pool,
+        stride,
+        average,
+        floor=True,
+        debug=False,
+):
     """
     Compute 2D Pooling (Average or Max)
     """
@@ -225,8 +263,16 @@ def pool2d(data, input_size, output_size, pool, stride, average, floor=True, deb
     return pooled
 
 
-def pool1d(data, input_size, output_size, pool, stride, average,
-           floor=True, debug=False):  # pylint: disable=unused-argument
+def pool1d(
+        data,
+        input_size,
+        output_size,
+        pool,
+        stride,
+        average,
+        floor=True,
+        debug=False,
+):  # pylint: disable=unused-argument
     """
     Compute 1D Pooling (Average or Max)
     """
@@ -248,10 +294,12 @@ def pool1d(data, input_size, output_size, pool, stride, average,
     return pooled
 
 
-def eltwise(operator,
-            data,
-            input_size,
-            debug=False):  # pylint: disable=unused-argument
+def eltwise(
+        operator,
+        data,
+        input_size,
+        debug=False,
+):  # pylint: disable=unused-argument
     """
     Compute element-wise operation.
     """

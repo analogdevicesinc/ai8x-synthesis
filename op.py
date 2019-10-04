@@ -20,24 +20,33 @@ ELTWISE_OR = -3
 ELTWISE_SUB = -4
 ELTWISE_XOR = -5
 
-NAMES = {NONE: 'passthrough',
-         CONV1D: 'conv1d',
-         CONV2D: 'conv2d'}
+NAMES = {
+    NONE: 'passthrough',
+    CONV1D: 'conv1d',
+    CONV2D: 'conv2d',
+}
 
-ELT_NAMES = {NONE: 'none',
-             ELTWISE_ADD: 'add',
-             ELTWISE_SUB: 'sub',
-             ELTWISE_MUL: 'mul',
-             ELTWISE_XOR: 'xor',
-             ELTWISE_OR: 'or'}
+ELT_NAMES = {
+    NONE: 'none',
+    ELTWISE_ADD: 'add',
+    ELTWISE_SUB: 'sub',
+    ELTWISE_MUL: 'mul',
+    ELTWISE_XOR: 'xor',
+    ELTWISE_OR: 'or',
+}
 
-ENCODING = {ELTWISE_ADD: 0b01,
-            ELTWISE_SUB: 0b00,
-            ELTWISE_XOR: 0b11,
-            ELTWISE_OR: 0b10}
+ENCODING = {
+    ELTWISE_ADD: 0b01,
+    ELTWISE_SUB: 0b00,
+    ELTWISE_XOR: 0b11,
+    ELTWISE_OR: 0b10,
+}
 
 
-def string(op, elt=False):
+def string(
+        op,
+        elt=False,
+):
     """
     Return string rep[reaentation of operator `op`
     """
@@ -47,14 +56,18 @@ def string(op, elt=False):
         return ELT_NAMES[op] if op in ELT_NAMES else '????'
 
 
-def eltwise(op):
+def eltwise(
+        op,
+):
     """
     Returns `True` when `op` is an element-wise operator.
     """
     return op in [ELTWISE_ADD, ELTWISE_MUL, ELTWISE_SUB, ELTWISE_XOR, ELTWISE_OR]
 
 
-def eltwise_fn(op):
+def eltwise_fn(
+        op,
+):
     """
     Returns the bit encoding for `op`, where `op` is an element-wise operator.
     """

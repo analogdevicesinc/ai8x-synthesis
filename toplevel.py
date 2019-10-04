@@ -20,21 +20,25 @@ COPYRIGHT = \
     '// ---------------------------------------------------------------------------\n\n'
 
 
-def copyright_header(memfile):
+def copyright_header(
+        memfile,
+):
     """
     Write the copyright header to .c file handle `memfile`.
     """
     memfile.write(COPYRIGHT)
 
 
-def header(memfile,
-           apb_base,
-           embedded_code=False,
-           cmsis_nn=False,
-           compact_weights=False,
-           compact_data=False,
-           weight_filename='weights.h',
-           sample_filename='sampledata.h'):
+def header(
+        memfile,
+        apb_base,
+        embedded_code=False,
+        cmsis_nn=False,
+        compact_weights=False,
+        compact_data=False,
+        weight_filename='weights.h',
+        sample_filename='sampledata.h',
+):
     """
     Write include files and forward definitions to .c file handle `memfile`.
     The APB base address is passed in `apb_base`.
@@ -69,14 +73,19 @@ def header(memfile,
         memfile.write('}\n\n')
 
 
-def load_header(memfile):
+def load_header(
+        memfile,
+):
     """
     Write the header for the CNN configuration loader function to `memfile`.
     """
     memfile.write('int cnn_load(void)\n{\n')
 
 
-def load_footer(memfile, embedded_code=False):
+def load_footer(
+        memfile,
+        embedded_code=False,
+):
     """
     Write the footer for the CNN configuration loader function to `memfile`.
     """
@@ -85,7 +94,11 @@ def load_footer(memfile, embedded_code=False):
     memfile.write('\n  return 1;\n}\n\n')
 
 
-def main(memfile, classification_layer=False, embedded_code=False):
+def main(
+        memfile,
+        classification_layer=False,
+        embedded_code=False,
+):
     """
     Write the main function (including an optional call to the fully connected layer if
     `fc_layer` is `True`) to `memfile`.
@@ -120,21 +133,31 @@ def main(memfile, classification_layer=False, embedded_code=False):
     memfile.write('  pass();\n  return 0;\n}\n\n')
 
 
-def verify_header(memfile):
+def verify_header(
+        memfile,
+):
     """
     Write the header for the CNN verification function to `memfile`.
     """
     memfile.write('int cnn_check(void)\n{\n  int rv = 1;\n')
 
 
-def verify_footer(memfile):
+def verify_footer(
+        memfile,
+):
     """
     Write the footer for the CNN verification function to `memfile`.
     """
     memfile.write('  return rv;\n}\n\n')
 
 
-def fc_layer(memfile, weights_fh, weights, bias, cmsis_nn=False):
+def fc_layer(
+        memfile,
+        weights_fh,
+        weights,
+        bias,
+        cmsis_nn=False,
+):
     """
     Write the call to the fully connected layer with the given `weights` and
     `bias` to `memfile`. The `bias` argument can be `None`.
@@ -174,7 +197,11 @@ def fc_layer(memfile, weights_fh, weights, bias, cmsis_nn=False):
     memfile.write('  return 1;\n}\n\n')
 
 
-def fc_verify(memfile, sampledata, data):
+def fc_verify(
+        memfile,
+        sampledata,
+        data,
+):
     """
     Write the code to verify the fully connected layer to `memfile` against `data`.
     """
@@ -186,7 +213,13 @@ def fc_verify(memfile, sampledata, data):
     memfile.write('  return memcmp(fc_output, fc_expected, FC_OUT * sizeof(q15_t)) == 0;\n}\n\n')
 
 
-def c_define(memfile, array, define_name, fmt, columns=8):
+def c_define(
+        memfile,
+        array,
+        define_name,
+        fmt,
+        columns=8,
+):
     """
     Write a #define to `memfile` for array `array` to `define_name`, using format `fmt` and
     creating a line break after `columns` items each.
