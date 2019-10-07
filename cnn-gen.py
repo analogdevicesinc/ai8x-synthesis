@@ -389,6 +389,8 @@ def create_net(
             val = tc.dev.READY_SEL << 1
             if fifo:
                 val |= 1 << 15
+            if device != 84:
+                val |= 1 << 3  # Enable clocks
             apb.write_ctl(group, tc.dev.REG_CTL, val,
                           verbose, comment=' // Stop SM')
             # SRAM Control - does not need to be changed
@@ -940,7 +942,7 @@ def create_net(
 
         # [0]     enable
         # [2:1]   rdy_sel  (wait states - set to max)
-        # [3]     RFU
+        # [3]     clock_ena
         # [4]     calcmax
         # [5]     poolena
         # [6]     bigdata
@@ -965,6 +967,8 @@ def create_net(
             val |= 1 << 11
         if fifo and any(streaming):
             val |= 1 << 19
+        if device != 84:
+            val |= 1 << 3  # Enable clocks
 
         # Enable all needed groups except the first one
         for _, group in enumerate(groups_used[1:]):

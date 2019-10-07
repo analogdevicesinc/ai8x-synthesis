@@ -147,7 +147,7 @@ def unload(
                             memfile.write(f'  offs = 0x{target >> 2:04x};\n')
                         if source != read_addr:
                             if doffs != 0:
-                                memfile.write(f'  *ctrl = 0x{tc.dev.READY_SEL << 1:08x}; '
+                                memfile.write(f'  *ctrl = 0x{tc.dev.READY_SEL << 1 | 1 << 3:08x}; '
                                               '// Disable mlator\n')
                             # Set wptr to start address
                             val = addr + tc.dev.C_CNN*4 \
@@ -160,7 +160,7 @@ def unload(
                             memfile.write(f'  *((volatile uint32_t *) 0x{val:08x}) = '
                                           f'0x{expand:08x}; // Set pointer increment\n')
                             # Set mlatorld enable bit to load write ptr; select byte 0..3
-                            val = tc.dev.READY_SEL << 1 | 1 << 16 | (3 - shift) << 17
+                            val = tc.dev.READY_SEL << 1 | 1 << 16 | (3 - shift) << 17 | 1 << 3
                             memfile.write(f'  *ctrl = 0x{val:08x}; '
                                           f'// Enable mlator, byte {shift}\n')
                             # memfile.write('  val = *mlat; // Prime\n')
@@ -174,7 +174,8 @@ def unload(
                         write_addr = target + 4
 
                     # Disable mlator
-                    memfile.write(f'  *ctrl = 0x{tc.dev.READY_SEL << 1:08x}; // Disable mlator\n')
+                    memfile.write(f'  *ctrl = 0x{tc.dev.READY_SEL << 1 | 1 << 3:08x}; '
+                                  '// Disable mlator\n')
                 this_c += 1
 
                 this_map >>= 1
@@ -365,7 +366,7 @@ def verify(
                             if doffs != 0:
                                 stream.write(f'  *((volatile uint32_t *) '
                                              f'0x{apb_base + ctrl:08x}) = '
-                                             f'0x{tc.dev.READY_SEL << 1:08x}; '
+                                             f'0x{tc.dev.READY_SEL << 1 | 1 << 3:08x}; '
                                              '// Disable mlator\n')
                             # Set wptr to start address
                             w = apb_base + addr + tc.dev.C_CNN*4 \
@@ -378,7 +379,7 @@ def verify(
                             stream.write(f'  *((volatile uint32_t *) 0x{w:08x}) = '
                                          f'0x{expand:08x}; // Set pointer increment\n')
                             # Set mlatorld enable bit to load write ptr; select byte 0..3
-                            w = tc.dev.READY_SEL << 1 | 1 << 16 | (3 - shift) << 17
+                            w = tc.dev.READY_SEL << 1 | 1 << 16 | (3 - shift) << 17 | 1 << 3
                             stream.write(f'  *((volatile uint32_t *) 0x{apb_base + ctrl:08x}) ='
                                          f' 0x{w:08x}; '
                                          f'// Enable mlator, byte {shift}\n')
@@ -399,7 +400,7 @@ def verify(
                     # Disable mlator
                     stream.write(f'  *((volatile uint32_t *) '
                                  f'0x{apb_base + ctrl:08x}) = '
-                                 f'0x{tc.dev.READY_SEL << 1:08x}; '
+                                 f'0x{tc.dev.READY_SEL << 1 | 1 << 3:08x}; '
                                  '// Disable mlator\n')
 
                 this_map >>= 1
