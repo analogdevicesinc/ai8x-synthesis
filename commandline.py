@@ -106,6 +106,10 @@ def get_parser():
                         help="create code for an Arm CMSIS NN software network instead")
     parser.add_argument('--mlator', action='store_true', default=False,
                         help="use hardware to swap output bytes (default: false)")
+    parser.add_argument('--ready-sel', type=int, metavar='N',
+                        help="specify memory waitstates")
+    parser.add_argument('--ready-sel-fifo', type=int, metavar='N',
+                        help="specify FIFO waitstates")
     args = parser.parse_args()
 
     if not args.c_filename:

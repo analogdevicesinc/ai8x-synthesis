@@ -1248,6 +1248,10 @@ def main():
         tc.dev.MAX_PROC = args.max_proc
         tc.dev.P_NUMPRO = args.max_proc
         tc.dev.P_NUMGROUPS = 1
+    if args.ready_sel:
+        tc.dev.READY_SEL = args.ready_sel
+    if args.ready_sel_fifo:
+        tc.dev.FIFO_READY_SEL = args.ready_sel_fifo
 
     # Load configuration file
     cfg, params = yamlcfg.parse(args.config_file, args.device)
