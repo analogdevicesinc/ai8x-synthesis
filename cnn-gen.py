@@ -537,7 +537,7 @@ def create_net(
                     else:
                         val = input_dim[ll][0]-1
                     apb.write_lreg(group, ll, tc.dev.LREG_RCNT,
-                                   padding[ll][0] << 8 | val + 2*padding[ll][0],
+                                   padding[ll][0] << 16 | val + 2*padding[ll][0],
                                    verbose, comment=' // Rows')
 
                     # Configure column count (evaluates to 0 for 1D convolutions)
@@ -548,7 +548,7 @@ def create_net(
                     else:
                         val = input_dim[ll][1]-1
                     apb.write_lreg(group, ll, tc.dev.LREG_CCNT,
-                                   padding[ll][1] << 8 | val + 2 * padding[ll][1],
+                                   padding[ll][1] << 16 | val + 2 * padding[ll][1],
                                    verbose, comment=' // Columns')
 
                 if device != 84:
