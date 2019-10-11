@@ -942,7 +942,7 @@ def create_net(
                                verbose, comment=f' // FIFO control')
 
         if fifo and any(streaming):
-            val = input_dim[0][0] * input_dim[0][1] - 1
+            val = input_dim[0][0] * input_dim[0][1]
             apb.write_ctl(group, tc.dev.REG_IFRM, val, verbose,
                           comment=' // Input frame size')
 
