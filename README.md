@@ -1,7 +1,7 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_9/27/2019_
+_10/11/2019_
 
 _Open this file in a markdown enabled viewer, for example Typora (http://typora.io) or Visual Studio Code 
 (https://code.visualstudio.com). See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown._
@@ -608,7 +608,7 @@ The AI85 hardware does not support arbitrary network parameters. Specifically,
   * Padding can be 0, 1, or 2.
   * Stride is fixed to 1.
 * A programmable layer-specific shift operator is available at the output of a convolution.
-* The only supported activation function is `ReLU`.
+* The only supported activation functions are `ReLU` and `Abs`.
 * Pooling:
   * Both max pooling and average pooling are available, with or without convolution.
   
@@ -886,7 +886,7 @@ Example:
 
 ##### `activate` (Optional)
 
-This key describes whether to activate the layer output (the default is to not activate). When specified, this key must be `ReLU`.
+This key describes whether to activate the layer output (the default is to not activate). When specified, this key must be `ReLU` or `Abs`. AI84 supports `ReLU` only.
 
 ##### `quantization` (Optional)
 
@@ -1058,8 +1058,9 @@ The `--ai85` option enables:
 * In-flight element-wise addition, subtraction, and binary or/xor.
 * Support for more weight memory, and more input and output channels.
 * Support for non-square data and non-square pooling kernels.
-* Support for 32-bit Q25.7 data output for last layer when not using ReLU.
+* Support for 32-bit Q25.7 data output for last layer when not using ReLU/Abs.
 * Support for streaming mode with FIFOs to allow for larger data sizes.
+* Support for absolute value (Abs) activation.
 
 ---
 

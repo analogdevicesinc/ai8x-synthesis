@@ -61,7 +61,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     pool_stride = [[1, 1]] * tc.dev.MAX_LAYERS
     quantization = [8] * tc.dev.MAX_LAYERS
     output_offset = [0] * tc.dev.MAX_LAYERS
-    relu = [0] * tc.dev.MAX_LAYERS
+    activation = [None] * tc.dev.MAX_LAYERS
     big_data = [False] * tc.dev.MAX_LAYERS
     output_width = [8] * tc.dev.MAX_LAYERS
     operator = [op.CONV2D] * tc.dev.MAX_LAYERS
@@ -140,7 +140,9 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
 
         if 'activate' in ll:
             if ll['activate'].lower() == 'relu':
-                relu[sequence] = 1
+                activation[sequence] = op.ACT_RELU
+            elif ll['activate'].lower() == 'abs':
+                activation[sequence] = op.ACT_ABS
             else:
                 error_exit(f'Unknown value "{ll["activate"]}" for `activate`', sequence)
                 sys.exit(1)
@@ -313,7 +315,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             del input_offset[ll]
             del output_offset[ll]
             del average[ll]
-            del relu[ll]
+            del activation[ll]
             del big_data[ll]
             del quantization[ll]
             del output_map[ll]
@@ -350,14 +352,14 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     # Check last layer
     if output_map[-1] is None and 'output_map' in cfg:
         output_map[-1] = cfg['output_map']
-    if output_width[-1] != 8 and relu[-1]:
-        error_exit('`output_width` must be 8 when activation is used', len(relu))
+    if output_width[-1] != 8 and activation[-1] is not None:
+        error_exit('`output_width` must be 8 when activation is used', len(activation))
 
     # Check all layers
     for ll, e in enumerate(operator):
         # Check that pass-through does not use activation
         if e == op.NONE:
-            if relu[ll]:
+            if activation[ll] is not None:
                 error_exit('Pass-through layers must not use activation', ll)
             if padding[ll][0] != 0 or padding[ll][1] != 0:
                 error_exit('Padding must be zero for passthrough layers', ll)
@@ -383,7 +385,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     settings['output_offset'] = output_offset
     settings['processor_map'] = processor_map
     settings['average'] = average
-    settings['relu'] = relu
+    settings['activation'] = activation
     settings['big_data'] = big_data
     settings['quantization'] = quantization
     settings['output_processor_map'] = output_map

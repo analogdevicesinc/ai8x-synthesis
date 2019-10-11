@@ -63,7 +63,7 @@ def create_net(
         pool,
         pool_stride,
         pool_average,
-        activate,
+        activation,
         data,
         kernel,
         bias,
@@ -213,8 +213,11 @@ def create_net(
                             and (pool[ll][0] > 1 or pool[ll][1] > 1) else "") \
                          + f'{pool_str[ll]}s{pool_stride[ll][0]}' \
                          f'p{padding[ll][0]}' \
-                         f'm{output_chan[ll]}' \
-                         f'{"_relu" if activate[ll] else ""}'
+                         f'm{output_chan[ll]}'
+            if activation[ll] == op.ACT_RELU:
+                test_name += "_relu"
+            elif activation[ll] == op.ACT_ABS:
+                test_name += "_abs"
     MAX_PATH = 255
     if len(test_name) + len(base_directory) > MAX_PATH - 10:
         h = hashlib.md5(test_name.encode()).hexdigest()  # Immutable hash from test name
@@ -696,7 +699,7 @@ def create_net(
                 # [30:22] xpch_max (AI85 only) Selects the maximum channel processor number used
                 #                  in channel expansion mode (bottom 3 are for bits)
                 # [31]  bigdwrt (AI85 only) Enables 32-bit output
-                val = (0x200 if activate[ll] else 0) | \
+                val = (0x200 if activation[ll] == op.ACT_RELU else 0) | \
                       (0x100 if not pool_average[ll] else 0) | \
                       (0x80 if pool[ll][0] > 1 or pool[ll][1] > 1 else 0) | \
                       (0x40 if big_data[ll] else 0) | \
@@ -802,6 +805,9 @@ def create_net(
                             val |= 3 << 24
                         else:
                             val |= 1 << 24
+
+                    if activation[ll] == op.ACT_ABS:
+                        val |= 1 << 26
 
                     apb.write_lreg(group, ll, tc.dev.LREG_POST, val,
                                    verbose, comment=' // AI85/86 post processing register')
@@ -1102,7 +1108,7 @@ def create_net(
                                             output_chan[ll],
                                             padding[ll], dilation[ll],
                                             stride[ll],
-                                            activate[ll],
+                                            activation[ll],
                                             kernel[ll].reshape(output_chan[ll], in_chan,
                                                                kernel_size[ll][0],
                                                                kernel_size[ll][1]),
@@ -1119,7 +1125,7 @@ def create_net(
                                             output_chan[ll],
                                             padding[ll][0], dilation[ll][0],
                                             stride[ll][0],
-                                            activate[ll],
+                                            activation[ll],
                                             kernel[ll].reshape(output_chan[ll], input_chan[ll],
                                                                kernel_size[ll][0]),
                                             bias[ll],
@@ -1204,7 +1210,7 @@ def create_net(
             data = data.flatten()
 
             out_buf, out_size = linear_layer(verbose=verbose,
-                                             do_activation=False,
+                                             activation=None,
                                              data=data, weight=fc_weights[0], bias=fc_bias[0],
                                              debug=debug)
 
@@ -1335,13 +1341,13 @@ def main():
     operands = params['operands'][:layers]
     eltwise = params['eltwise'][:layers]
     pool_first = params['pool_first'][:layers]
+    activation = params['activation'][:layers]
 
     # Command line override
     if args.input_offset is not None:
         input_offset[0] = args.input_offset
 
     # Derived configuration options
-    activate = [bool(x) for x in params['relu']]
     pool_average = [bool(x) for x in params['average']]
 
     print(f"Configuring data set: {cfg['dataset']}.")
@@ -1478,7 +1484,7 @@ def main():
                         pool,
                         pool_stride,
                         pool_average,
-                        activate,
+                        activation,
                         data,
                         weights,
                         bias,
@@ -1542,7 +1548,7 @@ def main():
                            pool,
                            pool_stride,
                            pool_average,
-                           activate,
+                           activation,
                            data,
                            weights,
                            bias,
