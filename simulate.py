@@ -66,7 +66,7 @@ def cnn2d_layer(
         padding,
         dilation,
         stride,
-        do_activation,
+        activation,
         kernel,
         bias,
         data,
@@ -127,18 +127,28 @@ def cnn2d_layer(
 
         if verbose:
             print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} OUTPUT "
-                  f"{'BEFORE ACTIVATION' if do_activation else '(NO ACTIVATION)'}:")
+                  f"{'BEFORE ACTIVATION' if activation is not None else '(NO ACTIVATION)'}:")
             if out_size[1] == out_size[2] == 1:
                 print(np.squeeze(out_buf))
             else:
                 print(out_buf)
             print('')
 
-    if do_activation:
-        np.clip(out_buf, 0, 2**(bits-1)-1, out_buf)
+    if activation is not None:
+        if activation == op.ACT_RELU:
+            np.clip(out_buf, 0, 2**(bits-1)-1, out_buf)
+        elif activation == op.ACT_ABS:
+            out_buf = np.abs(out_buf)
 
         if verbose:
-            print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} ACTIVATED OUTPUT:")
+            print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} ACTIVATED OUTPUT", end='')
+            if activation == op.ACT_RELU:
+                print(" (RELU):")
+            elif activation == op.ACT_ABS:
+                print(" (ABS):")
+
+            out_buf = np.abs(out_buf)
+
             if out_size[1] == out_size[2] == 1:
                 print(np.squeeze(out_buf))
             else:
@@ -160,7 +170,7 @@ def cnn1d_layer(
         padding,
         dilation,
         stride,
-        do_activation,
+        activation,
         kernel,
         bias,
         data,
@@ -211,15 +221,22 @@ def cnn1d_layer(
 
         if verbose:
             print(f"{out_size[0]}x{out_size[1]} OUTPUT "
-                  f"{'BEFORE ACTIVATION' if do_activation else '(NO ACTIVATION)'}:")
+                  f"{'BEFORE ACTIVATION' if activation is not None else '(NO ACTIVATION)'}:")
             print(out_buf.squeeze(axis=-1))
             print('')
 
-    if do_activation:
-        np.clip(out_buf, 0, 2**(bits-1)-1, out_buf)
+    if activation is not None:
+        if activation == op.ACT_RELU:
+            np.clip(out_buf, 0, 2**(bits-1)-1, out_buf)
+        elif activation == op.ACT_ABS:
+            out_buf = np.abs(out_buf)
 
         if verbose:
-            print(f"{out_size[0]}x{out_size[1]} ACTIVATED OUTPUT:")
+            print(f"{out_size[0]}x{out_size[1]} ACTIVATED OUTPUT", end='')
+            if activation == op.ACT_RELU:
+                print(" (RELU):")
+            elif activation == op.ACT_ABS:
+                print(" (ABS):")
             print(out_buf.squeeze(axis=-1))
             print('')
 
@@ -230,7 +247,7 @@ def cnn1d_layer(
 
 def linear_layer(
         verbose,
-        do_activation,
+        activation,
         weight,
         bias,
         data,
@@ -266,11 +283,18 @@ def linear_layer(
 
     stats.sw_macc += in_features * out_features
 
-    if do_activation:
-        np.clip(out_buf, 0, 2**(bits-1)-1, out_buf)
+    if activation is not None:
+        if activation == op.ACT_RELU:
+            np.clip(out_buf, 0, 2**(bits-1)-1, out_buf)
+        elif activation == op.ACT_ABS:
+            out_buf = np.abs(out_buf)
 
         if verbose:
-            print(f"ACTIVATED OUTPUT (size {out_features}):")
+            print(f"ACTIVATED OUTPUT (size {out_features})", end='')
+            if activation == op.ACT_RELU:
+                print(" (RELU):")
+            elif activation == op.ACT_ABS:
+                print(" (ABS):")
             print(out_buf)
             print('')
 
