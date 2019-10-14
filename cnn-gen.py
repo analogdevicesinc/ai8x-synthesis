@@ -713,11 +713,13 @@ def create_net(
                     in_exp = in_expand[ll]
                     if flatten[ll]:
                         in_exp *= pooled_dim[ll][0] * pooled_dim[ll][1]
+                    assert in_exp <= 2**3  # Cannot have more than 3 bits (+1)
                     val |= (fls(output_processor_map[ll])
                             - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) \
                         * quantization[ll] << 22 \
                         | (in_exp - 1) << 16
                     if operator[ll] != op.NONE:
+                        assert out_expand[ll] <= 2**3  # Cannot have more than 3 bits (+1)
                         val |= (out_expand[ll] - 1) << 19
                     if output_width[ll] != 8:
                         val |= 1 << 31

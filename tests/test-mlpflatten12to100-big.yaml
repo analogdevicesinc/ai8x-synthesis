@@ -1,0 +1,12 @@
+# Test 1x1 Conv2D as MLP
+
+arch: test
+dataset: test_mlpflatten12to100
+
+layers:
+- out_offset: 0x2000
+  processors: 0x0000000000000fff
+  operation: linear
+  flatten: true
+  output_width: 32
+

@@ -212,3 +212,8 @@
 
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-abs --config-file tests/test-conv1d-abs.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-cifar-abs --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-cifar10-abs.yaml --ai85
+
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten12to17 --config-file tests/test-mlpflatten12to17.yaml --ai85 --debug-computation --debug
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten12to17big --config-file tests/test-mlpflatten12to17-big.yaml --ai85 --debug-computation --debug
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten12to100 --config-file tests/test-mlpflatten12to100.yaml --ai85 --debug-computation --debug
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten12to100big --config-file tests/test-mlpflatten12to100-big.yaml --ai85 --debug-computation --debug
