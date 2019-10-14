@@ -31,7 +31,8 @@ import sampleweight
 import stats
 import tornadocnn as tc
 import yamlcfg
-from simulate import cnn1d_layer, cnn2d_layer, linear_layer, passthrough_layer, eltwise_layer, \
+from simulate import conv1d_layer, conv2d_layer, convtranspose2d_layer, \
+    linear_layer, passthrough_layer, eltwise_layer, \
     pooling_layer, show_data
 from utils import ffs, fls, popcount
 
@@ -281,7 +282,7 @@ def create_net(
                            f'pool with stride {pool_stride_str[ll]}')
             else:
                 apb.output(f'no pooling')
-            if operator[ll] in [op.CONV1D, op.CONV2D, op.LINEAR]:
+            if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D, op.LINEAR]:
                 conv_str = f', {op.string(operator[ll])} with kernel size ' \
                            f'{kernel_size_str[ll]}, '
             else:
@@ -584,7 +585,7 @@ def create_net(
                         val |= 1 << 13 | op.eltwise_fn(eltwise[ll]) << 14 | operands[ll] - 1 << 18
                         if (pool[ll][0] > 1 or pool[ll][1] > 1) and pool_first[ll]:
                             val |= 1 << 16
-                        if operator[ll] == op.CONV2D:
+                        if operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D]:
                             val |= 1 << 17
 
                     apb.write_lreg(group, ll, tc.dev.LREG_ONED, val,
@@ -610,6 +611,8 @@ def create_net(
                 # Configure pooling stride count
                 if pool[ll][0] > 1 or pool[ll][1] > 1:
                     val = pool_stride[ll][0]-1
+                elif operator[ll] == op.CONVTRANSPOSE2D:
+                    val = 0
                 else:
                     val = stride[ll][0]-1
                 if device == 84 and operator[ll] == op.CONV1D:
@@ -752,7 +755,7 @@ def create_net(
                         # Enable bias only for one group
                         val |= 0x1000000 | bias_offs[ll] << 16
                 else:
-                    if operator[ll] in [op.CONV1D, op.CONV2D, op.LINEAR]:
+                    if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D, op.LINEAR]:
                         in_exp = in_expand[ll]
                         if flatten[ll]:
                             in_exp *= pooled_dim[ll][0] * pooled_dim[ll][1]
@@ -821,7 +824,7 @@ def create_net(
                 #
                 # Enable at most 16 processors and masks
                 val = (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO
-                if operator[ll] in [op.CONV1D, op.CONV2D, op.LINEAR]:
+                if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D, op.LINEAR]:
                     val = val << 16 | val
                 apb.write_lreg(group, ll, tc.dev.LREG_ENA, val,
                                verbose, comment=' // Mask and processor enables')
@@ -1027,15 +1030,17 @@ def create_net(
         data = np.split(data.reshape(in_chan * operands[ll],
                                      dim[0], dim[1]),
                         operands[ll], axis=0)
-        data, out_size = eltwise_layer(eltwise[ll],
-                                       ll,
-                                       verbose,
-                                       data[0].shape,
-                                       data,
-                                       output_width=o_width,
-                                       device=device,
-                                       debug=debug_computation,
-                                       operands=operands[ll])
+        data, out_size = eltwise_layer(
+            eltwise[ll],
+            ll,
+            verbose,
+            data[0].shape,
+            data,
+            output_width=o_width,
+            device=device,
+            debug=debug_computation,
+            operands=operands[ll]
+        )
         assert out_size[0] == in_chan \
             and out_size[1] == dim[0] and out_size[2] == dim[1]
 
@@ -1045,15 +1050,17 @@ def create_net(
     for ll in range(layers):
         in_chan = input_chan[ll]
 
-        show_data(ll,
-                  verbose,
-                  data.shape,
-                  data,
-                  debug=debug_computation,
-                  expand=in_expand[ll],
-                  expand_thresh=in_expand_thresh[ll],
-                  operation=operator[ll],
-                  operands=operands[ll])
+        show_data(
+            ll,
+            verbose,
+            data.shape,
+            data,
+            debug=debug_computation,
+            expand=in_expand[ll],
+            expand_thresh=in_expand_thresh[ll],
+            operation=operator[ll],
+            operands=operands[ll]
+        )
 
         # Run in-flight element-wise operations first?
         if operands[ll] > 1 and not pool_first[ll]:
@@ -1069,19 +1076,21 @@ def create_net(
         else:
             data = data.reshape(in_chan * operands[ll], input_dim[ll][0], input_dim[ll][1])
 
-        data, out_size = pooling_layer(ll,
-                                       verbose,
-                                       data.shape,
-                                       pool[ll],
-                                       pool_stride[ll],
-                                       pool_average[ll],
-                                       data,
-                                       debug=debug_computation,
-                                       expand=in_expand[ll],
-                                       expand_thresh=in_expand_thresh[ll],
-                                       operation=operator[ll],
-                                       operands=num_operands,
-                                       rounding=avg_pool_rounding)
+        data, out_size = pooling_layer(
+            ll,
+            verbose,
+            data.shape,
+            pool[ll],
+            pool_stride[ll],
+            pool_average[ll],
+            data,
+            debug=debug_computation,
+            expand=in_expand[ll],
+            expand_thresh=in_expand_thresh[ll],
+            operation=operator[ll],
+            operands=num_operands,
+            rounding=avg_pool_rounding
+        )
 
         if operator[ll] == op.CONV1D:
             assert out_size[0] == in_chan * operands[ll] \
@@ -1101,45 +1110,85 @@ def create_net(
                 if verbose:
                     print(f"FLATTEN TO {in_chan}x1x1...\n")
 
-            out_buf, out_size = cnn2d_layer(ll,
-                                            verbose,
-                                            data.shape,
-                                            kernel_size[ll], quantization[ll],
-                                            output_chan[ll],
-                                            padding[ll], dilation[ll],
-                                            stride[ll],
-                                            activation[ll],
-                                            kernel[ll].reshape(output_chan[ll], in_chan,
-                                                               kernel_size[ll][0],
-                                                               kernel_size[ll][1]),
-                                            bias[ll],
-                                            data,
-                                            output_width=output_width[ll],
-                                            device=device,
-                                            debug=debug_computation)
+            out_buf, out_size = conv2d_layer(
+                ll,
+                verbose,
+                data.shape,
+                kernel_size[ll],
+                quantization[ll],
+                output_chan[ll],
+                padding[ll],
+                dilation[ll],
+                stride[ll],
+                activation[ll],
+                kernel[ll].reshape(
+                    output_chan[ll],
+                    in_chan,
+                    kernel_size[ll][0],
+                    kernel_size[ll][1]
+                ),
+                bias[ll],
+                data,
+                output_width=output_width[ll],
+                device=device,
+                debug=debug_computation
+            )
+        elif operator[ll] == op.CONVTRANSPOSE2D:
+            out_buf, out_size = convtranspose2d_layer(
+                ll,
+                verbose,
+                data.shape,
+                kernel_size[ll],
+                quantization[ll],
+                output_chan[ll],
+                padding[ll],
+                dilation[ll],
+                stride[ll],
+                [1, 1],  # output_padding
+                activation[ll],
+                kernel[ll].reshape(
+                    output_chan[ll],
+                    in_chan,
+                    kernel_size[ll][0],
+                    kernel_size[ll][1]
+                ),
+                bias[ll],
+                data,
+                output_width=output_width[ll],
+                device=device,
+                debug=debug_computation)
         elif operator[ll] == op.CONV1D:
-            out_buf, out_size = cnn1d_layer(ll,
-                                            verbose,
-                                            data.shape,
-                                            kernel_size[ll][0], quantization[ll],
-                                            output_chan[ll],
-                                            padding[ll][0], dilation[ll][0],
-                                            stride[ll][0],
-                                            activation[ll],
-                                            kernel[ll].reshape(output_chan[ll], input_chan[ll],
-                                                               kernel_size[ll][0]),
-                                            bias[ll],
-                                            data,
-                                            output_width=output_width[ll],
-                                            device=device,
-                                            debug=debug_computation)
+            out_buf, out_size = conv1d_layer(
+                ll,
+                verbose,
+                data.shape,
+                kernel_size[ll][0],
+                quantization[ll],
+                output_chan[ll],
+                padding[ll][0],
+                dilation[ll][0],
+                stride[ll][0],
+                activation[ll],
+                kernel[ll].reshape(
+                    output_chan[ll],
+                    input_chan[ll],
+                    kernel_size[ll][0]
+                ),
+                bias[ll],
+                data,
+                output_width=output_width[ll],
+                device=device,
+                debug=debug_computation
+            )
         elif operator[ll] == op.NONE:  # '0'D (pooling only or passthrough)
-            out_buf, out_size = passthrough_layer(ll,
-                                                  verbose,
-                                                  data.shape,
-                                                  data,
-                                                  device=device,
-                                                  debug=debug_computation)
+            out_buf, out_size = passthrough_layer(
+                ll,
+                verbose,
+                data.shape,
+                data,
+                device=device,
+                debug=debug_computation
+            )
         else:
             print(f'Unknown operator `{op.string(operator[ll])}`.')
             sys.exit(1)
@@ -1403,7 +1452,7 @@ def main():
                 print(f'{op.string(operator[ll])} in layer {ll} does not support non-square '
                       f'stride (currently set to {stride[ll][0]}x{stride[ll][1]}).')
                 sys.exit(1)
-            if stride[ll][0] != 1:
+            if operator[ll] != op.CONVTRANSPOSE2D and stride[ll][0] != 1:
                 print(f'{op.string(operator[ll])} in layer {ll} does not support stride other '
                       f'than 1 (currently set to {stride[ll][0]}x{stride[ll][1]}).')
                 sys.exit(1)
@@ -1412,6 +1461,15 @@ def main():
                                    - 1 + 2 * padding[ll][0]) // stride[ll][0] + 1,
                                   (pooled_size[1] - dilation[ll][1] * (kernel_size[ll][1] - 1)
                                    - 1 + 2 * padding[ll][1]) // stride[ll][1] + 1]
+            elif operator[ll] == op.CONVTRANSPOSE2D:
+                # output padding is always 1
+                output_padding = 1
+                output_dim[ll] = [(pooled_size[0] - 1) * stride[ll][0] - 2 * padding[ll][0]
+                                  + dilation[ll][0] * (kernel_size[ll][0] - 1)
+                                  + output_padding + 1,
+                                  (pooled_size[1] - 1) * stride[ll][1] - 2 * padding[ll][1]
+                                  + dilation[ll][1] * (kernel_size[ll][1] - 1)
+                                  + output_padding + 1]
             else:  # Element-wise
                 output_dim[ll] = [pooled_size[0], pooled_size[1]]
             if flatten[ll]:
