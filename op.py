@@ -12,7 +12,8 @@ Operators
 NONE = 0
 CONV1D = 1
 CONV2D = 2
-LINEAR = 3
+CONVTRANSPOSE2D = 3
+LINEAR = 4
 
 ACT_RELU = 1
 ACT_ABS = 2
@@ -27,6 +28,7 @@ NAMES = {
     NONE: 'passthrough',
     CONV1D: 'conv1d',
     CONV2D: 'conv2d',
+    CONVTRANSPOSE2D: 'convtranspose2d',
 }
 
 ELT_NAMES = {

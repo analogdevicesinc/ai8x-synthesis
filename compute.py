@@ -7,9 +7,9 @@
 # Written by RM
 ###################################################################################################
 """
-Pure Python implementation of Conv1d, Conv2d, Pool2d, and Linear.
+Pure Python implementation of Conv1d, Conv2d, ConvTranspose2d, Pool1d, Pool2d, Eltwise, and Linear.
 Allows debug of individual accumulations.
-NumPy implementation of Conv2d, Pool2d.
+NumPy implementation of Conv2d, ConvTranspose2d, Pool2d.
 Compatible with PyTorch.
 """
 import sys
@@ -32,6 +32,8 @@ def conv2d(
         stride,
         pad,
         dilation,
+        fractional_stride,
+        output_pad,
         debug=False,
 ):
     """
@@ -50,32 +52,48 @@ def conv2d(
 
         for k in range(out_channels):
             for y in range(-pad[0],
-                           input_size[1] - dilation[0] * (kernel_size[0] - 1) + pad[0],
+                           input_size[1] - dilation[0] * (kernel_size[0] - 1)
+                           + pad[0] + output_pad[0],
                            stride[0]):
-                for x in range(-pad[1],
-                               input_size[2] - dilation[1] * (kernel_size[1] - 1) + pad[1],
-                               stride[1]):
-                    val = np.int64(0) if bias is None else bias[k]
-                    for c in range(in_channels):
-                        for h in range(kernel_size[0]):
-                            for w in range(kernel_size[1]):
-                                ypos, xpos = y + h * dilation[0], x + w * dilation[1]
-                                if ypos >= 0 and ypos < input_size[1] and \
-                                   xpos >= 0 and xpos < input_size[2]:
-                                    val += weight[k][c][h][w] * data[c][ypos][xpos]
-                                    stats.true_macc += 1
-                                    if debug:
-                                        print(f'k={k}, c={c}, x={x}, y={y}: '
-                                              f'weight*data={weight[k][c][h][w]}'
-                                              f'*{data[c][ypos][xpos]} -> accumulator = {val}')
+                for y_frac in range(fractional_stride[0]):
+                    for x in range(-pad[1],
+                                   input_size[2] - dilation[1] * (kernel_size[1] - 1)
+                                   + pad[1] + output_pad[1],
+                                   stride[1]):
+                        for x_frac in range(fractional_stride[1]):
+                            val = np.int64(0) if bias is None else bias[k]
+                            for c in range(in_channels):
+                                for h in range(kernel_size[0]):
+                                    for w in range(kernel_size[1]):
+                                        ypos, xpos = y + h * dilation[0], x + w * dilation[1]
+                                        if y_frac == 0 and ypos >= 0 and ypos < input_size[1] and \
+                                           x_frac == 0 and xpos >= 0 and xpos < input_size[2]:
+                                            val += weight[k][c][h][w] * data[c][ypos][xpos]
+                                            stats.true_macc += 1
+                                            if debug:
+                                                print(f'k={k}, c={c}, x={x}, y={y}: '
+                                                      f'weight*data={weight[k][c][h][w]}'
+                                                      f'*{data[c][ypos][xpos]} '
+                                                      f'-> accumulator = {val}')
 
-                    ref[k][(y + pad[0]) // stride[0]][(x + pad[1]) // stride[1]] = val
+                            ref[k][(y + pad[0]) // stride[0]][(x + pad[1]) // stride[1]] = val
 
     # Fast computation using NumPy
 
+    # Stretch data for fractionally-strided convolution
+    if fractional_stride[0] > 1 or fractional_stride[1] > 1:
+        ndata = np.zeros((data.shape[0],
+                          data.shape[1] * fractional_stride[0],
+                          data.shape[2] * fractional_stride[1]),
+                         dtype=data.dtype)
+        ndata[:, 0::fractional_stride[0], 0::fractional_stride[1]] = data
+        data = ndata
+
     # Create zero padding around data and stretch weights for dilation.
-    if pad[0] or pad[1]:
-        data = np.pad(data, pad_width=((0, 0), (pad[0], pad[0]), (pad[1], pad[1])),
+    if pad[0] or pad[1] or output_pad[0] or output_pad[1]:
+        data = np.pad(data, pad_width=((0, 0),
+                                       (pad[0], pad[0] + output_pad[0]),
+                                       (pad[1], pad[1] + output_pad[1])),
                       mode='constant', constant_values=0)
 
     if dilation[0] > 1 or dilation[1] > 1:

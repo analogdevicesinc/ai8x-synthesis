@@ -158,6 +158,8 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                 operator[sequence] = op.CONV1D
             elif conv == 'conv2d':
                 operator[sequence] = op.CONV2D
+            elif conv == 'convtranspose2d':
+                operator[sequence] = op.CONVTRANSPOSE2D
             elif conv in ['none', 'passthrough']:
                 operator[sequence] = op.NONE
                 padding[sequence] = [0, 0]
@@ -257,6 +259,10 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                         or device != 84 and val not in ['1x1', '3x3']:
                     error_exit('Unsupported value for `kernel_size`', sequence)
                 kernel_size[sequence] = [int(val[0]), int(val[2])]
+            elif operator[sequence] == op.CONVTRANSPOSE2D:
+                if val not in ['3x3']:
+                    error_exit('Unsupported value for `kernel_size`', sequence)
+                kernel_size[sequence] = [int(val[0]), int(val[2])]
             else:
                 try:
                     val = int(val)
@@ -277,6 +283,9 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                 if operator != op.CONV2D:
                     stride[sequence] = [3, 1]  # Fix default for 1D
             else:
+                if operator == op.CONVTRANSPOSE2D and val != 2:
+                    error_exit('Cannot set `stride` to non-default value for ConvTranspose2D',
+                               sequence)
                 # Stride can be set
                 stride[sequence] = [val, val]
 
@@ -302,6 +311,8 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             stride[sequence][1] = 1
         elif operator[sequence] == op.NONE:
             kernel_size[sequence] = [1, 1]
+        elif operator[sequence] == op.CONVTRANSPOSE2D:
+            stride[sequence] = [2, 2]
 
         sequence += 1
 
@@ -364,6 +375,10 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                 error_exit('Pass-through layers must not use activation', ll)
             if padding[ll][0] != 0 or padding[ll][1] != 0:
                 error_exit('Padding must be zero for passthrough layers', ll)
+        # Check that pooling isn't set for ConvTranspose2d:
+        elif e == op.CONVTRANSPOSE2D:
+            if pooling_enabled[ll]:
+                error_exit('ConvTranspose2d cannot be used with pooling', ll)
         # Check that element-wise does not use Conv1d
         if e == op.CONV1D and operands[ll] > 1:
             error_exit('Element-wise operations cannot be combined with Conv1d', ll)

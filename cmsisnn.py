@@ -14,7 +14,7 @@ import sys
 import numpy as np
 import op
 import toplevel
-from simulate import cnn1d_layer, cnn2d_layer, linear_layer
+from simulate import conv1d_layer, conv2d_layer, linear_layer
 
 
 def create_net(prefix, verbose, debug, log,
@@ -145,46 +145,83 @@ def create_net(prefix, verbose, debug, log,
                 c_file.write(f'[{input_chan[ll]}, {pooled_dim[ll][0]}, {pooled_dim[ll][1]}] -> ')
             if convolution[ll] == op.CONV2D:
                 data = data.reshape(input_chan[ll], input_dim[ll][0], input_dim[ll][1])
-                out_buf, out_size = cnn2d_layer(ll, verbose,
-                                                data.shape,
-                                                kernel_size[ll],
-                                                quantization[ll],
-                                                output_chan[ll],
-                                                padding[ll], dilation[ll],
-                                                stride[ll],
-                                                pool[ll],
-                                                pool_stride[ll],
-                                                pool_average[ll],
-                                                activate[ll],
-                                                kernel[ll].reshape(output_chan[ll],
-                                                                   input_chan[ll],
-                                                                   kernel_size[ll][0],
-                                                                   kernel_size[ll][1]),
-                                                bias[ll],
-                                                data,
-                                                device=device,
-                                                debug=debug)
+                # FIXME
+                # data, out_size = pooling_layer(
+                #     ll,
+                #     verbose,
+                #     data.shape,
+                #     pool[ll],
+                #     pool_stride[ll],
+                #     pool_average[ll],
+                #     data,
+                #     debug=debug_computation,
+                #     expand=in_expand[ll],
+                #     expand_thresh=in_expand_thresh[ll],
+                #     operation=operator[ll],
+                #     operands=num_operands,
+                #     rounding=avg_pool_rounding
+                # )
+                out_buf, out_size = conv2d_layer(
+                    ll,
+                    verbose,
+                    data.shape,
+                    kernel_size[ll],
+                    quantization[ll],
+                    output_chan[ll],
+                    padding[ll],
+                    dilation[ll],
+                    stride[ll],
+                    activate[ll],
+                    kernel[ll].reshape(
+                        output_chan[ll],
+                        input_chan[ll],
+                        kernel_size[ll][0],
+                        kernel_size[ll][1]
+                    ),
+                    bias[ll],
+                    data,
+                    device=device,
+                    debug=debug
+                )
             else:
                 data = data.reshape(input_chan[ll], input_dim[ll][0])
-                out_buf, out_size = cnn1d_layer(ll, verbose,
-                                                data.shape,
-                                                kernel_size[ll][0],
-                                                quantization[ll],
-                                                output_chan[ll],
-                                                padding[ll][0],
-                                                dilation[ll][0],
-                                                stride[ll][0],
-                                                pool[ll][0],
-                                                pool_stride[ll][0],
-                                                pool_average[ll],
-                                                activate[ll],
-                                                kernel[ll].reshape(output_chan[ll],
-                                                                   input_chan[ll],
-                                                                   kernel_size[ll][0]),
-                                                bias[ll],
-                                                data,
-                                                device=device,
-                                                debug=debug)
+                # FIXME
+                # data, out_size = pooling_layer(
+                #     ll,
+                #     verbose,
+                #     data.shape,
+                #     pool[ll],
+                #     pool_stride[ll],
+                #     pool_average[ll],
+                #     data,
+                #     debug=debug_computation,
+                #     expand=in_expand[ll],
+                #     expand_thresh=in_expand_thresh[ll],
+                #     operation=operator[ll],
+                #     operands=num_operands,
+                #     rounding=avg_pool_rounding
+                # )
+                out_buf, out_size = conv1d_layer(
+                    ll,
+                    verbose,
+                    data.shape,
+                    kernel_size[ll][0],
+                    quantization[ll],
+                    output_chan[ll],
+                    padding[ll][0],
+                    dilation[ll][0],
+                    stride[ll][0],
+                    activate[ll],
+                    kernel[ll].reshape(
+                        output_chan[ll],
+                        input_chan[ll],
+                        kernel_size[ll][0]
+                    ),
+                    bias[ll],
+                    data,
+                    device=device,
+                    debug=debug
+                )
             c_file.write(f'{out_size}\n')
 
             source = 'input_data' if ll == 0 else buffer0
@@ -269,10 +306,14 @@ def create_net(prefix, verbose, debug, log,
         if fc_weights:
             data = data.flatten()
 
-            out_buf, out_size = linear_layer(verbose=verbose,
-                                             do_activation=False,
-                                             data=data, weight=fc_weights[0], bias=fc_bias[0],
-                                             debug=debug)
+            out_buf, out_size = linear_layer(
+                verbose=verbose,
+                activation=False,
+                weight=fc_weights[0],
+                bias=fc_bias[0],
+                data=data,
+                debug=debug
+            )
 
             # Rearrange the weights to account for the shape of the conv layer output
             w = fc_weights[0]. \

@@ -56,7 +56,7 @@ def print_data(
     print('')
 
 
-def cnn2d_layer(
+def conv2d_layer(
         layer,  # pylint: disable=unused-argument
         verbose,
         input_size,
@@ -98,17 +98,21 @@ def cnn2d_layer(
     if bias is not None:
         bias = bias * tc.dev.BIAS_DIV
 
-    out_buf = conv2d(data=data,
-                     weight=kernel,
-                     bias=bias,
-                     input_size=input_size,
-                     output_size=out_size,
-                     out_channels=output_channels,
-                     kernel_size=kernel_size,
-                     stride=stride,
-                     pad=padding,
-                     dilation=dilation,
-                     debug=debug)
+    out_buf = conv2d(
+        data=data,
+        weight=kernel,
+        bias=bias,
+        input_size=input_size,
+        output_size=out_size,
+        out_channels=output_channels,
+        kernel_size=kernel_size,
+        stride=stride,
+        pad=padding,
+        dilation=dilation,
+        fractional_stride=[1, 1],
+        output_pad=[0, 0],
+        debug=debug
+    )
 
     if verbose:
         print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} FULL-RES OUTPUT:")
@@ -157,7 +161,115 @@ def cnn2d_layer(
     return out_buf, out_size
 
 
-def cnn1d_layer(
+def convtranspose2d_layer(
+        layer,  # pylint: disable=unused-argument
+        verbose,
+        input_size,
+        kernel_size,
+        quantization,
+        output_channels,
+        padding,
+        dilation,
+        fractional_stride,
+        output_padding,
+        activation,
+        kernel,
+        bias,
+        data,
+        bits=8,
+        output_width=8,
+        device=84,  # pylint: disable=unused-argument
+        debug=False,
+):
+    """
+    Perform a fractionally strided 2D convolution for one layer.
+    """
+    if verbose:
+        print(f"{kernel_size[0]}x{kernel_size[1]} KERNEL(S):")
+        with np.printoptions(formatter={'int': '{0:4}'.format}):
+            for i in range(output_channels):
+                print(f'Output channel #{i}')
+                if kernel_size[0] == kernel_size[1] == 1:
+                    print(np.squeeze(kernel[i]))
+                else:
+                    print(kernel[i])
+        print(f"BIAS: {bias}\n")
+
+    out_size = [output_channels,
+                (input_size[0] - 1) * fractional_stride[0] - 2 * padding[0]
+                + dilation[0] * (kernel_size[0] - 1)
+                + output_padding[0] + 1,
+                (input_size[1] - 1) * fractional_stride[1] - 2 * padding[1]
+                + dilation[1] * (kernel_size[1] - 1)
+                + output_padding[1] + 1]
+
+    if bias is not None:
+        bias = bias * tc.dev.BIAS_DIV
+
+    out_buf = conv2d(
+        data=data,
+        weight=kernel,
+        bias=bias,
+        input_size=input_size,
+        output_size=out_size,
+        out_channels=output_channels,
+        kernel_size=kernel_size,
+        stride=[1, 1],
+        pad=padding,
+        dilation=dilation,
+        fractional_stride=fractional_stride,
+        output_pad=output_padding,
+        debug=debug
+    )
+
+    if verbose:
+        print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} FULL-RES OUTPUT:")
+        if out_size[1] == out_size[2] == 1:
+            print(np.squeeze(out_buf))
+        else:
+            print(out_buf)
+        print('')
+
+    stats.macc += input_size[0] * kernel_size[0] * kernel_size[1] * out_size[0] \
+        * out_size[1] * out_size[2]
+
+    if output_width != 32:
+        out_buf = np.floor(0.5 + out_buf / (16*quantization)).astype(np.int64). \
+            clip(-(2**(bits-1)), 2**(bits-1)-1)
+
+        if verbose:
+            print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} OUTPUT "
+                  f"{'BEFORE ACTIVATION' if activation is not None else '(NO ACTIVATION)'}:")
+            if out_size[1] == out_size[2] == 1:
+                print(np.squeeze(out_buf))
+            else:
+                print(out_buf)
+            print('')
+
+    if activation is not None:
+        if activation == op.ACT_RELU:
+            np.clip(out_buf, 0, 2**(bits-1)-1, out_buf)
+        elif activation == op.ACT_ABS:
+            out_buf = np.abs(out_buf).clip(0, 2**(bits-1)-1)
+
+        if verbose:
+            print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} ACTIVATED OUTPUT", end='')
+            if activation == op.ACT_RELU:
+                print(" (RELU):")
+            elif activation == op.ACT_ABS:
+                print(" (ABS):")
+            if out_size[1] == out_size[2] == 1:
+                print(np.squeeze(out_buf))
+            else:
+                print(out_buf)
+            print('')
+
+        stats.comp += out_size[0] * out_size[1] * out_size[2]
+
+    return out_buf, out_size
+
+
+def conv1d_layer(
         layer,  # pylint: disable=unused-argument
         verbose,
         input_size,
@@ -192,17 +304,19 @@ def cnn1d_layer(
     if bias is not None:
         bias = bias * tc.dev.BIAS_DIV
 
-    out_buf = conv1d(data=data,
-                     weight=kernel,
-                     bias=bias,
-                     input_size=input_size,
-                     output_size=out_size,
-                     out_channels=output_channels,
-                     kernel_size=kernel_size,
-                     stride=stride,
-                     pad=padding,
-                     dilation=dilation,
-                     debug=debug)
+    out_buf = conv1d(
+        data=data,
+        weight=kernel,
+        bias=bias,
+        input_size=input_size,
+        output_size=out_size,
+        out_channels=output_channels,
+        kernel_size=kernel_size,
+        stride=stride,
+        pad=padding,
+        dilation=dilation,
+        debug=debug
+    )
 
     if verbose:
         print(f"{out_size[0]}x{out_size[1]} FULL-RES OUTPUT:")
@@ -335,10 +449,12 @@ def eltwise_layer(
     if verbose:
         print(f"{operands}-OPERAND {op.string(operator, elt=True).upper()}:\n")
 
-    out_buf = eltwise(operator=operator,
-                      data=data,
-                      input_size=input_size,
-                      debug=debug)
+    out_buf = eltwise(
+        operator=operator,
+        data=data,
+        input_size=input_size,
+        debug=debug
+    )
 
     if verbose:
         print(f"{input_size[0]}x{input_size[1]}x{input_size[2]} FULL-RES OUTPUT:")
@@ -398,8 +514,16 @@ def pooling_layer(
             pooled_size = [input_size[0],
                            (input_size[1] + pool_stride[0] - pool[0]) // pool_stride[0],
                            (input_size[2] + pool_stride[1] - pool[1]) // pool_stride[1]]
-            pooled = pool2d(data, input_size, pooled_size, pool, pool_stride, pool_average,
-                            floor=not rounding, debug=debug)
+            pooled = pool2d(
+                data,
+                input_size,
+                pooled_size,
+                pool,
+                pool_stride,
+                pool_average,
+                floor=not rounding,
+                debug=debug
+            )
             if verbose:
                 if operands == 1:
                     print_data(f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
@@ -431,8 +555,16 @@ def pooling_layer(
         else:
             pooled_size = [input_size[0],
                            (input_size[1] + pool_stride[0] - pool[0]) // pool_stride[0]]
-            pooled = pool1d(data, input_size, pooled_size, pool[0], pool_stride[0],
-                            pool_average, floor=not rounding, debug=debug)
+            pooled = pool1d(
+                data,
+                input_size,
+                pooled_size,
+                pool[0],
+                pool_stride[0],
+                pool_average,
+                floor=not rounding,
+                debug=debug
+            )
             if verbose:
                 print(f"{pool[0]} {'AVERAGE' if pool_average else 'MAX'} "
                       f"POOLING, STRIDE {pool_stride[0]} "
