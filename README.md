@@ -882,7 +882,8 @@ For any element-wise `operation`, this key configures the number of operands fro
 
 Example:
 	`operation: add`
-	`operands: 4`
+
+​	`operands: 4`
 
 ##### `activate` (Optional)
 
