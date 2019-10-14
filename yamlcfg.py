@@ -79,7 +79,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     for ll in cfg['layers']:
         if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'in_dim',
                                'in_offset', 'kernel_size', 'pool_stride', 'out_offset',
-                               'activate', 'data_format', 'eltwise', 'flatten',
+                               'activate', 'activation', 'data_format', 'eltwise', 'flatten',
                                'op', 'operands', 'operation', 'operator',
                                'output_processors', 'output_width',
                                'pool_first', 'processors', 'pad', 'quantization',
@@ -138,13 +138,14 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
         if 'out_offset' in ll:
             output_offset[sequence] = ll['out_offset']
 
-        if 'activate' in ll:
-            if ll['activate'].lower() == 'relu':
+        if 'activate' in ll or 'activation' in ll:
+            key = 'activate' if 'activate' in ll else 'activation'
+            if ll[key].lower() == 'relu':
                 activation[sequence] = op.ACT_RELU
-            elif ll['activate'].lower() == 'abs':
+            elif ll[key].lower() == 'abs':
                 activation[sequence] = op.ACT_ABS
             else:
-                error_exit(f'Unknown value "{ll["activate"]}" for `activate`', sequence)
+                error_exit(f'Unknown value "{ll[key]}" for `{key}`', sequence)
                 sys.exit(1)
 
         if 'convolution' in ll or 'operation' in ll or 'op' in ll or 'operator' in ll:

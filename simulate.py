@@ -138,7 +138,7 @@ def cnn2d_layer(
         if activation == op.ACT_RELU:
             np.clip(out_buf, 0, 2**(bits-1)-1, out_buf)
         elif activation == op.ACT_ABS:
-            out_buf = np.abs(out_buf)
+            out_buf = np.abs(out_buf).clip(0, 2**(bits-1)-1)
 
         if verbose:
             print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} ACTIVATED OUTPUT", end='')
@@ -146,9 +146,6 @@ def cnn2d_layer(
                 print(" (RELU):")
             elif activation == op.ACT_ABS:
                 print(" (ABS):")
-
-            out_buf = np.abs(out_buf)
-
             if out_size[1] == out_size[2] == 1:
                 print(np.squeeze(out_buf))
             else:
@@ -229,7 +226,7 @@ def cnn1d_layer(
         if activation == op.ACT_RELU:
             np.clip(out_buf, 0, 2**(bits-1)-1, out_buf)
         elif activation == op.ACT_ABS:
-            out_buf = np.abs(out_buf)
+            out_buf = np.abs(out_buf).clip(0, 2**(bits-1)-1)
 
         if verbose:
             print(f"{out_size[0]}x{out_size[1]} ACTIVATED OUTPUT", end='')
@@ -287,7 +284,7 @@ def linear_layer(
         if activation == op.ACT_RELU:
             np.clip(out_buf, 0, 2**(bits-1)-1, out_buf)
         elif activation == op.ACT_ABS:
-            out_buf = np.abs(out_buf)
+            out_buf = np.abs(out_buf).clip(0, 2**(bits-1)-1)
 
         if verbose:
             print(f"ACTIVATED OUTPUT (size {out_features})", end='')

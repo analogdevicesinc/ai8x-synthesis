@@ -1,7 +1,7 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_10/11/2019_
+_10/13/2019_
 
 _Open this file in a markdown enabled viewer, for example Typora (http://typora.io) or Visual Studio Code 
 (https://code.visualstudio.com). See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown._
@@ -887,6 +887,11 @@ Example:
 ##### `activate` (Optional)
 
 This key describes whether to activate the layer output (the default is to not activate). When specified, this key must be `ReLU` or `Abs`. AI84 supports `ReLU` only.
+
+Note that the output values are clipped (saturated) to $[0, +127]$. Because of this, `ReLU` behaves more similar to PyTorch’s `nn.Hardtanh(min_value=0, max_value=127)` than to PyTorch’s `nn.ReLU()`.
+
+<img src="docs/relu.png" alt="abs" style="zoom:33%;" />
+<img src="docs/abs.png" alt="abs" style="zoom:33%;" />
 
 ##### `quantization` (Optional)
 
