@@ -1,7 +1,7 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_10/13/2019_
+_10/15/2019_
 
 _Open this file in a markdown enabled viewer, for example Typora (http://typora.io) or Visual Studio Code 
 (https://code.visualstudio.com). See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown._
@@ -639,6 +639,8 @@ The AI85 hardware does not support arbitrary network parameters. Specifically,
 ### Fully Connected (Linear) Layers
 
 On AI85/AI85, m×n fully connected layers can be realized in hardware by “flattening” 2D input data into m channels of 1×1 input data. The hardware will produce n channels of 1×1 output data. When chaining multiple fully connected layers, the flattening step is omitted. The following picture shows 2D data, the equivalent flattened 1D data, and the output.
+
+For AI85, both m and n must not be larger than 16.
 
 ![MLP](docs/MLP.png)
 
