@@ -365,6 +365,7 @@ class APB(object):
 
     def header(
             self,
+            master=False,  # pylint: disable=unused-argument
     ):
         """
         Write file headers.
@@ -411,6 +412,8 @@ class APB(object):
     def main(
             self,
             classification_layer=False,
+            oneshot=0,
+            stopstart=False,
     ):  # pylint: disable=unused-argument
         """
         Write the main function, including an optional call to the fully connected layer if
@@ -711,17 +714,21 @@ class APBTopLevel(APB):
 
     def header(
             self,
+            master=False,
     ):
         """
         Write include files and forward definitions to .c file.
         """
-        toplevel.header(self.memfile,
-                        self.apb_base,
-                        embedded_code=self.embedded_code,
-                        compact_weights=self.compact_weights,
-                        compact_data=self.compact_data,
-                        weight_filename=self.weight_filename,
-                        sample_filename=self.sample_filename)
+        toplevel.header(
+            self.memfile,
+            self.apb_base,
+            embedded_code=self.embedded_code,
+            compact_weights=self.compact_weights,
+            compact_data=self.compact_data,
+            weight_filename=self.weight_filename,
+            sample_filename=self.sample_filename,
+            master=master,
+        )
 
     def verify_header(
             self,
@@ -762,13 +769,20 @@ class APBTopLevel(APB):
     def main(
             self,
             classification_layer=False,
+            oneshot=0,
+            stopstart=False,
     ):
         """
         Write the main function, including an optional call to the fully connected layer if
         `classification_layer` is `True`.
         """
-        toplevel.main(self.memfile, classification_layer=classification_layer,
-                      embedded_code=self.embedded_code)
+        toplevel.main(
+            self.memfile,
+            classification_layer=classification_layer,
+            embedded_code=self.embedded_code,
+            oneshot=oneshot,
+            stopstart=stopstart,
+        )
 
     def fc_layer(
             self,
