@@ -217,3 +217,13 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten12to17big --config-file tests/test-mlpflatten12to17-big.yaml --ai85 --debug-computation --debug
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten12to100 --config-file tests/test-mlpflatten12to100.yaml --ai85 --debug-computation --debug
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten12to100big --config-file tests/test-mlpflatten12to100-big.yaml --ai85 --debug-computation --debug
+
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten192to10 --config-file tests/test-mlpflatten192to10.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten192to10big --config-file tests/test-mlpflatten192to10-big.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten768to10 --config-file tests/test-mlpflatten768to10.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten768to10big --config-file tests/test-mlpflatten768to10-big.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten768to100 --config-file tests/test-mlpflatten768to100.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten768to100big --config-file tests/test-mlpflatten768to100-big.yaml --ai85
+
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mnist-extrasmall-oneshot --checkpoint-file trained/ai84-mnist-extrasmallnet.pth.tar --config-file networks/mnist-chw-extrasmallnet.yaml --stop-after 2 --ai85 --one-shot
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mnist-extrasmall-stopstart --checkpoint-file trained/ai84-mnist-extrasmallnet.pth.tar --config-file networks/mnist-chw-extrasmallnet.yaml --stop-after 2 --ai85 --stop-start
