@@ -534,23 +534,27 @@ def create_net(
                                    verbose, comment=' // Columns')
                 else:
                     # Configure row count
-                    # [7:0] maxcount: lower 8 bits = total of width + pad - 1
-                    # [9:8] pad: 2 bits pad
+                    # [9:0]   maxcount: lower 8 bits = total of width + pad - 1
+                    # [17:16] pad: 2 bits pad
                     if flatten[ll]:
                         val = 0
                     else:
                         val = input_dim[ll][0]-1
+                    assert padding[ll][0] < 2**2
+                    assert val + 2*padding[ll][0] < 2**10
                     apb.write_lreg(group, ll, tc.dev.LREG_RCNT,
                                    padding[ll][0] << 16 | val + 2*padding[ll][0],
                                    verbose, comment=' // Rows')
 
                     # Configure column count (evaluates to 0 for 1D convolutions)
-                    # [7:0] width including padding - 1
-                    # [9:8] pad count (0 = no pad, 1 = half pad, 2 = full pad)
+                    # [9:0]   width including padding - 1
+                    # [17:16] pad count (0 = no pad, 1 = half pad, 2 = full pad)
                     if flatten[ll]:
                         val = 0
                     else:
                         val = input_dim[ll][1]-1
+                    assert padding[ll][1] < 2**2
+                    assert val + 2*padding[ll][1] < 2**10
                     apb.write_lreg(group, ll, tc.dev.LREG_CCNT,
                                    padding[ll][1] << 16 | val + 2 * padding[ll][1],
                                    verbose, comment=' // Columns')
@@ -573,14 +577,16 @@ def create_net(
                     # [21:18] ewise_cnt           Element wise operand count
 
                     val = 0
-                    if operator[ll] == op.CONV1D:
-                        val = kernel_size[ll][0] << 8 | 1 << 12
-                    elif (operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]
-                          or operator[ll] in [op.NONE, op.LINEAR] and operands[ll] == 1):
-                        val = 1 << 8
                     if operator[ll] == op.NONE:
                         val |= (popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
                                          % 2**tc.dev.P_NUMPRO) * output_width[ll]//8 - 1) // 4
+                        assert val < 2**4
+                    if operator[ll] == op.CONV1D:
+                        val |= kernel_size[ll][0] << 8 | 1 << 12
+                        assert kernel_size[ll][0] < 2**4
+                    elif (operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]
+                          or operator[ll] in [op.NONE, op.LINEAR] and operands[ll] == 1):
+                        val |= 1 << 8
                     if operands[ll] > 1:
                         val |= 1 << 13 | op.eltwise_fn(eltwise[ll]) << 14 | operands[ll] - 1 << 18
                         if (pool[ll][0] > 1 or pool[ll][1] > 1) and pool_first[ll]:
@@ -597,6 +603,7 @@ def create_net(
                     val = 1
                 else:
                     val = pool[ll][0]-1
+                    assert val < 2**4
                 apb.write_lreg(group, ll, tc.dev.LREG_PRCNT, val,
                                verbose, comment=' // Pooling rows')
 
@@ -605,6 +612,7 @@ def create_net(
                     val = 1
                 else:
                     val = pool[ll][1]-1
+                    assert val < 2**4
                 apb.write_lreg(group, ll, tc.dev.LREG_PCCNT, val,
                                verbose, comment=' // Pooling columns')
 
@@ -617,6 +625,7 @@ def create_net(
                     val = stride[ll][0]-1
                 if device == 84 and operator[ll] == op.CONV1D:
                     val //= 3
+                assert val < 2**4
                 apb.write_lreg(group, ll, tc.dev.LREG_STRIDE, val,
                                verbose, comment=' // Stride')
 
@@ -638,6 +647,7 @@ def create_net(
                     instance = ffs(output_processor_map[ll] >> group * tc.dev.P_SHARED) \
                            & ~(tc.dev.P_SHARED-1)
                     val |= (instance + group * tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE
+                assert val < 2**17
                 apb.write_lreg(group, ll, tc.dev.LREG_WPTR_BASE, val,
                                verbose, comment=' // SRAM write ptr')
 
@@ -667,6 +677,7 @@ def create_net(
                             val = tc.dev.INSTANCE_SIZE
                     else:
                         val = 0
+                    assert val < 2**17
                     apb.write_lreg(group, ll, tc.dev.LREG_WPTR_TOFFS, val,
                                    verbose, comment=' // Write ptr time slot offs')
 
@@ -765,11 +776,14 @@ def create_net(
                                 - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) + 1)
                               * quantization[ll]) * out_expand[ll] * in_exp \
                             - quantization[ll] + kern_offs[ll] * 8  # kern_offs is always bytes
+                        assert kl < 2**16
+                        assert kern_offs[ll] * 8 < 2**16
                         val = kern_offs[ll] * 8 << tc.dev.MCNT_SAD_OFFS \
                             | kl << tc.dev.MCNT_MAX_OFFS  # kern_offs is always bytes
                     else:
                         assert operator[ll] == op.NONE
                         val = (out_expand[ll] - 1) * 8
+                        assert val < 2**16
                 apb.write_lreg(group, ll, tc.dev.LREG_MCNT, val,
                                verbose, comment=' // Mask offset and count')
 
@@ -779,9 +793,12 @@ def create_net(
                     val = 0
                 else:
                     val = tram_max[ll] - 1
+                    assert val < 2**16
                     if ll > 0 and streaming[ll]:
                         prev_max = sum(tram_max[:ll])
+                        assert prev_max < 2**12
                         val += prev_max
+                        assert val < 2**16
                         val |= prev_max << 16
                 apb.write_lreg(group, ll, tc.dev.LREG_TPTR, val,
                                verbose, comment=' // TRAM ptr max')
@@ -803,6 +820,7 @@ def create_net(
 
                     if group == bias_group[ll]:
                         # Enable bias only for one group
+                        assert bias_offs[ll] < 2**12
                         val |= 1 << 12 | bias_offs[ll]
 
                     if operator[ll] == op.NONE:
@@ -867,23 +885,28 @@ def create_net(
                     # + prior layer's kernel width + prior layer's pad
                     stream_start = (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
                         * kernel_size[ll-1][0] + padding[ll-1][1] + kernel_size[ll-1][1]
+                    assert stream_start < 2**12
                     # Delta 1: This layer's pooling stride
                     delta1 = pool_stride[ll][1]
+                    assert delta1 < 2**5
                     # Delta 2: (This layer's pooling - 1) * full prior layer's padded rows + prior
                     # layer's pad
                     delta2 = (pool[ll][0] - 1) * (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
                         + 2 * padding[ll-1][1]
+                    assert delta2 < 2**12
 
                     val = delta2 << 20 | delta1 << 12 | stream_start
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, val,
                                    verbose, comment=' // Stream processing 1')
                     # [3:0]:   strm_invol[3:0]   Per stream invol offset - based on stream count
                     val = sum(in_expand[:ll])
+                    assert val < 2**4
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM2, val,
                                    verbose, comment=' // Stream processing 2')
 
                 if fifo and streaming[ll]:
                     val = stream_start + 1
+                    assert val < 2**17
                     apb.write_lreg(group, ll, tc.dev.LREG_FMAX, val,
                                    comment=' // Rollover')
 
@@ -948,6 +971,7 @@ def create_net(
 
         if fifo and any(streaming):
             val = input_dim[0][0] * input_dim[0][1]
+            assert val < 2**17
             apb.write_ctl(group, tc.dev.REG_IFRM, val, verbose,
                           comment=' // Input frame size')
 
