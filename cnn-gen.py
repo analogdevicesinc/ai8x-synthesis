@@ -709,10 +709,7 @@ def create_net(
                 # [10]  cpad_only (column pad only, no row pad) for parallel processing
                 # [11]  sramlsrc: global/local output SRAM data memory input select
                 # [15:12] cnnsiena: enable externally sourced summed values from other processors
-                # [21:19] wptr_inc (AI85 only)
-                # [30:22] xpch_max (AI85 only) Selects the maximum channel processor number used
-                #                  in channel expansion mode (bottom 3 are for bits)
-                # [31]  bigdwrt (AI85 only) Enables 32-bit output
+                # [16]  bigdwrt (AI85 only) Enables 32-bit output
                 val = (0x200 if activation[ll] == op.ACT_RELU else 0) | \
                       (0x100 if not pool_average[ll] else 0) | \
                       (0x80 if pool[ll][0] > 1 or pool[ll][1] > 1 else 0) | \
@@ -720,20 +717,10 @@ def create_net(
                       (0x20)
                 if not local_source:
                     val |= 0x800
-                if device != 84:
-                    in_exp = in_expand[ll]
-                    if flatten[ll]:
-                        in_exp *= pooled_dim[ll][0] * pooled_dim[ll][1]
-                    assert in_exp <= 2**3  # Cannot have more than 3 bits (+1)
-                    val |= (fls(output_processor_map[ll])
-                            - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) \
-                        * quantization[ll] << 22 \
-                        | (in_exp - 1) << 16
-                    if operator[ll] != op.NONE:
-                        assert out_expand[ll] <= 2**3  # Cannot have more than 3 bits (+1)
-                        val |= (out_expand[ll] - 1) << 19
-                    if output_width[ll] != 8:
-                        val |= 1 << 31
+
+                if device != 84 and output_width[ll] != 8:
+                    val |= 1 << 16
+
                 if operator[ll] != op.NONE and group == groups_used[0]:
                     # Set external source for other active processing groups (can be zero if no
                     # other groups are processing). Do not set the bit corresponding to this group
@@ -747,6 +734,32 @@ def create_net(
                     val |= sources << 12
                 apb.write_lreg(group, ll, tc.dev.LREG_LCTL, val,
                                verbose, comment=' // Layer control')
+
+                if device != 84:
+                    flatten_prod = 0
+                    # [3:0]  inpchexp[3:0]
+                    # [7:4]  wptr_inc[3:0]
+                    # [16:8] xpch_max[8:0] Selects the maximum channel processor number used
+                    #                      in channel expansion mode (bottom 3 are for bits)
+                    if flatten[ll]:
+                        # Store all bits, top programmed in post processing register
+                        flatten_prod = in_expand[ll] * pooled_dim[ll][0] * pooled_dim[ll][1] - 1
+                        in_exp = flatten_prod % 2**4
+                    else:
+                        in_exp = in_expand[ll] - 1
+
+                    assert in_exp < 2**4  # Cannot have more than 4 bits
+
+                    val = (fls(output_processor_map[ll])
+                           - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) \
+                        * quantization[ll] << 8 \
+                        | in_exp
+                    if operator[ll] != op.NONE:
+                        assert out_expand[ll] <= 2**3  # Cannot have more than 3 bits (+1)
+                        val |= (out_expand[ll] - 1) << 4
+
+                    apb.write_lreg(group, ll, tc.dev.LREG_LCTL2, val,
+                                   verbose, comment=' // Layer control 2')
 
                 # Configure mask count
                 # Restriction: Every one of the mask memories will have to start from same offset
@@ -790,7 +803,11 @@ def create_net(
                 # Configure tram pointer max
                 if operator[ll] == op.CONV1D or \
                    operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]:
-                    val = 0
+                    if flatten_prod >= 2**4:
+                        assert flatten_prod < 2**16
+                        val = flatten_prod << 16 | flatten_prod
+                    else:
+                        val = 0
                 else:
                     val = tram_max[ll] - 1
                     assert val < 2**16
@@ -831,6 +848,9 @@ def create_net(
 
                     if activation[ll] == op.ACT_ABS:
                         val |= 1 << 26
+
+                    if flatten_prod >= 2**4:
+                        val |= 1 << 27 | (flatten_prod >> 4) << 18  # flatten_ena, xpmp_cnt
 
                     apb.write_lreg(group, ll, tc.dev.LREG_POST, val,
                                    verbose, comment=' // AI85/86 post processing register')
