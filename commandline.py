@@ -72,6 +72,8 @@ def get_parser():
     parser.add_argument('--input-offset', type=lambda x: int(x, 0),
                         metavar='N',
                         help="input offset (x8 hex, defaults to 0x0000)")
+    parser.add_argument('--one-shot', action='store_true', default=False,
+                        help="use layer-by-layer one-shot mechanism (default: false)")
     parser.add_argument('--overlap-data', '--overwrite-ok', dest='overwrite_ok',
                         action='store_true', default=False,
                         help="allow output to overwrite input (default: warn/stop)")
@@ -84,6 +86,8 @@ def get_parser():
                         help="split input into N portions (default: don't split)")
     parser.add_argument('--stop-after', type=int, metavar='N',
                         help="stop after layer")
+    parser.add_argument('--stop-start', action='store_true', default=False,
+                        help="stop and then restart the accelerator (default: false)")
     parser.add_argument('--prefix', metavar='S', required=True,
                         help="set test name prefix")
     parser.add_argument('--test-dir', metavar='S', required=True,

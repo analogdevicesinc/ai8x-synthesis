@@ -101,6 +101,8 @@ def create_net(
         fifo=False,
         zero_sram=False,
         mlator=False,
+        oneshot=0,
+        stopstart=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -292,9 +294,6 @@ def create_net(
                        f'pad {padding_str[ll]}, '
                        f'{output_chan[ll]}x{output_dim_str[ll]} output\n')
 
-        apb.output('\n')
-        apb.header()
-
         # Calculate the groups needed, and groups and processors used overall
         processors_used = 0
         group_map = []
@@ -339,6 +338,9 @@ def create_net(
         if 0 not in groups_used:
             print('Group 0 is not used, this currently does not work.')
             sys.exit(1)
+
+        apb.output('\n')
+        apb.header(groups_used[0] if oneshot > 0 or stopstart else False)
 
         if embedded_code or compact_data:
             # Pre-define data memory loader. Inline later when generating RTL sim.
@@ -946,10 +948,22 @@ def create_net(
                 # Do the actual code generation later
                 apb.output('\n  load_input(); // Load data input\n\n')
             else:
-                load.load(embedded_code, apb, big_data[0], processor_map[0], in_offset[0],
-                          [input_chan[0], input_dim[0][0], input_dim[0][1]],
-                          in_expand[0], operands[0], in_expand_thresh[0],
-                          data, padding[0], split=split, fifo=fifo, debug=debug)
+                load.load(
+                    embedded_code,
+                    apb,
+                    big_data[0],
+                    processor_map[0],
+                    in_offset[0],
+                    [input_chan[0], input_dim[0][0], input_dim[0][1]],
+                    in_expand[0],
+                    operands[0],
+                    in_expand_thresh[0],
+                    data,
+                    padding[0],
+                    split=split,
+                    fifo=fifo,
+                    debug=debug,
+                )
 
         if verbose:
             print('\nGlobal registers:')
@@ -1045,10 +1059,22 @@ def create_net(
                 # Do the actual code generation later
                 apb.output('\n  load_input(); // Load data input\n\n')
             else:
-                load.load(embedded_code, apb, big_data[0], processor_map[0], in_offset[0],
-                          [input_chan[0], input_dim[0][0], input_dim[0][1]],
-                          in_expand[0], operands[0], in_expand_thresh[0],
-                          data, padding[0], split=split, fifo=fifo, debug=debug)
+                load.load(
+                    embedded_code,
+                    apb,
+                    big_data[0],
+                    processor_map[0],
+                    in_offset[0],
+                    [input_chan[0], input_dim[0][0], input_dim[0][1]],
+                    in_expand[0],
+                    operands[0],
+                    in_expand_thresh[0],
+                    data,
+                    padding[0],
+                    split=split,
+                    fifo=fifo,
+                    debug=debug,
+                )
 
         apb.load_footer()
         # End of input
@@ -1085,7 +1111,7 @@ def create_net(
             output_width=o_width,
             device=device,
             debug=debug_computation,
-            operands=operands[ll]
+            operands=operands[ll],
         )
         assert out_size[0] == in_chan \
             and out_size[1] == dim[0] and out_size[2] == dim[1]
@@ -1105,7 +1131,7 @@ def create_net(
             expand=in_expand[ll],
             expand_thresh=in_expand_thresh[ll],
             operation=operator[ll],
-            operands=operands[ll]
+            operands=operands[ll],
         )
 
         # Run in-flight element-wise operations first?
@@ -1135,7 +1161,7 @@ def create_net(
             expand_thresh=in_expand_thresh[ll],
             operation=operator[ll],
             operands=num_operands,
-            rounding=avg_pool_rounding
+            rounding=avg_pool_rounding,
         )
 
         if operator[ll] == op.CONV1D:
@@ -1177,7 +1203,7 @@ def create_net(
                 data,
                 output_width=output_width[ll],
                 device=device,
-                debug=debug_computation
+                debug=debug_computation,
             )
         elif operator[ll] == op.CONVTRANSPOSE2D:
             out_buf, out_size = convtranspose2d_layer(
@@ -1202,7 +1228,8 @@ def create_net(
                 data,
                 output_width=output_width[ll],
                 device=device,
-                debug=debug_computation)
+                debug=debug_computation,
+            )
         elif operator[ll] == op.CONV1D:
             out_buf, out_size = conv1d_layer(
                 ll,
@@ -1224,7 +1251,7 @@ def create_net(
                 data,
                 output_width=output_width[ll],
                 device=device,
-                debug=debug_computation
+                debug=debug_computation,
             )
         elif operator[ll] == op.NONE:  # '0'D (pooling only or passthrough)
             out_buf, out_size = passthrough_layer(
@@ -1233,7 +1260,7 @@ def create_net(
                 data.shape,
                 data,
                 device=device,
-                debug=debug_computation
+                debug=debug_computation,
             )
         else:
             print(f'Unknown operator `{op.string(operator[ll])}`.')
@@ -1267,18 +1294,40 @@ def create_net(
             apb.output(f'// {test_name}\n// Expected output of layer {ll}\n')
             apb.verify_header()
             if ll == layers-1 and mlator:
-                apb.verify_unload(ll, in_map, None,
-                                  out_buf, output_processor_map[ll], out_size,
-                                  out_offset[ll], out_expand[ll],
-                                  out_expand_thresh[ll], output_width[ll],
-                                  pool[ll], pool_stride[ll], overwrite_ok, no_error_stop,
-                                  mlator=False)
-            apb.verify_unload(ll, in_map, out_map,
-                              out_buf, output_processor_map[ll], out_size,
-                              out_offset[ll], out_expand[ll],
-                              out_expand_thresh[ll], output_width[ll],
-                              pool[ll], pool_stride[ll], overwrite_ok, no_error_stop,
-                              mlator=mlator if ll == layers-1 else False)
+                apb.verify_unload(
+                    ll,
+                    in_map,
+                    None,
+                    out_buf,
+                    output_processor_map[ll],
+                    out_size,
+                    out_offset[ll],
+                    out_expand[ll],
+                    out_expand_thresh[ll],
+                    output_width[ll],
+                    pool[ll],
+                    pool_stride[ll],
+                    overwrite_ok,
+                    no_error_stop,
+                    mlator=False,
+                )
+            apb.verify_unload(
+                ll,
+                in_map,
+                out_map,
+                out_buf,
+                output_processor_map[ll],
+                out_size,
+                out_offset[ll],
+                out_expand[ll],
+                out_expand_thresh[ll],
+                output_width[ll],
+                pool[ll],
+                pool_stride[ll],
+                overwrite_ok,
+                no_error_stop,
+                mlator=mlator if ll == layers-1 else False,
+            )
             apb.verify_footer()
         finally:
             if memfile:
@@ -1296,23 +1345,37 @@ def create_net(
         apb.set_memfile(memfile)
 
         if fc_weights:
-            apb.unload(output_processor_map[-1], out_size,
-                       out_offset[layers-1], out_expand[-1],
-                       out_expand_thresh[-1], output_width[-1],
-                       pool[-1], pool_stride[-1],
-                       mlator=mlator)
+            apb.unload(
+                output_processor_map[-1],
+                out_size,
+                out_offset[layers-1],
+                out_expand[-1],
+                out_expand_thresh[-1],
+                output_width[-1],
+                pool[-1],
+                pool_stride[-1],
+                mlator=mlator,
+            )
 
             data = data.flatten()
 
-            out_buf, out_size = linear_layer(verbose=verbose,
-                                             activation=None,
-                                             data=data, weight=fc_weights[0], bias=fc_bias[0],
-                                             debug=debug)
+            out_buf, out_size = linear_layer(
+                verbose=verbose,
+                activation=None,
+                data=data,
+                weight=fc_weights[0],
+                bias=fc_bias[0],
+                debug=debug,
+            )
 
             apb.fc_layer(fc_weights[0], fc_bias[0])
             apb.fc_verify(out_buf)
 
-        apb.main(fc_weights)
+        apb.main(
+            fc_weights,
+            layers - 1 if oneshot else 0,
+            stopstart,
+        )
 
     # Close header files
     if embedded_code or compact_data:
@@ -1325,8 +1388,14 @@ def create_net(
         if not timeout:
             # If no timeout specified, calculate one based on reads/writes
             timeout = apb.get_time() + rtlsim.GLOBAL_TIME_OFFSET
-        rtlsim.create_runtest_sv(block_mode, base_directory, test_name, runtest_filename,
-                                 input_filename, timeout)
+        rtlsim.create_runtest_sv(
+            block_mode,
+            base_directory,
+            test_name,
+            runtest_filename,
+            input_filename,
+            timeout,
+        )
 
     return test_name
 
@@ -1562,108 +1631,116 @@ def main():
             sys.exit(1)
 
     if not args.cmsis_software_nn:
-        tn = create_net(args.prefix,
-                        args.verbose,
-                        args.debug,
-                        args.debug_computation,
-                        args.no_error_stop,
-                        args.overwrite_ok,
-                        args.log,
-                        apb_base,
-                        layers,
-                        operator,
-                        input_dim,
-                        pooled_dim,
-                        output_dim,
-                        processor_map,
-                        output_processor_map,
-                        kernel_size,
-                        quantization,
-                        input_channels,
-                        output_channels,
-                        output_width,
-                        padding,
-                        dilation,
-                        stride,
-                        pool,
-                        pool_stride,
-                        pool_average,
-                        activation,
-                        data,
-                        weights,
-                        bias,
-                        big_data,
-                        fc_weights,
-                        fc_bias,
-                        args.input_split,
-                        input_offset,
-                        output_offset,
-                        streaming,
-                        flatten,
-                        operands,
-                        eltwise,
-                        pool_first,
-                        args.input_filename,
-                        args.output_filename,
-                        args.c_filename,
-                        args.test_dir,
-                        args.runtest_filename,
-                        args.log_filename,
-                        args.zero_unused,
-                        args.timeout,
-                        not args.top_level,
-                        args.verify_writes,
-                        args.embedded_code,
-                        args.compact_weights,
-                        args.compact_data,
-                        args.write_zero_registers,
-                        args.weight_filename,
-                        args.sample_filename,
-                        args.device,
-                        args.init_tram,
-                        args.avg_pool_rounding,
-                        args.fifo,
-                        args.zero_sram,
-                        args.mlator)
+        tn = create_net(
+            args.prefix,
+            args.verbose,
+            args.debug,
+            args.debug_computation,
+            args.no_error_stop,
+            args.overwrite_ok,
+            args.log,
+            apb_base,
+            layers,
+            operator,
+            input_dim,
+            pooled_dim,
+            output_dim,
+            processor_map,
+            output_processor_map,
+            kernel_size,
+            quantization,
+            input_channels,
+            output_channels,
+            output_width,
+            padding,
+            dilation,
+            stride,
+            pool,
+            pool_stride,
+            pool_average,
+            activation,
+            data,
+            weights,
+            bias,
+            big_data,
+            fc_weights,
+            fc_bias,
+            args.input_split,
+            input_offset,
+            output_offset,
+            streaming,
+            flatten,
+            operands,
+            eltwise,
+            pool_first,
+            args.input_filename,
+            args.output_filename,
+            args.c_filename,
+            args.test_dir,
+            args.runtest_filename,
+            args.log_filename,
+            args.zero_unused,
+            args.timeout,
+            not args.top_level,
+            args.verify_writes,
+            args.embedded_code,
+            args.compact_weights,
+            args.compact_data,
+            args.write_zero_registers,
+            args.weight_filename,
+            args.sample_filename,
+            args.device,
+            args.init_tram,
+            args.avg_pool_rounding,
+            args.fifo,
+            args.zero_sram,
+            args.mlator,
+            args.one_shot,
+            args.stop_start,
+        )
         if not args.embedded_code and args.autogen.lower() != 'none':
-            rtlsim.append_regression(args.top_level,
-                                     tn,
-                                     args.queue_name,
-                                     args.autogen)
+            rtlsim.append_regression(
+                args.top_level,
+                tn,
+                args.queue_name,
+                args.autogen,
+            )
     else:
-        cmsisnn.create_net(args.prefix,
-                           args.verbose,
-                           args.debug,
-                           args.log,
-                           layers,
-                           operator,
-                           auto_input_dim,
-                           input_dim,
-                           pooled_dim,
-                           output_dim,
-                           kernel_size,
-                           quantization,
-                           input_channels,
-                           output_channels,
-                           output_width,
-                           padding,
-                           dilation,
-                           stride,
-                           pool,
-                           pool_stride,
-                           pool_average,
-                           activation,
-                           data,
-                           weights,
-                           bias,
-                           fc_weights,
-                           fc_bias,
-                           args.c_filename,
-                           args.test_dir,
-                           args.log_filename,
-                           args.weight_filename,
-                           args.sample_filename,
-                           args.device)
+        cmsisnn.create_net(
+            args.prefix,
+            args.verbose,
+            args.debug,
+            args.log,
+            layers,
+            operator,
+            auto_input_dim,
+            input_dim,
+            pooled_dim,
+            output_dim,
+            kernel_size,
+            quantization,
+            input_channels,
+            output_channels,
+            output_width,
+            padding,
+            dilation,
+            stride,
+            pool,
+            pool_stride,
+            pool_average,
+            activation,
+            data,
+            weights,
+            bias,
+            fc_weights,
+            fc_bias,
+            args.c_filename,
+            args.test_dir,
+            args.log_filename,
+            args.weight_filename,
+            args.sample_filename,
+            args.device,
+        )
 
     print("SUMMARY OF OPS")
     stats.print_summary(args.debug)

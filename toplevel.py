@@ -38,6 +38,7 @@ def header(
         compact_data=False,
         weight_filename='weights.h',
         sample_filename='sampledata.h',
+        master=False,
 ):
     """
     Write include files and forward definitions to .c file handle `memfile`.
@@ -72,6 +73,19 @@ def header(
             memfile.write('  cnn_time = TMR_SW_Stop(MXC_TMR0);\n')
         memfile.write('}\n\n')
 
+    if master is not False:
+        addr = apb_base + tc.dev.C_CNN_BASE + tc.dev.C_GROUP_OFFS * master
+
+        memfile.write('void cnn_restart(void)\n{\n')
+        memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) |= 1; '
+                      f'// Re-enable group {master}\n')
+        memfile.write('}\n\n')
+
+        memfile.write('void cnn_stop(void)\n{\n')
+        memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ~1; '
+                      f'// Disable group {master}\n')
+        memfile.write('}\n\n')
+
 
 def load_header(
         memfile,
@@ -98,13 +112,15 @@ def main(
         memfile,
         classification_layer=False,
         embedded_code=False,
+        oneshot=0,
+        stopstart=False,
 ):
     """
     Write the main function (including an optional call to the fully connected layer if
     `fc_layer` is `True`) to `memfile`.
     """
     memfile.write('int main(void)\n{\n')
-    if embedded_code and classification_layer:
+    if embedded_code and classification_layer or oneshot > 0:
         memfile.write('  int i;\n\n')
     memfile.write('  icache_enable();\n\n')
     if embedded_code:
@@ -114,7 +130,16 @@ def main(
     memfile.write('  if (!cnn_load()) { fail(); pass(); return 0; }\n')
     if embedded_code:
         memfile.write('  TMR_SW_Start(MXC_TMR0, NULL);\n')
+    if stopstart:
+        memfile.write('\n  cnn_stop();\n')
+        memfile.write('  cnn_restart();\n\n')
+
     memfile.write('  cnn_wait();\n\n')
+    if oneshot > 0:
+        memfile.write(f'  for (i = 0; i < {oneshot}; i++) {{\n')
+        memfile.write('    cnn_restart();\n')
+        memfile.write('    cnn_wait();\n')
+        memfile.write('  }\n\n')
     memfile.write('  if (!cnn_check()) fail();\n')
     if classification_layer:
         memfile.write('  if (!fc_layer()) fail();\n')
