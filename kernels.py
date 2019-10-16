@@ -62,7 +62,9 @@ def load(
         out_expand_thresh,
         in_expand,
         in_expand_thresh,
-        flatten,
+        flatten=False,
+        mexpress=False,
+        verify=False,
         debug=False,
 ):
     """
@@ -70,6 +72,9 @@ def load(
     RTL simulation). The output is written to the `apb` object.
     Input is configured with `kernel_size`, `quantization`, `layers`, `processor_map`,
     `output_processor_map`, `input_chan`, `output_chan`, `out_expand` and `out_expand_thresh`.
+    When `mexpress` is `True`, the function uses the memcpy()-friendly hardware functionality to
+    reduce the number of transfers. When `verify` is also true (mexpress mode only), kernels are
+    read back and compared.
     This function returns the kernel offsets and the kernel lengths for all layers.
     """
     # Kernels: Stack kernels; write only the kernels needed
@@ -88,7 +93,7 @@ def load(
         print('\nLoading Kernels...')
 
     for ll in range(layers):
-        if operator[ll] not in [op.CONV1D, op.CONV2D, op.LINEAR]:
+        if operator[ll] not in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D, op.LINEAR]:
             kern_len[ll] = 0
             kern_offs[ll] = 0
             continue
@@ -243,86 +248,117 @@ def load(
         print('\nKernel map:')
         print_map(layers, kernel_map)
 
-    if not embedded_code:
+    if verify or not (embedded_code or mexpress):
+        if verify:
+            apb.output('int verify_kernels(void)\n{\n')
         # Write in-line
         for p in range(tc.dev.MAX_PROC):
             for col in range(0, proc_kern_max[p]):
                 ll = kernel_map[p][col]
                 if ll != _INVALID_VALUE:
                     k = kernel_data[p][col]
-                    apb.write_kern(ll, p, col, k)
-    else:
+                    apb.write_kern(ll, p, col, k, verify_only=verify)
+        if verify:
+            apb.output('  return 1;\n}\n\n')
+    if embedded_code or mexpress:
         # Write kernels, combining layers and processors where possible to reduce the number
         # of constants and calls to memcpy.
         apb.output('// Kernels:\n')
 
-        for p in range(tc.dev.MAX_PROC):
-            for col in range(0, proc_kern_max[p]):
-                ll = kernel_map[p][col]
-                if ll != _INVALID_VALUE:
-                    k = kernel_data[p][col]
-                    offs = _WORDS_PER_KERNEL * col
-                    kernel_values[p][offs] = k[0] & 0xff
-                    kernel_values[p][offs + 1] = (k[1] & 0xff) << 24 \
-                        | (k[2] & 0xff) << 16 | (k[3] & 0xff) << 8 | k[4] & 0xff
-                    kernel_values[p][offs + 2] = (k[5] & 0xff) << 24 \
-                        | (k[6] & 0xff) << 16 | (k[7] & 0xff) << 8 | k[8] & 0xff
+        if not mexpress:
+            for p in range(tc.dev.MAX_PROC):
+                for col in range(0, proc_kern_max[p]):
+                    ll = kernel_map[p][col]
+                    if ll != _INVALID_VALUE:
+                        k = kernel_data[p][col]
+                        offs = _WORDS_PER_KERNEL * col
+                        kernel_values[p][offs] = k[0] & 0xff
+                        kernel_values[p][offs + 1] = (k[1] & 0xff) << 24 \
+                            | (k[2] & 0xff) << 16 | (k[3] & 0xff) << 8 | k[4] & 0xff
+                        kernel_values[p][offs + 2] = (k[5] & 0xff) << 24 \
+                            | (k[6] & 0xff) << 16 | (k[7] & 0xff) << 8 | k[8] & 0xff
 
-        # First, define the weights (will move to header file)
-        p = 0
-        # Combining memcopy() requires stacked memories
-        while p < tc.dev.MAX_PROC:
-            if proc_kern_max[p] > 0:
-                start = p
-                while (
-                        proc_kern_max[p] == tc.dev.MASK_OFFS and
-                        p+1 < tc.dev.MAX_PROC and
-                        proc_kern_max[p+1] and
-                        (start & ~(tc.dev.P_NUMPRO-1)) == (p+1 & ~(tc.dev.P_NUMPRO-1))
-                ):
-                    p += 1
-                # Combine multiple channels into one define
-                k = None
-                for i in range(start, p + 1):
-                    if k is None:
-                        k = kernel_values[i][:proc_kern_max[i] * _WORDS_PER_KERNEL]
+            # First, define the weights (will move to header file)
+            p = 0
+            # Combining memcopy() requires stacked memories
+            while p < tc.dev.MAX_PROC:
+                if proc_kern_max[p] > 0:
+                    start = p
+                    while (
+                            proc_kern_max[p] == tc.dev.MASK_OFFS and
+                            p+1 < tc.dev.MAX_PROC and
+                            proc_kern_max[p+1] and
+                            (start & ~(tc.dev.P_NUMPRO-1)) == (p+1 & ~(tc.dev.P_NUMPRO-1))
+                    ):
+                        p += 1
+                    # Combine multiple channels into one define
+                    k = None
+                    for i in range(start, p + 1):
+                        if k is None:
+                            k = kernel_values[i][:proc_kern_max[i] * _WORDS_PER_KERNEL]
+                        else:
+                            k = np.concatenate(
+                                (k, kernel_values[i][:proc_kern_max[i] * _WORDS_PER_KERNEL])
+                            )
+
+                    apb.output_define(k, f'KERNELS_{start}', '0x%08x', 8)
+                p += 1
+
+            # Second, initialize static const variables as source for memcpy
+            p = 0
+            while p < tc.dev.MAX_PROC:
+                if proc_kern_max[p] > 0:
+                    span = proc_kern_max[p]
+                    start = p
+                    while (
+                            proc_kern_max[p] == tc.dev.MASK_OFFS and
+                            p+1 < tc.dev.MAX_PROC and
+                            proc_kern_max[p+1] and
+                            (start & ~(tc.dev.P_NUMPRO-1)) == (p+1 & ~(tc.dev.P_NUMPRO-1))
+                    ):
+                        p += 1
+                        span += proc_kern_max[p]
+                    apb.output(f'static const uint32_t kernels_{start}[] = KERNELS_{start};\n')
+                p += 1
+            apb.output('\n')
+
+            # Generate code to load the weights using memcpy
+            apb.output('void memcpy_96to128(uint32_t *dst, const uint32_t *src, int n)\n{\n')
+            apb.output('  while (n-- > 0) {\n'
+                       '    *dst++ = *src++;\n'
+                       '    *dst++ = *src++;\n'
+                       '    *dst++ = *src++;\n'
+                       '    *dst++ = 0;  // Execute write\n'
+                       '  }\n}\n\n')
+        else:
+            # When using the express loader, gather all consecutive kernels for each processor
+            # and pack them.
+            zero_kernel = np.array([0] * 9, dtype=np.uint8)
+            k = None
+
+            for p in range(tc.dev.MAX_PROC):
+                for col in range(0, proc_kern_max[p]):
+                    ll = kernel_map[p][col]
+                    if ll != _INVALID_VALUE:
+                        new_k = (kernel_data[p][col] & 0xff).astype(np.uint8)
                     else:
-                        k = np.concatenate(
-                            (k, kernel_values[i][:proc_kern_max[i] * _WORDS_PER_KERNEL])
-                        )
-
-                apb.output_define(k, f'KERNELS_{start}', '0x%08x', 8)
-            p += 1
-
-        # Second, initialize static const variables as source for memcpy
-        p = 0
-        while p < tc.dev.MAX_PROC:
-            if proc_kern_max[p] > 0:
-                span = proc_kern_max[p]
-                start = p
-                while (
-                        proc_kern_max[p] == tc.dev.MASK_OFFS and
-                        p+1 < tc.dev.MAX_PROC and
-                        proc_kern_max[p+1] and
-                        (start & ~(tc.dev.P_NUMPRO-1)) == (p+1 & ~(tc.dev.P_NUMPRO-1))
-                ):
-                    p += 1
-                    span += proc_kern_max[p]
-                apb.output(f'static const uint32_t kernels_{start}[] = KERNELS_{start};\n')
-            p += 1
-        apb.output('\n')
-
-        # Generate code to load the weights using memcpy
-        apb.output('void memcpy_96to128(uint32_t *dst, const uint32_t *src, int n)\n{\n')
-        apb.output('  while (n-- > 0) {\n'
-                   '    *dst++ = *src++;\n'
-                   '    *dst++ = *src++;\n'
-                   '    *dst++ = *src++;\n'
-                   '    *dst++ = 0;  // Execute write\n'
-                   '  }\n}\n\n')
+                        new_k = zero_kernel
+                    if k is None:
+                        k = new_k
+                    else:
+                        k = np.concatenate((k, new_k))
+                if proc_kern_max[p] > 0:
+                    # Round up to multiple of 4
+                    if len(k) % 4 != 0:
+                        k = np.concatenate((k, zero_kernel[:len(k) % 4]))
+                    # '>u4' swaps endianness to what the hardware needs, `view` packs into 32-bit
+                    apb.output_define(k.view(dtype='>u4'), f'KERNELS_{p}', '0x%08x', 8)
+                    apb.output(f'static const uint32_t kernels_{p}[] = KERNELS_{p};\n')
+            apb.output('\n')
 
         apb.output('void load_kernels(void)\n{\n')
         p = 0
+        address_toggle = 1
         while p < tc.dev.MAX_PROC:
             if proc_kern_max[p] > 0:
                 span = proc_kern_max[p]
@@ -337,8 +373,13 @@ def load(
                 ):
                     p += 1
                     span += proc_kern_max[p]
-                apb.output(f'  memcpy_96to128((uint32_t *) 0x{addr:08x}, kernels_{start}, '
-                           f'{span});\n')
+                if not mexpress:
+                    apb.output(f'  memcpy_96to128((uint32_t *) 0x{addr:08x}, '
+                               f'kernels_{start}, {span});\n')
+                else:
+                    apb.output(f'  memcpy((uint32_t *) 0x{addr | address_toggle:08x}, '
+                               f'kernels_{start}, {(span * 9*4+3) // 4});\n')
+                    address_toggle ^= 1
             p += 1
 
         apb.output('}\n\n')

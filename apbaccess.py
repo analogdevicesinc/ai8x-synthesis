@@ -40,6 +40,8 @@ class APB(object):
             weight_filename=None,
             sample_filename=None,
             device=84,
+            verify_kernels=False,
+            master=None,
     ):
         """
         Create an APB class object that writes to memfile.
@@ -57,6 +59,8 @@ class APB(object):
         self.weight_filename = weight_filename
         self.sample_filename = sample_filename
         self.device = device
+        self.verify_kernels = verify_kernels
+        self.master = master
 
         self.data = 0
         self.num = 0
@@ -244,6 +248,7 @@ class APB(object):
             idx,
             k,
             size=9,
+            verify_only=False,
     ):
         """
         Write single kernel `k` of length `size` for layer `ll`, processor `p` to index `idx` in
@@ -255,18 +260,19 @@ class APB(object):
             + tc.dev.C_MRAM_BASE \
             + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16 + idx * 16
 
-        self.write(addr, k[0] & 0xff, no_verify=True,
-                   comment=f' // Layer {ll}: processor {p} kernel #{idx}')
-        if size != 1:
-            self.write(addr+4, (k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 |
-                       (k[3] & 0xff) << 8 | k[4] & 0xff, no_verify=True)
-            self.write(addr+8, (k[5] & 0xff) << 24 | (k[6] & 0xff) << 16 |
-                       (k[7] & 0xff) << 8 | k[8] & 0xff, no_verify=True)
-        else:
-            self.write(addr+4, 0, no_verify=True)
-            self.write(addr+8, 0, no_verify=True)
-        self.write(addr+12, 0, no_verify=True)  # Execute write
-        if self.verify_writes:
+        if not verify_only:
+            self.write(addr, k[0] & 0xff, no_verify=True,
+                       comment=f' // Layer {ll}: processor {p} kernel #{idx}')
+            if size != 1:
+                self.write(addr+4, (k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 |
+                           (k[3] & 0xff) << 8 | k[4] & 0xff, no_verify=True)
+                self.write(addr+8, (k[5] & 0xff) << 24 | (k[6] & 0xff) << 16 |
+                           (k[7] & 0xff) << 8 | k[8] & 0xff, no_verify=True)
+            else:
+                self.write(addr+4, 0, no_verify=True)
+                self.write(addr+8, 0, no_verify=True)
+            self.write(addr+12, 0, no_verify=True)  # Execute write
+        if self.verify_writes or verify_only:
             self.verify(addr, k[0] & 0xff)
             if size != 1:
                 self.verify(addr+4, (k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 |
@@ -365,7 +371,6 @@ class APB(object):
 
     def header(
             self,
-            master=False,  # pylint: disable=unused-argument
     ):
         """
         Write file headers.
@@ -522,17 +527,19 @@ class APBBlockLevel(APB):
             weight_filename=None,
             sample_filename=None,
     ):
-        super(APBBlockLevel, self).__init__(memfile,
-                                            apb_base,
-                                            verify_writes=verify_writes,
-                                            no_error_stop=no_error_stop,
-                                            weight_header=weight_header,
-                                            sampledata_header=sampledata_header,
-                                            embedded_code=embedded_code,
-                                            compact_weights=False,
-                                            compact_data=False,
-                                            weight_filename=None,
-                                            sample_filename=None)
+        super(APBBlockLevel, self).__init__(
+            memfile,
+            apb_base,
+            verify_writes=verify_writes,
+            no_error_stop=no_error_stop,
+            weight_header=weight_header,
+            sampledata_header=sampledata_header,
+            embedded_code=embedded_code,
+            compact_weights=False,
+            compact_data=False,
+            weight_filename=None,
+            sample_filename=None,
+        )
         self.foffs = 0
 
     def write(
@@ -714,7 +721,6 @@ class APBTopLevel(APB):
 
     def header(
             self,
-            master=False,
     ):
         """
         Write include files and forward definitions to .c file.
@@ -727,7 +733,8 @@ class APBTopLevel(APB):
             compact_data=self.compact_data,
             weight_filename=self.weight_filename,
             sample_filename=self.sample_filename,
-            master=master,
+            master=self.master,
+            verify_kernels=self.verify_kernels,
         )
 
     def verify_header(
@@ -848,25 +855,27 @@ class APBTopLevel(APB):
         and the optional `output_offset` argument can shift the output.
         The base class does nothing.
         """
-        unload.verify(self.verify,
-                      ll,
-                      in_map,
-                      out_map,
-                      out_buf,
-                      processor_map,
-                      input_shape,
-                      out_offset,
-                      out_expand,
-                      out_expand_thresh,
-                      output_width,
-                      pool=pool,
-                      pool_stride=pool_stride,
-                      overwrite_ok=overwrite_ok,
-                      no_error_stop=no_error_stop,
-                      device=self.device,
-                      mlator=mlator,
-                      apb_base=self.apb_base,
-                      stream=self.memfile)
+        unload.verify(
+            self.verify,
+            ll,
+            in_map,
+            out_map,
+            out_buf,
+            processor_map,
+            input_shape,
+            out_offset,
+            out_expand,
+            out_expand_thresh,
+            output_width,
+            pool=pool,
+            pool_stride=pool_stride,
+            overwrite_ok=overwrite_ok,
+            no_error_stop=no_error_stop,
+            device=self.device,
+            mlator=mlator,
+            apb_base=self.apb_base,
+            stream=self.memfile,
+        )
 
     def output_define(
             self,
@@ -902,6 +911,8 @@ def apbwriter(
         weight_filename=None,
         sample_filename=None,
         device=84,
+        verify_kernels=False,
+        master=None,
 ):
     """
     Depending on `block_level`, return a block level .mem file writer or a top level .c file
@@ -911,16 +922,20 @@ def apbwriter(
     previously written data.
     """
     APBClass = APBBlockLevel if block_level else APBTopLevel
-    return APBClass(memfile,
-                    apb_base,
-                    verify_writes=verify_writes,
-                    no_error_stop=no_error_stop,
-                    weight_header=weight_header,
-                    sampledata_header=sampledata_header,
-                    embedded_code=embedded_code,
-                    compact_weights=compact_weights,
-                    compact_data=compact_data,
-                    write_zero_registers=write_zero_registers,
-                    weight_filename=weight_filename,
-                    sample_filename=sample_filename,
-                    device=device)
+    return APBClass(
+        memfile,
+        apb_base,
+        verify_writes=verify_writes,
+        no_error_stop=no_error_stop,
+        weight_header=weight_header,
+        sampledata_header=sampledata_header,
+        embedded_code=embedded_code,
+        compact_weights=compact_weights,
+        compact_data=compact_data,
+        write_zero_registers=write_zero_registers,
+        weight_filename=weight_filename,
+        sample_filename=sample_filename,
+        device=device,
+        verify_kernels=verify_kernels,
+        master=master,
+    )

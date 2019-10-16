@@ -88,7 +88,8 @@ def create_net(
         zero_unused,
         timeout,
         block_mode,
-        verify_writes,
+        verify_writes=False,
+        verify_kernels=False,
         embedded_code=False,
         compact_weights=False,
         compact_data=False,
@@ -103,6 +104,7 @@ def create_net(
         mlator=False,
         oneshot=0,
         stopstart=False,
+        mexpress=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -244,27 +246,76 @@ def create_net(
             open(os.path.join(base_directory, test_name, sample_filename), mode='w')
     else:
         sampledata_header = None
-    if embedded_code or compact_weights:
+    if embedded_code or mexpress or compact_weights:
         weight_header = \
             open(os.path.join(base_directory, test_name, weight_filename), mode='w')
     else:
         weight_header = None
 
+    # Calculate the groups needed, and groups and processors used overall
+    processors_used = 0
+    group_map = []
+    for ll in range(layers):
+        bits = processor_map[ll]
+        processors_used |= bits
+
+        if input_chan[ll] > tc.dev.MAX_CHANNELS:
+            print(f'Layer {ll} is configured for {input_chan[ll]} inputs, which exceeds '
+                  f'the system maximum of {tc.dev.MAX_CHANNELS}.')
+            sys.exit(1)
+        if output_chan[ll] > tc.dev.MAX_CHANNELS:
+            print(f'Layer {ll} is configured for {output_chan[ll]} outputs, which exceeds '
+                  f'the system maximum of {tc.dev.MAX_CHANNELS}.')
+            sys.exit(1)
+        if popcount(processor_map[ll]) != in_expand_thresh[ll]:
+            print(f'Layer {ll} has {input_chan[ll]} inputs with input expansion '
+                  f'{in_expand[ll]}, threshold {in_expand_thresh[ll]}, but '
+                  f'enabled processor map 0x{processor_map[ll]:016x} '
+                  f'has {popcount(processor_map[ll])} bits instead of the '
+                  f'expected number of {in_expand_thresh[ll]}.')
+            sys.exit(1)
+        if popcount(output_processor_map[ll]) != out_expand_thresh[ll]:
+            print(f'Layer {ll} has {output_chan[ll]} outputs with output expansion '
+                  f'{out_expand[ll]}, threshold {out_expand_thresh[ll]}, but '
+                  f'processor output map 0x{output_processor_map[ll]:016x} '
+                  f'has {popcount(output_processor_map[ll])} bits instead of the '
+                  f'expected number of {out_expand_thresh[ll]}.')
+            sys.exit(1)
+        this_map = []
+        for group in range(tc.dev.P_NUMGROUPS):
+            if (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO:
+                this_map.append(group)
+        group_map.append(this_map)
+
+    groups_used = []
+    for group in range(tc.dev.P_NUMGROUPS):
+        if ((processors_used |
+             output_processor_map[-1]) >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO:
+            groups_used.append(group)
+
+    if 0 not in groups_used:
+        print('Group 0 is not used, this currently does not work.')
+        sys.exit(1)
+
     with open(os.path.join(base_directory, test_name, filename), mode='w') as memfile:
-        apb = apbaccess.apbwriter(memfile,
-                                  apb_base,
-                                  block_mode,
-                                  verify_writes,
-                                  no_error_stop,
-                                  weight_header=weight_header,
-                                  sampledata_header=sampledata_header,
-                                  embedded_code=embedded_code,
-                                  compact_weights=compact_weights,
-                                  compact_data=compact_data,
-                                  write_zero_registers=write_zero_regs,
-                                  weight_filename=weight_filename,
-                                  sample_filename=sample_filename,
-                                  device=device)
+        apb = apbaccess.apbwriter(
+            memfile,
+            apb_base,
+            block_mode,
+            verify_writes=verify_writes,
+            no_error_stop=no_error_stop,
+            weight_header=weight_header,
+            sampledata_header=sampledata_header,
+            embedded_code=embedded_code,
+            compact_weights=compact_weights or mexpress,
+            compact_data=compact_data,
+            write_zero_registers=write_zero_regs,
+            weight_filename=weight_filename,
+            sample_filename=sample_filename,
+            device=device,
+            verify_kernels=verify_kernels,
+            master=groups_used[0] if oneshot > 0 or stopstart else False,
+        )
 
         apb.copyright_header()
 
@@ -294,71 +345,63 @@ def create_net(
                        f'pad {padding_str[ll]}, '
                        f'{output_chan[ll]}x{output_dim_str[ll]} output\n')
 
-        # Calculate the groups needed, and groups and processors used overall
-        processors_used = 0
-        group_map = []
-        for ll in range(layers):
-            bits = processor_map[ll]
-            processors_used |= bits
-
-            if input_chan[ll] > tc.dev.MAX_CHANNELS:
-                print(f'Layer {ll} is configured for {input_chan[ll]} inputs, which exceeds '
-                      f'the system maximum of {tc.dev.MAX_CHANNELS}.')
-                sys.exit(1)
-            if output_chan[ll] > tc.dev.MAX_CHANNELS:
-                print(f'Layer {ll} is configured for {output_chan[ll]} outputs, which exceeds '
-                      f'the system maximum of {tc.dev.MAX_CHANNELS}.')
-                sys.exit(1)
-            if popcount(processor_map[ll]) != in_expand_thresh[ll]:
-                print(f'Layer {ll} has {input_chan[ll]} inputs with input expansion '
-                      f'{in_expand[ll]}, threshold {in_expand_thresh[ll]}, but '
-                      f'enabled processor map 0x{processor_map[ll]:016x} '
-                      f'has {popcount(processor_map[ll])} bits instead of the '
-                      f'expected number of {in_expand_thresh[ll]}.')
-                sys.exit(1)
-            if popcount(output_processor_map[ll]) != out_expand_thresh[ll]:
-                print(f'Layer {ll} has {output_chan[ll]} outputs with output expansion '
-                      f'{out_expand[ll]}, threshold {out_expand_thresh[ll]}, but '
-                      f'processor output map 0x{output_processor_map[ll]:016x} '
-                      f'has {popcount(output_processor_map[ll])} bits instead of the '
-                      f'expected number of {out_expand_thresh[ll]}.')
-                sys.exit(1)
-            this_map = []
-            for group in range(tc.dev.P_NUMGROUPS):
-                if (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO:
-                    this_map.append(group)
-            group_map.append(this_map)
-
-        groups_used = []
-        for group in range(tc.dev.P_NUMGROUPS):
-            if ((processors_used |
-                 output_processor_map[-1]) >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO:
-                groups_used.append(group)
-
-        if 0 not in groups_used:
-            print('Group 0 is not used, this currently does not work.')
-            sys.exit(1)
-
         apb.output('\n')
-        apb.header(groups_used[0] if oneshot > 0 or stopstart else False)
+        apb.header()
 
         if embedded_code or compact_data:
             # Pre-define data memory loader. Inline later when generating RTL sim.
-            load.load(True, apb, big_data[0], processor_map[0], in_offset[0],
-                      [input_chan[0], input_dim[0][0], input_dim[0][1]],
-                      in_expand[0], operands[0], in_expand_thresh[0],
-                      data, padding[0], split=split, fifo=fifo, debug=debug)
-        if embedded_code or compact_weights:
+            load.load(
+                True,
+                apb,
+                big_data[0],
+                processor_map[0],
+                in_offset[0],
+                [input_chan[0], input_dim[0][0], input_dim[0][1]],
+                in_expand[0],
+                operands[0],
+                in_expand_thresh[0],
+                data,
+                padding[0],
+                split=split,
+                fifo=fifo,
+                debug=debug,
+            )
+        if embedded_code or mexpress or compact_weights:
             # Pre-define the kernels and bias values
-            kern_offs, kern_len = \
-                kernels.load(verbose, True, device, apb, layers, operator,
-                             kernel, kernel_size,
-                             quantization, processor_map, output_processor_map,
-                             input_chan, output_chan, out_expand, out_expand_thresh,
-                             in_expand, in_expand_thresh, flatten, debug)
-            bias_offs, bias_group, group_bias_max = \
-                kbias.load(verbose, True, apb, layers, bias,
-                           quantization, group_map, output_chan, debug)
+            kern_offs, kern_len = kernels.load(
+                verbose,
+                True,
+                device,
+                apb,
+                layers,
+                operator,
+                kernel,
+                kernel_size,
+                quantization,
+                processor_map,
+                output_processor_map,
+                input_chan,
+                output_chan,
+                out_expand,
+                out_expand_thresh,
+                in_expand,
+                in_expand_thresh,
+                flatten,
+                mexpress,
+                verify_kernels,
+                debug,
+            )
+            bias_offs, bias_group, group_bias_max = kbias.load(
+                verbose,
+                True,
+                apb,
+                layers,
+                bias,
+                quantization,
+                group_map,
+                output_chan,
+                debug,
+            )
 
         apb.load_header()
 
@@ -416,18 +459,44 @@ def create_net(
                                comment=' // Wait for zeroization')
             apb.output('\n')
 
-        if not (embedded_code or compact_weights):
-            kern_offs, kern_len = \
-                kernels.load(verbose, embedded_code, device, apb, layers, operator,
-                             kernel, kernel_size,
-                             quantization, processor_map, output_processor_map,
-                             input_chan, output_chan, out_expand, out_expand_thresh,
-                             in_expand, in_expand_thresh, flatten, debug)
-            bias_offs, bias_group, group_bias_max = \
-                kbias.load(verbose, embedded_code, apb, layers, bias,
-                           quantization, group_map, output_chan, debug)
+        if not (embedded_code or mexpress or compact_weights):
+            kern_offs, kern_len = kernels.load(
+                verbose,
+                embedded_code,
+                device, apb,
+                layers,
+                operator,
+                kernel,
+                kernel_size,
+                quantization,
+                processor_map,
+                output_processor_map,
+                input_chan,
+                output_chan,
+                out_expand,
+                out_expand_thresh,
+                in_expand,
+                in_expand_thresh,
+                flatten,
+                mexpress,
+                verify_kernels,
+                debug,
+            )
+            bias_offs, bias_group, group_bias_max = kbias.load(
+                verbose,
+                embedded_code,
+                apb,
+                layers,
+                bias,
+                quantization,
+                group_map,
+                output_chan,
+                debug,
+            )
         else:
             apb.output('  load_kernels();\n')
+            if verify_kernels:
+                apb.output('  if (!verify_kernels()) return 0;\n')
             if max(group_bias_max) > 0:
                 apb.output('  load_bias();\n')
 
@@ -1038,6 +1107,8 @@ def create_net(
             val |= 1 << 19
         if device != 84:
             val |= 1 << 3  # Enable clocks
+        if mexpress:
+            val |= 1 << 20
 
         # Enable all needed groups except the first one
         for _, group in enumerate(groups_used[1:]):
@@ -1380,7 +1451,7 @@ def create_net(
     # Close header files
     if embedded_code or compact_data:
         sampledata_header.close()
-    if embedded_code or compact_weights:
+    if embedded_code or mexpress or compact_weights:
         weight_header.close()
 
     # Create run_test.sv
@@ -1683,6 +1754,7 @@ def main():
             args.timeout,
             not args.top_level,
             args.verify_writes,
+            args.verify_kernels,
             args.embedded_code,
             args.compact_weights,
             args.compact_data,
@@ -1697,6 +1769,7 @@ def main():
             args.mlator,
             args.one_shot,
             args.stop_start,
+            args.mexpress,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(
