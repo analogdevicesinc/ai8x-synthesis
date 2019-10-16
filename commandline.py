@@ -26,7 +26,7 @@ def get_parser():
                         help="directory location for autogen_list (default: 'tests'); "
                              "don't add if 'None'")
     parser.add_argument('--avg-pool-rounding', action='store_true', default=False,
-                        help="round average pooling results on AI85 and AI86 (default: False)")
+                        help="round average pooling results on AI85 and AI86 (default: false)")
     parser.add_argument('--c-filename', metavar='S',
                         help="C file name base (RTL sim default: 'test' -> 'test.c', "
                              "otherwise 'main' -> 'main.c')")
@@ -64,9 +64,11 @@ def get_parser():
     parser.add_argument('--log-filename', default='log.txt', metavar='S',
                         help="log file name (default: 'log.txt')")
     parser.add_argument('--init-tram', action='store_true', default=False,
-                        help="initialize TRAM to 0 (default: False)")
+                        help="initialize TRAM to 0 (default: false)")
     parser.add_argument('--max-proc', type=int, metavar='N',
                         help="override maximum number of processors")
+    parser.add_argument('--mexpress', action='store_true', default=False,
+                        help="use express kernel loading (default: false)")
     parser.add_argument('--no-error-stop', action='store_true', default=False,
                         help="do not stop on errors (default: stop)")
     parser.add_argument('--input-offset', type=lambda x: int(x, 0),
@@ -100,6 +102,8 @@ def get_parser():
                         help="verbose output (default: false)")
     parser.add_argument('--verify-writes', action='store_true', default=False,
                         help="verify write operations (toplevel only, default: false)")
+    parser.add_argument('--verify-kernels', action='store_true', default=False,
+                        help="verify kernels (toplevel only, default: false)")
     parser.add_argument('--write-zero-registers', action='store_true', default=False,
                         help="write registers even if the value is zero (default: do not write)")
     parser.add_argument('--zero-sram', action='store_true', default=False,

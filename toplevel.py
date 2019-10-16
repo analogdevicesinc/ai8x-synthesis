@@ -39,6 +39,7 @@ def header(
         weight_filename='weights.h',
         sample_filename='sampledata.h',
         master=False,
+        verify_kernels=False,
 ):
     """
     Write include files and forward definitions to .c file handle `memfile`.
@@ -46,8 +47,9 @@ def header(
     """
     memfile.write('#include <stdlib.h>\n')
     memfile.write('#include <stdint.h>\n')
-    if embedded_code:
+    if embedded_code or verify_kernels:
         memfile.write('#include <string.h>\n')
+    if embedded_code:
         memfile.write('#include <stdio.h>\n')
     if not cmsis_nn:
         memfile.write('#include "global_functions.h" // For RTL Simulation\n')
