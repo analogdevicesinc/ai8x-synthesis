@@ -923,6 +923,9 @@ def create_net(
                     if flatten_prod >= 2**4:
                         val |= 1 << 27 | (flatten_prod >> 4) << 18  # flatten_ena, xpmp_cnt
 
+                    if operator[ll] == op.CONVTRANSPOSE2D:
+                        val |= 1 << 28
+
                     apb.write_lreg(group, ll, tc.dev.LREG_POST, val,
                                    verbose, comment=' // AI85/86 post processing register')
 

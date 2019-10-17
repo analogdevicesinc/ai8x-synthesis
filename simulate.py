@@ -104,7 +104,6 @@ def conv2d_layer(
         bias=bias,
         input_size=input_size,
         output_size=out_size,
-        out_channels=output_channels,
         kernel_size=kernel_size,
         stride=stride,
         pad=padding,
@@ -196,10 +195,10 @@ def convtranspose2d_layer(
         print(f"BIAS: {bias}\n")
 
     out_size = [output_channels,
-                (input_size[0] - 1) * fractional_stride[0] - 2 * padding[0]
+                (input_size[1] - 1) * fractional_stride[0] - 2 * padding[0]
                 + dilation[0] * (kernel_size[0] - 1)
                 + output_padding[0] + 1,
-                (input_size[1] - 1) * fractional_stride[1] - 2 * padding[1]
+                (input_size[2] - 1) * fractional_stride[1] - 2 * padding[1]
                 + dilation[1] * (kernel_size[1] - 1)
                 + output_padding[1] + 1]
 
@@ -212,7 +211,6 @@ def convtranspose2d_layer(
         bias=bias,
         input_size=input_size,
         output_size=out_size,
-        out_channels=output_channels,
         kernel_size=kernel_size,
         stride=[1, 1],
         pad=padding,
