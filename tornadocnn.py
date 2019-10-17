@@ -120,7 +120,8 @@ class DevAI85(Dev):
     LREG_STREAM1 = 16
     LREG_STREAM2 = 17
     LREG_FMAX = 18
-    LREG_LCTL2 = 19
+    # 19 reserved for REG_IFRM
+    LREG_LCTL2 = 20
     MAX_LREG = LREG_LCTL2
     LREG_RFU = None
 
