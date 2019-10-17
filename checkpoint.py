@@ -58,6 +58,8 @@ def load(checkpoint_file, arch, fc_layer, quantization):
                 w = checkpoint_state[k].numpy().astype(np.int64)
                 assert w.min() >= -(2**(quantization[layers]-1))
                 assert w.max() < 2**(quantization[layers]-1)
+                # FIXME: When this is a ConvTranspose2d, need to flip the weights as follows:
+                # w = np.flip(w, axis=(2, 3)).swapaxes(0, 1)
                 input_channels.append(w.shape[1])  # Input channels
                 output_channels.append(w.shape[0])  # Output channels
                 weights.append(w.reshape(-1, w.shape[-2], w.shape[-1]))

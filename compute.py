@@ -27,7 +27,6 @@ def conv2d(
         bias,
         input_size,
         output_size,
-        out_channels,
         kernel_size,
         stride,
         pad,
@@ -45,6 +44,7 @@ def conv2d(
     """
     assert data.shape == tuple(input_size)
     in_channels = input_size[0]
+    out_channels = output_size[0]
 
     if debug:
         # Slow route using pure Python
@@ -52,31 +52,38 @@ def conv2d(
 
         for k in range(out_channels):
             for y in range(-pad[0],
-                           input_size[1] - dilation[0] * (kernel_size[0] - 1)
-                           + pad[0] + output_pad[0],
+                           input_size[1] - dilation[0] * (kernel_size[0] - 1) + pad[0],
                            stride[0]):
                 for y_frac in range(fractional_stride[0]):
                     for x in range(-pad[1],
-                                   input_size[2] - dilation[1] * (kernel_size[1] - 1)
-                                   + pad[1] + output_pad[1],
+                                   input_size[2] - dilation[1] * (kernel_size[1] - 1) + pad[1],
                                    stride[1]):
                         for x_frac in range(fractional_stride[1]):
                             val = np.int64(0) if bias is None else bias[k]
                             for c in range(in_channels):
                                 for h in range(kernel_size[0]):
                                     for w in range(kernel_size[1]):
-                                        ypos, xpos = y + h * dilation[0], x + w * dilation[1]
-                                        if y_frac == 0 and ypos >= 0 and ypos < input_size[1] and \
-                                           x_frac == 0 and xpos >= 0 and xpos < input_size[2]:
-                                            val += weight[k][c][h][w] * data[c][ypos][xpos]
+                                        ypos = (y + pad[0])*fractional_stride[0] - pad[0] \
+                                            + y_frac + h * dilation[0]
+                                        yd, yr = divmod(ypos, fractional_stride[0])
+                                        xpos = (x + pad[1])*fractional_stride[1] - pad[1] \
+                                            + x_frac + w * dilation[1]
+                                        xd, xr = divmod(xpos, fractional_stride[1])
+                                        if yr == 0 and yd >= 0 and yd < input_size[1] and \
+                                           xr == 0 and xd >= 0 and xd < input_size[2]:
+                                            val += weight[k][c][h][w] * data[c][yd][xd]
                                             stats.true_macc += 1
                                             if debug:
                                                 print(f'k={k}, c={c}, x={x}, y={y}: '
                                                       f'weight*data={weight[k][c][h][w]}'
-                                                      f'*{data[c][ypos][xpos]} '
+                                                      f'*{data[c][yd][xd]} '
                                                       f'-> accumulator = {val}')
 
-                            ref[k][(y + pad[0]) // stride[0]][(x + pad[1]) // stride[1]] = val
+                            ref[k][
+                                ((y + pad[0])*fractional_stride[0] + y_frac) // stride[0]
+                            ][
+                                ((x + pad[1])*fractional_stride[1] + x_frac) // stride[1]
+                            ] = val
 
     # Fast computation using NumPy
 
@@ -92,8 +99,8 @@ def conv2d(
     # Create zero padding around data and stretch weights for dilation.
     if pad[0] or pad[1] or output_pad[0] or output_pad[1]:
         data = np.pad(data, pad_width=((0, 0),
-                                       (pad[0], pad[0] + output_pad[0]),
-                                       (pad[1], pad[1] + output_pad[1])),
+                                       (pad[0], pad[0]),
+                                       (pad[1], pad[1])),
                       mode='constant', constant_values=0)
 
     if dilation[0] > 1 or dilation[1] > 1:
@@ -120,8 +127,7 @@ def conv2d(
             output[k] += bias[k]
 
     if debug:
-        match = (ref == output).all()
-        if not match:
+        if not (ref == output).all():
             print('NumPy <-> Python mismatch in compute.conv2d')
             sys.exit(1)
 
