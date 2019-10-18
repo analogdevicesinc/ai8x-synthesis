@@ -220,7 +220,7 @@
 
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten192to10 --config-file tests/test-mlpflatten192to10.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten192to10big --config-file tests/test-mlpflatten192to10-big.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten768to10 --config-file tests/test-mlpflatten768to10.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten768to10 --config-file tests/test-mlpflatten768to10.yaml --ai85 --debug --debug-computation
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten768to10big --config-file tests/test-mlpflatten768to10-big.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten768to100 --config-file tests/test-mlpflatten768to100.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten768to100big --config-file tests/test-mlpflatten768to100-big.yaml --ai85
@@ -235,3 +235,5 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-wide512in-mexpress --config-file tests/test-wide512in.yaml --ai85 --mexpress --timeout 128
 
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-upsample --config-file tests/test-upsample.yaml --ai85 --debug --debug-computation
+
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten768to100big-q4 --config-file tests/test-mlpflatten768to100-big-q4.yaml --ai85

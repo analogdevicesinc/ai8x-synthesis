@@ -99,8 +99,12 @@ def load(
             continue
 
         if flatten[ll]:
-            kernel_reshaped = kernel[ll].reshape(output_chan[ll] * input_chan[ll], -1,
-                                                 kernel_size[ll][0], kernel_size[ll][1])
+            kernel_reshaped = kernel[ll].reshape(
+                output_chan[ll] * input_chan[ll],
+                -1,
+                kernel_size[ll][0],
+                kernel_size[ll][1],
+            )
         else:
             kernel_reshaped = kernel[ll]
 

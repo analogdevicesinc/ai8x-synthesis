@@ -876,7 +876,8 @@ def create_net(
                    operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]:
                     if flatten_prod >= 2**4:
                         assert flatten_prod < 2**16
-                        val = flatten_prod << 16 | flatten_prod
+                        val = flatten_prod << 16 \
+                            | (flatten_prod + pooled_dim[ll][0] * pooled_dim[ll][1])
                     else:
                         val = 0
                 else:
