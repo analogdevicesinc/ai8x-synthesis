@@ -160,7 +160,7 @@ def unload(
                             memfile.write(f'  *((volatile uint32_t *) 0x{val:08x}) = '
                                           f'0x{expand:08x}; // Set pointer increment\n')
                             # Set mlatorld enable bit to load write ptr; select byte 0..3
-                            val = tc.dev.READY_SEL << 1 | 1 << 16 | (3 - shift) << 17 | 1 << 3
+                            val = tc.dev.READY_SEL << 1 | 1 << 16 | shift << 17 | 1 << 3
                             memfile.write(f'  *ctrl = 0x{val:08x}; '
                                           f'// Enable mlator, byte {shift}\n')
                             # memfile.write('  val = *mlat; // Prime\n')
@@ -356,11 +356,10 @@ def verify(
                                 val |= (out_buf[c][row][col+i] & 0xff) << 24
 
                         # Get the offset of the first output byte/word of 4
-                        source = tc.dev.C_SRAM_BASE + out_offset + \
+                        source = out_offset + \
                             (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
                               (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
-                             (doffs >> 2) * width
-                             + shift * input_shape[1] * input_shape[2] + expand * out_size) * 4
+                             (doffs >> 2) * width) * 4
 
                         if source != read_addr:
                             if doffs != 0:
@@ -372,14 +371,14 @@ def verify(
                             w = apb_base + addr + tc.dev.C_CNN*4 \
                                 + tc.dev.LREG_WPTR_BASE*4 * tc.dev.MAX_LAYERS
                             stream.write(f'  *((volatile uint32_t *) 0x{w:08x}) = '
-                                         f'0x{doffs:08x}; // Set SRAM address\n')
+                                         f'0x{source >> 2:08x}; // Set SRAM address\n')
                             # Set wptr_inc to set increment value (default: 1)
                             w = apb_base + addr + tc.dev.C_CNN*4 \
                                 + tc.dev.LREG_LCTL*4 * tc.dev.MAX_LAYERS
                             stream.write(f'  *((volatile uint32_t *) 0x{w:08x}) = '
                                          f'0x{expand:08x}; // Set pointer increment\n')
                             # Set mlatorld enable bit to load write ptr; select byte 0..3
-                            w = tc.dev.READY_SEL << 1 | 1 << 16 | (3 - shift) << 17 | 1 << 3
+                            w = tc.dev.READY_SEL << 1 | 1 << 16 | shift << 17 | 1 << 3
                             stream.write(f'  *((volatile uint32_t *) 0x{apb_base + ctrl:08x}) ='
                                          f' 0x{w:08x}; '
                                          f'// Enable mlator, byte {shift}\n')
@@ -389,7 +388,8 @@ def verify(
                                          ' // Prime\n')
 
                         num_bytes = min(4, input_shape[2] - col)
-                        check_overwrite(proc, source, in_map, out_map, c, row, col)
+                        check_overwrite(proc, tc.dev.C_SRAM_BASE + source,
+                                        in_map, out_map, c, row, col)
                         if out_map is not None:
                             out_map[source >> 2] = (c, row, col, val)
                         verify_fn(mlat, val, rv=False,
