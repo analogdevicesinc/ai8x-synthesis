@@ -358,11 +358,17 @@ def load(
                     # '>u4' swaps endianness to what the hardware needs, `view` packs into 32-bit
                     apb.output_define(k.view(dtype='>u4'), f'KERNELS_{p}', '0x%08x', 8)
                     apb.output(f'static const uint32_t kernels_{p}[] = KERNELS_{p};\n')
+                    k = None
             apb.output('\n')
+
+            # Generate code to load the weights using memcpy
+            apb.output('void memcpy32(uint32_t *dst, const uint32_t *src, int n)\n{\n')
+            apb.output('  while (n-- > 0) {\n'
+                       '    *dst++ = *src++;\n'
+                       '  }\n}\n\n')
 
         apb.output('void load_kernels(void)\n{\n')
         p = 0
-        address_toggle = 1
         while p < tc.dev.MAX_PROC:
             if proc_kern_max[p] > 0:
                 span = proc_kern_max[p]
@@ -377,13 +383,15 @@ def load(
                 ):
                     p += 1
                     span += proc_kern_max[p]
+                assert addr % 16 == 0
                 if not mexpress:
                     apb.output(f'  memcpy_96to128((uint32_t *) 0x{addr:08x}, '
                                f'kernels_{start}, {span});\n')
                 else:
-                    apb.output(f'  memcpy((uint32_t *) 0x{addr | address_toggle:08x}, '
-                               f'kernels_{start}, {(span * 9*4+3) // 4});\n')
-                    address_toggle ^= 1
+                    apb.output(f'  *((volatile uint8_t *) 0x{addr | 0x01:08x}) = 0x01; '
+                               '// Set address\n')
+                    apb.output(f'  memcpy32((uint32_t *) 0x{addr:08x}, '
+                               f'kernels_{start}, {(span * 9+3) // 4});\n')
             p += 1
 
         apb.output('}\n\n')

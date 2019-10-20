@@ -440,6 +440,8 @@ def create_net(
                 val |= 1 << 15
             if device != 84:
                 val |= 1 << 3  # Enable clocks
+            if mexpress:
+                val |= 1 << 20
             apb.write_ctl(group, tc.dev.REG_CTL, val,
                           verbose, comment=' // Stop SM')
             # SRAM Control - does not need to be changed
