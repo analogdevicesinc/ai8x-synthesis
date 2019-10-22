@@ -335,7 +335,7 @@ def create_net(
                            f'pool with stride {pool_stride_str[ll]}')
             else:
                 apb.output(f'no pooling')
-            if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D, op.LINEAR]:
+            if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
                 conv_str = f', {op.string(operator[ll])} with kernel size ' \
                            f'{kernel_size_str[ll]}, '
             else:
@@ -658,7 +658,7 @@ def create_net(
                         val |= kernel_size[ll][0] << 8 | 1 << 12
                         assert kernel_size[ll][0] < 2**4
                     elif (operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]
-                          or operator[ll] in [op.NONE, op.LINEAR] and operands[ll] == 1):
+                          or operator[ll] == op.NONE and operands[ll] == 1):
                         val |= 1 << 8
                     if operands[ll] > 1:
                         val |= 1 << 13 | op.eltwise_fn(eltwise[ll]) << 14 | operands[ll] - 1 << 18
@@ -854,7 +854,7 @@ def create_net(
                         # Enable bias only for one group
                         val |= 0x1000000 | bias_offs[ll] << 16
                 else:
-                    if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D, op.LINEAR]:
+                    if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
                         in_exp = in_expand[ll]
                         if flatten[ll]:
                             in_exp *= pooled_dim[ll][0] * pooled_dim[ll][1]
@@ -941,7 +941,7 @@ def create_net(
                 #
                 # Enable at most 16 processors and masks
                 val = (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO
-                if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D, op.LINEAR]:
+                if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
                     val = val << 16 | val
                 apb.write_lreg(group, ll, tc.dev.LREG_ENA, val,
                                verbose, comment=' // Mask and processor enables')
@@ -1648,7 +1648,7 @@ def main():
                 print(f'{op.string(operator[ll])} in layer {ll} does not support stride other '
                       f'than 1 (currently set to {stride[ll][0]}x{stride[ll][1]}).')
                 sys.exit(1)
-            if operator[ll] in [op.NONE, op.CONV2D, op.LINEAR]:
+            if operator[ll] in [op.NONE, op.CONV2D]:
                 output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1)
                                    - 1 + 2 * padding[ll][0]) // stride[ll][0] + 1,
                                   (pooled_size[1] - dilation[ll][1] * (kernel_size[ll][1] - 1)

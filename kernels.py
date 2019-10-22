@@ -93,7 +93,7 @@ def load(
         print('\nLoading Kernels...')
 
     for ll in range(layers):
-        if operator[ll] not in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D, op.LINEAR]:
+        if operator[ll] not in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
             kern_len[ll] = 0
             kern_offs[ll] = 0
             continue

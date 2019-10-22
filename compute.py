@@ -75,9 +75,10 @@ def conv2d(
                                             stats.true_macc += 1
                                             if debug:
                                                 print(f'k={k}, c={c}, x={x}, y={y}: '
-                                                      f'weight*data={weight[k][c][h][w]}'
-                                                      f'*{data[c][yd][xd]} '
-                                                      f'-> accumulator = {val}')
+                                                      f'weight*data:{weight[k][c][h][w]}'
+                                                      f'*{data[c][yd][xd]}='
+                                                      f'{weight[k][c][h][w] * data[c][yd][xd]} '
+                                                      f'-> accumulator: {val}')
 
                             ref[k][
                                 ((y + pad[0])*fractional_stride[0] + y_frac) // stride[0]
