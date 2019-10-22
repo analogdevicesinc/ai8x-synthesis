@@ -31,7 +31,7 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-6 --config-file tests/test-conv1d-6.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-7 --config-file tests/test-conv1d-7.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-8 --config-file tests/test-conv1d-8.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-9 --config-file tests/test-conv1d-9.yaml --ai85
+# ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-9 --config-file tests/test-conv1d-9.yaml --ai85
 
 # ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1dII --config-file tests/test-ai85-conv1dII.yaml --ai85
 # ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-3II --config-file tests/test-conv1d-3II.yaml --ai85
