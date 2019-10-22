@@ -1,7 +1,7 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_10/15/2019_
+_10/22/2019_
 
 _Open this file in a markdown enabled viewer, for example Typora (http://typora.io) or Visual Studio Code 
 (https://code.visualstudio.com). See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown._
@@ -673,13 +673,13 @@ Copy the weight files into the `trained/` folder of the `ai8x-synthesis` project
 Example:
 
 ```shell
-(ai8x-synthesis) $ ./ai84ize.py logs/path-to-checkpoint/checkpoint.pth.tar ../ai8x-synthesis/trained/ai84-fashionmnist.pth.tar -v
+(ai8x-synthesis) $ ./ai84ize.py ../ai8x-training/logs/path-to-checkpoint/checkpoint.pth.tar trained/ai84-fashionmnist.pth.tar -v
 ```
 
 To evaluate the quantized network:
 
 ```shell
-(ai8x-synthesis) $ ./evaluate_fashionmnist.sh
+(ai8x-training) $ ./evaluate_fashionmnist.sh
 ```
 
 ### Alternative Quantization Approaches
