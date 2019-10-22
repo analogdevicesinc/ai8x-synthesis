@@ -639,8 +639,8 @@ class APBTopLevel(APB):
         else:
             addr = self.apb_base + tc.dev.C_FIFO_BASE
             self.memfile.write('  while (((*((volatile uint32_t *) '
-                               f'0x{addr + tc.dev.FIFO_CTL*4:08x})'
-                               ' & (1<<16))) != 0); // Wait for FIFO\n')
+                               f'0x{addr + tc.dev.FIFO_STAT*4:08x})'
+                               f' & {1 << fifo})) != 0); // Wait for FIFO\n')
             self.memfile.write('  *((volatile uint32_t *) '
                                f'0x{addr + tc.dev.FIFO_REG*4 + fifo*4:08x}) = '
                                f'0x{val:08x};{comment}\n')

@@ -41,6 +41,19 @@ def load(
     The code is target for simulation (`embedded_code` == `False`) or embedded hardware (`True`).
     Output is written to the `apb` object.
     """
+
+    if fifo:
+        return loadfifo(
+            embedded_code,
+            apb,
+            chw,
+            processor_map,
+            input_size,
+            operands,
+            data,
+            debug,
+        )
+
     input_list = []
     chan = input_size[0]
     out_map = apb.get_mem()
@@ -62,7 +75,6 @@ def load(
 
         # Load channel into shared memory
         group = (ch % tc.dev.MAX_PROC) // tc.dev.P_NUMPRO
-        fifo_group = group if fifo else None
         expand = c // in_expand_thresh  # Channels 64+ handled by processors 0+
         instance = (ch % tc.dev.P_NUMPRO) // tc.dev.P_SHARED
         new_data_offs = tc.dev.C_SRAM_BASE + tc.dev.C_GROUP_OFFS*group \
@@ -136,7 +148,7 @@ def load(
                     # Add top pad
                     for _ in range(padding[0]):
                         for _ in range(input_size[2]):
-                            apb.write_byte(data_offs, 0, fifo=fifo_group)
+                            apb.write_byte(data_offs, 0)
                             data_offs += 1
                             if data_offs & ~3 == 0:
                                 data_offs += 4 * (in_expand - 1)
@@ -148,7 +160,7 @@ def load(
                         overlap = 0
                     while row < (s + 1) * chunk + overlap:
                         for col in range(input_size[2]):
-                            apb.write_byte(data_offs, s2u(data[c][row][col]), fifo=fifo_group)
+                            apb.write_byte(data_offs, s2u(data[c][row][col]))
                             data_offs += 1
                             if data_offs & ~3 == 0:
                                 data_offs += 4 * (in_expand - 1)
@@ -159,13 +171,13 @@ def load(
                         new_data_offs = ((data_offs + tc.dev.INSTANCE_SIZE - 1) //
                                          tc.dev.INSTANCE_SIZE) * tc.dev.INSTANCE_SIZE
                         if new_data_offs != data_offs:
-                            apb.write_byte_flush(0, fifo=fifo_group)
+                            apb.write_byte_flush(0)
                         data_offs = new_data_offs
                 if split > 1:
                     # Add bottom pad
                     for _ in range(padding[0]):
                         for _ in range(input_size[2]):
-                            apb.write_byte(data_offs, 0, fifo=fifo_group)
+                            apb.write_byte(data_offs, 0)
                             data_offs += 1
                             if data_offs & ~3 == 0:
                                 data_offs += 4 * (in_expand - 1)
@@ -200,7 +212,7 @@ def load(
                         apb.check_overwrite(data_offs)
                         out_map[data_offs >> 2] = (this_c, row, col, val)
                         if not embedded_code:
-                            apb.write(data_offs, val, fifo=fifo_group)
+                            apb.write(data_offs, val)
                         else:
                             code_buffer[offs] = val
                             offs += 4
@@ -217,7 +229,7 @@ def load(
 
             c += num_ch
 
-        apb.write_byte_flush(0, fifo=fifo_group)
+        apb.write_byte_flush(0)
         if c >= chan:
             # Consumed all available channels
             break
@@ -229,6 +241,56 @@ def load(
                 apb.output(f'  memcpy((uint32_t *) 0x{apb.apb_base + addr:08x}, input_{ch}, '
                            f'sizeof(uint32_t) * {offs});\n')
         apb.output('}\n\n')
-
-    if not embedded_code:
+    else:
         apb.output(f'  // End of data input\n\n')
+
+
+def loadfifo(
+        embedded_code,
+        apb,
+        chw,
+        processor_map,
+        input_size,
+        operands,
+        data,
+        debug=False,
+):
+    """
+    Create C code to load data into FIFO(s) in CHW format (if `chw` is `True`)
+    or HWC format for the `processor_map`. Data `data` is organized in `input_size` channels and
+    and dimensions. The code has optional `debug` output.
+    The code is target for simulation (`embedded_code` == `False`) or embedded hardware (`True`).
+    Output is written to the `apb` object.
+    """
+    assert operands == 1  # We don't support multiple operands here
+    # FIXME: Support non-regular processor maps (not 0001000100010001 for CHW and
+    # not 000f000f000f000f for HWC)
+
+    if chw:
+        # CHW ("Big Data") - Separate channel sequences (BBBBB....GGGGG....RRRRR....)
+        apb.output('\n\n  // Data input: CHW (big data): '
+                   f'{input_size[0]}x{input_size[1]}x{input_size[2]}\n')
+
+        for row in range(input_size[1]):
+            for col in range(0, input_size[2], 4):
+                for c in range(input_size[0]):
+                    val = 0
+                    for b in range(4):
+                        if col + b < input_size[2]:
+                            val |= (s2u(data[c][row][col + b]) & 0xff) << b * 8
+                    apb.write(0, val, '', fifo=c % 4)
+    else:
+        # HWC ("Little Data") - (Up to) four channels packed into a word (0BGR0BGR0BGR0BGR0BGR....)
+        apb.output('\n\n  // Data input: HWC (little data): '
+                   f'{input_size[0]}x{input_size[1]}x{input_size[2]}\n')
+
+        for row in range(input_size[1]):
+            for col in range(input_size[2]):
+                for c in range(0, input_size[0], 4):
+                    val = 0
+                    for b in range(4):
+                        if c + b < input_size[0]:
+                            val |= (s2u(data[c + b][row][col]) & 0xff) << b * 8
+                    apb.write(0, val, '', fifo=c // 4)
+
+    apb.output(f'  // End of data input\n\n')

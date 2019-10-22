@@ -1007,6 +1007,14 @@ def create_net(
                     apb.write_lreg(group, ll, tc.dev.LREG_FMAX, val,
                                    comment=' // Rollover')
 
+                    if ll == 0:
+                        val = input_dim[0][0] * input_dim[0][1]
+                        if big_data[0]:
+                            val *= 4
+                        assert val < 2**17
+                        apb.write_ctl(group, tc.dev.REG_IFRM, val, verbose,
+                                      comment=' // Input frame size')
+
         if zero_unused:
             for ll in range(layers, tc.dev.MAX_LAYERS):
                 for _, group in enumerate(groups_used):
@@ -1078,12 +1086,6 @@ def create_net(
             apb.write_fifo_ctl(tc.dev.FIFO_CTL, val,
                                verbose, comment=f' // FIFO control')
 
-        if fifo and any(streaming):
-            val = input_dim[0][0] * input_dim[0][1]
-            assert val < 2**17
-            apb.write_ctl(group, tc.dev.REG_IFRM, val, verbose,
-                          comment=' // Input frame size')
-
         # [0]     enable
         # [2:1]   rdy_sel  (wait states - set to max)
         # [3]     clock_ena
@@ -1119,13 +1121,13 @@ def create_net(
         # Enable all needed groups except the first one
         for _, group in enumerate(groups_used[1:]):
             # Turn on the FIFO for this group if it's being loaded
-            fval = 1 << 15 if fifo and processor_map[0] >> group*tc.dev.P_NUMPRO & 1 != 0 else 0
+            fval = 1 << 15 if fifo else 0
             apb.write_ctl(group, tc.dev.REG_CTL, val | 0x801 | tc.dev.READY_SEL << 1
                           | fval | groups_used[0] << 9,
                           verbose, comment=f' // Enable group {group}')
 
         # Master control - go
-        if fifo and processor_map[0] & 1 != 0:
+        if fifo:
             val |= 1 << 15
         apb.write_ctl(groups_used[0], tc.dev.REG_CTL, val | tc.dev.READY_SEL << 1 | 0x01,
                       verbose, comment=f' // Master enable group {groups_used[0]}')
