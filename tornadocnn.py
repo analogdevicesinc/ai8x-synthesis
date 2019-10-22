@@ -134,7 +134,8 @@ class DevAI85(Dev):
     REG_MLAT = 1024
 
     FIFO_CTL = 0
-    FIFO_REG = 1
+    FIFO_STAT = 1
+    FIFO_REG = 2
 
     READY_SEL = 0x03
     FIFO_READY_SEL = 0x03

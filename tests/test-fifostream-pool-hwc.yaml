@@ -1,0 +1,16 @@
+# Four FIFOs, nonsquare data
+
+arch: test
+dataset: test_fifostream-nonsquare
+
+layers:
+- pad: 1
+  out_offset: 0x400
+  processors: 0x000000000000000f
+  data_format: HWC
+  streaming: true
+  max_pool: 2
+- pad: 1
+  out_offset: 0x800
+  processors: 0x000000000007fff0
+  streaming: true
