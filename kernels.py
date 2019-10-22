@@ -198,8 +198,25 @@ def load(
 
                         n = 0
                         if src_offs < len(kernel_reshaped):
-                            k = np.zeros_like(kernel_reshaped[src_offs].flatten())
-                            for i in range(qfactor):
+                            if not flatten[ll]:
+                                k = np.zeros_like(kernel_reshaped[src_offs].flatten())
+                                for i in range(qfactor):
+                                    if m < output_chan[ll]:
+                                        # Cycle through phases
+                                        idx = n + ie * qfactor
+                                        koffs = src_offs + (idx % in_expand[ll]) \
+                                            * in_expand_thresh[ll] \
+                                            + (idx // in_expand[ll]) \
+                                            * input_chan[ll]
+                                        if koffs < len(kernel_reshaped):
+                                            this_kern = kernel_reshaped[koffs].flatten() \
+                                                & (2**quantization[ll]-1)
+                                            k |= this_kern << (i * quantization[ll])
+                                        n += 1
+                                    mask >>= 1
+                            else:
+                                kl = (len(kernel_reshaped[src_offs]) + qfactor - 1) // qfactor
+                                k = np.zeros(kl, dtype=np.int64)
                                 if m < output_chan[ll]:
                                     # Cycle through phases
                                     idx = n + ie * qfactor
@@ -208,12 +225,13 @@ def load(
                                         + (idx // in_expand[ll]) \
                                         * input_chan[ll]
                                     if koffs < len(kernel_reshaped):
-                                        this_kern = kernel_reshaped[koffs].flatten() \
-                                            & (2**quantization[ll]-1)
-                                        k |= this_kern << (i * quantization[ll])
+                                        this_kern = kernel_reshaped[koffs].flatten()
+                                        for i in range(qfactor):
+                                            k |= ((this_kern[i::qfactor]
+                                                   & (2**quantization[ll]-1))) \
+                                                << (i * quantization[ll])
                                     n += 1
-                                mask >>= 1
-
+                                    mask >>= 1
                             if debug:
                                 with np.printoptions(formatter={'int': '{0:02x}'.format}):
                                     print(f'Layer {ll} processor {p} channel '
