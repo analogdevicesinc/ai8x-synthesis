@@ -250,8 +250,13 @@ def load(
                             for _ in range(ksize // qfactor):
                                 col_target = add_kernel_data(ll, p, col_target, 0)
 
-                    m += qfactor  # Consume kernels
-                    col += qfactor
+                    # Consume kernels
+                    if not flatten[ll]:
+                        col += qfactor
+                        m += qfactor
+                    else:
+                        col += 1
+                        m += 1
 
             if kern_offs[ll] + col_target < len(kernels_used[p]) \
                and kernels_used[p][kern_offs[ll] + col_target] > 0:  # Partials
