@@ -246,14 +246,14 @@ def load(
 
 
 def loadfifo(
-        embedded_code,
+        embedded_code,  # pylint: disable=unused-argument
         apb,
         chw,
         processor_map,
         input_size,
         operands,
         data,
-        debug=False,
+        debug=False,  # pylint: disable=unused-argument
 ):
     """
     Create C code to load data into FIFO(s) in CHW format (if `chw` is `True`)
@@ -263,8 +263,8 @@ def loadfifo(
     Output is written to the `apb` object.
     """
     assert operands == 1  # We don't support multiple operands here
-    # FIXME: Support non-regular processor maps (not 0001000100010001 for CHW and
-    # not 000f000f000f000f for HWC)
+    # FIXME: Support multiple operands
+    # FIXME: Add code for `embedded_code == True`
 
     if chw:
         # CHW ("Big Data") - Separate channel sequences (BBBBB....GGGGG....RRRRR....)
@@ -273,12 +273,21 @@ def loadfifo(
 
         for row in range(input_size[1]):
             for col in range(0, input_size[2], 4):
+                pmap = 0
                 for c in range(input_size[0]):
+                    if pmap == 0:
+                        pmap = processor_map
+                        fifo = 0
+                    while pmap & 1 == 0:
+                        pmap >>= 16
+                        fifo += 1
                     val = 0
                     for b in range(4):
                         if col + b < input_size[2]:
                             val |= (s2u(data[c][row][col + b]) & 0xff) << b * 8
-                    apb.write(0, val, '', fifo=c % 4)
+                    apb.write(0, val, '', fifo=fifo)
+                    pmap >>= 16
+                    fifo += 1
     else:
         # HWC ("Little Data") - (Up to) four channels packed into a word (0BGR0BGR0BGR0BGR0BGR....)
         apb.output('\n\n  // Data input: HWC (little data): '
@@ -286,11 +295,21 @@ def loadfifo(
 
         for row in range(input_size[1]):
             for col in range(input_size[2]):
+                pmap = 0
                 for c in range(0, input_size[0], 4):
+                    if pmap == 0:
+                        pmap = processor_map
+                        fifo = 0
+                    while pmap & 0x0f == 0:
+                        pmap >>= 16
+                        fifo += 1
                     val = 0
                     for b in range(4):
-                        if c + b < input_size[0]:
+                        if pmap & 1 != 0 and c + b < input_size[0]:
                             val |= (s2u(data[c + b][row][col]) & 0xff) << b * 8
-                    apb.write(0, val, '', fifo=c // 4)
+                        pmap >>= 1
+                    apb.write(0, val, '', fifo=fifo)
+                    pmap >>= 12
+                    fifo += 1
 
     apb.output(f'  // End of data input\n\n')
