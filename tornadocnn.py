@@ -98,7 +98,7 @@ class DevAI85(Dev):
     P_NUMPRO = 16  # Processors per group
     P_SHARED = 4  # Processors sharing a data memory
     MAX_PROC = P_NUMPRO * P_NUMGROUPS
-    MAX_ROW_COL = 256
+    MAX_ROW_COL = 1024
 
     # Per-layer registers
     LREG_RCNT = 0

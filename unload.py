@@ -237,7 +237,7 @@ def verify(
             if not no_error_stop:
                 sys.exit(1)
         # Check we're not overflowing the data memory
-        if out_map is not None and out_map[target_offs >> 2] is not None:
+        if (not overwrite_ok) and out_map is not None and out_map[target_offs >> 2] is not None:
             old_c, old_row, old_col, old_val = out_map[target_offs >> 2]
             print(f'Processor {p}: '
                   f'Layer {ll} output for CHW={c},{row},{col} is overwriting '
