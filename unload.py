@@ -310,7 +310,7 @@ def verify(
                             out_map[offs >> 2] = (this_c, row, col, val)
                         verify_fn(offs, val, rv=False,
                                   comment=f' // {row},{col},{this_c}-{this_c+num_bytes-1}',
-                                  num_bytes=num_bytes)
+                                  num_bytes=num_bytes, first_proc=ffs(next_layer_map >> proc) % 4)
                     else:
                         for i in range(min(num_bytes, out_size)):
                             check_overwrite(proc, offs, in_map, out_map, this_c, row, col)
