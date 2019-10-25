@@ -98,6 +98,7 @@ class APB(object):
             addr,
             val,
             num_bytes=4,
+            first_proc=0,
             comment='',
             rv=False,
     ):  # pylint: disable=unused-argument
@@ -566,6 +567,7 @@ class APBBlockLevel(APB):
             addr,
             val,
             num_bytes=4,
+            first_proc=0,
             comment='',
             rv=False,
     ):  # pylint: disable=unused-argument
@@ -651,6 +653,7 @@ class APBTopLevel(APB):
             addr,
             val,
             num_bytes=4,
+            first_proc=0,
             comment='',
             rv=False,
     ):
@@ -669,16 +672,22 @@ class APBTopLevel(APB):
         if num_bytes == 4:
             mask = ''
         elif num_bytes == 3:
-            mask = ' & 0xffffff'
-            val &= 0xffffff
+            mask = 0xffffff
         elif num_bytes == 2:
-            mask = ' & 0xffff'
-            val &= 0xffff
+            mask = 0xffff
         elif num_bytes == 1:
-            mask = ' & 0xff'
-            val &= 0xff
+            mask = 0xff
         else:
             raise NotImplementedError
+
+        val_bytes = num_bytes
+        if num_bytes != 4:
+            mask <<= first_proc * 8
+            val_bytes += first_proc
+            val &= mask
+            mask = f' & 0x{mask:0{2*val_bytes}x}'
+        else:
+            mask = ''
 
         if rv:
             action = 'rv = 0;'
@@ -686,7 +695,7 @@ class APBTopLevel(APB):
             action = 'return 0;'
 
         self.memfile.write(f'  if ((*((volatile uint32_t *) 0x{addr:08x}){mask})'
-                           f' != 0x{val:0{2*num_bytes}x}) '
+                           f' != 0x{val:0{2*val_bytes}x}) '
                            f'{action}{comment}\n')
         self.reads += 1
 

@@ -271,23 +271,23 @@ def loadfifo(
         apb.output('\n\n  // Data input: CHW (big data): '
                    f'{input_size[0]}x{input_size[1]}x{input_size[2]}\n')
 
-        for row in range(input_size[1]):
-            for col in range(0, input_size[2], 4):
-                pmap = 0
-                for c in range(input_size[0]):
-                    if pmap == 0:
-                        pmap = processor_map
-                        fifo = 0
-                    while pmap & 1 == 0:
-                        pmap >>= 16
-                        fifo += 1
-                    val = 0
-                    for b in range(4):
-                        if col + b < input_size[2]:
-                            val |= (s2u(data[c][row][col + b]) & 0xff) << b * 8
-                    apb.write(0, val, '', fifo=fifo)
+        for row_col in range(0, input_size[1] * input_size[2], 4):
+            pmap = 0
+            for c in range(input_size[0]):
+                if pmap == 0:
+                    pmap = processor_map
+                    fifo = 0
+                while pmap & 1 == 0:
                     pmap >>= 16
                     fifo += 1
+                val = 0
+                for b in range(4):
+                    if row_col + b < input_size[1] * input_size[2]:
+                        row, col = divmod(row_col + b, input_size[2])
+                        val |= (s2u(data[c][row][col]) & 0xff) << b * 8
+                apb.write(0, val, '', fifo=fifo)
+                pmap >>= 16
+                fifo += 1
     else:
         # HWC ("Little Data") - (Up to) four channels packed into a word (0BGR0BGR0BGR0BGR0BGR....)
         apb.output('\n\n  // Data input: HWC (little data): '

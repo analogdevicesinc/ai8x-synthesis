@@ -947,21 +947,16 @@ def create_net(
                                verbose, comment=' // Mask and processor enables')
 
                 if ll == 0 and streaming[ll] and fifo:
-                    # Start: Prior layer's padded pooled row width * prior layer's kernel height
-                    # + prior layer's kernel width + prior layer's pad
-                    stream_start = (input_dim[0][1] + 2 * padding[0][1]) \
-                        * kernel_size[0][0] + padding[0][1] + kernel_size[0][1]
+                    # Start: 1
+                    stream_start = (pool[0][0] - 1) * input_dim[0][1] + pool[0][1]
+                    assert stream_start < 2**12
                     # Delta 1: This layer's pooling stride
-                    delta1 = pool_stride[0][1]
-                    # Delta 2: (This layer's pooling - 1) * full prior layer's padded rows + prior
-                    # layer's pad
-                    delta2 = (pool[0][0] - 1) * (input_dim[0][1] + 2 * padding[0][1]) \
-                        + 2 * padding[0][1]
-                    val = delta2 << 20 | delta1 << 12 | stream_start
+                    delta1 = pool_stride[ll][1] - 1
+                    assert delta1 < 2**5
+
+                    val = delta1 << 12 | stream_start
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, val,
                                    verbose, comment=' // Stream processing 1')
-                    apb.write_lreg(group, ll, tc.dev.LREG_STREAM2, 0,
-                                   verbose, comment=' // Stream processing 2')
                 elif ll > 0 and streaming[ll]:
                     # [11:0]:  strm_isval[11:0]  Per stream start count - based on previous layer
                     #                            tptr_inc count
@@ -1002,7 +997,11 @@ def create_net(
                                    verbose, comment=' // Stream processing 2')
 
                 if fifo and streaming[ll]:
-                    val = stream_start + 1
+                    if big_data[ll]:
+                        val = 12  # FIXME stream_start + max(stride[ll][1], pool_stride[ll][1])
+                    else:
+                        val = stream_start + (pool[ll][0] - 1) * input_dim[ll][1] \
+                            + max(stride[ll][1], pool_stride[ll][1], pool[ll][1])
                     assert val < 2**17
                     apb.write_lreg(group, ll, tc.dev.LREG_FMAX, val,
                                    comment=' // Rollover')
@@ -1010,7 +1009,7 @@ def create_net(
                     if ll == 0:
                         val = input_dim[0][0] * input_dim[0][1]
                         if big_data[0]:
-                            val *= 4
+                            val = (val + 3) // 4
                         assert val < 2**17
                         apb.write_ctl(group, tc.dev.REG_IFRM, val, verbose,
                                       comment=' // Input frame size')
@@ -1057,32 +1056,32 @@ def create_net(
             apb.output('\n')
 
             # FIFO control
-            # [1:0] rdy_sel[1:0]      Sets the number of wait states added to the APB access.
-            # [4:2] fthres[2:0]       FIFO almost full threshold. If the difference between the
-            #                         write and read pointer exceeds this number of bytes, the
-            #                         almost full flag is set.
-            # [9:7] ethres[2:0]       FIFO almost empty threshold. If the difference between the
-            #                         write and read pointer falls below this number of bytes, the
-            #                         almost empty flag is set.
-            # [12]  full_iena         FIFO full interrupt enable. Logic '1' enables the interrupt
-            #                         request based on the fifo full flag.
-            # [13]  empty_iena	      FIFO empty interrupt enable. Logic '1' enables the interrupt
-            #                         request based on the fifo empty flag.
-            # [14]  almost_full_iena  FIFO almost full interrupt enable. Logic '1' enables the
-            #                         interrupt request based on the fifo almost full threshold
-            #                         flag.
-            # [15]  almost_empty_iena FIFO almost empty interrupt enable. Logic '1' enables the
-            #                         interrupt request based on the fifo almost empty threshold
-            #                         flag.
-            # [16]  fifo_full         FIFO full status flag.  Logical OR of all enabled FIFO
-            #                         statuses.
-            # [17]  fifo_empty        FIFO empty status flag.  Logical OR of all enabled FIFO
-            #                         statuses.
-            # [18]  fifo_almost_full  FIFO almost full status flag.  Logical OR of all enabled
-            #                         FIFO statuses.
-            # [19]  fifo_almost_empty FIFO almost empty status flag.  Logical OR of all enabled
-            #                         FIFO statuses.
-            val = 0x02 << 2 | 0x02 << 7 | tc.dev.FIFO_READY_SEL
+            # [1:0] rdy_sel[1:0]        Sets the number of wait states added to the APB access.
+            # [4:2] fthres[2:0]         FIFO almost full threshold. If the difference between the
+            #                           write and read pointer exceeds this number of bytes, the
+            #                           almost full flag is set.
+            # [9:7] ethres[2:0]         FIFO almost empty threshold. If the difference between the
+            #                           write and read pointer falls below this number of bytes,
+            #                           the almost empty flag is set.
+            # [11] fifo_cpl             Setting this bit forces the FIFO to operate in lock-step.
+            #                           Data available status is dependent on all FIFO having
+            #                           identical write pointer values.
+            # [15:12] fifo_ena          Per FIFO enable. A logic 1 enables the FIFO. Unused FIFOs
+            #                           must be disabled.
+            # [19:16] full_iena         FIFO full interrupt enable. Logic '1' enables the interrupt
+            #                           request based on the fifo full flag.
+            # [23:20] empty_iena        FIFO empty interrupt enable. Logic '1' enables the
+            #                            interrupt request based on the fifo empty flag.
+            # [27:24] almost_full_iena  FIFO almost full interrupt enable. Logic '1' enables the
+            #                           interrupt request based on the fifo almost full threshold
+            #                           flag.
+            # [31:28] almost_empty_iena FIFO almost empty interrupt enable. Logic '1' enables the
+            #                           interrupt request based on the fifo almost empty threshold
+            #                           flag.
+            val = 0x02 << 2 | 0x02 << 7 | 1 << 11 | tc.dev.FIFO_READY_SEL
+            for i in range(input_chan[0]):
+                if processor_map[0] & 1 << (i % tc.dev.P_NUMGROUPS) * tc.dev.P_NUMPRO != 0:
+                    val |= 1 << i % tc.dev.P_NUMGROUPS + 12
             apb.write_fifo_ctl(tc.dev.FIFO_CTL, val,
                                verbose, comment=f' // FIFO control')
 

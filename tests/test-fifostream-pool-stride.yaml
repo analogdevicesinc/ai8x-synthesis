@@ -8,6 +8,6 @@ layers:
   out_offset: 0x400
   processors: 0x0001000100010001
   data_format: CHW
-- pad: 1
-  out_offset: 0x800
-  processors: 0x000000000000fffe
+  streaming: true
+  max_pool: 2
+  pool_stride: 2
