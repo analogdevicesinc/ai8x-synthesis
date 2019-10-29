@@ -105,6 +105,9 @@ def create_net(
         oneshot=0,
         stopstart=False,
         mexpress=False,
+        riscv=False,
+        override_start=None,
+        override_rollover=None,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -459,6 +462,9 @@ def create_net(
             for group in range(tc.dev.P_NUMGROUPS):
                 apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 28, 1 << 28,
                                comment=' // Wait for zeroization')
+            for group in range(tc.dev.P_NUMGROUPS):
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
+                              verbose, comment=' // Reset zero SRAM', force_write=True)
             apb.output('\n')
 
         if not (embedded_code or mexpress or compact_weights):
@@ -631,44 +637,6 @@ def create_net(
                     apb.write_lreg(group, ll, tc.dev.LREG_CCNT,
                                    padding[ll][1] << 16 | val + 2 * padding[ll][1],
                                    verbose, comment=' // Columns')
-
-                if device != 84:
-                    #   [3:0] tscnt_max[3:0]      Maximum timeslot count register
-                    #   [7:4] oned_sad[3:0]       Start mask address (offset within 9 byte mask)
-                    #  [11:8] oned_width[3:0]     1D mask width (0-9). Width > 0 enables 1D.
-                    #    [12] oned_iena           Input data is 1-dimensional
-                    #    [13] ewise_ena           Enable element-wise operation
-                    # [17:14] ewise_fun           Elementwise function select
-                    #         .3   - Enables 2D convolution of the ewise result.
-                    #                Standard 2D processing applies.
-                    #         .2   - Enables pre-pooling of the input data before element-wise
-                    #                operation.
-                    #         .1/0 - 2'b00 = add
-                    #                2'b01 = subtract
-                    #                2'b10 = bitwise XOR
-                    #                2'b11 = bitwise OR.
-                    # [21:18] ewise_cnt           Element wise operand count
-
-                    val = 0
-                    if operator[ll] == op.NONE:
-                        val |= (popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
-                                         % 2**tc.dev.P_NUMPRO) * output_width[ll]//8 - 1) // 4
-                        assert val < 2**4
-                    if operator[ll] == op.CONV1D:
-                        val |= kernel_size[ll][0] << 8 | 1 << 12
-                        assert kernel_size[ll][0] < 2**4
-                    elif (operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]
-                          or operator[ll] == op.NONE and operands[ll] == 1):
-                        val |= 1 << 8
-                    if operands[ll] > 1:
-                        val |= 1 << 13 | op.eltwise_fn(eltwise[ll]) << 14 | operands[ll] - 1 << 18
-                        if (pool[ll][0] > 1 or pool[ll][1] > 1) and pool_first[ll]:
-                            val |= 1 << 16
-                        if operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D]:
-                            val |= 1 << 17
-
-                    apb.write_lreg(group, ll, tc.dev.LREG_ONED, val,
-                                   verbose, comment=' // 1D')
 
                 # Configure pooling row count
                 val = pool[ll][0]-1
@@ -854,6 +822,7 @@ def create_net(
                         # Enable bias only for one group
                         val |= 0x1000000 | bias_offs[ll] << 16
                 else:
+                    oned_sad = 0
                     if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
                         in_exp = in_expand[ll]
                         if flatten[ll]:
@@ -861,17 +830,61 @@ def create_net(
                         kl = (((fls(output_processor_map[ll])
                                 - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) + 1)
                               * quantization[ll]) * out_expand[ll] * in_exp \
-                            - quantization[ll] + kern_offs[ll] * 8  # kern_offs is always bytes
-                        assert kl < 2**16
-                        assert kern_offs[ll] * 8 < 2**16
-                        val = kern_offs[ll] * 8 << tc.dev.MCNT_SAD_OFFS \
-                            | kl << tc.dev.MCNT_MAX_OFFS  # kern_offs is always bytes
+                            - quantization[ll]
+                        koffs, oned_sad = divmod(9 * kern_offs[ll],
+                                                 kernel_size[ll][0] * kernel_size[ll][1])
+                        koffs *= 8
+
+                        assert koffs < 2**16
+                        assert kl + koffs < 2**16
+                        # kern_offs is always bytes
+                        val = koffs << tc.dev.MCNT_SAD_OFFS | kl + koffs << tc.dev.MCNT_MAX_OFFS
                     else:
                         assert operator[ll] == op.NONE
                         val = (out_expand[ll] - 1) * 8
                         assert val < 2**16
                 apb.write_lreg(group, ll, tc.dev.LREG_MCNT, val,
                                verbose, comment=' // Mask offset and count')
+
+                if device != 84:
+                    #   [3:0] tscnt_max[3:0]      Maximum timeslot count register
+                    #   [7:4] oned_sad[3:0]       Start mask address (offset within 9 byte mask)
+                    #  [11:8] oned_width[3:0]     1D mask width (0-9). Width > 0 enables 1D.
+                    #    [12] oned_iena           Input data is 1-dimensional
+                    #    [13] ewise_ena           Enable element-wise operation
+                    # [17:14] ewise_fun           Elementwise function select
+                    #         .3   - Enables 2D convolution of the ewise result.
+                    #                Standard 2D processing applies.
+                    #         .2   - Enables pre-pooling of the input data before element-wise
+                    #                operation.
+                    #         .1/0 - 2'b00 = add
+                    #                2'b01 = subtract
+                    #                2'b10 = bitwise XOR
+                    #                2'b11 = bitwise OR.
+                    # [21:18] ewise_cnt           Element wise operand count
+
+                    val = 0
+                    if operator[ll] == op.NONE:
+                        val |= (popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
+                                         % 2**tc.dev.P_NUMPRO) * output_width[ll]//8 - 1) // 4
+                        assert val < 2**4
+                    if operator[ll] == op.CONV1D:
+                        val |= kernel_size[ll][0] << 8 | 1 << 12
+                        assert kernel_size[ll][0] < 2**4
+                    elif (operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]
+                          or operator[ll] == op.NONE and operands[ll] == 1):
+                        val |= 1 << 8
+                    if operands[ll] > 1:
+                        val |= 1 << 13 | op.eltwise_fn(eltwise[ll]) << 14 | operands[ll] - 1 << 18
+                        if (pool[ll][0] > 1 or pool[ll][1] > 1) and pool_first[ll]:
+                            val |= 1 << 16
+                        if operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D]:
+                            val |= 1 << 17
+                    assert oned_sad < 2**4
+                    val |= oned_sad << 4
+
+                    apb.write_lreg(group, ll, tc.dev.LREG_ONED, val,
+                                   verbose, comment=' // 1D')
 
                 # Configure tram pointer max
                 if operator[ll] == op.CONV1D or \
@@ -948,7 +961,10 @@ def create_net(
 
                 if ll == 0 and streaming[ll] and fifo:
                     # Start: 1
-                    stream_start = (pool[0][0] - 1) * input_dim[0][1] + pool[0][1]
+                    if override_start is not None:
+                        stream_start = override_start
+                    else:
+                        stream_start = (pool[0][0] - 1) * input_dim[0][1] + pool[0][1]
                     assert stream_start < 2**12
                     # Delta 1: This layer's pooling stride
                     delta1 = pool_stride[ll][1] - 1
@@ -997,12 +1013,42 @@ def create_net(
                                    verbose, comment=' // Stream processing 2')
 
                 if fifo and streaming[ll]:
-                    if big_data[ll]:
-                        val = 12  # FIXME stream_start + max(stride[ll][1], pool_stride[ll][1])
+                    if ll == 0 and override_rollover is not None:
+                        val = override_rollover
                     else:
-                        val = stream_start + (pool[ll][0] - 1) * input_dim[ll][1] \
-                            + max(stride[ll][1], pool_stride[ll][1], pool[ll][1])
+                        if big_data[ll]:
+                            val = 12  # FIXME stream_start + max(stride[ll][1], pool_stride[ll][1])
+                        else:
+                            val = stream_start + (pool[ll][0] - 1) * input_dim[ll][1] \
+                                + max(stride[ll][1], pool_stride[ll][1], pool[ll][1])
                     assert val < 2**17
+
+                    # Check rollover vs available data memory
+                    if in_offset[ll] < out_offset[ll]:
+                        if in_offset[ll] + val >= out_offset[ll]:
+                            print('Overlapping input and output: '
+                                  f'in_offset 0x{in_offset[ll]:08x}, '
+                                  f'out_offset 0x{out_offset[ll]:08x}, '
+                                  f'rollover 0x{val:08x}.')
+                            if not no_error_stop:
+                                sys.exit(1)
+                    else:
+                        if out_offset[ll] + val >= in_offset[ll]:
+                            print('Overlapping input and output: '
+                                  f'in_offset 0x{in_offset[ll]:08x}, '
+                                  f'out_offset 0x{out_offset[ll]:08x}, '
+                                  f'rollover 0x{val:08x}.')
+                            if not no_error_stop:
+                                sys.exit(1)
+                    if in_offset[ll] + val >= tc.dev.INSTANCE_SIZE * tc.dev.P_SHARED * 4:
+                        print('Input plus rollover exceeds instance size: '
+                              f'in_offset 0x{in_offset[ll]:08x}, '
+                              f'out_offset 0x{out_offset[ll]:08x}, '
+                              f'rollover 0x{val:08x}, '
+                              f'instance size 0x{tc.dev.INSTANCE_SIZE*4:08x}.')
+                        if not no_error_stop:
+                            sys.exit(1)
+
                     apb.write_lreg(group, ll, tc.dev.LREG_FMAX, val,
                                    comment=' // Rollover')
 
@@ -1777,6 +1823,9 @@ def main():
             args.one_shot,
             args.stop_start,
             args.mexpress,
+            args.riscv,
+            args.override_start,
+            args.override_rollover,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(
