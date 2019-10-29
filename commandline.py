@@ -79,6 +79,12 @@ def get_parser():
     parser.add_argument('--overlap-data', '--overwrite-ok', dest='overwrite_ok',
                         action='store_true', default=False,
                         help="allow output to overwrite input (default: warn/stop)")
+    parser.add_argument('--override-start', type=lambda x: int(x, 0),
+                        metavar='N',
+                        help="override start value (x8 hex)")
+    parser.add_argument('--override-rollover', type=lambda x: int(x, 0),
+                        metavar='N',
+                        help="override rollover value (x8 hex)")
     parser.add_argument('--queue-name', default='lowp', metavar='S',
                         help="queue name (default: 'lowp')")
     parser.add_argument('-L', '--log', action='store_true', default=False,
@@ -86,6 +92,8 @@ def get_parser():
     parser.add_argument('--input-split', type=int, default=1, metavar='N',
                         choices=range(1, 1025),
                         help="split input into N portions (default: don't split)")
+    parser.add_argument('--riscv', action='store_true', default=False,
+                        help="use RISC-V processor (default: false)")
     parser.add_argument('--stop-after', type=int, metavar='N',
                         help="stop after layer")
     parser.add_argument('--stop-start', action='store_true', default=False,
