@@ -61,7 +61,7 @@ def conv2d_layer(
         verbose,
         input_size,
         kernel_size,
-        quantization,
+        output_shift,
         output_channels,
         padding,
         dilation,
@@ -125,7 +125,7 @@ def conv2d_layer(
         * out_size[1] * out_size[2]
 
     if output_width != 32:
-        out_buf = np.floor(0.5 + out_buf / (16*quantization)).astype(np.int64). \
+        out_buf = np.floor(0.5 + out_buf / (128 / 2**output_shift)).astype(np.int64). \
             clip(-(2**(bits-1)), 2**(bits-1)-1)
 
         if verbose:
@@ -165,7 +165,7 @@ def convtranspose2d_layer(
         verbose,
         input_size,
         kernel_size,
-        quantization,
+        output_shift,
         output_channels,
         padding,
         dilation,
@@ -232,7 +232,7 @@ def convtranspose2d_layer(
         * out_size[1] * out_size[2]
 
     if output_width != 32:
-        out_buf = np.floor(0.5 + out_buf / (16*quantization)).astype(np.int64). \
+        out_buf = np.floor(0.5 + out_buf / (128 / 2**output_shift)).astype(np.int64). \
             clip(-(2**(bits-1)), 2**(bits-1)-1)
 
         if verbose:
@@ -272,7 +272,7 @@ def conv1d_layer(
         verbose,
         input_size,
         kernel_size,
-        quantization,
+        output_shift,
         output_channels,
         padding,
         dilation,
@@ -325,7 +325,7 @@ def conv1d_layer(
         * out_size[1]
 
     if output_width != 32:
-        out_buf = np.floor(0.5 + out_buf / (16*quantization)).astype(np.int64). \
+        out_buf = np.floor(0.5 + out_buf / (128 / 2**output_shift)).astype(np.int64). \
             clip(-(2**(bits-1)), 2**(bits-1)-1)
 
         if verbose:
@@ -432,6 +432,7 @@ def eltwise_layer(
         layer,  # pylint: disable=unused-argument
         verbose,
         input_size,
+        output_shift,
         data,
         output_width=8,
         device=84,  # pylint: disable=unused-argument
@@ -441,7 +442,7 @@ def eltwise_layer(
     """
     Element-wise operators for one layer.
     """
-    quantization = bits = 8
+    bits = 8
     assert operands == len(data)
 
     if verbose:
@@ -471,7 +472,7 @@ def eltwise_layer(
 
     if output_width != 32:
         if operator == op.ELTWISE_MUL:
-            out_buf = np.floor(0.5 + out_buf / (16*quantization)).astype(np.int64). \
+            out_buf = np.floor(0.5 + out_buf / (128 / 2**output_shift)).astype(np.int64). \
                 clip(-(2**(bits-1)), 2**(bits-1)-1)
         else:
             np.clip(out_buf, -(2**(bits-1)), 2**(bits-1)-1, out_buf)
