@@ -109,6 +109,9 @@ def create_net(
         riscv=False,
         override_start=None,
         override_rollover=None,
+        override_delta1=None,
+        override_delta2=None,
+        slow_load=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -368,6 +371,7 @@ def create_net(
                 padding[0],
                 split=split,
                 fifo=fifo,
+                slowdown=slow_load,
                 debug=debug,
             )
         if embedded_code or mexpress or compact_weights:
@@ -975,9 +979,15 @@ def create_net(
                         stream_start = (pool[ll][0] - 1) * input_dim[ll][1] + pool[ll][1]
                     assert stream_start < 2**12
                     # Delta 1: This layer's pooling stride
-                    delta1 = pool_stride[ll][1] - 1
+                    if override_delta1 is not None:
+                        delta1 = override_delta1
+                    else:
+                        delta1 = pool_stride[ll][1] - 1
                     assert delta1 < 2**5
-                    delta2 = (pool[ll][0] - 1) * input_dim[ll][1]
+                    if override_delta2 is not None:
+                        delta2 = override_delta2
+                    else:
+                        delta2 = (pool[ll][0] - 1) * input_dim[ll][1]
                     assert delta2 < 2**12
 
                     val = delta2 << 20 | delta1 << 12 | stream_start
@@ -1100,6 +1110,7 @@ def create_net(
                     padding[0],
                     split=split,
                     fifo=fifo,
+                    slowdown=slow_load,
                     debug=debug,
                 )
 
@@ -1207,6 +1218,7 @@ def create_net(
                     padding[0],
                     split=split,
                     fifo=fifo,
+                    slowdown=slow_load,
                     debug=debug,
                 )
 
@@ -1839,6 +1851,9 @@ def main():
             args.riscv,
             args.override_start,
             args.override_rollover,
+            args.override_delta1,
+            args.override_delta2,
+            args.slow_load,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(
