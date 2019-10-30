@@ -951,7 +951,7 @@ def create_net(
                         val |= 1 << 28
 
                     apb.write_lreg(group, ll, tc.dev.LREG_POST, val,
-                                   verbose, comment=' // AI85/86 post processing register')
+                                   verbose, comment=' // Post processing register')
 
                 # Configure mask and processor enables
                 # [15:0]  processor enable
@@ -972,13 +972,15 @@ def create_net(
                     if override_start is not None:
                         stream_start = override_start
                     else:
-                        stream_start = (pool[0][0] - 1) * input_dim[0][1] + pool[0][1]
+                        stream_start = (pool[ll][0] - 1) * input_dim[ll][1] + pool[ll][1]
                     assert stream_start < 2**12
                     # Delta 1: This layer's pooling stride
                     delta1 = pool_stride[ll][1] - 1
                     assert delta1 < 2**5
+                    delta2 = (pool[ll][0] - 1) * input_dim[ll][1]
+                    assert delta2 < 2**12
 
-                    val = delta1 << 12 | stream_start
+                    val = delta2 << 20 | delta1 << 12 | stream_start
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, val,
                                    verbose, comment=' // Stream processing 1')
                 elif ll > 0 and streaming[ll]:
