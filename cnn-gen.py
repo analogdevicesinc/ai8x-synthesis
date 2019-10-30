@@ -55,6 +55,7 @@ def create_net(
         output_processor_map,
         kernel_size,
         quantization,
+        output_shift,
         input_chan,
         output_chan,
         output_width,
@@ -553,6 +554,7 @@ def create_net(
             if device != 84:
                 print(f'Kernel dimensions   = {kernel_size}')
                 print(f'Kernel size         = {quantization}')
+                print(f'Output shift        = {output_shift}')
             print(f'Operator            = [',
                   ', '.join(op.string(k) for k in operator), ']', sep='',)
             print(f'Stride              = {stride}')
@@ -910,14 +912,20 @@ def create_net(
                 if device != 84:
                     # Compensate for the smaller weights by adjusting the output shift
                     if quantization[ll] == 1:
-                        val = 1 << 22 | 3 << 13  # Shift left 3
+                        val = 1 << 22
                     elif quantization[ll] == 2:
-                        val = 2 << 22 | 2 << 13  # Shift left 2
+                        val = 2 << 22
                     elif quantization[ll] == 4:
-                        val = 3 << 22 | 1 << 13  # Shift left 1
+                        val = 3 << 22
                     else:
                         assert quantization[ll] == 8
                         val = 0  # Do not shift
+                    # Scale Control - bit 4 determines shift direction (1>>,0<<),
+                    # bits[3:0] determine magnitude
+                    if output_shift[ll] < 0:
+                        val |= (-output_shift[ll] | 2**4) << 13
+                    else:
+                        val |= output_shift[ll] << 13
 
                     # [24] ts_ena
                     # [25] onexone_ena
@@ -1231,6 +1239,7 @@ def create_net(
             ll,
             verbose,
             data[0].shape,
+            output_shift[ll],
             data,
             output_width=o_width,
             device=device,
@@ -1311,7 +1320,7 @@ def create_net(
                 verbose,
                 data.shape,
                 kernel_size[ll],
-                quantization[ll],
+                output_shift[ll],
                 output_chan[ll],
                 padding[ll],
                 dilation[ll],
@@ -1335,7 +1344,7 @@ def create_net(
                 verbose,
                 data.shape,
                 kernel_size[ll],
-                quantization[ll],
+                output_shift[ll],
                 output_chan[ll],
                 padding[ll],
                 dilation[ll],
@@ -1360,7 +1369,7 @@ def create_net(
                 verbose,
                 data.shape,
                 kernel_size[ll][0],
-                quantization[ll],
+                output_shift[ll],
                 output_chan[ll],
                 padding[ll][0],
                 dilation[ll][0],
@@ -1616,6 +1625,7 @@ def main():
     input_offset = params['input_offset'][:layers]
     kernel_size = params['kernel_size'][:layers]
     quantization = params['quantization'][:layers]
+    output_shift = params['output_shift'][:layers]
     pool = params['pool'][:layers]
     pool_stride = params['pool_stride'][:layers]
     padding = params['padding'][:layers]
@@ -1773,6 +1783,7 @@ def main():
             output_processor_map,
             kernel_size,
             quantization,
+            output_shift,
             input_channels,
             output_channels,
             output_width,

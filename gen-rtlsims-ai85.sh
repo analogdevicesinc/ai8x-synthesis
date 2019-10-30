@@ -259,3 +259,7 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-nonsquare --config-file tests/test-nonsquare.yaml --ai85 --debug-computation
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-pool-stride --config-file tests/test-fifostream-pool-stride.yaml --ai85 --fifo --debug-computation
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-pool-stride-hwc --config-file tests/test-fifostream-pool-stride-hwc.yaml --ai85 --fifo --debug-computation
+
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-multilayer --config-file tests/test-conv1d-multilayer.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-conv1d-multilayer-q1248 --config-file tests/test-conv1d-multilayer-q1248.yaml --ai85
+

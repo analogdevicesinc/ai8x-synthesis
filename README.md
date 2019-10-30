@@ -1,7 +1,7 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_10/22/2019_
+_10/30/2019_
 
 _Open this file in a markdown enabled viewer, for example Typora (http://typora.io) or Visual Studio Code 
 (https://code.visualstudio.com). See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown._
@@ -904,6 +904,24 @@ On AI85, this key describes the width of the weight memory in bits and can be `1
 
 Example:
 	`quantization: 4`
+
+##### `output_shift` (Optional)
+
+On AI85, when `output_width` is 8, the 32-bit intermediate result can be shifted left or right before reduction to 8-bit. The value specified here is cumulative with the value generated from `quantization`.
+
+The 32-bit intermediate result is multiplied by $2^{totalshift}$ , where the total shift count must be within the range $[-8, +8]$, resulting in a factor of $[2^{-8}, 2^8]$ or $[0.00390625$ to $256]$.
+
+| quantization | implicit shift | range for `output_shift` |
+| ------------ | -------------- | ------------------------ |
+| 8-bit        | 0              | $[-8, +8]$               |
+| 4-bit        | 1              | $[-9,+7]$                |
+| 2-bit        | 2              | $[-10,+6]$               |
+| 1-bit        | 4              | $[-11,+5]$               |
+
+Using `output_shift` can help normalize data, particularly when using small weights.
+
+Example:
+	`output_shift: 2`
 
 ##### `kernel_size` (Optional)
 

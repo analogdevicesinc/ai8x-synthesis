@@ -13,6 +13,7 @@ import sys
 import yaml
 import op
 import tornadocnn as tc
+from utils import ffs
 
 DEFAULT_2D_KERNEL = [3, 3]
 DEFAULT_1D_KERNEL = [9, 1]
@@ -60,6 +61,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     average = [0] * tc.dev.MAX_LAYERS
     pool_stride = [[1, 1]] * tc.dev.MAX_LAYERS
     quantization = [8] * tc.dev.MAX_LAYERS
+    output_shift = [0] * tc.dev.MAX_LAYERS
     output_offset = [0] * tc.dev.MAX_LAYERS
     activation = [None] * tc.dev.MAX_LAYERS
     big_data = [False] * tc.dev.MAX_LAYERS
@@ -81,7 +83,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                                'in_offset', 'kernel_size', 'pool_stride', 'out_offset',
                                'activate', 'activation', 'data_format', 'eltwise', 'flatten',
                                'op', 'operands', 'operation', 'operator',
-                               'output_processors', 'output_width',
+                               'output_processors', 'output_width', 'output_shift',
                                'pool_first', 'processors', 'pad', 'quantization',
                                'sequence', 'streaming', 'stride'])):
             print(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
@@ -130,6 +132,17 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             if val not in [1, 2, 4, 8]:
                 error_exit('`quantization` must be 1, 2, 4, or 8', sequence)
             quantization[sequence] = val
+            output_shift[sequence] = 3 - ffs(val)
+
+        if 'output_shift' in ll:
+            val = ll['output_shift']
+            val += 3 - ffs(quantization[sequence])
+            output_shift[sequence] = val
+            min_range = -19 + ffs(quantization[sequence])
+            max_range = 13 + ffs(quantization[sequence])
+            if val < -2**3 or val > 2**3:
+                error_exit(f'`output_shift` for quantization `{quantization[sequence]} `must be '
+                           f'in range [{min_range}, {max_range}]', sequence)
 
         if 'in_dim' in ll:
             input_dim[sequence] = ll['in_dim']
@@ -330,6 +343,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             del activation[ll]
             del big_data[ll]
             del quantization[ll]
+            del output_shift[ll]
             del output_map[ll]
             del output_width[ll]
             del operator[ll]
@@ -404,6 +418,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     settings['activation'] = activation
     settings['big_data'] = big_data
     settings['quantization'] = quantization
+    settings['output_shift'] = output_shift
     settings['output_processor_map'] = output_map
     settings['output_width'] = output_width
     settings['operator'] = operator
