@@ -251,7 +251,10 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-pool-hwc --config-file tests/test-fifostream-pool-hwc.yaml --ai85 --fifo --debug-computation --override-start 0x1b --override-rollover 0x1c
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-15ch-hwc --config-file tests/test-fifostream-15ch-hwc.yaml --ai85 --fifo
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-16ch-hwc --config-file tests/test-fifostream-16ch-hwc.yaml --ai85 --fifo
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-640 --config-file tests/test-fifostream-640.yaml --ai85 --fifo --stop-after 0
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-640 --config-file tests/test-fifostream-640.yaml --ai85 --fifo
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-640-small --config-file tests/test-fifostream-640-small.yaml --ai85 --fifo --stop-after 0
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-640-small --config-file tests/test-fifostream-640-small.yaml --ai85 --fifo
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-nonsquare --config-file tests/test-nonsquare.yaml --ai85 --debug-computation --stop-after 0
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-nonsquare --config-file tests/test-nonsquare.yaml --ai85 --debug-computation
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-pool-stride --config-file tests/test-fifostream-pool-stride.yaml --ai85 --fifo --debug-computation
