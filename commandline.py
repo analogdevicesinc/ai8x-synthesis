@@ -85,6 +85,12 @@ def get_parser():
     parser.add_argument('--override-rollover', type=lambda x: int(x, 0),
                         metavar='N',
                         help="override rollover value (x8 hex)")
+    parser.add_argument('--override-delta1', type=lambda x: int(x, 0),
+                        metavar='N',
+                        help="override delta1 value (x8 hex)")
+    parser.add_argument('--override-delta2', type=lambda x: int(x, 0),
+                        metavar='N',
+                        help="override delta2 value (x8 hex)")
     parser.add_argument('--queue-name', default='lowp', metavar='S',
                         help="queue name (default: 'lowp')")
     parser.add_argument('-L', '--log', action='store_true', default=False,
@@ -94,6 +100,8 @@ def get_parser():
                         help="split input into N portions (default: don't split)")
     parser.add_argument('--riscv', action='store_true', default=False,
                         help="use RISC-V processor (default: false)")
+    parser.add_argument('--slow-load', type=int, metavar='N', default=0,
+                        help="slow down FIFO loads (default: 0)")
     parser.add_argument('--stop-after', type=int, metavar='N',
                         help="stop after layer")
     parser.add_argument('--stop-start', action='store_true', default=False,

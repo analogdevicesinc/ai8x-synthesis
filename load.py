@@ -29,6 +29,7 @@ def load(
         padding,
         split=1,
         fifo=False,
+        slowdown=0,
         debug=False,
 ):
     """
@@ -51,6 +52,7 @@ def load(
             input_size,
             operands,
             data,
+            slowdown,
             debug,
         )
 
@@ -253,6 +255,7 @@ def loadfifo(
         input_size,
         operands,
         data,
+        slowdown=0,
         debug=False,  # pylint: disable=unused-argument
 ):
     """
@@ -286,6 +289,9 @@ def loadfifo(
                         row, col = divmod(row_col + b, input_size[2])
                         val |= (s2u(data[c][row][col]) & 0xff) << b * 8
                 apb.write(0, val, '', fifo=fifo)
+                for _ in range(slowdown):
+                    apb.output('  asm volatile("nop");\n')
+
                 pmap >>= 16
                 fifo += 1
     else:
@@ -309,6 +315,8 @@ def loadfifo(
                             val |= (s2u(data[c + b][row][col]) & 0xff) << b * 8
                         pmap >>= 1
                     apb.write(0, val, '', fifo=fifo)
+                    for _ in range(slowdown):
+                        apb.output('  asm volatile("nop");\n')
                     pmap >>= 12
                     fifo += 1
 
