@@ -59,8 +59,9 @@ def conv2d(
                                    input_size[2] - dilation[1] * (kernel_size[1] - 1) + pad[1],
                                    stride[1]):
                         for x_frac in range(fractional_stride[1]):
-                            val = np.int64(0) if bias is None else bias[k]
-                            for c in range(in_channels):
+                            val = np.int64(0)
+                            c = 0
+                            while True:
                                 for h in range(kernel_size[0]):
                                     for w in range(kernel_size[1]):
                                         ypos = (y + pad[0])*fractional_stride[0] - pad[0] \
@@ -79,6 +80,16 @@ def conv2d(
                                                       f'*{data[c][yd][xd]}='
                                                       f'{weight[k][c][h][w] * data[c][yd][xd]} '
                                                       f'-> accumulator: {val}')
+                                c += 16
+                                if c >= in_channels:
+                                    c = (c + 1) % 16
+                                    if c == 0 or c == in_channels:
+                                        break
+
+                            if bias is not None:
+                                val += bias[k]
+                                if debug:
+                                    print(f'     adding bias: {bias[k]} -> result: {val}')
 
                             ref[k][
                                 ((y + pad[0])*fractional_stride[0] + y_frac) // stride[0]
