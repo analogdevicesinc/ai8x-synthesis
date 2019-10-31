@@ -292,3 +292,4 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-32-hwc --config-file tests/test-fifostream-32-hwc.yaml --ai85 --fifo
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-32-hwc --config-file tests/test-fifostream-32-hwc.yaml --ai85 --fifo --stop-after 0
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-32-hwc --config-file tests/test-fifostream-32-hwc.yaml --ai85 --fifo --stop-after 1
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-pool-4high --config-file tests/test-pool-4high.yaml --ai85
