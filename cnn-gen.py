@@ -1064,7 +1064,7 @@ def create_net(
 
                     # Check rollover vs available data memory
                     if in_offset[ll] < out_offset[ll]:
-                        if in_offset[ll] + val >= out_offset[ll]:
+                        if in_offset[ll] + val * 4 >= out_offset[ll]:
                             print('Overlapping input and output: '
                                   f'in_offset 0x{in_offset[ll]:08x}, '
                                   f'out_offset 0x{out_offset[ll]:08x}, '
@@ -1072,14 +1072,14 @@ def create_net(
                             if not no_error_stop:
                                 sys.exit(1)
                     else:
-                        if out_offset[ll] + val >= in_offset[ll]:
+                        if out_offset[ll] + val * 4 >= in_offset[ll]:
                             print('Overlapping input and output: '
                                   f'in_offset 0x{in_offset[ll]:08x}, '
                                   f'out_offset 0x{out_offset[ll]:08x}, '
                                   f'rollover 0x{val:08x}.')
                             if not no_error_stop:
                                 sys.exit(1)
-                    if in_offset[ll] + val >= tc.dev.INSTANCE_SIZE * tc.dev.P_SHARED * 4:
+                    if in_offset[ll] + val * 4 >= tc.dev.INSTANCE_SIZE * tc.dev.P_SHARED * 4:
                         print('Input plus rollover exceeds instance size: '
                               f'in_offset 0x{in_offset[ll]:08x}, '
                               f'out_offset 0x{out_offset[ll]:08x}, '
