@@ -6,7 +6,7 @@ dataset: test_fifostream-640
 layers:
 - pad: 1
   activate: ReLU
-  out_offset: 0x2000
+  out_offset: 0x2a00
   processors: 0x0000000100010001
   data_format: CHW
   streaming: true
@@ -14,12 +14,12 @@ layers:
   pool_stride: 2
   pad: 1
   activate: ReLU
-  out_offset: 0x4000
+  out_offset: 0x5300
   processors: 0xffffffffffffffff
   streaming: true
 - max_pool: 2
   pool_stride: 2
   pad: 1
-  out_offset: 0x6000
+  out_offset: 0x6800
   processors: 0x00000000ffffffff
   streaming: true
