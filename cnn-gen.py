@@ -247,7 +247,7 @@ def create_net(
     if block_mode:
         filename = input_filename + '.mem'
     else:
-        filename = c_filename + '.c'
+        filename = c_filename + ('_riscv' if riscv else '') + '.c'
     if embedded_code or compact_data:
         sampledata_header = \
             open(os.path.join(base_directory, test_name, sample_filename), mode='w')
@@ -304,6 +304,24 @@ def create_net(
         print('Group 0 is not used, this currently does not work.')
         sys.exit(1)
 
+    # Create ARM code wrapper if needed
+    if riscv:
+        with open(os.path.join(base_directory, test_name, c_filename + '.c'), mode='w') as f:
+            apb = apbaccess.apbwriter(
+                f,
+                apb_base,
+                device=device,
+                master=False,
+                riscv=False,
+            )
+            apb.copyright_header()
+
+            apb.output(f'// ARM wrapper code\n// {test_name}\n')
+            apb.output(f'// Created using {" ".join(str(x) for x in sys.argv)}\n')
+
+            apb.header()
+            apb.main()
+
     with open(os.path.join(base_directory, test_name, filename), mode='w') as memfile:
         apb = apbaccess.apbwriter(
             memfile,
@@ -322,6 +340,7 @@ def create_net(
             device=device,
             verify_kernels=verify_kernels,
             master=groups_used[0] if oneshot > 0 or stopstart else False,
+            riscv=True if riscv else None,
         )
 
         apb.copyright_header()
@@ -1426,7 +1445,7 @@ def create_net(
             filemode = 'w'
         else:
             if ll == layers-1:
-                filename = c_filename + '.c'  # Final output
+                filename = c_filename + ('_riscv' if riscv else '') + '.c'  # Final output
             else:
                 filename = None  # Intermediate output - used for layer overwrite check
             filemode = 'a'
@@ -1541,7 +1560,9 @@ def create_net(
             test_name,
             runtest_filename,
             input_filename,
+            c_filename,
             timeout,
+            riscv=riscv,
         )
 
     return test_name

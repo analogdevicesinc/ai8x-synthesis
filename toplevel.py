@@ -40,6 +40,7 @@ def header(
         sample_filename='sampledata.h',
         master=False,
         verify_kernels=False,
+        riscv=False,
 ):
     """
     Write include files and forward definitions to .c file handle `memfile`.
@@ -63,7 +64,7 @@ def header(
         memfile.write(f'#include "{sample_filename}"\n')
     memfile.write('\n')
 
-    if not cmsis_nn:
+    if not cmsis_nn and (riscv is None or riscv):
         if embedded_code:
             memfile.write('uint32_t cnn_time; // Stopwatch\n\n')
 
@@ -116,6 +117,7 @@ def main(
         embedded_code=False,
         oneshot=0,
         stopstart=False,
+        riscv=None,
 ):
     """
     Write the main function (including an optional call to the fully connected layer if
@@ -124,40 +126,54 @@ def main(
     memfile.write('int main(void)\n{\n')
     if embedded_code and classification_layer or oneshot > 0:
         memfile.write('  int i;\n\n')
-    memfile.write('  icache_enable();\n\n')
-    if embedded_code:
-        memfile.write('  SYS_ClockEnable(SYS_PERIPH_CLOCK_AI);\n\n')
-    else:
-        memfile.write('  MXC_GCR->perckcn1 &= ~0x20; // Enable AI clock\n\n')
-    memfile.write('  if (!cnn_load()) { fail(); pass(); return 0; }\n')
-    if embedded_code:
-        memfile.write('  TMR_SW_Start(MXC_TMR0, NULL);\n')
-    if stopstart:
-        memfile.write('\n  cnn_stop();\n')
-        memfile.write('  cnn_restart();\n\n')
 
-    memfile.write('  cnn_wait();\n\n')
-    if oneshot > 0:
-        memfile.write(f'  for (i = 0; i < {oneshot}; i++) {{\n')
-        memfile.write('    cnn_restart();\n')
-        memfile.write('    cnn_wait();\n')
-        memfile.write('  }\n\n')
-    memfile.write('  if (!cnn_check()) fail();\n')
-    if classification_layer:
-        memfile.write('  if (!fc_layer()) fail();\n')
-        memfile.write('  if (!fc_verify()) fail();\n')
+    if riscv is None or not riscv:
+        memfile.write('  icache_enable();\n\n')
+        if embedded_code:
+            memfile.write('  SYS_ClockEnable(SYS_PERIPH_CLOCK_AI);\n')
+        else:
+            memfile.write('  MXC_GCR->perckcn1 &= ~0x20; // Enable AI clock\n')
+        if riscv is not None:
+            if embedded_code:
+                memfile.write('  SYS_ClockEnable(SYS_PERIPH_CLOCK_RISCV);\n')
+            else:
+                memfile.write('  MXC_GCR->perckcn1 &= ~0x80000000; // Enable RISC-V clock\n')
+        memfile.write('\n')
 
-    if embedded_code:
-        memfile.write('\n  printf("\\n*** PASS ***\\n\\n");\n')
-        memfile.write('  printf("Time for CNN: %d us\\n\\n", cnn_time);\n\n')
+    if riscv is None or riscv:
+        memfile.write('  if (!cnn_load()) { fail(); pass(); return 0; }\n')
+        if embedded_code:
+            memfile.write('  TMR_SW_Start(MXC_TMR0, NULL);\n')
+        if stopstart:
+            memfile.write('\n  cnn_stop();\n')
+            memfile.write('  cnn_restart();\n\n')
+
+        memfile.write('  cnn_wait();\n\n')
+        if oneshot > 0:
+            memfile.write(f'  for (i = 0; i < {oneshot}; i++) {{\n')
+            memfile.write('    cnn_restart();\n')
+            memfile.write('    cnn_wait();\n')
+            memfile.write('  }\n\n')
+        memfile.write('  if (!cnn_check()) fail();\n')
         if classification_layer:
-            memfile.write('  printf("Classification results:\\n");\n'
-                          '  for (i = 0; i < FC_OUT; i++) {\n'
-                          '    printf("[%6d] -> Class %d: %0.1f%%\\n", fc_output[i], '
-                          'i, (double) (100.0 * fc_softmax[i] / 32768.0));\n'
-                          '  }\n\n')
+            memfile.write('  if (!fc_layer()) fail();\n')
+            memfile.write('  if (!fc_verify()) fail();\n')
 
-    memfile.write('  pass();\n  return 0;\n}\n\n')
+        if embedded_code:
+            memfile.write('\n  printf("\\n*** PASS ***\\n\\n");\n')
+            memfile.write('  printf("Time for CNN: %d us\\n\\n", cnn_time);\n\n')
+            if classification_layer:
+                memfile.write('  printf("Classification results:\\n");\n'
+                              '  for (i = 0; i < FC_OUT; i++) {\n'
+                              '    printf("[%6d] -> Class %d: %0.1f%%\\n", fc_output[i], '
+                              'i, (double) (100.0 * fc_softmax[i] / 32768.0));\n'
+                              '  }\n\n')
+
+    if riscv is not None and not riscv:
+        memfile.write('  asm volatile("wfi"); // Let RISC-V run\n')
+
+    memfile.write('  pass();\n')
+    memfile.write('  return 0;\n}\n\n')
 
 
 def verify_header(

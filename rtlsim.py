@@ -21,7 +21,9 @@ def create_runtest_sv(
         test_name,
         runtest_filename,
         input_filename,
+        c_filename,
         timeout,
+        riscv=False,
 ):
     """
     For for test `test_name`, create the runtest.sv file named `runtest_filename`, in the
@@ -62,7 +64,10 @@ def create_runtest_sv(
             runfile.write('end\n')
         else:
             runfile.write(f'// {runtest_filename}\n')
-            runfile.write('`define ARM_PROG_SOURCE test.c\n')
+            runfile.write(f'`define ARM_PROG_SOURCE {c_filename}.c\n')
+            if riscv:
+                runfile.write(f'`define RISCV_PROG_SOURCE {c_filename}_riscv.c\n')
+                runfile.write('`define MULTI_CPU_SETUP\n')
             if timeout:
                 runfile.write(f'defparam REPEAT_TIMEOUT = {timeout};\n\n')
 

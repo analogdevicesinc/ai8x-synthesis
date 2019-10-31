@@ -42,6 +42,7 @@ class APB(object):
             device=84,
             verify_kernels=False,
             master=None,
+            riscv=None,
     ):
         """
         Create an APB class object that writes to memfile.
@@ -61,6 +62,7 @@ class APB(object):
         self.device = device
         self.verify_kernels = verify_kernels
         self.master = master
+        self.riscv = riscv
 
         self.data = 0
         self.num = 0
@@ -744,6 +746,7 @@ class APBTopLevel(APB):
             sample_filename=self.sample_filename,
             master=self.master,
             verify_kernels=self.verify_kernels,
+            riscv=self.riscv,
         )
 
     def verify_header(
@@ -798,6 +801,7 @@ class APBTopLevel(APB):
             embedded_code=self.embedded_code,
             oneshot=oneshot,
             stopstart=stopstart,
+            riscv=self.riscv,
         )
 
     def fc_layer(
@@ -922,6 +926,7 @@ def apbwriter(
         device=84,
         verify_kernels=False,
         master=None,
+        riscv=None,
 ):
     """
     Depending on `block_level`, return a block level .mem file writer or a top level .c file
@@ -947,4 +952,5 @@ def apbwriter(
         device=device,
         verify_kernels=verify_kernels,
         master=master,
+        riscv=riscv,
     )
