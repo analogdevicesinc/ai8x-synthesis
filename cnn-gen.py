@@ -905,7 +905,7 @@ def create_net(
                     val = tram_max[ll] - 1
                     assert val < 2**16
                     if ll > 0 and streaming[ll]:
-                        prev_max = sum(tram_max[:ll])
+                        prev_max = np.multiply(tram_max[:ll], in_expand[:ll]).sum()
                         assert prev_max < 2**12
                         val += prev_max
                         assert val < 2**16
