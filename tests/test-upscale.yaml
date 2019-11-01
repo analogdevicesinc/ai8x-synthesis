@@ -1,0 +1,15 @@
+# Test upsampling/deconv
+
+arch: test
+dataset: test_upscale
+
+layers:
+- out_offset: 0x1000
+  processors: 0x0000000000000007
+  operation: convtranspose2d
+- out_offset: 0x0
+  processors: 0xffffffffffffffff
+  operation: convtranspose2d
+- out_offset: 0x1000
+  processors: 0x000000000000000f
+  operation: convtranspose2d
