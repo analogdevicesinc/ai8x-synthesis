@@ -240,8 +240,6 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-q4-cifar-bias-mexpress --checkpoint-file trained/ai85-cifar10-bias-quant4.pth.tar --config-file tests/test-ai85-cifar10-hwc-quant4.yaml --stop-after 0 --ai85 --mexpress --verify-kernels
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-wide512in-mexpress --config-file tests/test-wide512in.yaml --ai85 --mexpress --timeout 128
 
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-upsample --config-file tests/test-upsample.yaml --ai85 --debug --debug-computation
-
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mlpflatten768to100big-q4 --config-file tests/test-mlpflatten768to100-big-q4.yaml --ai85
 
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-nonsquare --config-file tests/test-fifostream-nonsquare.yaml --ai85 --fifo --debug-computation
@@ -251,9 +249,8 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-pool-hwc --config-file tests/test-fifostream-pool-hwc.yaml --ai85 --fifo --debug-computation --override-start 0x1b --override-rollover 0x1c --override-delta2 0
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-15ch-hwc --config-file tests/test-fifostream-15ch-hwc.yaml --ai85 --fifo
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-16ch-hwc --config-file tests/test-fifostream-16ch-hwc.yaml --ai85 --fifo
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-640 --config-file tests/test-fifostream-640.yaml --ai85 --fifo
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-640 --config-file tests/test-fifostream-640.yaml --ai85 --fifo --stop-after 0
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-640 --config-file tests/test-fifostream-640.yaml --ai85 --fifo --stop-after 1
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-640 --config-file tests/test-fifostream-640.yaml --ai85 --fifo --mexpress --timeout 40
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-640 --config-file tests/test-fifostream-640.yaml --ai85 --fifo --stop-after 1 --mexpress --timeout 40
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-640-small --config-file tests/test-fifostream-640-small.yaml --ai85 --fifo
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-640-small --config-file tests/test-fifostream-640-small.yaml --ai85 --fifo --stop-after 0
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-640-small --config-file tests/test-fifostream-640-small.yaml --ai85 --fifo --stop-after 1
@@ -286,10 +283,19 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-32 --config-file tests/test-fifostream-32.yaml --ai85 --fifo
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-32 --config-file tests/test-fifostream-32.yaml --ai85 --fifo --stop-after 0
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-32 --config-file tests/test-fifostream-32.yaml --ai85 --fifo --stop-after 1
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-640-hwc --config-file tests/test-fifostream-640-hwc.yaml --ai85 --fifo
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-640-hwc --config-file tests/test-fifostream-640-hwc.yaml --ai85 --fifo --stop-after 0
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-640-hwc --config-file tests/test-fifostream-640-hwc.yaml --ai85 --fifo --stop-after 1
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-640-hwc --config-file tests/test-fifostream-640-hwc.yaml --ai85 --fifo --mexpress --timeout 40
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-640-hwc --config-file tests/test-fifostream-640-hwc.yaml --ai85 --fifo --stop-after 1 --mexpress --timeout 40
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-32-hwc --config-file tests/test-fifostream-32-hwc.yaml --ai85 --fifo
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-32-hwc --config-file tests/test-fifostream-32-hwc.yaml --ai85 --fifo --stop-after 0
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-32-hwc --config-file tests/test-fifostream-32-hwc.yaml --ai85 --fifo --stop-after 1
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-pool-4high --config-file tests/test-pool-4high.yaml --ai85
+
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-helloworld --config-file tests/test-pooling13x1s1.yaml --ai85 --riscv
+
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-upsample --config-file tests/test-upsample.yaml --ai85 --debug --debug-computation
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-upscale --config-file tests/test-upscale.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-upscale --config-file tests/test-upscale.yaml --ai85 --stop-after 0
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-upscale --config-file tests/test-upscale.yaml --ai85 --stop-after 1
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-upscale-pro --config-file tests/test-upscale-pro.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-upscale-pro --config-file tests/test-upscale-pro.yaml --ai85 --stop-after 0
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-upscale-pro --config-file tests/test-upscale-pro.yaml --ai85 --stop-after 1

@@ -211,6 +211,8 @@ def create_net(
             tram_max[ll] = 1
         else:
             tram_max[ll] = max(0, pooled_dim[ll][1] + 2*padding[ll][1] - kernel_size[ll][1]) + 1
+            if operator[ll] == op.CONVTRANSPOSE2D:
+                tram_max[ll] *= stride[ll][1]
 
     # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
     test_name = prefix
@@ -643,7 +645,10 @@ def create_net(
                     if flatten[ll]:
                         val = 0
                     else:
-                        val = input_dim[ll][0]-1
+                        if operator[ll] == op.CONVTRANSPOSE2D:
+                            val = stride[ll][1]*input_dim[ll][0] - 1
+                        else:
+                            val = input_dim[ll][0] - 1
                     assert padding[ll][0] < 2**2
                     assert val + 2*padding[ll][0] < 2**10
                     apb.write_lreg(group, ll, tc.dev.LREG_RCNT,
@@ -656,7 +661,10 @@ def create_net(
                     if flatten[ll]:
                         val = 0
                     else:
-                        val = input_dim[ll][1]-1
+                        if operator[ll] == op.CONVTRANSPOSE2D:
+                            val = stride[ll][1]*input_dim[ll][1] - 1
+                        else:
+                            val = input_dim[ll][1] - 1
                     assert padding[ll][1] < 2**2
                     assert val + 2*padding[ll][1] < 2**10
                     apb.write_lreg(group, ll, tc.dev.LREG_CCNT,
