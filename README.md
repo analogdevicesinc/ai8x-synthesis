@@ -1,7 +1,7 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_10/30/2019_
+_11/04/2019_
 
 _Open this file in a markdown enabled viewer, for example Typora (http://typora.io) or Visual Studio Code 
 (https://code.visualstudio.com). See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown._
@@ -51,6 +51,7 @@ This software consists of two related projects:
   - [Limitations of AI84 Networks](#limitations-of-ai84-networks)
   - [Limitations of AI85 Networks](#limitations-of-ai85-networks)
   - [Fully Connected (Linear) Layers](#fully-connected-linear-layers)
+  - [Upsampling (Fractionally-Strided 2D Convolutions)](#upsampling-fractionally-strided-2d-convolutions)
 - [Model Training and Quantization](#model-training-and-quantization)
   - [Quantization](#quantization)
   - [Alternative Quantization Approaches](#alternative-quantization-approaches)
@@ -77,6 +78,7 @@ This software consists of two related projects:
       - [`operands` (Optional)](#operands-optional)
       - [`activate` (Optional)](#activate-optional)
       - [`quantization` (Optional)](#quantization-optional)
+      - [`output_shift` (Optional)](#outputshift-optional)
       - [`kernel_size` (Optional)](#kernelsize-optional)
       - [`stride` (Optional)](#stride-optional)
       - [`pad` (Optional)](#pad-optional)
@@ -350,14 +352,15 @@ The AI85/AI86 accelerator has four dedicated FIFOs connected to processors 0, 16
   * There are 16 instances of 16 KB data memory. Any data channel (input, intermediate, or output) must completely fit into one memory instance. This limits the first-layer input to 128×128 pixels per channel in the CHW format. However, when using more than one input channel, the HWC format may be preferred, and all layer output are in HWC format as well. In those cases, it is required that four channels fit into a single memory instance -- or 64×64 pixels per channel. Note that the first layer commonly creates a wide expansion (i.e., large number of output channels) that needs to fit into data memory, so the input size limit is mostly theoretical.
 * AI85:
   * The maximum number of layers is 32 (pooling and element-wise layers do not count).
-  * The maximum number of input or output channels in any layer is 512 each.
+  * The maximum number of input channels in any layer is 1024 each.
+  * The maximum number of output channels in any layer is 512 each.
   * The weight memory supports up to 768 * 64 3×3 Q7 kernels (see [Number Format](#Number-Format)).
     When using 1-, 2- or 4 bit weights, the capacity increases accordingly.
     When using more than 64 input or output channels, weight memory is shared and effective capacity decreases.
     Weights must be arranged according to specific rules detailed below.
   * There are 16 instances of 32 KB data memory. When not using streaming mode, any data channel (input, intermediate, or output) must completely fit into one memory instance. This limits the first-layer input to 181×181pixels per channel in the CHW format. However, when using more than one input channel, the HWC format may be preferred, and all layer output are in HWC format as well. In those cases, it is required that four channels fit into a single memory instance -- or 91×90 pixels per channel.
     Note that the first layer commonly creates a wide expansion (i.e., large number of output channels) that needs to fit into data memory, so the input size limit is mostly theoretical.
-  * When using streaming, the data sizes are limited to 512×512, subject to available TRAM. Streaming is limited to 8 layers or less, and to four FIFOs (up to 4 input channels in CHW and up to 16 channels in HWC format).
+  * When using streaming, the data sizes are limited to 1023×1023, subject to available TRAM. Streaming is limited to 8 layers or less, and to four FIFOs (up to 4 input channels in CHW and up to 16 channels in HWC format).
 
 ### Number Format
 
@@ -586,7 +589,7 @@ The AI84 hardware does not support arbitrary network parameters. Specifically,
   * Average pooling does not support more than 2048 bits in the accumulator. This translates to a 4×4 pooling window if activation was used on the prior layer, 3×3 otherwise. Additionally, average pooling is currently implemented as a `floor()` operation. Since there is also a quantization step at the output of the average pooling, it may not perform as intended (for example, a 2×2 `AvgPool2d` of `[[0, 0], [0, 3]]` will return `0`).
   * Pooling window sizes must be even numbers, and have equal H and W dimensions.
 * The number of input or output channels must not exceed 64.
-* The number of layers must not exceed 32.
+* The number of layers must not exceed 32 (where pooling does not add to the count).
 * The maximum dimension (number of rows or columns) for input or output data is 256.
 * Overall weight storage is limited to 64*128 3×3 kernels. However, weights must be arranged in a certain order, see above.
 * The hardware supports 1D and 2D convolution layers. For convenience, a single final fully connected layer with 8-bit inputs/weights/bias, and 16-bit output is supported in software, as well as a software `SoftMax` operator.
@@ -599,16 +602,27 @@ With the exception of weight storage, and bias use, most of these limitations wi
 
 The AI85 hardware does not support arbitrary network parameters. Specifically,
 * Dilation, groups, and batch normalization are not supported.
+
 * `Conv2d`:
   * Kernel sizes must be 1×1 or 3×3.
   * Padding can be 0, 1, or 2.
   * Stride is fixed to 1.
+  
 * `Conv1d`:
   * Kernel sizes must be 1 through 9.
   * Padding can be 0, 1, or 2.
   * Stride is fixed to 1.
+  
+* `ConvTranspose2d`:
+
+  * Kernel sizes must be 3×3.
+  * Padding can be 0, 1, or 2.
+  * Stride is fixed to 2.
+
 * A programmable layer-specific shift operator is available at the output of a convolution.
+
 * The only supported activation functions are `ReLU` and `Abs`.
+
 * Pooling:
   * Both max pooling and average pooling are available, with or without convolution.
   
@@ -622,27 +636,43 @@ The AI85 hardware does not support arbitrary network parameters. Specifically,
   
     * _floor:_ Since there is a quantization step at the output of the average pooling, a 2×2 `AvgPool2d` of `[[0, 0], [0, 3]]` will return $\lfloor \frac{3}{4} \rfloor = 0$.
     * _rounding:_ 2×2 `AvgPool2d` of `[[0, 0], [0, 3]]` will return $\lfloor \frac{3}{4} \rceil = 1$.
-* The number of input or output channels must not exceed 512.
-* The number of layers must not exceed 32.
-* The maximum dimension (number of rows or columns) for input or output data is 256.
+  
+* The number of input channels must not exceed 1024.
+
+* The number of output channels must not exceed 512.
+
+* The number of layers must not exceed 32 (where pooling and element-wise operations do not add to the count).
+
+* The maximum dimension (number of rows or columns) for input or output data is 1023.
   
   * When using data greater than 90×91, `streaming` mode must be used.
+  
 * Overall weight storage is limited to 64*768 3×3 8-bit kernels (and proportionally more when using smaller weights, or smaller kernels). However, weights must be arranged in a certain order, see above.
-* The hardware supports 1D and 2D convolution layers, element-wise addition, subtraction, binary OR, binary XOR as well as fully connected layers (`Linear`) (implemented using 1×1 convolutions on 1×1 data):
-  * The maximum number of input neurons is 512, and the maximum number of output neurons is 512 (8 each per processor used).
+
+* The hardware supports 1D and 2D convolution layers, 2D transposed convolution layers (upsampling), element-wise addition, subtraction, binary OR, binary XOR as well as fully connected layers (`Linear`) (implemented using 1×1 convolutions on 1×1 data):
+  * The maximum number of input neurons is 1024, and the maximum number of output neurons is 512 (8 each per processor used).
   *  `Flatten` functionality is available to convert 2D input data for use by fully connected layers.
   *  Element-wise operators support from 2 up to 16 inputs.
   *  Element-wise operators can be chained in-flight with pooling and 2D convolution (where the order of pooling and element-wise operations can be swapped).
   * For convenience, a `SoftMax` operator is supported in software.
+  
 * Since the internal network format is HWC in groups of four channels, output concatenation only works properly when all components of the concatenation other than the last have multiples of four channels.
 
 ### Fully Connected (Linear) Layers
 
-On AI85/AI85, m×n fully connected layers can be realized in hardware by “flattening” 2D input data into m channels of 1×1 input data. The hardware will produce n channels of 1×1 output data. When chaining multiple fully connected layers, the flattening step is omitted. The following picture shows 2D data, the equivalent flattened 1D data, and the output.
+On AI85/AI86, m×n fully connected layers can be realized in hardware by “flattening” 2D input data into m channels of 1×1 input data. The hardware will produce n channels of 1×1 output data. When chaining multiple fully connected layers, the flattening step is omitted. The following picture shows 2D data, the equivalent flattened 1D data, and the output.
 
 For AI85, both m and n must not be larger than 16.
 
 ![MLP](docs/MLP.png)
+
+### Upsampling (Fractionally-Strided 2D Convolutions)
+
+On AI85/AI86, the hardware supports 2D upsampling (“fractionally-strided convolutions”, sometimes called “deconvolution” even though this is not strictly mathematically correct). The PyTorch equivalent is `ConvTranspose2D` with a stride of 2.
+
+The example shows a fractionally-strided convolution with a stride of 2, pad of 1, and a 3×3 kernel. This “upsamples” the input dimensions from 3×3 to output dimensions of 6×6.
+
+![fractionallystrided](docs/fractionallystrided.png)
 
 ---
 
@@ -855,12 +885,13 @@ The default is `Conv2d`. AI84 only supports `Conv1d` and `Conv2d`.
 | :------------------------ | :----------------------------------------------------------- |
 | `Conv1d`                  | 1D convolution over an input composed of several input planes |
 | `Conv2d` (default)        | 2D convolution over an input composed of several input planes |
+| `ConvTranspose2d`         | 2D transposed convolution (upsampling) over an input composed of several input planes |
 | `None` or `Passthrough`   | No operation                                                 |
 | `Linear` or `FC` or `MLP` | Linear transformation to the incoming data                   |
 | `Add`                     | Element-wise addition                                        |
 | `Sub`                     | Element-wise subtraction                                     |
 | `Xor`                     | Element-wise binary XOR                                      |
-| `Or`                      | Element-wise binary OR                                      |
+| `Or`                      | Element-wise binary OR                                       |
 
 Element-wise operations default to two operands. This can be changed using the `operands` key.
 
@@ -1075,18 +1106,19 @@ The `ai84ize.py` quantization tool and the `cnn-gen.py` network generator both h
 The `--ai85` option enables:
 * Bias shift << 7.
 * Per-layer support for 1, 2 and 4-bit weight sizes in addition to 8-bit weights (this is supported using the `quantization` keyword in the configuration file, and the configuration file can also be read by the quantization tool).
-* A shift on the output of the convolution that allows for better use of the entire range of weight bits.
+* A programmable shift on the output of the convolution that allows for better use of the entire range of weight bits (`output_shift`).
 * Support for many more pooling sizes and pooling strides, and larger limits for average pooling.
 * Support for pooling without convolution (passthrough mode), and optional rounding for average pooling.
 * 1D convolutions.
 * 1×1 kernels for 2D convolutions.
+* Transposed 2D convolutions (upsampling).
 * Data “flattening”, allowing the use of 1×1 kernels to emulate fully connected layers.
 * In-flight element-wise addition, subtraction, and binary or/xor.
 * Support for more weight memory, and more input and output channels.
 * Support for non-square data and non-square pooling kernels.
-* Support for 32-bit Q25.7 data output for last layer when not using ReLU/Abs.
+* Support for 32-bit Q25.7 data output for last layer when not using activation.
 * Support for streaming mode with FIFOs to allow for larger data sizes.
-* Support for absolute value (Abs) activation.
+* Support for absolute value (`Abs`) activation.
 
 ---
 
