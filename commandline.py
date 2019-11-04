@@ -106,6 +106,8 @@ def get_parser():
                         help="stop after layer")
     parser.add_argument('--stop-start', action='store_true', default=False,
                         help="stop and then restart the accelerator (default: false)")
+    parser.add_argument('--synthesize-input', type=int, metavar='N',
+                        help="synthesize input data from first 8 lines (default: false)")
     parser.add_argument('--prefix', metavar='S', required=True,
                         help="set test name prefix")
     parser.add_argument('--test-dir', metavar='S', required=True,

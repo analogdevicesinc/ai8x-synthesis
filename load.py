@@ -30,6 +30,7 @@ def load(
         split=1,
         fifo=False,
         slowdown=0,
+        synthesize=None,
         debug=False,
 ):
     """
@@ -53,6 +54,7 @@ def load(
             operands,
             data,
             slowdown,
+            synthesize,
             debug,
         )
 
@@ -194,7 +196,7 @@ def load(
 
             if embedded_code:
                 offs = 0
-                code_buffer = np.zeros(data_len, dtype=np.int64)
+                code_buffer = np.zeros(4 * data_len, dtype=np.int64)
                 addr = data_offs
 
             for row in range(input_size[1]):
@@ -248,7 +250,7 @@ def load(
 
 
 def loadfifo(
-        embedded_code,  # pylint: disable=unused-argument
+        embedded_code,
         apb,
         chw,
         processor_map,
@@ -256,6 +258,7 @@ def loadfifo(
         operands,
         data,
         slowdown=0,
+        synthesize=None,
         debug=False,  # pylint: disable=unused-argument
 ):
     """
@@ -269,10 +272,17 @@ def loadfifo(
     # FIXME: Support multiple operands
     # FIXME: Add code for `embedded_code == True`
 
+    if not embedded_code:
+        apb.output('\n\n  ')
+
     if chw:
         # CHW ("Big Data") - Separate channel sequences (BBBBB....GGGGG....RRRRR....)
-        apb.output('\n\n  // Data input: CHW (big data): '
+        apb.output('// Data input: CHW (big data): '
                    f'{input_size[0]}x{input_size[1]}x{input_size[2]}\n')
+
+        if embedded_code:
+            code_buffer = np.zeros((input_size[0], (input_size[1] * input_size[2] + 3) // 4),
+                                   dtype=np.int64)
 
         for row_col in range(0, input_size[1] * input_size[2], 4):
             pmap = 0
@@ -288,16 +298,26 @@ def loadfifo(
                     if row_col + b < input_size[1] * input_size[2]:
                         row, col = divmod(row_col + b, input_size[2])
                         val |= (s2u(data[c][row][col]) & 0xff) << b * 8
-                apb.write(0, val, '', fifo=fifo)
-                for _ in range(slowdown):
-                    apb.output('  asm volatile("nop");\n')
+                if not embedded_code:
+                    apb.write(0, val, '', fifo=fifo)
+                    for _ in range(slowdown):
+                        apb.output('  asm volatile("nop");\n')
+                else:
+                    code_buffer[fifo][row_col // 4] = val
 
                 pmap >>= 16
                 fifo += 1
+
+        if embedded_code:
+            fifos = input_size[0]
     else:
         # HWC ("Little Data") - (Up to) four channels packed into a word (0BGR0BGR0BGR0BGR0BGR....)
-        apb.output('\n\n  // Data input: HWC (little data): '
+        apb.output('// Data input: HWC (little data): '
                    f'{input_size[0]}x{input_size[1]}x{input_size[2]}\n')
+
+        if embedded_code:
+            code_buffer = np.zeros(((input_size[0] + 3) // 4, input_size[1] * input_size[2]),
+                                   dtype=np.int64)
 
         for row in range(input_size[1]):
             for col in range(input_size[2]):
@@ -314,10 +334,51 @@ def loadfifo(
                         if pmap & 1 != 0 and c + b < input_size[0]:
                             val |= (s2u(data[c + b][row][col]) & 0xff) << b * 8
                         pmap >>= 1
-                    apb.write(0, val, '', fifo=fifo)
-                    for _ in range(slowdown):
-                        apb.output('  asm volatile("nop");\n')
+                    if not embedded_code:
+                        apb.write(0, val, '', fifo=fifo)
+                        for _ in range(slowdown):
+                            apb.output('  asm volatile("nop");\n')
+                    else:
+                        code_buffer[fifo][row * col] = val
                     pmap >>= 12
                     fifo += 1
 
-    apb.output(f'  // End of data input\n\n')
+        if embedded_code:
+            fifos = (input_size[0] + 3) // 4
+
+    if embedded_code:
+        for c in range(fifos):
+            apb.output_define(code_buffer[c], f'INPUT_{c}', '0x%08x', 8, weights=False)
+            apb.output(f'static const uint32_t input_{c}[] = INPUT_{c};\n')
+
+        apb.output('\nvoid load_input(void)\n{\n')
+        apb.output('  int i;\n')
+        if synthesize is not None:
+            apb.output(f'  uint32_t add = 0;\n')
+        max_len = 0
+        const_len = True
+        for c in range(fifos):
+            if c > 1 and max_len != len(code_buffer[c]):
+                const_len = False
+            max_len = max(max_len, len(code_buffer[c]))
+            apb.output(f'  const uint32_t *in{c} = input_{c};\n')
+        apb.output(f'\n  for (i = 0; i < {max_len}; i++) {{\n')
+        for c in range(fifos):
+            if fifos > 1 and not const_len:
+                apb.output(f'    if (i < {len(code_buffer[c])})\n  ')
+            if synthesize is None:
+                apb.write(0, f'*in{c}++', fifo=c,
+                          comment=f' // Write FIFO {c}', indent='    ')
+            else:
+                apb.write(0, f'*in{c}++ + add', fifo=c,
+                          comment=f' // Write FIFO {c}', indent='    ')
+        if synthesize is not None:
+            apb.output('    if ((i % 8 == 0) && (i != 0)) {\n')
+            apb.output(f'      add += 0x{synthesize:x};\n    ')
+            for c in range(fifos):
+                apb.output(f'  in{c} = input_{c};\n')
+            apb.output('    }\n')
+        apb.output('  }\n')
+        apb.output('}\n\n')
+    else:
+        apb.output(f'  // End of data input\n\n')
