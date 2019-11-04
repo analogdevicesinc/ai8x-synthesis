@@ -112,6 +112,7 @@ def create_net(
         override_delta1=None,
         override_delta2=None,
         slow_load=False,
+        synthesize_input=None,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -137,7 +138,7 @@ def create_net(
             sys.exit(1)
         if input_chan[0] > 16 or big_data[0] and input_chan[0] > 4:
             print("Using the FIFO is restricted to a maximum of 4 input channels (CHW) or "
-                  "16 channels (HWC).")
+                  f"16 channels (HWC); this test is using {input_chan[0]} channels.")
             sys.exit(1)
         if big_data[0] and processor_map[0] & ~0x0001000100010001 != 0 \
            or not big_data[0] and processor_map[0] & ~0x000f000f000f000f != 0:
@@ -393,6 +394,7 @@ def create_net(
                 split=split,
                 fifo=fifo,
                 slowdown=slow_load,
+                synthesize=synthesize_input,
                 debug=debug,
             )
         if embedded_code or mexpress or compact_weights:
@@ -1074,7 +1076,7 @@ def create_net(
                     if in_offset[ll] < out_offset[ll]:
                         if in_offset[ll] + val * 4 >= out_offset[ll]:
                             print('Overlapping input and output: '
-                                  f'in_offset 0x{in_offset[ll]:08x}, '
+                                  f'in_offset 0x{in_offset[ll]:08x} < '
                                   f'out_offset 0x{out_offset[ll]:08x}, '
                                   f'rollover 0x{val:08x}.')
                             if not no_error_stop:
@@ -1082,7 +1084,7 @@ def create_net(
                     else:
                         if out_offset[ll] + val * 4 >= in_offset[ll]:
                             print('Overlapping input and output: '
-                                  f'in_offset 0x{in_offset[ll]:08x}, '
+                                  f'in_offset 0x{in_offset[ll]:08x} >= '
                                   f'out_offset 0x{out_offset[ll]:08x}, '
                                   f'rollover 0x{val:08x}.')
                             if not no_error_stop:
@@ -1246,6 +1248,7 @@ def create_net(
                     split=split,
                     fifo=fifo,
                     slowdown=slow_load,
+                    synthesize=synthesize_input,
                     debug=debug,
                 )
 
@@ -1883,6 +1886,7 @@ def main():
             args.override_delta1,
             args.override_delta2,
             args.slow_load,
+            args.synthesize_input,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(
