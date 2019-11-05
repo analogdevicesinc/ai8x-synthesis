@@ -113,6 +113,7 @@ def create_net(
         override_delta2=None,
         slow_load=False,
         synthesize_input=None,
+        mlator_noverify=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -376,6 +377,12 @@ def create_net(
 
         apb.output('\n')
         apb.header()
+
+        if embedded_code or compact_data or mexpress:
+            apb.output('void memcpy32(uint32_t *dst, const uint32_t *src, int n)\n{\n')
+            apb.output('  while (n-- > 0) {\n'
+                       '    *dst++ = *src++;\n'
+                       '  }\n}\n\n')
 
         if embedded_code or compact_data:
             # Pre-define data memory loader. Inline later when generating RTL sim.
@@ -1470,7 +1477,7 @@ def create_net(
 
             apb.output(f'// {test_name}\n// Expected output of layer {ll}\n')
             apb.verify_header()
-            if ll == layers-1 and mlator:
+            if ll == layers-1 and mlator and not mlator_noverify:
                 apb.verify_unload(
                     ll,
                     in_map,
@@ -1887,6 +1894,7 @@ def main():
             args.override_delta2,
             args.slow_load,
             args.synthesize_input,
+            args.mlator_noverify,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

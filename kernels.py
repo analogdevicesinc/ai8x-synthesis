@@ -384,12 +384,6 @@ def load(
                     k = None
             apb.output('\n')
 
-            # Generate code to load the weights using memcpy
-            apb.output('void memcpy32(uint32_t *dst, const uint32_t *src, int n)\n{\n')
-            apb.output('  while (n-- > 0) {\n'
-                       '    *dst++ = *src++;\n'
-                       '  }\n}\n\n')
-
         apb.output('void load_kernels(void)\n{\n')
         p = 0
         while p < tc.dev.MAX_PROC:

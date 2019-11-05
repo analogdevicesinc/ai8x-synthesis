@@ -95,11 +95,6 @@ def load(
         if debug:
             print(f'G{group} L0 data_offs:      {data_offs:08x}')
 
-        if input_size[2] == 1:
-            data_len = 3 * ((input_size[1] + 2) // 3) * in_expand
-        else:
-            data_len = input_size[1] * input_size[2] * in_expand
-
         if chw:
             assert split > 0
             assert operands == 1  # We don't support multiple operands here (yet)
@@ -110,7 +105,7 @@ def load(
                 # Create optimized code when we're not splitting the input
                 apb.output(f'// CHW (big data): {input_size[1]}x{input_size[2]}, channel {c}\n')
                 offs = 0
-                code_buffer = np.zeros(data_len // 4, dtype=np.int64)
+                code_buffer = np.zeros(input_size[1] * input_size[2] // 4, dtype=np.int64)
                 addr = data_offs
 
                 val = 0
@@ -122,7 +117,7 @@ def load(
                             apb.check_overwrite(data_offs & ~3)
                             out_map[(data_offs & ~3) >> 2] = (c, row, col, val)
                             code_buffer[offs] = val
-                            offs += in_expand
+                            offs += 1
                             val = 0
                         data_offs += 1
                         if data_offs & ~3 == 0:
@@ -132,7 +127,7 @@ def load(
                     apb.check_overwrite(data_offs & ~3)
                     out_map[(data_offs & ~3) >> 2] = (c, row, col, val)
                     code_buffer[offs] = val
-                    offs += in_expand
+                    offs += 1
 
                 apb.output_define(code_buffer, f'INPUT_{ch}', '0x%08x', 8, weights=False)
                 apb.output(f'static const uint32_t input_{ch}[] = INPUT_{ch};\n\n')
@@ -196,7 +191,7 @@ def load(
 
             if embedded_code:
                 offs = 0
-                code_buffer = np.zeros(4 * data_len, dtype=np.int64)
+                code_buffer = np.zeros(operands * input_size[1] * input_size[2], dtype=np.int64)
                 addr = data_offs
 
             for row in range(input_size[1]):
@@ -219,12 +214,10 @@ def load(
                             apb.write(data_offs, val)
                         else:
                             code_buffer[offs] = val
-                            offs += 4
+                            offs += 1
                         apb.data_offs = data_offs  # For mixed HWC/CHW operation
                         data_offs += 4
                     data_offs += 4 * (in_expand - 1) * operands
-                    if embedded_code:
-                        offs += 4 * (in_expand - 1) * operands
 
             if embedded_code:
                 apb.output_define(code_buffer, f'INPUT_{ch}', '0x%08x', 8, weights=False)
@@ -242,8 +235,8 @@ def load(
         if input_list:
             apb.output('void load_input(void)\n{\n')
             for _, (addr, ch, offs) in enumerate(input_list):
-                apb.output(f'  memcpy((uint32_t *) 0x{apb.apb_base + addr:08x}, input_{ch}, '
-                           f'sizeof(uint32_t) * {offs});\n')
+                apb.output(f'  memcpy32((uint32_t *) 0x{apb.apb_base + addr:08x}, input_{ch}, '
+                           f'{offs});\n')
         apb.output('}\n\n')
     else:
         apb.output(f'  // End of data input\n\n')

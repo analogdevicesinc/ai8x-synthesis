@@ -14,3 +14,8 @@ layers:
   activate: ReLU
   out_offset: 0
   processors: 0xffffffffffffffff
+- pad: 1
+  out_offset: 0x2000
+  processors: 0xffffffffffffffff
+  quantization: 2
+  output_shift: -4
