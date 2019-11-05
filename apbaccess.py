@@ -802,6 +802,7 @@ class APBTopLevel(APB):
             oneshot=oneshot,
             stopstart=stopstart,
             riscv=self.riscv,
+            device=self.device,
         )
 
     def fc_layer(
