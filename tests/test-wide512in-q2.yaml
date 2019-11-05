@@ -8,3 +8,8 @@ layers:
   processors: 0xffffffffffffffff
   data_format: HWC
   quantization: 2
+- pad: 1
+  out_offset: 0x4000
+  processors: 0xffffffffffffffff
+  quantization: 2
+  output_shift: -6

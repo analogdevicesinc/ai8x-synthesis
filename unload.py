@@ -305,24 +305,49 @@ def verify(
                 if not no_data:
                     num_bytes = min(c - this_c, input_shape[0] - this_c)
                     if out_size == 1:
-                        check_overwrite(proc, offs, in_map, out_map, this_c, row, col)
+                        check_overwrite(
+                            proc,
+                            offs,
+                            in_map,
+                            out_map,
+                            this_c,
+                            row,
+                            col,
+                        )
                         if out_map is not None:
                             out_map[offs >> 2] = (this_c, row, col, val)
-                        verify_fn(offs, val, rv=False,
-                                  comment=f' // {row},{col},{this_c}-{this_c+num_bytes-1}',
-                                  num_bytes=num_bytes, first_proc=ffs(next_layer_map >> proc) % 4)
+                        verify_fn(
+                            offs,
+                            val,
+                            rv=False,
+                            comment=f' // {row},{col},{this_c}-{this_c+num_bytes-1}',
+                            num_bytes=num_bytes,
+                            first_proc=ffs(next_layer_map >> proc) % 4,
+                        )
                     else:
                         for i in range(min(num_bytes, out_size)):
-                            check_overwrite(proc, offs, in_map, out_map, this_c, row, col)
+                            check_overwrite(
+                                proc,
+                                offs,
+                                in_map,
+                                out_map,
+                                this_c,
+                                row,
+                                col,
+                            )
                             if out_map is not None:
                                 out_map[offs >> 2] = (this_c, row, col, val[i])
-                            verify_fn(offs, val[i], rv=False,
-                                      comment=f' // {row},{col},{this_c+i}')
+                            verify_fn(
+                                offs,
+                                val[i],
+                                rv=False,
+                                comment=f' // {row},{col},{this_c+i}',
+                            )
                             offs += out_size
 
                 coffs += 4
                 poffs += 4
-    else:
+    else:  # mlator == True
         assert out_size == 1
         c = 0
         poffs = coffs_start
@@ -388,13 +413,24 @@ def verify(
                                          ' // Prime\n')
 
                         num_bytes = min(4, input_shape[2] - col)
-                        check_overwrite(proc, tc.dev.C_SRAM_BASE + source,
-                                        in_map, out_map, c, row, col)
+                        check_overwrite(
+                            proc,
+                            tc.dev.C_SRAM_BASE + source,
+                            in_map,
+                            out_map,
+                            c,
+                            row,
+                            col,
+                        )
                         if out_map is not None:
                             out_map[source >> 2] = (c, row, col, val)
-                        verify_fn(mlat, val, rv=False,
-                                  comment=f' // {row},{col}-{col+num_bytes-1},{c}',
-                                  num_bytes=num_bytes)
+                        verify_fn(
+                            mlat,
+                            val,
+                            rv=False,
+                            comment=f' // {row},{col}-{col+num_bytes-1},{c}',
+                            num_bytes=num_bytes,
+                        )
 
                         read_addr = source + 4
                     # Disable mlator
