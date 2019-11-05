@@ -118,6 +118,7 @@ def main(
         oneshot=0,
         stopstart=False,
         riscv=None,
+        device=84,
 ):
     """
     Write the main function (including an optional call to the fully connected layer if
@@ -132,7 +133,10 @@ def main(
         if embedded_code:
             memfile.write('  SYS_ClockEnable(SYS_PERIPH_CLOCK_AI);\n')
         else:
-            memfile.write('  MXC_GCR->perckcn1 &= ~0x20; // Enable AI clock\n')
+            if device == 84:
+                memfile.write('  MXC_GCR->perckcn1 &= ~0x20; // Enable AI clock\n')
+            else:
+                memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable AI clock\n')
         if riscv is not None:
             if embedded_code:
                 memfile.write('  SYS_ClockEnable(SYS_PERIPH_CLOCK_RISCV);\n')
