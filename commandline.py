@@ -47,6 +47,8 @@ def get_parser():
                              "(default: false; AI85 uses hardware)")
     parser.add_argument('--fifo', action='store_true', default=False,
                         help="use FIFOs to load streaming data (default: false)")
+    parser.add_argument('--fast-fifo', action='store_true', default=False,
+                        help="use fast FIFO (implies --fifo; default: false)")
     parser.add_argument('-D', '--debug', action='store_true', default=False,
                         help="debug mode (default: false)")
     parser.add_argument('--debug-computation', action='store_true', default=False,
@@ -100,6 +102,11 @@ def get_parser():
                         help="split input into N portions (default: don't split)")
     parser.add_argument('--riscv', action='store_true', default=False,
                         help="use RISC-V processor (default: false)")
+    parser.add_argument('--riscv-flash', action='store_true', default=False,
+                        help="move kernel/input to Flash (implies --riscv; default: false)")
+    parser.add_argument('--riscv-cache', action='store_true', default=False,
+                        help="enable RISC-V cache (implies --riscv and --riscv-flash; "
+                             "default: false)")
     parser.add_argument('--slow-load', type=int, metavar='N', default=0,
                         help="slow down FIFO loads (default: 0)")
     parser.add_argument('--stop-after', type=int, metavar='N',

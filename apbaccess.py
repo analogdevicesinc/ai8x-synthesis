@@ -43,6 +43,8 @@ class APB(object):
             verify_kernels=False,
             master=None,
             riscv=None,
+            riscv_flash=False,
+            riscv_cache=False,
     ):
         """
         Create an APB class object that writes to memfile.
@@ -63,6 +65,8 @@ class APB(object):
         self.verify_kernels = verify_kernels
         self.master = master
         self.riscv = riscv
+        self.riscv_flash = riscv_flash
+        self.riscv_cache = riscv_cache
 
         self.data = 0
         self.num = 0
@@ -762,7 +766,10 @@ class APBTopLevel(APB):
         """
         if self.memfile is None:
             return
-        toplevel.verify_header(self.memfile)
+        toplevel.verify_header(
+            self.memfile,
+            self.riscv_flash and not self.riscv_cache,
+        )
 
     def verify_footer(
             self,
@@ -780,7 +787,10 @@ class APBTopLevel(APB):
         """
         Write the header for the CNN configuration loader function.
         """
-        toplevel.load_header(self.memfile)
+        toplevel.load_header(
+            self.memfile,
+            self.riscv_flash and not self.riscv_cache,
+        )
 
     def load_footer(
             self,
@@ -807,6 +817,8 @@ class APBTopLevel(APB):
             oneshot=oneshot,
             stopstart=stopstart,
             riscv=self.riscv,
+            riscv_flash=self.riscv_flash,
+            riscv_cache=self.riscv_cache,
             device=self.device,
         )
 
@@ -933,6 +945,8 @@ def apbwriter(
         verify_kernels=False,
         master=None,
         riscv=None,
+        riscv_flash=False,
+        riscv_cache=False,
 ):
     """
     Depending on `block_level`, return a block level .mem file writer or a top level .c file
@@ -959,4 +973,6 @@ def apbwriter(
         verify_kernels=verify_kernels,
         master=master,
         riscv=riscv,
+        riscv_flash=riscv_flash,
+        riscv_cache=riscv_cache,
     )
