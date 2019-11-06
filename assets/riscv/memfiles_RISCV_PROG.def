@@ -1,0 +1,311 @@
+############################################################################
+#
+# Perl hash that describes which mem files to generate.
+#
+############################################################################
+
+%memfiles = (
+  #------------------------------------------------------------------------------
+# "rom" =>
+#   {
+#     "memory" =>
+#       {
+#         "size"                  => (128 * 1024),                       # memory size
+#         "start"                 => 0x0000_0000,                        # ahb start address
+#         "fill"                  => 0xDEAD,                             # fill for unused words
+#         "bit_width"             => 32,                                 # memory bit width
+#         "do_chksum"             => 1,                                  # add checksum to last word of memory?
+#       },
+
+#     "ecc" =>
+#       {
+#         "do_ecc"                => 0,                                  # run eccify?
+#         "n_val"                 => 0,                                  # n value for ecc calculation
+#         "k_val"                 => 0,                                  # k value for ecc calculation
+#         "input_word_len"        => 0,                                  # word length of input file (number of bits between underscores)
+#         "flash_mode"            => 0,                                  # calc ecc for erased flash words?
+#         "reverse"               => 0,                                  # reverse ECC output bytes on 16-bit boundary
+#         "split_chk_bits"        => 0,                                  # split ecc chk bits out to another file?
+#         "split_output_word_len" => 0,                                  # output word length in split chk bits file
+#       },
+
+#     "mdiu" =>
+#       {
+#         "do_encrypt"            => 0,                                  # run mdiu encrypt?
+#         "aes_key"               => "00000000000000000000000000000000", # mdiu aes key
+#         "ig_key"                => "00000000000000000000000000000000", # mdiu integrity key
+#       },
+#   },
+
+  #------------------------------------------------------------------------------
+  "flash" =>
+    {
+      "memory" =>
+        {
+          "size"                  => (512 * 1024),                       # memory size
+          "start"                 => 0x0000_0000,                        # ahb start address
+          "hxstart"               => 0x0001_0000,                        # hex start address for loading flash_mem
+          "fill"                  => 0xFFFF,                             # fill for unused words
+          "bit_width"             => 128,                                # memory bit width
+          "do_chksum"             => 0,                                  # add checksum to last word of memory?
+        },
+
+#      "ecc" =>
+#        {
+#          "do_ecc"                => 0,                                  # run eccify?
+#          "n_val"                 => 137,                                # n value for ecc calculation
+#          "k_val"                 => 128,                                # k value for ecc calculation
+#          "input_word_len"        => 32,                                 # word length of input file (number of bits between underscores)
+#          "flash_mode"            => 1,                                  # calc ecc for erased flash words?
+#          "reverse"               => 0,                                  # reverse ECC output bytes on 16-bit boundary
+#          "split_chk_bits"        => 0,                                  # split ecc chk bits out to another file?
+#          "split_output_word_len" => 32,                                 # output word length in split chk bits file
+#        },
+#
+#      "mdiu" =>
+#        {
+#          "do_encrypt"            => 0,                                  # run mdiu encrypt?
+#          "aes_key"               => "00000000000000000000000000000000", # mdiu aes key
+#          "ig_key"                => "00000000000000000000000000000000", # mdiu integrity key
+#        },
+    },
+
+
+#  #------------------------------------------------------------------------------
+#  "sysram0_inst_0" =>
+#    {
+#      "memory" =>
+#        {
+#          "size"                  => (32 * 1024),                        # memory size
+#          "start"                 => 0x2000_0000,                        # ahb start address
+#          "fill"                  => 0xDEAD,                             # fill for unused words
+#          "bit_width"             => 32,                                 # memory bit width
+#          "do_chksum"             => 0,                                  # add checksum to last word of memory?
+#        },
+#
+#      "ecc" =>
+#        {
+#          "do_ecc"                => 0,                                  # run eccify?
+#          "n_val"                 => 39,                                 # n value for ecc calculation
+#          "k_val"                 => 32,                                 # k value for ecc calculation
+#          "input_word_len"        => 16,                                 # word length of input file (number of bits between underscores)
+#          "flash_mode"            => 0,                                  # calc ecc for erased flash words?
+#          "reverse"               => 0,                                  # reverse ECC output bytes on 16-bit boundary
+#          "split_chk_bits"        => 1,                                  # split ecc chk bits out to another file?
+#          "split_output_word_len" => 32,                                 # output word length in split chk bits file
+#        },
+#
+#      "mdiu" =>
+#        {
+#          "do_encrypt"            => 0,                                  # run mdiu encrypt?
+#          "aes_key"               => "00000000000000000000000000000000", # mdiu aes key
+#          "ig_key"                => "00000000000000000000000000000000", # mdiu integrity key
+#        },
+#    },
+#
+# #------------------------------------------------------------------------------
+#  "sysram1_inst_0" =>
+#    {
+#      "memory" =>
+#        {
+#          "size"                  => (32 * 1024),                        # memory size
+#          "start"                 => 0x2000_8000,                        # ahb start address
+#          "fill"                  => 0xDEAD,                             # fill for unused words
+#          "bit_width"             => 32,                                 # memory bit width
+#          "do_chksum"             => 0,                                  # add checksum to last word of memory?
+#        },
+#
+#      "ecc" =>
+#        {
+#          "do_ecc"                => 0,                                  # run eccify?
+#          "n_val"                 => 39,                                 # n value for ecc calculation
+#          "k_val"                 => 32,                                 # k value for ecc calculation
+#          "input_word_len"        => 16,                                 # word length of input file (number of bits between underscores)
+#          "flash_mode"            => 0,                                  # calc ecc for erased flash words?
+#          "reverse"               => 0,                                  # reverse ECC output bytes on 16-bit boundary
+#          "split_chk_bits"        => 1,                                  # split ecc chk bits out to another file?
+#          "split_output_word_len" => 32,                                 # output word length in split chk bits file
+#        },
+#
+#      "mdiu" =>
+#        {
+#          "do_encrypt"            => 0,                                  # run mdiu encrypt?
+#          "aes_key"               => "00000000000000000000000000000000", # mdiu aes key
+#          "ig_key"                => "00000000000000000000000000000000", # mdiu integrity key
+#        },
+#    },
+#
+   #-------------------------------------------------------------------------------
+   #-------- start address made 0x0000_0000 to make RISCV work  -------------------
+   #-------------------------------------------------------------------------------
+   #-------- Adjustment for RISCV not having access to SRAM2,   -------------------
+   #-------- instruction memory, as Data                        -------------------
+   #-------------------------------------------------------------------------------
+   #-------- The size of the memory file is 68KB to include     -------------------
+   #-------- 4KB Start locations of the SRAM2                   -------------------
+   #-------- This is done to load the constants from code       -------------------
+   #-------- memory space into the 4KB start locations of SRAM3 -------------------
+   #-------- This then ensures that that the program accesses   -------------------
+   #-------- SRAM2 for loading the constantts and the RISCV     -------------------
+   #-------- does not need to access the SRAM2 from Data Bus    -------------------
+   #-------------------------------------------------------------------------------
+   "sysram2_inst_0" =>
+     {
+       "memory" =>
+         {
+           "size"                  => (8 * 1024),                         # memory size
+           "start"                 => 0x1000_0000,                        # ahb start address
+           "hxstart"               => 0x0000_0000,                        # hex start address for loading flash_mem
+           "fill"                  => 0xDEAD,                             # fill for unused words
+           "bit_width"             => 32,                                 # memory bit width
+           "do_chksum"             => 0,                                  # add checksum to last word of memory?
+         },
+ 
+       "ecc" =>
+         {
+           "do_ecc"                => 0,                                  # run eccify?
+           "n_val"                 => 39,                                 # n value for ecc calculation
+           "k_val"                 => 32,                                 # k value for ecc calculation
+           "input_word_len"        => 16,                                 # word length of input file (number of bits between underscores)
+           "flash_mode"            => 0,                                  # calc ecc for erased flash words?
+           "reverse"               => 0,                                  # reverse ECC output bytes on 16-bit boundary
+           "split_chk_bits"        => 1,                                  # split ecc chk bits out to another file?
+           "split_output_word_len" => 32,                                 # output word length in split chk bits file
+         },
+ 
+       "mdiu" =>
+         {
+           "do_encrypt"            => 0,                                  # run mdiu encrypt?
+           "aes_key"               => "00000000000000000000000000000000", # mdiu aes key
+           "ig_key"                => "00000000000000000000000000000000", # mdiu integrity key
+         },
+     },
+   "sysram2_inst_1" =>
+     {
+       "memory" =>
+         {
+           "size"                  => (4 * 1024),                         # memory size
+           "start"                 => 0x1000_1000,                        # ahb start address
+           "hxstart"               => 0x0000_0000,                        # hex start address for loading flash_mem
+           "fill"                  => 0xDEAD,                             # fill for unused words
+           "bit_width"             => 32,                                 # memory bit width
+           "do_chksum"             => 0,                                  # add checksum to last word of memory?
+         },
+ 
+       "ecc" =>
+         {
+           "do_ecc"                => 0,                                  # run eccify?
+           "n_val"                 => 39,                                 # n value for ecc calculation
+           "k_val"                 => 32,                                 # k value for ecc calculation
+           "input_word_len"        => 16,                                 # word length of input file (number of bits between underscores)
+           "flash_mode"            => 0,                                  # calc ecc for erased flash words?
+           "reverse"               => 0,                                  # reverse ECC output bytes on 16-bit boundary
+           "split_chk_bits"        => 1,                                  # split ecc chk bits out to another file?
+           "split_output_word_len" => 32,                                 # output word length in split chk bits file
+         },
+ 
+       "mdiu" =>
+         {
+           "do_encrypt"            => 0,                                  # run mdiu encrypt?
+           "aes_key"               => "00000000000000000000000000000000", # mdiu aes key
+           "ig_key"                => "00000000000000000000000000000000", # mdiu integrity key
+         },
+     },
+
+  #------------------------------------------------------------------------------
+  "sysram3_inst_0" =>
+    {
+      "memory" =>
+        {
+          "size"                  => (8 * 1024),                         # memory size
+          "start"                 => 0x1000_C000,                        # ahb start address
+          "hxstart"               => 0x0000_0000,                        # hex start address for loading flash_mem
+          "fill"                  => 0xDEAD,                             # fill for unused words
+          "bit_width"             => 32,                                 # memory bit width
+          "do_chksum"             => 0,                                  # add checksum to last word of memory?
+        },
+
+      "ecc" =>
+        {
+          "do_ecc"                => 0,                                  # run eccify?
+          "n_val"                 => 39,                                 # n value for ecc calculation
+          "k_val"                 => 32,                                 # k value for ecc calculation
+          "input_word_len"        => 16,                                 # word length of input file (number of bits between underscores)
+          "flash_mode"            => 0,                                  # calc ecc for erased flash words?
+          "reverse"               => 0,                                  # reverse ECC output bytes on 16-bit boundary
+          "split_chk_bits"        => 1,                                  # split ecc chk bits out to another file?
+          "split_output_word_len" => 32,                                 # output word length in split chk bits file
+        },
+
+      "mdiu" =>
+        {
+          "do_encrypt"            => 0,                                  # run mdiu encrypt?
+          "aes_key"               => "00000000000000000000000000000000", # mdiu aes key
+          "ig_key"                => "00000000000000000000000000000000", # mdiu integrity key
+        },
+    },
+  "sysram3_inst_1" =>
+    {
+      "memory" =>
+        {
+          "size"                  => (8 * 1024),                         # memory size
+          "start"                 => 0x0000_E000,                        # ahb start address
+          "hxstart"               => 0x0000_0000,                            # hex start address for loading flash_mem
+          "fill"                  => 0xDEAD,                             # fill for unused words
+          "bit_width"             => 32,                                 # memory bit width
+          "do_chksum"             => 0,                                  # add checksum to last word of memory?
+        },
+
+      "ecc" =>
+        {
+          "do_ecc"                => 0,                                  # run eccify?
+          "n_val"                 => 39,                                 # n value for ecc calculation
+          "k_val"                 => 32,                                 # k value for ecc calculation
+          "input_word_len"        => 16,                                 # word length of input file (number of bits between underscores)
+          "flash_mode"            => 0,                                  # calc ecc for erased flash words?
+          "reverse"               => 0,                                  # reverse ECC output bytes on 16-bit boundary
+          "split_chk_bits"        => 1,                                  # split ecc chk bits out to another file?
+          "split_output_word_len" => 32,                                 # output word length in split chk bits file
+        },
+
+      "mdiu" =>
+        {
+          "do_encrypt"            => 0,                                  # run mdiu encrypt?
+          "aes_key"               => "00000000000000000000000000000000", # mdiu aes key
+          "ig_key"                => "00000000000000000000000000000000", # mdiu integrity key
+        },
+    },
+
+
+#   #------------------------------------------------------------------------------
+#   "spix_data" =>
+#     {
+#       "memory" =>
+#         {
+#           "size"                  => (1 * 1024 * 1024),                  # memory size (1MB for now to keep file size down)
+#           "start"                 => 0x8000_0000,                        # ahb start address
+#           "fill"                  => 0xDEAD,                             # fill for unused words
+#           "bit_width"             => 32,                                 # memory bit width
+#           "do_chksum"             => 0,                                  # add checksum to last word of memory?
+#         },
+# 
+#       "ecc" =>
+#         {
+#           "do_ecc"                => 0,                                  # run eccify?
+#           "n_val"                 => 0,                                  # n value for ecc calculation
+#           "k_val"                 => 0,                                  # k value for ecc calculation
+#           "input_word_len"        => 0,                                  # word length of input file (number of bits between underscores)
+#           "flash_mode"            => 0,                                  # calc ecc for erased flash words?
+#           "reverse"               => 0,                                  # reverse ECC output bytes on 16-bit boundary
+#           "split_chk_bits"        => 0,                                  # split ecc chk bits out to another file?
+#           "split_output_word_len" => 0,                                  # output word length in split chk bits file
+#         },
+# 
+#       "mdiu" =>
+#         {
+#           "do_encrypt"            => 0,                                  # run mdiu encrypt?
+#           "aes_key"               => "00000000000000000000000000000000", # mdiu aes key
+#           "ig_key"                => "00000000000000000000000000000000", # mdiu integrity key
+#         },
+#     },
+);

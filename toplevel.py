@@ -9,9 +9,9 @@
 """
 Toplevel C file structure generation
 """
+import rv
 import tornadocnn as tc
 from armx4weights import convert_to_x4_q7_weights
-
 
 COPYRIGHT = \
     '// ---------------------------------------------------------------------------\n' \
@@ -92,10 +92,13 @@ def header(
 
 def load_header(
         memfile,
+        riscv_flash=False,
 ):
     """
     Write the header for the CNN configuration loader function to `memfile`.
     """
+    if riscv_flash:
+        memfile.write(rv.RISCV_FLASH)
     memfile.write('int cnn_load(void)\n{\n')
 
 
@@ -118,6 +121,8 @@ def main(
         oneshot=0,
         stopstart=False,
         riscv=None,
+        riscv_flash=False,  # pylint: disable=unused-argument
+        riscv_cache=False,
         device=84,
 ):
     """
@@ -138,11 +143,17 @@ def main(
             else:
                 memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable AI clock\n')
         if riscv is not None:
+            if riscv_cache:
+                memfile.write(f'  MXC_NBBFC->reg4 = 0x{rv.RISCV_CODE_ORIGIN:08x}; '
+                              '// Set RISC-V boot address\n')
             if embedded_code:
                 memfile.write('  SYS_ClockEnable(SYS_PERIPH_CLOCK_RISCV);\n')
             else:
                 memfile.write('  MXC_GCR->perckcn1 &= ~0x80000000; // Enable RISC-V clock\n')
         memfile.write('\n')
+    elif riscv and riscv_cache:
+        memfile.write('  icache1_enable();\n')
+        memfile.write('  invalidate_icache1();\n\n')
 
     if riscv is None or riscv:
         memfile.write('  if (!cnn_load()) { fail(); pass(); return 0; }\n')
@@ -182,10 +193,13 @@ def main(
 
 def verify_header(
         memfile,
+        riscv_flash=False,
 ):
     """
     Write the header for the CNN verification function to `memfile`.
     """
+    if riscv_flash:
+        memfile.write(rv.RISCV_FLASH)
     memfile.write('int cnn_check(void)\n{\n  int rv = 1;\n')
 
 

@@ -13,9 +13,9 @@ import math
 import sys
 import numpy as np
 import op
+import rv
 import tornadocnn as tc
 from utils import ffs, fls
-
 
 _INVALID_VALUE = -(2**63)
 _WORDS_PER_KERNEL = 3
@@ -65,6 +65,7 @@ def load(
         flatten=False,
         mexpress=False,
         verify=False,
+        riscv_flash=False,
         debug=False,
 ):
     """
@@ -345,6 +346,8 @@ def load(
                     ):
                         p += 1
                         span += proc_kern_max[p]
+                    if riscv_flash:
+                        apb.output(rv.RISCV_FLASH)
                     apb.output(f'static const uint32_t kernels_{start}[] = KERNELS_{start};\n')
                 p += 1
             apb.output('\n')
@@ -377,9 +380,11 @@ def load(
                 if proc_kern_max[p] > 0:
                     # Round up to multiple of 4
                     if len(k) % 4 != 0:
-                        k = np.concatenate((k, zero_kernel[:len(k) % 4]))
+                        k = np.concatenate((k, zero_kernel[:4 - len(k) % 4]))
                     # '>u4' swaps endianness to what the hardware needs, `view` packs into 32-bit
                     apb.output_define(k.view(dtype='>u4'), f'KERNELS_{p}', '0x%08x', 8)
+                    if riscv_flash:
+                        apb.output(rv.RISCV_FLASH)
                     apb.output(f'static const uint32_t kernels_{p}[] = KERNELS_{p};\n')
                     k = None
             apb.output('\n')

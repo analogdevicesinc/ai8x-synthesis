@@ -11,8 +11,9 @@ Load Tornado CNN data memory
 """
 import sys
 import numpy as np
+import rv
 import tornadocnn as tc
-from utils import s2u, popcount
+from utils import popcount, s2u
 
 
 def load(
@@ -31,6 +32,7 @@ def load(
         fifo=False,
         slowdown=0,
         synthesize=None,
+        riscv_flash=False,
         debug=False,
 ):
     """
@@ -55,6 +57,7 @@ def load(
             data,
             slowdown,
             synthesize,
+            riscv_flash,
             debug,
         )
 
@@ -130,6 +133,8 @@ def load(
                     offs += 1
 
                 apb.output_define(code_buffer, f'INPUT_{ch}', '0x%08x', 8, weights=False)
+                if riscv_flash:
+                    apb.output(rv.RISCV_FLASH)
                 apb.output(f'static const uint32_t input_{ch}[] = INPUT_{ch};\n\n')
                 input_list.append((addr, ch, offs))
 
@@ -221,6 +226,8 @@ def load(
 
             if embedded_code:
                 apb.output_define(code_buffer, f'INPUT_{ch}', '0x%08x', 8, weights=False)
+                if riscv_flash:
+                    apb.output(rv.RISCV_FLASH)
                 apb.output(f'static const uint32_t input_{ch}[] = INPUT_{ch};\n\n')
                 input_list.append((addr, ch, offs))
 
@@ -252,6 +259,7 @@ def loadfifo(
         data,
         slowdown=0,
         synthesize=None,
+        riscv_flash=False,
         debug=False,  # pylint: disable=unused-argument
 ):
     """
@@ -263,7 +271,6 @@ def loadfifo(
     """
     assert operands == 1  # We don't support multiple operands here
     # FIXME: Support multiple operands
-    # FIXME: Add code for `embedded_code == True`
 
     if not embedded_code:
         apb.output('\n\n  ')
@@ -342,6 +349,8 @@ def loadfifo(
     if embedded_code:
         for c in range(fifos):
             apb.output_define(code_buffer[c], f'INPUT_{c}', '0x%08x', 8, weights=False)
+            if riscv_flash:
+                apb.output(rv.RISCV_FLASH)
             apb.output(f'static const uint32_t input_{c}[] = INPUT_{c};\n')
 
         apb.output('\nvoid load_input(void)\n{\n')

@@ -18,6 +18,7 @@ import sys
 import numpy as np
 
 import apbaccess
+import assets
 import checkpoint
 import cmsisnn
 import commandline
@@ -101,12 +102,15 @@ def create_net(
         init_tram=False,
         avg_pool_rounding=False,
         fifo=False,
+        fast_fifo=False,
         zero_sram=False,
         mlator=False,
         oneshot=0,
         stopstart=False,
         mexpress=False,
         riscv=False,
+        riscv_flash=False,
+        riscv_cache=False,
         override_start=None,
         override_rollover=None,
         override_delta1=None,
@@ -132,11 +136,16 @@ def create_net(
     pool_stride_str = [None] * layers
     stride_str = [None] * layers
 
+    if riscv_cache:
+        riscv = True
+        riscv_flash = True
+    if riscv_flash:
+        riscv = True
+
     # Check streaming and FIFO constraints
+    if fast_fifo:
+        fifo = True
     if fifo:
-        if not streaming[0]:
-            print("--fifo argument given, but streaming not enabled for layer 0.")
-            sys.exit(1)
         if input_chan[0] > 16 or big_data[0] and input_chan[0] > 4:
             print("Using the FIFO is restricted to a maximum of 4 input channels (CHW) or "
                   f"16 channels (HWC); this test is using {input_chan[0]} channels.")
@@ -146,6 +155,15 @@ def create_net(
             print("The FIFO is restricted to processors 0, 16, 32, 48 (CHW) or "
                   "0-3, 16-19, 32-35, 48-51 (HWC).")
             sys.exit(1)
+        if fast_fifo:
+            if big_data[0] and input_chan[0] > 1:
+                print("Fast FIFO supports only a single CHW input channel; "
+                      f"this test is using {input_chan[0]} channels.")
+                sys.exit(1)
+            elif not big_data[0] and input_chan[0] > 4:
+                print("Fast FIFO supports up to four HWC input channels; "
+                      f"this test is using {input_chan[0]} channels.")
+                sys.exit(1)
 
     # Check that input channels are in separate memory instances if CHW (big) data format is used,
     # and calculate input and output expansion
@@ -317,6 +335,7 @@ def create_net(
                 device=device,
                 master=False,
                 riscv=False,
+                riscv_cache=riscv_cache,
             )
             apb.copyright_header()
 
@@ -345,6 +364,8 @@ def create_net(
             verify_kernels=verify_kernels,
             master=groups_used[0] if oneshot > 0 or stopstart else False,
             riscv=True if riscv else None,
+            riscv_flash=riscv_flash,
+            riscv_cache=riscv_cache,
         )
 
         apb.copyright_header()
@@ -402,6 +423,7 @@ def create_net(
                 fifo=fifo,
                 slowdown=slow_load,
                 synthesize=synthesize_input,
+                riscv_flash=riscv_flash,
                 debug=debug,
             )
         if embedded_code or mexpress or compact_weights:
@@ -427,6 +449,7 @@ def create_net(
                 flatten,
                 mexpress,
                 verify_kernels,
+                riscv_flash and not riscv_cache,
                 debug,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
@@ -523,6 +546,7 @@ def create_net(
                 flatten,
                 mexpress,
                 verify_kernels,
+                riscv_flash and not riscv_cache,
                 debug,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
@@ -1007,26 +1031,30 @@ def create_net(
                 apb.write_lreg(group, ll, tc.dev.LREG_ENA, val,
                                verbose, comment=' // Mask and processor enables')
 
-                if ll == 0 and streaming[ll] and fifo:
+                if ll == 0 and fifo:
                     # Start: 1
                     if override_start is not None:
                         stream_start = override_start
                     else:
                         stream_start = (pool[ll][0] - 1) * input_dim[ll][1] + pool[ll][1]
                     assert stream_start < 2**12
-                    # Delta 1: This layer's pooling stride
-                    if override_delta1 is not None:
-                        delta1 = override_delta1
-                    else:
-                        delta1 = pool_stride[ll][1] - 1
-                    assert delta1 < 2**5
-                    if override_delta2 is not None:
-                        delta2 = override_delta2
-                    else:
-                        delta2 = (pool[ll][0] - 1) * input_dim[ll][1]
-                    assert delta2 < 2**12
 
-                    val = delta2 << 20 | delta1 << 12 | stream_start
+                    if streaming[ll]:
+                        # Delta 1: This layer's pooling stride
+                        if override_delta1 is not None:
+                            delta1 = override_delta1
+                        else:
+                            delta1 = pool_stride[ll][1] - 1
+                        assert delta1 < 2**5
+                        if override_delta2 is not None:
+                            delta2 = override_delta2
+                        else:
+                            delta2 = (pool[ll][0] - 1) * input_dim[ll][1]
+                        assert delta2 < 2**12
+
+                        val = delta2 << 20 | delta1 << 12 | stream_start
+                    else:
+                        val = stream_start
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, val,
                                    verbose, comment=' // Stream processing 1')
                 elif ll > 0 and streaming[ll]:
@@ -1108,13 +1136,13 @@ def create_net(
                     apb.write_lreg(group, ll, tc.dev.LREG_FMAX, val,
                                    comment=' // Rollover')
 
-                    if ll == 0:
-                        val = input_dim[0][0] * input_dim[0][1]
-                        if big_data[0]:
-                            val = (val + 3) // 4
-                        assert val < 2**17
-                        apb.write_ctl(group, tc.dev.REG_IFRM, val, verbose,
-                                      comment=' // Input frame size')
+                if ll == 0 and fifo:
+                    val = input_dim[0][0] * input_dim[0][1]
+                    if big_data[0]:
+                        val = (val + 3) // 4
+                    assert val < 2**17
+                    apb.write_ctl(group, tc.dev.REG_IFRM, val, verbose,
+                                  comment=' // Input frame size')
 
         if zero_unused:
             for ll in range(layers, tc.dev.MAX_LAYERS):
@@ -1147,6 +1175,7 @@ def create_net(
                     split=split,
                     fifo=fifo,
                     slowdown=slow_load,
+                    riscv_flash=riscv_flash,
                     debug=debug,
                 )
 
@@ -1208,7 +1237,7 @@ def create_net(
         # [16]    mlat_ena
         # [18:17] mlat_sel
         # [19]    lil_buf  - enables ifrm and frm_max
-        val = 1 << 14 if any(streaming) else 0
+        val = 1 << 14 if any(streaming) or fifo else 0
         if avg_pool_rounding:
             val |= 1 << 13
         if fifo:
@@ -1224,6 +1253,8 @@ def create_net(
         for _, group in enumerate(groups_used[1:]):
             # Turn on the FIFO for this group if it's being loaded
             fval = 1 << 15 if fifo else 0
+            if fast_fifo:
+                fval |= 1 << 22
             apb.write_ctl(group, tc.dev.REG_CTL, val | 0x801 | tc.dev.READY_SEL << 1
                           | fval | groups_used[0] << 9,
                           verbose, comment=f' // Enable group {group}')
@@ -1231,6 +1262,8 @@ def create_net(
         # Master control - go
         if fifo:
             val |= 1 << 15
+        if fast_fifo:
+            val |= 1 << 22
         apb.write_ctl(groups_used[0], tc.dev.REG_CTL, val | tc.dev.READY_SEL << 1 | 0x01,
                       verbose, comment=f' // Master enable group {groups_used[0]}')
 
@@ -1582,6 +1615,12 @@ def create_net(
             timeout,
             riscv=riscv,
         )
+        if riscv_cache:
+            assets.copy('assets', 'riscv-cache', base_directory, test_name)
+        elif riscv_flash:
+            assets.copy('assets', 'riscv-flash', base_directory, test_name)
+        elif riscv:
+            assets.copy('assets', 'riscv', base_directory, test_name)
 
     return test_name
 
@@ -1882,12 +1921,15 @@ def main():
             args.init_tram,
             args.avg_pool_rounding,
             args.fifo,
+            args.fast_fifo,
             args.zero_sram,
             args.mlator,
             args.one_shot,
             args.stop_start,
             args.mexpress,
             args.riscv,
+            args.riscv_flash,
+            args.riscv_cache,
             args.override_start,
             args.override_rollover,
             args.override_delta1,
