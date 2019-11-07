@@ -57,6 +57,8 @@ def get_parser():
                         help="YAML configuration file containing layer configuration")
     parser.add_argument('--checkpoint-file', metavar='S',
                         help="checkpoint file containing quantized weights")
+    parser.add_argument('--input-csv', metavar='S',
+                        help="input data .csv file name for camera sim")
     parser.add_argument('--input-filename', default='input', metavar='S',
                         help="input .mem file name base (default: 'input' -> 'input.mem')")
     parser.add_argument('--output-filename', default='output', metavar='S',
