@@ -164,6 +164,14 @@ class DevAI85(Dev):
 
     BIAS_DIV = 128
 
+    FAST_FIFO_BASE = 0x400c0400
+    FAST_FIFO_CR = 0  # Control register
+    FAST_FIFO_SR = 1  # Status register
+    FAST_FIFO_IE = 2  # Interrupt enable register
+    FAST_FIFO_IS = 3  # Interrupt status (flag) register
+    FAST_FIFO_DR = 4  # Data register
+    FAST_FIFO_DMA = 5  # DMA register (reserved function, not yet supported)
+
 
 def get_device(
         device,

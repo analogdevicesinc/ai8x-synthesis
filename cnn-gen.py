@@ -366,6 +366,7 @@ def create_net(
             riscv=True if riscv else None,
             riscv_flash=riscv_flash,
             riscv_cache=riscv_cache,
+            fast_fifo=fast_fifo,
         )
 
         apb.copyright_header()
@@ -1216,12 +1217,19 @@ def create_net(
             # [31:28] almost_empty_iena FIFO almost empty interrupt enable. Logic '1' enables the
             #                           interrupt request based on the fifo almost empty threshold
             #                           flag.
-            val = 0x02 << 2 | 0x02 << 7 | 1 << 11 | tc.dev.FIFO_READY_SEL
-            for i in range(input_chan[0]):
-                if processor_map[0] & 1 << (i % tc.dev.P_NUMGROUPS) * tc.dev.P_NUMPRO != 0:
-                    val |= 1 << i % tc.dev.P_NUMGROUPS + 12
-            apb.write_fifo_ctl(tc.dev.FIFO_CTL, val,
-                               verbose, comment=f' // FIFO control')
+            if not fast_fifo:
+                val = 0x02 << 2 | 0x02 << 7 | 1 << 11 | tc.dev.FIFO_READY_SEL
+                for i in range(input_chan[0]):
+                    if processor_map[0] & 1 << (i % tc.dev.P_NUMGROUPS) * tc.dev.P_NUMPRO != 0:
+                        val |= 1 << i % tc.dev.P_NUMGROUPS + 12
+                apb.write_fifo_ctl(tc.dev.FIFO_CTL, val,
+                                   verbose, comment=f' // FIFO control')
+            else:
+                apb.write_fast_fifo_ctl(tc.dev.FAST_FIFO_IE, 0,
+                                        verbose, comment=f' // Fast FIFO interrupt enable')
+                val = 10 << 4  # Async, threshold 10
+                apb.write_fast_fifo_ctl(tc.dev.FAST_FIFO_CR, val,
+                                        verbose, comment=f' // Fast FIFO control')
 
         # [0]     enable
         # [2:1]   rdy_sel  (wait states - set to max)
@@ -1268,22 +1276,21 @@ def create_net(
         # Enable all needed groups except the first one
         for _, group in enumerate(groups_used[1:]):
             # Turn on the FIFO for this group if it's being loaded
-            fval = 1 << 15 if fifo else 0
-            if fast_fifo:
-                fval |= 1 << 22
-                if processor_map[0] & 0x0e != 0:
-                    fval |= 1 << 23
+            if fifo and processor_map[0] & 0x0f << group * 16 != 0:
+                fval = 1 << 15
+                if fast_fifo:
+                    fval |= 3 << 22
+            else:
+                fval = 0
             apb.write_ctl(group, tc.dev.REG_CTL, val | 0x801 | tc.dev.READY_SEL << 1
                           | fval | groups_used[0] << 9,
                           verbose, comment=f' // Enable group {group}')
 
         # Master control - go
-        if fifo:
+        if fifo and processor_map[0] & 0x0f << groups_used[0] * 16 != 0:
             val |= 1 << 15
-        if fast_fifo:
-            val |= 1 << 22
-            if processor_map[0] & 0x0e != 0:
-                fval |= 1 << 23
+            if fast_fifo:
+                val |= 3 << 22
         apb.write_ctl(groups_used[0], tc.dev.REG_CTL, val | tc.dev.READY_SEL << 1 | 0x01,
                       verbose, comment=f' // Master enable group {groups_used[0]}')
 

@@ -301,3 +301,7 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-mexpress-helloworld --config-file tests/test-pooling13x1s1.yaml --ai85 --compact-data --mexpress --riscv-flash
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-flash-cache-helloworld --config-file tests/test-pooling13x1s1.yaml --ai85 --riscv-cache
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-flash-cache-mexpress-helloworld --config-file tests/test-pooling13x1s1.yaml --ai85 --riscv-cache --mexpress --compact-data
+
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifo-nonsquare --config-file tests/test-fifo-nonsquare.yaml --ai85 --fifo --debug-computation
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifo-hwc-nonsquare --config-file tests/test-fifo-hwc-nonsquare.yaml --ai85 --fifo --debug-computation
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-fastfifo-hwc-nonsquare --config-file tests/test-fifo-hwc-nonsquare.yaml --ai85 --fifo --riscv --riscv-flash --fast-fifo

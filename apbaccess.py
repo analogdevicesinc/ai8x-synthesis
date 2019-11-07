@@ -45,6 +45,7 @@ class APB(object):
             riscv=None,
             riscv_flash=False,
             riscv_cache=False,
+            fast_fifo=False,
     ):
         """
         Create an APB class object that writes to memfile.
@@ -67,6 +68,7 @@ class APB(object):
         self.riscv = riscv
         self.riscv_flash = riscv_flash
         self.riscv_cache = riscv_cache
+        self.fast_fifo = fast_fifo
 
         self.data = 0
         self.num = 0
@@ -91,6 +93,7 @@ class APB(object):
             indent='  ',
             no_verify=False,
             fifo=None,
+            base=None,
     ):  # pylint: disable=unused-argument
         """
         Write address `addr` and data `val` to the output file.
@@ -154,6 +157,28 @@ class APB(object):
         addr = tc.dev.C_FIFO_BASE + reg*4
         if force_write or val != 0 or self.write_zero_regs:
             self.write(addr, val, comment)
+        if debug:
+            print(f'F{reg:02} ({addr:08x}): {val:08x}{comment}')
+
+    def write_fast_fifo_ctl(
+            self,
+            reg,
+            val,
+            debug=False,
+            force_write=False,
+            comment='',
+    ):
+        """
+        Set fast FIFO control register `reg` to value `val`.
+        Unless `force_write` is set, zero values will not be written.
+        """
+        if comment is None:
+            comment = f' // fast fifo ctl {reg}'
+        if val == 0:
+            comment += ' *'
+        addr = tc.dev.FAST_FIFO_BASE + reg*4
+        if force_write or val != 0 or self.write_zero_regs:
+            self.write(addr, val, comment, base=0)
         if debug:
             print(f'F{reg:02} ({addr:08x}): {val:08x}{comment}')
 
@@ -558,13 +583,15 @@ class APBBlockLevel(APB):
             indent='  ',
             no_verify=False,
             fifo=None,
+            base=None,
     ):  # pylint: disable=unused-argument
         """
         Write address `addr` and data `val` to the .mem file.
         """
         assert val >= 0
         assert addr >= 0
-        addr += self.apb_base
+        if base is None:
+            addr += self.apb_base
 
         self.memfile.write(f'@{self.foffs:04x} {addr:08x}\n')
         self.memfile.write(f'@{self.foffs+1:04x} {val:08x}\n')
@@ -625,6 +652,7 @@ class APBTopLevel(APB):
             indent='  ',
             no_verify=False,
             fifo=None,
+            base=None,
     ):
         """
         Write address `addr` and data `val` to the .c file.
@@ -636,7 +664,8 @@ class APBTopLevel(APB):
             assert val >= 0
             val = f'0x{val:08x}'
         assert addr >= 0
-        addr += self.apb_base
+        if base is None:
+            addr += self.apb_base
 
         if self.memfile is None:
             return
@@ -650,13 +679,22 @@ class APBTopLevel(APB):
                                    'return 0;\n')
                 self.reads += 1
         else:
-            addr = self.apb_base + tc.dev.C_FIFO_BASE
-            self.memfile.write(f'{indent}while (((*((volatile uint32_t *) '
-                               f'0x{addr + tc.dev.FIFO_STAT*4:08x})'
-                               f' & {1 << fifo})) != 0); // Wait for FIFO {fifo}\n')
-            self.memfile.write(f'{indent}*((volatile uint32_t *) '
-                               f'0x{addr + tc.dev.FIFO_REG*4 + fifo*4:08x}) = '
-                               f'{val};{comment}\n')
+            if not self.fast_fifo:
+                addr = self.apb_base + tc.dev.C_FIFO_BASE
+                self.memfile.write(f'{indent}while (((*((volatile uint32_t *) '
+                                   f'0x{addr + tc.dev.FIFO_STAT*4:08x})'
+                                   f' & {1 << fifo})) != 0); // Wait for FIFO {fifo}\n')
+                self.memfile.write(f'{indent}*((volatile uint32_t *) '
+                                   f'0x{addr + tc.dev.FIFO_REG*4 + fifo*4:08x}) = '
+                                   f'{val};{comment}\n')
+            else:
+                addr = tc.dev.FAST_FIFO_BASE
+                self.memfile.write(f'{indent}while (((*((volatile uint32_t *) '
+                                   f'0x{addr + tc.dev.FAST_FIFO_SR*4:08x})'
+                                   f' & 2)) != 0); // Wait for FIFO\n')
+                self.memfile.write(f'{indent}*((volatile uint32_t *) '
+                                   f'0x{addr + tc.dev.FAST_FIFO_DR*4:08x}) = '
+                                   f'{val};{comment}\n')
             self.writes += 1
 
     def verify(
@@ -947,6 +985,7 @@ def apbwriter(
         riscv=None,
         riscv_flash=False,
         riscv_cache=False,
+        fast_fifo=False,
 ):
     """
     Depending on `block_level`, return a block level .mem file writer or a top level .c file
@@ -975,4 +1014,5 @@ def apbwriter(
         riscv=riscv,
         riscv_flash=riscv_flash,
         riscv_cache=riscv_cache,
+        fast_fifo=fast_fifo,
     )
