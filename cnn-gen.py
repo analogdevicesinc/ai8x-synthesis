@@ -1035,8 +1035,13 @@ def create_net(
                     # Start: 1
                     if override_start is not None:
                         stream_start = override_start
-                    else:
+                    elif streaming[ll]:
                         stream_start = (pool[ll][0] - 1) * input_dim[ll][1] + pool[ll][1]
+                    else:
+                        val = input_dim[0][0] * input_dim[0][1]
+                        if big_data[0]:
+                            val = (val + 3) // 4
+                        stream_start = val
                     assert stream_start < 2**12
 
                     if streaming[ll]:
@@ -1051,10 +1056,11 @@ def create_net(
                         else:
                             delta2 = (pool[ll][0] - 1) * input_dim[ll][1]
                         assert delta2 < 2**12
-
-                        val = delta2 << 20 | delta1 << 12 | stream_start
                     else:
-                        val = stream_start
+                        delta1 = 0
+                        delta2 = 0
+
+                    val = delta2 << 20 | delta1 << 12 | stream_start
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, val,
                                    verbose, comment=' // Stream processing 1')
                 elif ll > 0 and streaming[ll]:
@@ -1229,15 +1235,25 @@ def create_net(
         # [11]    ext_sync[2] (external slave)
         # [12]    irq
         # [13]    pool_rnd
-        # [14]    strm_ena -  cnn_ctl register bit 14. Master stream processor enable. Layers are
+        # [14]    strm_ena - cnn_ctl register bit 14. Master stream processor enable. Layers are
         #         processed up to the first layer with a zero start count value. After the last
         #         stream layer (non-zero start and delta >> values) processing is complete,
         #         standard processing follows for the remaining layers.
         # [15]    fifo_ena
         # [16]    mlat_ena
         # [18:17] mlat_sel
-        # [19]    lil_buf  - enables ifrm and frm_max
-        val = 1 << 14 if any(streaming) or fifo else 0
+        # [19]    lil_buf - enables ifrm and frm_max
+        # [20]    mexpress = Enable loading of the mask memories using packed data. A change in
+        #         state of the two lsb of the address trigger a reload of the address counter.
+        # [21]    simple1b - Enable simple logic for 1 bit weights.
+        # [22]    ffifoena - Fast FIFO enable.  Enables the datapath between the ME17x
+        #         synch/asynch FIFO and the CNN
+        # [23]    fifogrp - Enables sending all "little data" channels to the first 4 processors.
+        #         When this bit is not set, each byte of FIFO data is directed to the first little
+        #         data channel of each x16 processor.
+        # [26:24] fclk_dly[2:0] - Selects the clock delay of the fast FIFO clock relative to the
+        #         primary CNN clock.
+        val = 1 << 14 if any(streaming) else 0
         if avg_pool_rounding:
             val |= 1 << 13
         if fifo:
@@ -1255,6 +1271,8 @@ def create_net(
             fval = 1 << 15 if fifo else 0
             if fast_fifo:
                 fval |= 1 << 22
+                if processor_map[0] & 0x0e != 0:
+                    fval |= 1 << 23
             apb.write_ctl(group, tc.dev.REG_CTL, val | 0x801 | tc.dev.READY_SEL << 1
                           | fval | groups_used[0] << 9,
                           verbose, comment=f' // Enable group {group}')
@@ -1264,6 +1282,8 @@ def create_net(
             val |= 1 << 15
         if fast_fifo:
             val |= 1 << 22
+            if processor_map[0] & 0x0e != 0:
+                fval |= 1 << 23
         apb.write_ctl(groups_used[0], tc.dev.REG_CTL, val | tc.dev.READY_SEL << 1 | 0x01,
                       verbose, comment=f' // Master enable group {groups_used[0]}')
 
