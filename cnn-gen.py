@@ -118,6 +118,7 @@ def create_net(
         slow_load=False,
         synthesize_input=None,
         mlator_noverify=False,
+        input_csv=None,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -345,6 +346,11 @@ def create_net(
             apb.header()
             apb.main()
 
+    if input_csv is not None:
+        csv = os.path.join(base_directory, test_name, input_csv)
+    else:
+        csv = None
+
     with open(os.path.join(base_directory, test_name, filename), mode='w') as memfile:
         apb = apbaccess.apbwriter(
             memfile,
@@ -367,6 +373,8 @@ def create_net(
             riscv_flash=riscv_flash,
             riscv_cache=riscv_cache,
             fast_fifo=fast_fifo,
+            input_csv=input_csv,
+            input_chan=input_chan[0],
         )
 
         apb.copyright_header()
@@ -406,7 +414,7 @@ def create_net(
                        '    *dst++ = *src++;\n'
                        '  }\n}\n\n')
 
-        if embedded_code or compact_data:
+        if embedded_code or compact_data or input_csv:
             # Pre-define data memory loader. Inline later when generating RTL sim.
             load.load(
                 True,
@@ -425,6 +433,7 @@ def create_net(
                 slowdown=slow_load,
                 synthesize=synthesize_input,
                 riscv_flash=riscv_flash,
+                csv_file=csv,
                 debug=debug,
             )
         if embedded_code or mexpress or compact_weights:
@@ -1147,7 +1156,7 @@ def create_net(
                     val = input_dim[0][0] * input_dim[0][1]
                     if big_data[0]:
                         val = (val + 3) // 4
-                    assert val < 2**17
+                    assert val < 2**20
                     apb.write_ctl(group, tc.dev.REG_IFRM, val, verbose,
                                   comment=' // Input frame size')
 
@@ -1163,7 +1172,7 @@ def create_net(
 
         if not fifo:
             # Load data memory
-            if embedded_code or compact_data:
+            if embedded_code or compact_data or input_csv:
                 # Do the actual code generation later
                 apb.output('\n  load_input(); // Load data input\n\n')
             else:
@@ -1183,6 +1192,7 @@ def create_net(
                     fifo=fifo,
                     slowdown=slow_load,
                     riscv_flash=riscv_flash,
+                    csv_file=csv,
                     debug=debug,
                 )
 
@@ -1296,7 +1306,7 @@ def create_net(
 
         if fifo:
             # Load data memory
-            if embedded_code or compact_data:
+            if embedded_code or compact_data or input_csv:
                 # Do the actual code generation later
                 apb.output('\n  load_input(); // Load data input\n\n')
             else:
@@ -1316,6 +1326,7 @@ def create_net(
                     fifo=fifo,
                     slowdown=slow_load,
                     synthesize=synthesize_input,
+                    csv_file=csv,
                     debug=debug,
                 )
 
@@ -1641,6 +1652,7 @@ def create_net(
             c_filename,
             timeout,
             riscv=riscv,
+            input_csv=input_csv,
         )
         if riscv_cache:
             assets.copy('assets', 'riscv-cache', base_directory, test_name)
@@ -1964,6 +1976,7 @@ def main():
             args.slow_load,
             args.synthesize_input,
             args.mlator_noverify,
+            args.input_csv,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

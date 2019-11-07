@@ -24,6 +24,7 @@ def create_runtest_sv(
         c_filename,
         timeout,
         riscv=False,
+        input_csv=None,
 ):
     """
     For for test `test_name`, create the runtest.sv file named `runtest_filename`, in the
@@ -84,6 +85,59 @@ def create_runtest_sv(
                     '    multi_cpu_en = 1\'b0;\n'
                     'end\n'
                 )
+            if input_csv is not None:
+                runfile.write(f'\n`define CSV_FILE {{`TARGET_DIR,"/{input_csv}"}}\n')
+                runfile.write('`include "pcif_defines_af2.sv"\n')
+                runfile.write('`define NO_FLASH_MODEL\n\n')
+                runfile.write('integer input_file;\n')
+                runfile.write('string  null_string;\n')
+                runfile.write('logic [7:0] data;\n\n')
+                runfile.write('int count;\n\n')
+                runfile.write('logic old_pixclk_val;\n')
+                runfile.write('logic pixclk_val;\n')
+                runfile.write('logic hsync_val;\n')
+                runfile.write('logic vsync_val;\n')
+                runfile.write('logic [11:0] data_val;\n\n')
+                runfile.write('assign `PCIF_PIXCLK  = pixclk_val;\n')
+                runfile.write('assign `PCIF_HSYNC   = hsync_val;\n')
+                runfile.write('assign `PCIF_VSYNC   = vsync_val;\n')
+                runfile.write('assign `PCIF_DATA_11 = data_val[11];\n')
+                runfile.write('assign `PCIF_DATA_10 = data_val[10];\n')
+                runfile.write('assign `PCIF_DATA_9  = data_val[9];\n')
+                runfile.write('assign `PCIF_DATA_8  = data_val[8];\n')
+                runfile.write('assign `PCIF_DATA_7  = data_val[7];\n')
+                runfile.write('assign `PCIF_DATA_6  = data_val[6];\n')
+                runfile.write('assign `PCIF_DATA_5  = data_val[5];\n')
+                runfile.write('assign `PCIF_DATA_4  = data_val[4];\n')
+                runfile.write('assign `PCIF_DATA_3  = data_val[3];\n')
+                runfile.write('assign `PCIF_DATA_2  = data_val[2];\n')
+                runfile.write('assign `PCIF_DATA_1  = data_val[1];\n')
+                runfile.write('assign `PCIF_DATA_0  = data_val[0];\n\n')
+                runfile.write('initial begin\n')
+                runfile.write('  old_pixclk_val = 0;\n')
+                runfile.write('  pixclk_val = 0;\n')
+                runfile.write('  hsync_val = 0;\n')
+                runfile.write('  vsync_val = 0;\n')
+                runfile.write('  data_val = \'0;\n')
+                runfile.write('  input_file = $fopen(`CSV_FILE, "r");\n\n')
+                runfile.write('  if (!input_file)\n')
+                runfile.write('    begin\n')
+                runfile.write('    $display("File Error opening `CSV_FILE");\n')
+                runfile.write('    $finish;\n')
+                runfile.write('  end\n\n')
+                runfile.write('  @(posedge sim.trig[0]);\n\n')
+                runfile.write('  $fgets(null_string, input_file);\n')
+                runfile.write('  $display("Scanning file for %s", null_string);\n\n')
+                runfile.write('  while (!$feof(input_file))\n')
+                runfile.write('    begin\n')
+                runfile.write('      count++;\n')
+                runfile.write('      $fscanf(input_file, "%H,%H,%H,%H",'
+                              'vsync_val,hsync_val,pixclk_val,data_val);\n')
+                runfile.write('      #40ns;\n')
+                runfile.write('    end\n\n')
+                runfile.write('  $fclose(input_file);\n')
+                runfile.write('  $display("Scan complete");\n\n')
+                runfile.write('end\n')
 
 
 def append_regression(

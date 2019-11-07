@@ -11,6 +11,7 @@ Load Tornado CNN data memory
 """
 import sys
 import numpy as np
+import camera
 import rv
 import tornadocnn as tc
 from utils import popcount, s2u
@@ -33,6 +34,7 @@ def load(
         slowdown=0,
         synthesize=None,
         riscv_flash=False,
+        csv_file=None,
         debug=False,
 ):
     """
@@ -46,7 +48,18 @@ def load(
     Output is written to the `apb` object.
     """
 
-    if fifo:
+    if csv_file is not None:
+        return loadcsv(
+            embedded_code,
+            apb,
+            input_size,
+            operands,
+            data,
+            slowdown,
+            csv_file,
+            debug,
+        )
+    elif fifo:
         return loadfifo(
             embedded_code,
             apb,
@@ -384,3 +397,61 @@ def loadfifo(
         apb.output('}\n\n')
     else:
         apb.output(f'  // End of data input\n\n')
+
+
+def loadcsv(
+        embedded_code,
+        apb,
+        input_size,
+        operands,
+        data,
+        slowdown=0,  # pylint: disable=unused-argument
+        csv_file=None,
+        debug=False,  # pylint: disable=unused-argument
+):
+    """
+    Create C code to load data into FIFO(s) from the camera interface.
+    The code is target for simulation (`embedded_code` == `False`) or embedded hardware (`True`).
+    Output is written to the `apb` object.
+    Additionally, the code creates a CSV file with input data for simulation.
+    """
+    assert operands == 1  # We don't support multiple operands here
+    # FIXME: Support multiple operands
+    assert csv_file is not None
+
+    if not embedded_code:
+        apb.output('\n\n  ')
+
+    # HWC ("Little Data") - (Up to) four channels packed into a word (0BGR0BGR0BGR0BGR0BGR....)
+    apb.output('// Data input: HWC (little data): '
+               f'{input_size[0]}x{input_size[1]}x{input_size[2]}\n')
+
+    fifos = (input_size[0] + 3) // 4
+
+    if embedded_code:
+        apb.output('\nvoid load_input(void)\n{\n')
+        apb.output('  int i;\n')
+        apb.output('  uint32_t d;\n\n')
+        apb.output('  // Tell tb to start sending pcif data\n')
+        apb.output('  sim->trig = 0;\n\n')
+        max_len = input_size[1] * input_size[2]
+        apb.output(f'  for (i = 0; i < {max_len}; i++) {{\n')
+        for c in range(fifos):
+            apb.output('    while ((MXC_CAMERAIF0->int_fl & 0x80) == 0); '
+                       '// Wait for camera FIFO not empty\n')
+            apb.output('    d = MXC_CAMERAIF0->dma_data; // Read camera\n')
+            # apb.output('    MXC_CAMERAIF0->int_fl = -1; // Clear status\n')
+            apb.write(0, 'd', fifo=c, comment=f' // Write FIFO {c}', indent='    ')
+        apb.output('  }\n')
+        apb.output('}\n\n')
+
+        with open(csv_file, mode='w') as f:
+            camera.header(f)
+
+            for row in range(input_size[1]):
+                for col in range(input_size[2]):
+                    for c in range(0, input_size[0]):
+                        camera.pixel(f, s2u(data[c][row][col]) & 0xff)
+                camera.finish_row(f)
+
+            camera.finish_image(f)

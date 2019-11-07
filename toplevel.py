@@ -41,6 +41,7 @@ def header(
         master=False,
         verify_kernels=False,
         riscv=False,
+        camera=False,
 ):
     """
     Write include files and forward definitions to .c file handle `memfile`.
@@ -56,6 +57,10 @@ def header(
         memfile.write('#include "global_functions.h" // For RTL Simulation\n')
         if embedded_code:
             memfile.write('#include "tmr_utils.h"\n')
+    if camera:
+        memfile.write('#include "pcif_defines_af2.h"\n')
+        memfile.write('#define NUM_DATA_WORDS 4\n')
+        memfile.write('#include "pcif.c"\n')
     if embedded_code:
         memfile.write('#include "tornadocnn.h"\n')
     if embedded_code or compact_weights:
@@ -123,7 +128,9 @@ def main(
         riscv=None,
         riscv_flash=False,  # pylint: disable=unused-argument
         riscv_cache=False,
+        camera=False,
         device=84,
+        channels=None,
 ):
     """
     Write the main function (including an optional call to the fully connected layer if
@@ -154,6 +161,19 @@ def main(
     elif riscv and riscv_cache:
         memfile.write('  icache1_enable();\n')
         memfile.write('  invalidate_icache1();\n\n')
+
+    if camera:
+        memfile.write('  enable_pcif_clock(); // Enable camera clock\n')
+        memfile.write('  set_pcif_gpio_altf();\n\n')
+        memfile.write('  // Enable 8-bit single image in external timing mode\n')
+        memfile.write('  MXC_CAMERAIF0->ctrl = MXC_S_CAMERAIF_CTRL_READ_MODE_SINGLE_IMG +\n'
+                      '                        MXC_S_CAMERAIF_CTRL_DATA_WIDTH_8BIT +\n'
+                      '                        MXC_S_CAMERAIF_CTRL_DS_TIMING_EN_DIS +\n'
+                      '                        MXC_S_CAMERAIF_CTRL_PCIF_SYS_EN_EN')
+        if channels == 3:
+            memfile.write(' +\n                        0x10000;\n\n')
+        else:
+            memfile.write(';\n\n')
 
     if riscv is None or riscv:
         memfile.write('  if (!cnn_load()) { fail(); pass(); return 0; }\n')

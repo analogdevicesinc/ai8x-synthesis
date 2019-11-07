@@ -304,4 +304,12 @@
 
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifo-nonsquare --config-file tests/test-fifo-nonsquare.yaml --ai85 --fifo --debug-computation
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifo-hwc-nonsquare --config-file tests/test-fifo-hwc-nonsquare.yaml --ai85 --fifo --debug-computation
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-csv-fastfifo-hwc-nonsquare --config-file tests/test-fifo-hwc-nonsquare.yaml --ai85 --fifo --input-csv input.csv
+
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-fastfifo-hwc-nonsquare --config-file tests/test-fifo-hwc-nonsquare.yaml --ai85 --fifo --riscv --riscv-flash --fast-fifo
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-csv-fastfifo-hwc-nonsquare --config-file tests/test-fifo-hwc-nonsquare.yaml --ai85 --fifo --riscv --riscv-flash --fast-fifo --input-csv input.csv
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-csv-fastfifostream-hwc-nonsquare --config-file tests/test-fifostream-nonsquare-hwc.yaml --ai85 --fifo --input-csv input.csv
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-csv-fastfifostream-32-hwc --config-file tests/test-fifostream-32-hwc.yaml --ai85 --fifo --riscv --riscv-flash --fast-fifo --input-csv input.csv
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-csv-fastfifostream-vga-hwc --config-file tests/test-fifostream-vga-hwc.yaml --ai85 --fifo --stop-after 1 --mexpress --timeout 40 --riscv --riscv-flash --fast-fifo --input-csv input.csv
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-csv-fastfifostream-vga-hwc --config-file tests/test-fifostream-vga-hwc.yaml --ai85 --fifo --mexpress --timeout 40 --riscv --riscv-flash --fast-fifo --input-csv input.csv
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-csv-fastfifostream-transition-early --config-file tests/test-fifostream-transition-early.yaml --ai85 --fifo --stop-after 5 --riscv --riscv-flash --fast-fifo --input-csv input.csv

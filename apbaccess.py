@@ -46,6 +46,8 @@ class APB(object):
             riscv_flash=False,
             riscv_cache=False,
             fast_fifo=False,
+            input_csv=None,
+            input_chan=None,
     ):
         """
         Create an APB class object that writes to memfile.
@@ -69,6 +71,8 @@ class APB(object):
         self.riscv_flash = riscv_flash
         self.riscv_cache = riscv_cache
         self.fast_fifo = fast_fifo
+        self.input_csv = input_csv
+        self.input_chan = input_chan
 
         self.data = 0
         self.num = 0
@@ -794,6 +798,7 @@ class APBTopLevel(APB):
             master=self.master,
             verify_kernels=self.verify_kernels,
             riscv=self.riscv,
+            camera=self.input_csv is not None,
         )
 
     def verify_header(
@@ -858,6 +863,8 @@ class APBTopLevel(APB):
             riscv_flash=self.riscv_flash,
             riscv_cache=self.riscv_cache,
             device=self.device,
+            camera=self.input_csv is not None,
+            channels=self.input_chan,
         )
 
     def fc_layer(
@@ -986,6 +993,8 @@ def apbwriter(
         riscv_flash=False,
         riscv_cache=False,
         fast_fifo=False,
+        input_csv=None,
+        input_chan=None,
 ):
     """
     Depending on `block_level`, return a block level .mem file writer or a top level .c file
@@ -1015,4 +1024,6 @@ def apbwriter(
         riscv_flash=riscv_flash,
         riscv_cache=riscv_cache,
         fast_fifo=fast_fifo,
+        input_csv=input_csv,
+        input_chan=input_chan,
     )
