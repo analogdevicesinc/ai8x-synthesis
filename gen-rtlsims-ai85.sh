@@ -298,7 +298,7 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-upscale-pro --config-file tests/test-upscale-pro.yaml --ai85 --stop-after 1
 
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-helloworld --config-file tests/test-pooling13x1s1.yaml --ai85 --riscv-flash
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-mexpress-helloworld --config-file tests/test-pooling13x1s1.yaml --ai85 --compact-data --mexpress --riscv-flash
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-mexpress-helloworld --config-file tests/test-pooling13x1s1.yaml --ai85 --compact-data --mexpress --riscv-flash --riscv-cache
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-flash-cache-helloworld --config-file tests/test-pooling13x1s1.yaml --ai85 --riscv-cache
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-flash-cache-mexpress-helloworld --config-file tests/test-pooling13x1s1.yaml --ai85 --riscv-cache --mexpress --compact-data
 
@@ -308,8 +308,13 @@
 
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-fastfifo-hwc-nonsquare --config-file tests/test-fifo-hwc-nonsquare.yaml --ai85 --fifo --riscv --riscv-flash --fast-fifo
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-csv-fastfifo-hwc-nonsquare --config-file tests/test-fifo-hwc-nonsquare.yaml --ai85 --fifo --riscv --riscv-flash --fast-fifo --input-csv input.csv
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-csv-fastfifostream-hwc-nonsquare --config-file tests/test-fifostream-nonsquare-hwc.yaml --ai85 --fifo --input-csv input.csv
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-csv-fastfifostream-32-hwc --config-file tests/test-fifostream-32-hwc.yaml --ai85 --fifo --riscv --riscv-flash --fast-fifo --input-csv input.csv
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-csv-fastfifostream-vga-hwc --config-file tests/test-fifostream-vga-hwc.yaml --ai85 --fifo --stop-after 1 --mexpress --timeout 40 --riscv --riscv-flash --fast-fifo --input-csv input.csv
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-csv-fastfifostream-vga-hwc --config-file tests/test-fifostream-vga-hwc.yaml --ai85 --fifo --mexpress --timeout 40 --riscv --riscv-flash --fast-fifo --input-csv input.csv
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-csv-fastfifostream-transition-early --config-file tests/test-fifostream-transition-early.yaml --ai85 --fifo --stop-after 5 --riscv --riscv-flash --fast-fifo --input-csv input.csv
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-csv-fastfifostream-hwc-nonsquare --config-file tests/test-fifostream-nonsquare-hwc.yaml --ai85 --fifo --input-csv input.csv --riscv-cache
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-csv-fastfifostream-32-hwc --config-file tests/test-fifostream-32-hwc.yaml --ai85 --fifo --riscv --riscv-flash --fast-fifo --input-csv input.csv --riscv-cache
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-csv-fastfifostream-transition-early --config-file tests/test-fifostream-transition-early.yaml --ai85 --fifo --stop-after 5 --riscv --riscv-flash --fast-fifo --input-csv input.csv --riscv-cache
+## Too big ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-csv-fastfifostream-vga-hwc --config-file tests/test-fifostream-vga-hwc.yaml --ai85 --fifo --stop-after 1 --mexpress --timeout 40 --riscv --riscv-flash --fast-fifo --input-csv input.csv --riscv-cache --queue-name long --timeout 1500
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-csv-fastfifostream-vga-hwc --config-file tests/test-fifostream-vga-hwc.yaml --ai85 --fifo --mexpress --timeout 40 --riscv --riscv-flash --fast-fifo --input-csv input.csv --riscv-cache --queue-name long --timeout 1500
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-group0-pool4 --config-file tests/test-group0-pool4.yaml --ai85 --fifo
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-group0-pool4 --config-file tests/test-streaming-group0-pool4.yaml --ai85 --fifo
+
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-eltwise --config-file tests/test-fifostream-eltwise.yaml --ai85 --fifo
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-multilayer-eltwise --config-file tests/test-multilayer-eltwise.yaml --ai85

@@ -429,20 +429,51 @@ def loadcsv(
     fifos = (input_size[0] + 3) // 4
 
     if embedded_code:
-        apb.output('\nvoid load_input(void)\n{\n')
+        apb.output('\n#ifdef USE_FIFO\n')
+        apb.output('#define FIFO_SZ 1024\n')
+        apb.output('uint32_t fifo[FIFO_SZ];\n')
+        apb.output('#endif\n\n')
+        apb.output('void load_input(void)\n{\n')
+        apb.output('#ifndef USE_FIFO\n')
         apb.output('  int i;\n')
-        apb.output('  uint32_t d;\n\n')
+        apb.output('  uint32_t d;\n')
+        apb.output('#else\n')
+        apb.output('  int i = 0;\n')
+        apb.output('  register int head = 0;\n')
+        apb.output('  register int tail = 0;\n\n')
+        apb.output('#endif\n')
         apb.output('  // Tell tb to start sending pcif data\n')
         apb.output('  sim->trig = 0;\n\n')
         max_len = input_size[1] * input_size[2]
+
+        apb.output('#ifndef USE_FIFO\n')
         apb.output(f'  for (i = 0; i < {max_len}; i++) {{\n')
         for c in range(fifos):
             apb.output('    while ((MXC_CAMERAIF0->int_fl & 0x80) == 0); '
                        '// Wait for camera FIFO not empty\n')
             apb.output('    d = MXC_CAMERAIF0->dma_data; // Read camera\n')
-            # apb.output('    MXC_CAMERAIF0->int_fl = -1; // Clear status\n')
             apb.write(0, 'd', fifo=c, comment=f' // Write FIFO {c}', indent='    ')
         apb.output('  }\n')
+        apb.output('#else\n')
+        apb.output(f'  while (i < {max_len}) {{\n')
+        apb.output('    if (((MXC_CAMERAIF0->int_fl & 0x80) != 0) && (head + 1 != tail) && '
+                   '((head + 1 != FIFO_SZ) || (tail != 0))) {\n')
+        apb.output('      // Camera FIFO not empty and software FIFO not full\n')
+        apb.output('      fifo[head++] = MXC_CAMERAIF0->dma_data; // Read camera\n')
+        apb.output('      if (head == FIFO_SZ)\n')
+        apb.output('        head = 0;\n')
+        apb.output('    }\n\n')
+        apb.output('    if ((head != tail) && (((*((volatile uint32_t *) 0x400c0404) '
+                   '& 2)) == 0)) {\n')
+        apb.output('      // Software FIFO not empty, and room in CNN FIFO\n')
+        apb.output('      *((volatile uint32_t *) 0x400c0410) = fifo[tail++];\n')
+        apb.output('      if (tail == FIFO_SZ)\n')
+        apb.output('        tail = 0;\n')
+        apb.output('      i++;\n')
+        apb.output('    }\n')
+        apb.output('  }\n')
+        apb.output('#endif\n')
+
         apb.output('}\n\n')
 
         with open(csv_file, mode='w') as f:

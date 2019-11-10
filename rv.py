@@ -13,4 +13,4 @@ RISC-V defines
 RISCV_FLASH = \
     '__attribute__ ((section(".rvflash_section"), noinline))\n'
 
-RISCV_CODE_ORIGIN = 0x10010000
+RISCV_CODE_ORIGIN = 0x10001000

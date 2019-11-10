@@ -1052,7 +1052,7 @@ def create_net(
                         if big_data[0]:
                             val = (val + 3) // 4
                         stream_start = val
-                    assert stream_start < 2**12
+                    assert stream_start < 2**14
 
                     if streaming[ll]:
                         # Delta 1: This layer's pooling stride
@@ -1070,18 +1070,22 @@ def create_net(
                         delta1 = 0
                         delta2 = 0
 
-                    val = delta2 << 20 | delta1 << 12 | stream_start
-                    apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, val,
+                    apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, stream_start,
                                    verbose, comment=' // Stream processing 1')
+                    val = delta2 << 16 | delta1 << 4
+                    apb.write_lreg(group, ll, tc.dev.LREG_STREAM2, val,
+                                   verbose, comment=' // Stream processing 2')
                 elif ll > 0 and streaming[ll]:
-                    # [11:0]:  strm_isval[11:0]  Per stream start count - based on previous layer
+                    # [13:0]:  strm_isval[13:0]  Per stream start count - based on previous layer
                     #                            tptr_inc count
+                    # Start count – defines the current layer rcnt (TRAM shift count) that
+                    # triggers processing of the next layer
+
                     # [16:12]: strm_dsval1[4:0]  Per stream in-row delta count - based on previous
                     #                            layer tptr_inc count
                     # [31:20]: strm_dsval2[11:0] Per stream multi-row delta count - based on
                     #                            previous layer tptr_inc count
-                    # Start count – defines the current layer rcnt (TRAM shift count) that
-                    # triggers processing of the next layer
+                    #
                     # Delta1 count – defines the current layer count once the start count is
                     # triggered that enables incremental layer processing.  This count is
                     # used when layer processing is contained within a single row.
@@ -1092,23 +1096,26 @@ def create_net(
                     # Start: Prior layer's padded pooled row width * prior layer's kernel height
                     # + prior layer's kernel width + prior layer's pad
                     stream_start = (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
-                        * kernel_size[ll-1][0] + padding[ll-1][1] + kernel_size[ll-1][1]
-                    assert stream_start < 2**12
+                        * (kernel_size[ll-1][0] - 1 + pool[ll][0] - 1) \
+                        + kernel_size[ll-1][1] - 1 + pool[ll][1]
+                    assert stream_start < 2**14
+
                     # Delta 1: This layer's pooling stride
                     delta1 = pool_stride[ll][1]
                     assert delta1 < 2**5
                     # Delta 2: (This layer's pooling - 1) * full prior layer's padded rows + prior
                     # layer's pad
-                    delta2 = (pool[ll][0] - 1) * (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
-                        + 2 * padding[ll-1][1]
+                    delta2 = (pool_stride[ll][0] - 1) \
+                        * (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
+                        + kernel_size[ll-1][1] - 1 + pool[ll][1]
                     assert delta2 < 2**12
 
-                    val = delta2 << 20 | delta1 << 12 | stream_start
-                    apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, val,
+                    apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, stream_start,
                                    verbose, comment=' // Stream processing 1')
                     # [3:0]:   strm_invol[3:0]   Per stream invol offset - based on stream count
                     val = sum(in_expand[:ll])
                     assert val < 2**4
+                    val |= delta2 << 16 | delta1 << 4
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM2, val,
                                    verbose, comment=' // Stream processing 2')
 
@@ -1283,6 +1290,13 @@ def create_net(
         if mexpress:
             val |= 1 << 20
 
+        # In fast FIFO mode, enable first group too
+        if fast_fifo and processor_map[0] & 0x0f << groups_used[0] * 16 != 0:
+            fval = 1 << 15 | 3 << 22
+            apb.write_ctl(groups_used[0], tc.dev.REG_CTL, val | tc.dev.READY_SEL << 1
+                          | fval,
+                          verbose, comment=f' // Enable group {groups_used[0]}')
+
         # Enable all needed groups except the first one
         for _, group in enumerate(groups_used[1:]):
             # Turn on the FIFO for this group if it's being loaded
@@ -1290,6 +1304,8 @@ def create_net(
                 fval = 1 << 15
                 if fast_fifo:
                     fval |= 3 << 22
+            elif fifo:
+                fval = 1 << 15
             else:
                 fval = 0
             apb.write_ctl(group, tc.dev.REG_CTL, val | 0x801 | tc.dev.READY_SEL << 1
@@ -1654,6 +1670,7 @@ def create_net(
             riscv=riscv,
             input_csv=input_csv,
         )
+        assets.copy('assets', 'all', base_directory, test_name)
         if riscv_cache:
             assets.copy('assets', 'riscv-cache', base_directory, test_name)
         elif riscv_flash:

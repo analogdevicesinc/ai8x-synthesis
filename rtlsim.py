@@ -122,21 +122,21 @@ def create_runtest_sv(
                 runfile.write('  input_file = $fopen(`CSV_FILE, "r");\n\n')
                 runfile.write('  if (!input_file)\n')
                 runfile.write('    begin\n')
-                runfile.write('    $display("File Error opening `CSV_FILE");\n')
+                runfile.write('    $display("Error opening %s", `CSV_FILE);\n')
                 runfile.write('    $finish;\n')
                 runfile.write('  end\n\n')
                 runfile.write('  @(posedge sim.trig[0]);\n\n')
                 runfile.write('  $fgets(null_string, input_file);\n')
-                runfile.write('  $display("Scanning file for %s", null_string);\n\n')
+                runfile.write('  $display("Reading camera image from %s", `CSV_FILE);\n\n')
                 runfile.write('  while (!$feof(input_file))\n')
                 runfile.write('    begin\n')
                 runfile.write('      count++;\n')
-                runfile.write('      $fscanf(input_file, "%H,%H,%H,%H",'
-                              'vsync_val,hsync_val,pixclk_val,data_val);\n')
-                runfile.write('      #40ns;\n')
+                runfile.write('      $fscanf(input_file, "%H,%H,%H,%H", '
+                              'vsync_val, hsync_val, pixclk_val, data_val);\n')
+                runfile.write('      #80ns;\n')
                 runfile.write('    end\n\n')
                 runfile.write('  $fclose(input_file);\n')
-                runfile.write('  $display("Scan complete");\n\n')
+                runfile.write('  $display("Camera image data read");\n\n')
                 runfile.write('end\n')
 
 

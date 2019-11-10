@@ -1,0 +1,20 @@
+arch: test
+dataset: test_group0-pool4
+
+layers:
+- pad: 1
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0x0000000000000007
+  data_format: HWC
+- max_pool: 4
+  pool_stride: 4
+  pad: 1
+  out_offset: 0x4000
+  processors: 0x000000000000ffff
+- max_pool: 4
+  pool_stride: 4
+  pad: 1
+  out_offset: 0x6000
+  processors: 0x000000000000ffff
+
