@@ -61,6 +61,8 @@ def get_parser():
                         help="input data .csv file name for camera sim")
     parser.add_argument('--input-csv-period', metavar='N', default=80,
                         help="period for .csv input data (default: 80)")
+    parser.add_argument('--input-fifo', action='store_true', default=False,
+                        help="use software FIFO to buffer input (default: false)")
     parser.add_argument('--input-filename', default='input', metavar='S',
                         help="input .mem file name base (default: 'input' -> 'input.mem')")
     parser.add_argument('--output-filename', default='output', metavar='S',
