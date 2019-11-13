@@ -120,6 +120,7 @@ def create_net(
         mlator_noverify=False,
         input_csv=None,
         input_csv_period=None,
+        input_fifo=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -417,6 +418,8 @@ def create_net(
 
         if embedded_code or compact_data or input_csv:
             # Pre-define data memory loader. Inline later when generating RTL sim.
+            if input_fifo:
+                apb.output('#define USE_FIFO\n')
             load.load(
                 True,
                 apb,
@@ -1997,6 +2000,7 @@ def main():
             args.mlator_noverify,
             args.input_csv,
             args.input_csv_period,
+            args.input_fifo,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(
