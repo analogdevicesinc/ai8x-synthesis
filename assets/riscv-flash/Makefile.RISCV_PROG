@@ -67,7 +67,7 @@ $(info Info: -------------------------------------------------------------)
 
 # This is the path to the CMSIS root directory
 ifeq "$(MAXIM_PATH)" ""
-LIBS_DIR=$(PROJECT_ROOT)/support/cmsis/Libraries
+LIBS_DIR=$(REF_ROOT)/support/cmsis/Libraries
 else
 LIBS_DIR=/$(subst \,/,$(subst :,,$(MAXIM_PATH))/Firmware/$(TARGET_UC)/Libraries)
 endif
@@ -80,12 +80,12 @@ SRCS  += global_functions.c
 
 # Where to find source files for this test
 VPATH=.
-VPATH+=$(PROJECT_ROOT)/digital/verification/tb_support/c_code
+VPATH+=$(REF_ROOT)/digital/verification/tb_support/c_code
 # Where to find header files for this test
 IPATH = .
-IPATH+=$(PROJECT_ROOT)/digital/verification/tb_support/c_include
-IPATH+=$(PROJECT_ROOT)/digital/verification/tb_support/c_include/test_csrc
-#IPATH+=$(PROJECT_ROOT)/support/gcc-riscv/riscv32-unknown-elf/include
+IPATH+=$(REF_ROOT)/digital/verification/tb_support/c_include
+IPATH+=$(REF_ROOT)/digital/verification/tb_support/c_include/test_csrc
+#IPATH+=$(REF_ROOT)/support/gcc-riscv/riscv32-unknown-elf/include
 
 # Enable assertion checking for development
 PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE -DRV32
