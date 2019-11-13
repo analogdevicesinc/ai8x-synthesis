@@ -119,6 +119,7 @@ def create_net(
         synthesize_input=None,
         mlator_noverify=False,
         input_csv=None,
+        input_csv_period=None,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -1669,6 +1670,7 @@ def create_net(
             timeout,
             riscv=riscv,
             input_csv=input_csv,
+            input_period=input_csv_period,
         )
         assets.copy('assets', 'all', base_directory, test_name)
         if riscv_cache:
@@ -1994,6 +1996,7 @@ def main():
             args.synthesize_input,
             args.mlator_noverify,
             args.input_csv,
+            args.input_csv_period,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

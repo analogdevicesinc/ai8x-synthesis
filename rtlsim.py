@@ -25,6 +25,7 @@ def create_runtest_sv(
         timeout,
         riscv=False,
         input_csv=None,
+        input_period=80,
 ):
     """
     For for test `test_name`, create the runtest.sv file named `runtest_filename`, in the
@@ -133,7 +134,7 @@ def create_runtest_sv(
                 runfile.write('      count++;\n')
                 runfile.write('      $fscanf(input_file, "%H,%H,%H,%H", '
                               'vsync_val, hsync_val, pixclk_val, data_val);\n')
-                runfile.write('      #80ns;\n')
+                runfile.write(f'      #{input_period}ns;\n')
                 runfile.write('    end\n\n')
                 runfile.write('  $fclose(input_file);\n')
                 runfile.write('  $display("Camera image data read");\n\n')
