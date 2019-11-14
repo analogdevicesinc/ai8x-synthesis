@@ -71,7 +71,8 @@ def create_runtest_sv(
                 runfile.write(f'`define RISCV_PROG_SOURCE {c_filename}_riscv.c\n')
                 runfile.write('`define MULTI_CPU_SETUP\n')
             if timeout:
-                runfile.write(f'defparam REPEAT_TIMEOUT = {timeout};\n\n')
+                runfile.write(f'// Timeout: {timeout} ms\n')
+                runfile.write(f'defparam REPEAT_TIMEOUT = {timeout/10.0:0.1f};\n\n')
             if riscv:
                 runfile.write(
                     'event ev_load_riscv_flash_image;\n'
