@@ -103,6 +103,7 @@ def create_net(
         avg_pool_rounding=False,
         fifo=False,
         fast_fifo=False,
+        fast_fifo_quad=False,
         zero_sram=False,
         mlator=False,
         oneshot=0,
@@ -146,6 +147,8 @@ def create_net(
         riscv = True
 
     # Check streaming and FIFO constraints
+    if fast_fifo_quad:
+        fast_fifo = True
     if fast_fifo:
         fifo = True
     if fifo:
@@ -167,6 +170,17 @@ def create_net(
                 print("Fast FIFO supports up to four HWC input channels; "
                       f"this test is using {input_chan[0]} channels.")
                 sys.exit(1)
+            if output_width[0] != 8:
+                print('Single-layer fast FIFO setup requires output width of 8.')
+                sys.exit(1)
+            if operator[0] not in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
+                print('Fast FIFO requies a convolution operation in the first layer.')
+                sys.exit(1)
+
+    processor_map_0 = processor_map[0]
+    if fast_fifo_quad:
+        processor_map[0] = processor_map_0 << 48 | processor_map_0 << 32 \
+            | processor_map_0 << 16 | processor_map_0
 
     # Check that input channels are in separate memory instances if CHW (big) data format is used,
     # and calculate input and output expansion
@@ -299,7 +313,14 @@ def create_net(
             print(f'Layer {ll} is configured for {output_chan[ll]} outputs, which exceeds '
                   f'the system maximum of {tc.dev.MAX_CHANNELS}.')
             sys.exit(1)
-        if popcount(processor_map[ll]) != in_expand_thresh[ll]:
+        if (ll != 0 or not fast_fifo_quad) and popcount(processor_map[ll]) != in_expand_thresh[ll]:
+            print(f'Layer {ll} has {input_chan[ll]} inputs with input expansion '
+                  f'{in_expand[ll]}, threshold {in_expand_thresh[ll]}, but '
+                  f'enabled processor map 0x{processor_map[ll]:016x} '
+                  f'has {popcount(processor_map[ll])} bits instead of the '
+                  f'expected number of {in_expand_thresh[ll]}.')
+            sys.exit(1)
+        if ll == 0 and fast_fifo_quad and popcount(processor_map_0) != in_expand_thresh[ll]:
             print(f'Layer {ll} has {input_chan[ll]} inputs with input expansion '
                   f'{in_expand[ll]}, threshold {in_expand_thresh[ll]}, but '
                   f'enabled processor map 0x{processor_map[ll]:016x} '
@@ -424,7 +445,7 @@ def create_net(
                 True,
                 apb,
                 big_data[0],
-                processor_map[0],
+                processor_map_0,
                 in_offset[0],
                 [input_chan[0], input_dim[0][0], input_dim[0][1]],
                 in_expand[0],
@@ -464,6 +485,7 @@ def create_net(
                 mexpress,
                 verify_kernels,
                 riscv_flash and not riscv_cache,
+                fast_fifo_quad,
                 debug,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
@@ -561,6 +583,7 @@ def create_net(
                 mexpress,
                 verify_kernels,
                 riscv_flash and not riscv_cache,
+                fast_fifo_quad,
                 debug,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
@@ -842,7 +865,8 @@ def create_net(
                 if device != 84 and output_width[ll] != 8:
                     val |= 1 << 16
 
-                if operator[ll] != op.NONE and group == groups_used[0]:
+                if (ll != 0 or not fast_fifo_quad) \
+                   and operator[ll] != op.NONE and group == groups_used[0]:
                     # Set external source for other active processing groups (can be zero if no
                     # other groups are processing). Do not set the bit corresponding to this group
                     # (e.g., if group == 0, do not set bit 12)
@@ -911,6 +935,8 @@ def create_net(
                                 - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) + 1)
                               * quantization[ll]) * out_expand[ll] * in_exp \
                             - quantization[ll]
+                        if ll == 0 and fast_fifo_quad:
+                            kl = (kl + 3) // 4
                         koffs, oned_sad = divmod(9 * kern_offs[ll],
                                                  kernel_size[ll][0] * kernel_size[ll][1])
                         koffs *= 8
@@ -1111,7 +1137,7 @@ def create_net(
                     # layer's pad
                     delta2 = (pool_stride[ll][0] - 1) \
                         * (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
-                        + kernel_size[ll-1][1] - 1 + pool[ll][1]
+                        + (kernel_size[ll-1][1] - 1) * pool_stride[ll][1] + pool[ll][1]
                     assert delta2 < 2**12
 
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, stream_start,
@@ -1191,7 +1217,7 @@ def create_net(
                     embedded_code,
                     apb,
                     big_data[0],
-                    processor_map[0],
+                    processor_map_0,
                     in_offset[0],
                     [input_chan[0], input_dim[0][0], input_dim[0][1]],
                     in_expand[0],
@@ -1241,7 +1267,7 @@ def create_net(
             if not fast_fifo:
                 val = 0x02 << 2 | 0x02 << 7 | 1 << 11 | tc.dev.FIFO_READY_SEL
                 for i in range(input_chan[0]):
-                    if processor_map[0] & 1 << (i % tc.dev.P_NUMGROUPS) * tc.dev.P_NUMPRO != 0:
+                    if processor_map_0 & 1 << (i % tc.dev.P_NUMGROUPS) * tc.dev.P_NUMPRO != 0:
                         val |= 1 << i % tc.dev.P_NUMGROUPS + 12
                 apb.write_fifo_ctl(tc.dev.FIFO_CTL, val,
                                    verbose, comment=f' // FIFO control')
@@ -1294,17 +1320,10 @@ def create_net(
         if mexpress:
             val |= 1 << 20
 
-        # In fast FIFO mode, enable first group too
-        if fast_fifo and processor_map[0] & 0x0f << groups_used[0] * 16 != 0:
-            fval = 1 << 15 | 3 << 22
-            apb.write_ctl(groups_used[0], tc.dev.REG_CTL, val | tc.dev.READY_SEL << 1
-                          | fval,
-                          verbose, comment=f' // Enable group {groups_used[0]}')
-
         # Enable all needed groups except the first one
-        for _, group in enumerate(groups_used[1:]):
+        for _, group in enumerate(groups_used):
             # Turn on the FIFO for this group if it's being loaded
-            if fifo and processor_map[0] & 0x0f << group * 16 != 0:
+            if fifo and processor_map_0 & 0x0f << group * 16 != 0:
                 fval = 1 << 15
                 if fast_fifo:
                     fval |= 3 << 22
@@ -1312,12 +1331,16 @@ def create_net(
                 fval = 1 << 15
             else:
                 fval = 0
-            apb.write_ctl(group, tc.dev.REG_CTL, val | 0x801 | tc.dev.READY_SEL << 1
+            if group != groups_used[0]:
+                fval |= 0x01
+            if fast_fifo_quad:
+                fval |= 1 << 31
+            apb.write_ctl(group, tc.dev.REG_CTL, val | 0x800 | tc.dev.READY_SEL << 1
                           | fval | groups_used[0] << 9,
                           verbose, comment=f' // Enable group {group}')
 
         # Master control - go
-        if fifo and processor_map[0] & 0x0f << groups_used[0] * 16 != 0:
+        if fifo and processor_map_0 & 0x0f << groups_used[0] * 16 != 0:
             val |= 1 << 15
             if fast_fifo:
                 val |= 3 << 22
@@ -1334,7 +1357,7 @@ def create_net(
                     embedded_code,
                     apb,
                     big_data[0],
-                    processor_map[0],
+                    processor_map_0,
                     in_offset[0],
                     [input_chan[0], input_dim[0][0], input_dim[0][1]],
                     in_expand[0],
@@ -1662,7 +1685,7 @@ def create_net(
     if not embedded_code:
         if not timeout:
             # If no timeout specified, calculate one based on reads/writes
-            timeout = apb.get_time() + rtlsim.GLOBAL_TIME_OFFSET
+            timeout = 10 * (apb.get_time() + rtlsim.GLOBAL_TIME_OFFSET)
         rtlsim.create_runtest_sv(
             block_mode,
             base_directory,
@@ -1983,6 +2006,7 @@ def main():
             args.avg_pool_rounding,
             args.fifo,
             args.fast_fifo,
+            args.fast_fifo_quad,
             args.zero_sram,
             args.mlator,
             args.one_shot,

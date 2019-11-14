@@ -49,6 +49,9 @@ def get_parser():
                         help="use FIFOs to load streaming data (default: false)")
     parser.add_argument('--fast-fifo', action='store_true', default=False,
                         help="use fast FIFO (implies --fifo; default: false)")
+    parser.add_argument('--fast-fifo-quad', action='store_true', default=False,
+                        help="use fast FIFO in quad fanout mode (implies --fast-fifo; "
+                             "default: false)")
     parser.add_argument('-D', '--debug', action='store_true', default=False,
                         help="debug mode (default: false)")
     parser.add_argument('--debug-computation', action='store_true', default=False,

@@ -66,6 +66,7 @@ def load(
         mexpress=False,
         verify=False,
         riscv_flash=False,
+        quad=False,
         debug=False,
 ):
     """
@@ -141,6 +142,8 @@ def load(
             kern_len[ll] = (kern_len[ll] * ksize + 8) // 9
             # FIXME: This creates too many kernels for, e.g., ai85-conv1d-pool-4-q1
             #        But since it doesn't do harm, we'll fix this later
+        if ll == 0 and quad:
+            kern_len[0] = (kern_len[0] + 3) // 4
 
         # We don't have to use dummy columns if there's space available on the left
         kern_offs[ll] = \
@@ -166,8 +169,12 @@ def load(
             col_target = ffs(next_layer_map) % tc.dev.P_SHARED  # First target column
             for expand in range(out_expand[ll]):
                 this_map = this_map_init
-                col = expand * out_expand_thresh[ll]
-                stop_col = col + out_expand_thresh[ll]
+                if ll == 0 and quad:
+                    col = expand * (out_expand_thresh[ll] + 3) // 4
+                    stop_col = col + (out_expand_thresh[ll] + 3) // 4
+                else:
+                    col = expand * out_expand_thresh[ll]
+                    stop_col = col + out_expand_thresh[ll]
                 while col < stop_col:
                     # Skip over unused bits in the target processor map
                     # (unused means 1 bit for 8-bit weights, 2 for 4-bit weights, etc.)
@@ -179,29 +186,49 @@ def load(
                     this_mask = this_map & proc_mask
                     this_map >>= qfactor
 
-                    src_offs = ch + m * input_chan[ll]
-                    for ie in range(in_expand[ll]):
-                        mask = this_mask
+                    if ll == 0 and quad:
+                        src_offs = ch + (m - p // 16) * input_chan[ll]
+                    else:
+                        src_offs = ch + m * input_chan[ll]
+                    if ll > 0 or not quad or (m % 4 == p // 16):
+                        for ie in range(in_expand[ll]):
+                            mask = this_mask
 
-                        def add_kernel_data(ll, p, col_target, b):
-                            col = kern_offs[ll] + col_target
-                            boffs = kernels_used[p][col]
-                            kernel_data[p][col][8 - boffs] = b & 0xff
-                            kernels_used[p][col] += 1
+                            def add_kernel_data(ll, p, col_target, b):
+                                col = kern_offs[ll] + col_target
+                                boffs = kernels_used[p][col]
+                                kernel_data[p][col][8 - boffs] = b & 0xff
+                                kernels_used[p][col] += 1
 
-                            if boffs == 0:  # Update kernel map
-                                assert kernel_map[p][col] == _INVALID_VALUE
-                                kernel_map[p][col] = ll
-                            elif boffs == 8:  # Flush
-                                col_target += 1  # Write 1
+                                if boffs == 0:  # Update kernel map
+                                    assert kernel_map[p][col] == _INVALID_VALUE
+                                    kernel_map[p][col] = ll
+                                elif boffs == 8:  # Flush
+                                    col_target += 1  # Write 1
 
-                            return col_target
+                                return col_target
 
-                        n = 0
-                        if src_offs < len(kernel_reshaped):
-                            if not flatten[ll]:
-                                k = np.zeros_like(kernel_reshaped[src_offs].flatten())
-                                for i in range(qfactor):
+                            n = 0
+                            if src_offs < len(kernel_reshaped):
+                                if not flatten[ll]:
+                                    k = np.zeros_like(kernel_reshaped[src_offs].flatten())
+                                    for i in range(qfactor):
+                                        if m < output_chan[ll]:
+                                            # Cycle through phases
+                                            idx = n + ie * qfactor
+                                            koffs = src_offs + (idx % in_expand[ll]) \
+                                                * in_expand_thresh[ll] \
+                                                + (idx // in_expand[ll]) \
+                                                * input_chan[ll]
+                                            if koffs < len(kernel_reshaped):
+                                                this_kern = kernel_reshaped[koffs].flatten() \
+                                                    & (2**quantization[ll]-1)
+                                                k |= this_kern << (i * quantization[ll])
+                                            n += 1
+                                        mask >>= 1
+                                else:
+                                    kl = (len(kernel_reshaped[src_offs]) + qfactor - 1) // qfactor
+                                    k = np.zeros(kl, dtype=np.int64)
                                     if m < output_chan[ll]:
                                         # Cycle through phases
                                         idx = n + ie * qfactor
@@ -210,54 +237,40 @@ def load(
                                             + (idx // in_expand[ll]) \
                                             * input_chan[ll]
                                         if koffs < len(kernel_reshaped):
-                                            this_kern = kernel_reshaped[koffs].flatten() \
-                                                & (2**quantization[ll]-1)
-                                            k |= this_kern << (i * quantization[ll])
+                                            this_kern = kernel_reshaped[koffs].flatten()
+                                            for i in range(qfactor):
+                                                k |= ((this_kern[i::qfactor]
+                                                       & (2**quantization[ll]-1))) \
+                                                    << (i * quantization[ll])
                                         n += 1
-                                    mask >>= 1
-                            else:
-                                kl = (len(kernel_reshaped[src_offs]) + qfactor - 1) // qfactor
-                                k = np.zeros(kl, dtype=np.int64)
-                                if m < output_chan[ll]:
-                                    # Cycle through phases
-                                    idx = n + ie * qfactor
-                                    koffs = src_offs + (idx % in_expand[ll]) \
-                                        * in_expand_thresh[ll] \
-                                        + (idx // in_expand[ll]) \
-                                        * input_chan[ll]
-                                    if koffs < len(kernel_reshaped):
-                                        this_kern = kernel_reshaped[koffs].flatten()
-                                        for i in range(qfactor):
-                                            k |= ((this_kern[i::qfactor]
-                                                   & (2**quantization[ll]-1))) \
-                                                << (i * quantization[ll])
-                                    n += 1
-                                    mask >>= 1
-                            if debug:
-                                with np.printoptions(formatter={'int': '{0:02x}'.format}):
-                                    print(f'Layer {ll} processor {p} channel '
-                                          f'{ch + ie * in_expand_thresh[ll]} m[{m}..{m+n-1}] '
-                                          f'of {output_chan[ll]}: {k}')
+                                        mask >>= 1
+                                if debug:
+                                    with np.printoptions(formatter={'int': '{0:02x}'.format}):
+                                        print(f'Layer {ll} processor {p} channel '
+                                              f'{ch + ie * in_expand_thresh[ll]} m[{m}..{m+n-1}] '
+                                              f'of {output_chan[ll]}: {k}')
 
-                            if flatten[ll]:
-                                for _, e in enumerate(k):
-                                    col_target = add_kernel_data(ll, p, col_target, e)
-                            else:
-                                for i in range(ksize):
-                                    col_target = add_kernel_data(ll, p, col_target,
-                                                                 k[ksize - i - 1])
+                                if flatten[ll]:
+                                    for _, e in enumerate(k):
+                                        col_target = add_kernel_data(ll, p, col_target, e)
+                                else:
+                                    for i in range(ksize):
+                                        col_target = add_kernel_data(ll, p, col_target,
+                                                                     k[ksize - i - 1])
 
-                        else:  # When expanding, need to pad with zero kernels if needed
-                            for _ in range(ksize // qfactor):
-                                col_target = add_kernel_data(ll, p, col_target, 0)
+                            else:  # When expanding, need to pad with zero kernels if needed
+                                for _ in range(ksize // qfactor):
+                                    col_target = add_kernel_data(ll, p, col_target, 0)
 
-                    # Consume kernels
-                    if not flatten[ll]:
-                        col += qfactor
-                        m += qfactor
+                        # Consume kernels
+                        if not flatten[ll]:
+                            col += qfactor
+                            m += qfactor
+                        else:
+                            col += 1
+                            m += 1
                     else:
-                        col += 1
-                        m += 1
+                        m += qfactor
 
             if kern_offs[ll] + col_target < len(kernels_used[p]) \
                and kernels_used[p][kern_offs[ll] + col_target] > 0:  # Partials
