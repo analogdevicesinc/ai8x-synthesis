@@ -219,7 +219,8 @@ def create_net(
             sys.exit(1)
         out_size = output_dim[ll][0] * output_dim[ll][1] * out_expand[ll] \
             * 4 * output_width[ll] // 8
-        if not streaming[ll] and out_size + out_offset[ll] > tc.dev.INSTANCE_SIZE*16:
+        if (not streaming[ll] or ll == layers - 1) \
+           and out_size + out_offset[ll] > tc.dev.INSTANCE_SIZE*16:
             print(f'Layer {ll}: 4-channel, {output_width[ll]}-bit output size {out_size} '
                   f'with output offset 0x{out_offset[ll]:04x} and expansion {out_expand[ll]}x '
                   f'exceeds data memory instance size of {tc.dev.INSTANCE_SIZE*16}.')
@@ -1319,6 +1320,8 @@ def create_net(
             val |= 1 << 3  # Enable clocks
         if mexpress:
             val |= 1 << 20
+        if fast_fifo_quad:
+            val |= 1 << 31  # Qupac bit
 
         # Enable all needed groups except the first one
         for _, group in enumerate(groups_used):
@@ -1333,8 +1336,6 @@ def create_net(
                 fval = 0
             if group != groups_used[0]:
                 fval |= 0x01
-            if fast_fifo_quad:
-                fval |= 1 << 31
             apb.write_ctl(group, tc.dev.REG_CTL, val | 0x800 | tc.dev.READY_SEL << 1
                           | fval | groups_used[0] << 9,
                           verbose, comment=f' // Enable group {group}')
