@@ -306,11 +306,11 @@ def create_net(
         bits = processor_map[ll]
         processors_used |= bits
 
-        if input_chan[ll] > tc.dev.MAX_CHANNELS:
+        if input_chan[ll] > tc.dev.MAX_INPUT_CHANNELS:
             print(f'Layer {ll} is configured for {input_chan[ll]} inputs, which exceeds '
-                  f'the system maximum of {tc.dev.MAX_CHANNELS}.')
+                  f'the system maximum of {tc.dev.MAX_INPUT_CHANNELS}.')
             sys.exit(1)
-        if output_chan[ll] > tc.dev.MAX_CHANNELS:
+        if output_chan[ll] > tc.dev.MAX_INPUT_CHANNELS:
             print(f'Layer {ll} is configured for {output_chan[ll]} outputs, which exceeds '
                   f'the system maximum of {tc.dev.MAX_CHANNELS}.')
             sys.exit(1)
@@ -901,7 +901,7 @@ def create_net(
                         * quantization[ll] << 8 \
                         | in_exp
                     if operator[ll] != op.NONE:
-                        assert out_expand[ll] <= 2**3  # Cannot have more than 3 bits (+1)
+                        assert out_expand[ll] <= 2**4  # Cannot have more than 4 bits (+1)
                         val |= (out_expand[ll] - 1) << 4
 
                     apb.write_lreg(group, ll, tc.dev.LREG_LCTL2, val,
