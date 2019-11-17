@@ -306,11 +306,11 @@ def create_net(
         bits = processor_map[ll]
         processors_used |= bits
 
-        if input_chan[ll] > tc.dev.MAX_INPUT_CHANNELS:
+        if input_chan[ll] > tc.dev.MAX_CHANNELS:
             print(f'Layer {ll} is configured for {input_chan[ll]} inputs, which exceeds '
-                  f'the system maximum of {tc.dev.MAX_INPUT_CHANNELS}.')
+                  f'the system maximum of {tc.dev.MAX_CHANNELS}.')
             sys.exit(1)
-        if output_chan[ll] > tc.dev.MAX_INPUT_CHANNELS:
+        if output_chan[ll] > tc.dev.MAX_CHANNELS:
             print(f'Layer {ll} is configured for {output_chan[ll]} outputs, which exceeds '
                   f'the system maximum of {tc.dev.MAX_CHANNELS}.')
             sys.exit(1)
