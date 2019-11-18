@@ -156,7 +156,7 @@ def main(
                 memfile.write('  while ((MXC_GCR->clkcn & MXC_F_GCR_CLKCN_HIRC96M_RDY) == 0) ; '
                               '// Wait for 96M\n')
                 memfile.write('  MXC_GCR->clkcn |= MXC_S_GCR_CLKCN_CLKSEL_HIRC96; // Select 96M\n')
-                memfile.write('  MXC_GCR->clkcn &= ~MXC_F_GCR_CLKCN_HIRC_EN; // Disable 60M\n')
+                memfile.write('  // MXC_GCR->clkcn &= ~MXC_F_GCR_CLKCN_HIRC_EN; // Disable 60M\n')
                 memfile.write('  MXC_GCR->pckdiv = 0x00010000; // AI clock 96M div 2\n')
                 memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable AI clock\n')
         if riscv is not None:
