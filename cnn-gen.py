@@ -1139,7 +1139,7 @@ def create_net(
                     # layer's pad
                     delta2 = (pool_stride[ll][0] - 1) \
                         * (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
-                        + (kernel_size[ll-1][1] - 1) * pool_stride[ll][1] + pool[ll][1]
+                        + pool[ll][1]
                     assert delta2 < 2**12
 
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, stream_start,
