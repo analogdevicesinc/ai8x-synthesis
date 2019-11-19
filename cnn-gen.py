@@ -22,6 +22,7 @@ import assets
 import checkpoint
 import cmsisnn
 import commandline
+import compute
 import kbias
 import kernels
 import load
@@ -1419,6 +1420,9 @@ def create_net(
 
     # Compute layer-by-layer output and chain results into input
     for ll in range(layers):
+        if debug_computation:
+            compute.debug_open(ll, base_directory, test_name, log_filename)
+
         in_chan = input_chan[ll]
 
         show_data(
@@ -1639,6 +1643,9 @@ def create_net(
             in_map = [a if a is not None else b for a, b, in zip(in_map, out_map)]
         else:
             in_map = out_map
+
+        if debug_computation:
+            compute.debug_close()
 
     with open(os.path.join(base_directory, test_name, filename), mode=filemode) as memfile:
         apb.set_memfile(memfile)
