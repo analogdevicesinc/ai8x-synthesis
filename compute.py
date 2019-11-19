@@ -12,6 +12,7 @@ Allows debug of individual accumulations.
 NumPy implementation of Conv2d, ConvTranspose2d, Pool2d.
 Compatible with PyTorch.
 """
+import os
 import sys
 
 import numpy as np
@@ -19,6 +20,41 @@ from numpy.lib.stride_tricks import as_strided
 
 import op
 import stats
+
+
+debug_log = None
+
+
+def debug_open(
+        layer,
+        base_directory,
+        test_name,
+        log_filename,
+):
+    """
+    Create debug log for a layer
+    """
+    global debug_log
+    debug_log = open(os.path.join(base_directory, test_name,
+                                  f'compute-{layer}.csv'), 'w')
+
+
+def debug_print(
+        t,
+):
+    """
+    Print to the compute debug log
+    """
+    global debug_log
+    print(t, file=debug_log)
+
+
+def debug_close():
+    """
+    Close the compute debug log
+    """
+    global debug_log
+    debug_log.close()
 
 
 def conv2d(
@@ -49,6 +85,7 @@ def conv2d(
     if debug:
         # Slow route using pure Python
         ref = np.full(shape=output_size, fill_value=np.nan, dtype=np.int64)
+        debug_print('k,c,x,y,weight,data,prod,cacc,acc')
 
         for k in range(out_channels):
             for y in range(-pad[0],
@@ -62,6 +99,7 @@ def conv2d(
                             val = np.int64(0)
                             c = 0
                             while True:
+                                sval = np.int(0)
                                 for h in range(kernel_size[0]):
                                     for w in range(kernel_size[1]):
                                         ypos = (y + pad[0])*fractional_stride[0] - pad[0] \
@@ -72,14 +110,14 @@ def conv2d(
                                         xd, xr = divmod(xpos, fractional_stride[1])
                                         if yr == 0 and yd >= 0 and yd < input_size[1] and \
                                            xr == 0 and xd >= 0 and xd < input_size[2]:
-                                            val += weight[k][c][h][w] * data[c][yd][xd]
+                                            prod = weight[k][c][h][w] * data[c][yd][xd]
+                                            sval += prod
+                                            val += prod
                                             stats.true_macc += 1
-                                            if debug:
-                                                print(f'k={k}, c={c}, x={x}, y={y}: '
-                                                      f'weight*data:{weight[k][c][h][w]}'
-                                                      f'*{data[c][yd][xd]}='
-                                                      f'{weight[k][c][h][w] * data[c][yd][xd]} '
-                                                      f'-> accumulator: {val}')
+                                            debug_print(
+                                                f'{k},{c},{x},{y},{weight[k][c][h][w]},'
+                                                f'{data[c][yd][xd]},{prod},{sval},{val}'
+                                            )
                                 c += 16
                                 if c >= in_channels:
                                     c = (c + 1) % 16
@@ -88,8 +126,9 @@ def conv2d(
 
                             if bias is not None:
                                 val += bias[k]
-                                if debug:
-                                    print(f'     adding bias: {bias[k]} -> result: {val}')
+                                debug_print(
+                                    f'     adding bias: {bias[k]} -> result: {val}'
+                                )
 
                             ref[k][
                                 ((y + pad[0])*fractional_stride[0] + y_frac) // stride[0]
@@ -177,6 +216,8 @@ def conv1d(
                      fill_value=np.nan, dtype=np.int64)
 
     # Compute 1D convolution
+    if debug:
+        debug_print('k,c,x,src_offs,wt_offs,weight,data,acc')
     for k in range(out_channels):
         out_offs = 0
         for x in range(-pad, input_size[1] - dilation * (kernel_size - 1) + pad, stride):
@@ -188,14 +229,17 @@ def conv1d(
                         val += weight[k][c][w] * data[c][src_offs]
                         stats.true_macc += 1
                         if debug:
-                            print(f'k={k}, c={c}, x={x}, src_offs={src_offs}, '
-                                  f'wt_offs={w}: weight*data={weight[k][c][w]}'
-                                  f'*{data[c][src_offs]} -> accumulator = {val}')
+                            debug_print(
+                                f'{k},{c},{x},{src_offs},{w},{weight[k][c][w]},'
+                                f'{data[c][src_offs]},{val}'
+                            )
 
             if bias is not None:
                 val += bias[k]
                 if debug:
-                    print(f'+bias {bias[k]} --> output[{k}][{out_offs}] = {val}')
+                    debug_print(
+                        f'+bias {bias[k]} --> output[{k}][{out_offs}] = {val}',
+                    )
             output[k][out_offs] = val
             out_offs += 1
 
@@ -221,12 +265,14 @@ def linear(
             val += data[n] * weight[w][n]
             stats.true_sw_macc += 1
             if debug:
-                print(f'w={w}, n={n}, weight={weight[w][n]}, data={data[n]} '
-                      f'-> accumulator = {val} ')
+                debug_print(
+                    f'w={w}, n={n}, weight={weight[w][n]}, data={data[n]} '
+                    f'-> accumulator = {val} '
+                )
         if bias is not None:
             val += bias[w]
             if debug:
-                print(f'+bias {bias[w]} --> output[{w}] = {val}')
+                debug_print(f'+bias {bias[w]} --> output[{w}] = {val}')
         output[w] = val
 
     return output

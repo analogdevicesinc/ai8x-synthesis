@@ -110,7 +110,7 @@ def conv2d_layer(
         dilation=dilation,
         fractional_stride=[1, 1],
         output_pad=[0, 0],
-        debug=debug
+        debug=debug,
     )
 
     if verbose:
@@ -217,7 +217,7 @@ def convtranspose2d_layer(
         dilation=dilation,
         fractional_stride=fractional_stride,
         output_pad=output_padding,
-        debug=debug
+        debug=debug,
     )
 
     if verbose:
@@ -313,7 +313,7 @@ def conv1d_layer(
         stride=stride,
         pad=padding,
         dilation=dilation,
-        debug=debug
+        debug=debug,
     )
 
     if verbose:
@@ -452,7 +452,7 @@ def eltwise_layer(
         operator=operator,
         data=data,
         input_size=input_size,
-        debug=debug
+        debug=debug,
     )
 
     if verbose:
@@ -562,7 +562,7 @@ def pooling_layer(
                 pool_stride[0],
                 pool_average,
                 floor=not rounding,
-                debug=debug
+                debug=debug,
             )
             if verbose:
                 print(f"{pool[0]} {'AVERAGE' if pool_average else 'MAX'} "
