@@ -123,6 +123,7 @@ def create_net(
         input_csv=None,
         input_csv_period=None,
         input_fifo=False,
+        input_sync=False,
         legacy_test=True,
 ):
     """
@@ -153,6 +154,9 @@ def create_net(
         fast_fifo = True
     if fast_fifo:
         fifo = True
+        fifo_group = True
+    else:
+        fifo_group = False
     if fifo:
         if input_chan[0] > 16 or big_data[0] and input_chan[0] > 4:
             print("Using the FIFO is restricted to a maximum of 4 input channels (CHW) or "
@@ -172,6 +176,8 @@ def create_net(
                 print("Fast FIFO supports up to four HWC input channels; "
                       f"this test is using {input_chan[0]} channels.")
                 sys.exit(1)
+            if processor_map[0] & 0x0e == 0:
+                fifo_group = False
             if output_width[0] != 8:
                 print('Single-layer fast FIFO setup requires output width of 8.')
                 sys.exit(1)
@@ -1130,7 +1136,7 @@ def create_net(
                     # + prior layer's kernel width + prior layer's pad
                     stream_start = (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
                         * (kernel_size[ll-1][0] - 1 + pool[ll][0] - 1) \
-                        + kernel_size[ll-1][1] - 1 + pool[ll][1]
+                        + kernel_size[ll-1][1] + pool[ll][1]
                     assert stream_start < 2**14
 
                     # Delta 1: This layer's pooling stride
@@ -1331,7 +1337,9 @@ def create_net(
             if fifo and processor_map_0 & 0x0f << group * 16 != 0:
                 fval = 1 << 15
                 if fast_fifo:
-                    fval |= 3 << 22
+                    fval |= 1 << 22
+                if fifo_group:
+                    fval |= 1 << 23
             elif fifo:
                 fval = 1 << 15
             else:
@@ -1346,7 +1354,9 @@ def create_net(
         if fifo and processor_map_0 & 0x0f << groups_used[0] * 16 != 0:
             val |= 1 << 15
             if fast_fifo:
-                val |= 3 << 22
+                val |= 1 << 22
+            if fifo_group:
+                val |= 1 << 23
         apb.write_ctl(groups_used[0], tc.dev.REG_CTL, val | tc.dev.READY_SEL << 1 | 0x01,
                       verbose, comment=f' // Master enable group {groups_used[0]}')
 
@@ -1713,6 +1723,7 @@ def create_net(
             riscv=riscv,
             input_csv=input_csv,
             input_period=input_csv_period,
+            input_sync=input_sync,
         )
         assets.copy('assets', 'all', base_directory, test_name)
         if riscv_cache:
@@ -2041,6 +2052,7 @@ def main():
             args.input_csv,
             args.input_csv_period,
             args.input_fifo,
+            args.input_sync,
             args.legacy_test,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':

@@ -26,6 +26,7 @@ def create_runtest_sv(
         riscv=False,
         input_csv=None,
         input_period=80,
+        input_sync=False,
 ):
     """
     For for test `test_name`, create the runtest.sv file named `runtest_filename`, in the
@@ -115,6 +116,34 @@ def create_runtest_sv(
                 runfile.write('assign `PCIF_DATA_2  = data_val[2];\n')
                 runfile.write('assign `PCIF_DATA_1  = data_val[1];\n')
                 runfile.write('assign `PCIF_DATA_0  = data_val[0];\n\n')
+
+                if input_sync:
+                    runfile.write('parameter pclk_ai_per_pix = 9;\n\n')
+                    runfile.write('logic        pclk_ai;\n')
+                    runfile.write('logic        clk_pix;\n')
+                    runfile.write('logic        start_io;\n')
+                    runfile.write('logic        end_of_file;\n')
+                    runfile.write('integer      clk_pix_i;\n\n')
+                    runfile.write('assign pclk_ai = tb.xchip.pclk_ai;\n\n')
+                    runfile.write('always @(posedge pclk_ai) begin\n')
+                    runfile.write('  if (clk_pix_i == pclk_ai_per_pix)\n')
+                    runfile.write('    clk_pix_i = 0;\n')
+                    runfile.write('  else\n')
+                    runfile.write('    clk_pix_i = clk_pix_i + 1;\n')
+                    runfile.write('end\n\n')
+                    runfile.write('assign clk_pix = clk_pix_i == pclk_ai_per_pix;\n\n')
+                    runfile.write('always @(posedge clk_pix) begin\n')
+                    runfile.write('  if (start_io) begin\n')
+                    runfile.write('    if (!$feof(input_file)) begin\n')
+                    runfile.write('      $fscanf(input_file, "%H,%H,%H,%H", '
+                                  'vsync_val, hsync_val, pixclk_val, data_val);\n')
+                    runfile.write('    end else begin\n')
+                    runfile.write('      end_of_file = 1;\n')
+                    runfile.write('      start_io    = 0;\n')
+                    runfile.write('    end\n')
+                    runfile.write('  end\n')
+                    runfile.write('end\n\n')
+
                 runfile.write('initial begin\n')
                 runfile.write('  old_pixclk_val = 0;\n')
                 runfile.write('  pixclk_val = 0;\n')
@@ -122,6 +151,12 @@ def create_runtest_sv(
                 runfile.write('  vsync_val = 0;\n')
                 runfile.write('  data_val = \'0;\n')
                 runfile.write('  input_file = $fopen(`CSV_FILE, "r");\n\n')
+
+                if input_sync:
+                    runfile.write('  start_io    = 0;\n')
+                    runfile.write('  end_of_file = 0;\n')
+                    runfile.write('  clk_pix_i   = 0;\n\n')
+
                 runfile.write('  if (!input_file)\n')
                 runfile.write('    begin\n')
                 runfile.write('    $display("Error opening %s", `CSV_FILE);\n')
@@ -130,13 +165,22 @@ def create_runtest_sv(
                 runfile.write('  @(posedge sim.trig[0]);\n\n')
                 runfile.write('  $fgets(null_string, input_file);\n')
                 runfile.write('  $display("Reading camera image from %s", `CSV_FILE);\n\n')
-                runfile.write('  while (!$feof(input_file))\n')
-                runfile.write('    begin\n')
-                runfile.write('      count++;\n')
-                runfile.write('      $fscanf(input_file, "%H,%H,%H,%H", '
-                              'vsync_val, hsync_val, pixclk_val, data_val);\n')
-                runfile.write(f'      #{input_period}ns;\n')
-                runfile.write('    end\n\n')
+
+                if input_sync:
+                    runfile.write('  start_io = 1;\n')
+                    runfile.write('  while (!end_of_file) begin\n')
+                    runfile.write('    count++;\n')
+                    runfile.write('    #200ns;\n')
+                    runfile.write('  end\n\n')
+                else:
+                    runfile.write('  while (!$feof(input_file))\n')
+                    runfile.write('    begin\n')
+                    runfile.write('      count++;\n')
+                    runfile.write('      $fscanf(input_file, "%H,%H,%H,%H", '
+                                  'vsync_val, hsync_val, pixclk_val, data_val);\n')
+                    runfile.write(f'      #{input_period}ns;\n')
+                    runfile.write('    end\n\n')
+
                 runfile.write('  $fclose(input_file);\n')
                 runfile.write('  $display("Camera image data read");\n\n')
                 runfile.write('end\n')
