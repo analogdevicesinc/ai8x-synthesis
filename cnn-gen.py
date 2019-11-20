@@ -123,6 +123,7 @@ def create_net(
         input_csv=None,
         input_csv_period=None,
         input_fifo=False,
+        legacy_test=True,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -1091,12 +1092,12 @@ def create_net(
                         if override_delta1 is not None:
                             delta1 = override_delta1
                         else:
-                            delta1 = pool_stride[ll][1] - 1
+                            delta1 = (pool_stride[ll][1] - 1) * operands[ll]
                         assert delta1 < 2**5
                         if override_delta2 is not None:
                             delta2 = override_delta2
                         else:
-                            delta2 = (pool[ll][0] - 1) * input_dim[ll][1]
+                            delta2 = (pool[ll][0] - 1) * input_dim[ll][1] * operands[ll]
                         assert delta2 < 2**12
                     else:
                         delta1 = 0
@@ -1133,13 +1134,13 @@ def create_net(
                     assert stream_start < 2**14
 
                     # Delta 1: This layer's pooling stride
-                    delta1 = pool_stride[ll][1]
+                    delta1 = pool_stride[ll][1] * operands[ll]
                     assert delta1 < 2**5
                     # Delta 2: (This layer's pooling - 1) * full prior layer's padded rows + prior
                     # layer's pad
                     delta2 = (pool_stride[ll][0] - 1) \
                         * (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
-                        + pool[ll][1]
+                        + pool[ll][1] * operands[ll]
                     assert delta2 < 2**12
 
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, stream_start,
@@ -1386,8 +1387,6 @@ def create_net(
     def run_eltwise(
             data,
             ll,
-            in_chan,
-            dim,
     ):
         """
         In-flight element-wise operations
@@ -1397,10 +1396,8 @@ def create_net(
             o_width = output_width[ll]
         else:
             o_width = 8
+        d_shape = data.shape
 
-        data = np.split(data.reshape(in_chan * operands[ll],
-                                     dim[0], dim[1]),
-                        operands[ll], axis=0)
         data, out_size = eltwise_layer(
             eltwise[ll],
             ll,
@@ -1413,8 +1410,8 @@ def create_net(
             debug=debug_computation,
             operands=operands[ll],
         )
-        assert out_size[0] == in_chan \
-            and out_size[1] == dim[0] and out_size[2] == dim[1]
+        assert out_size[0] == d_shape[1] \
+            and out_size[1] == d_shape[2] and out_size[2] == d_shape[3]
 
         return data
 
@@ -1423,7 +1420,19 @@ def create_net(
         if debug_computation:
             compute.debug_open(ll, base_directory, test_name, log_filename)
 
-        in_chan = input_chan[ll]
+        # Split data into multiple inputs if needed
+        if operands[ll] > 1:
+            if ll == 0 and legacy_test:
+                data = np.array(np.split(data, operands[ll], axis=0))
+            else:
+                d = np.empty((operands[ll],
+                              data.shape[0], data.shape[1], data.shape[2] // operands[ll]),
+                             dtype=np.int64)
+                for i in range(operands[ll]):
+                    d[i, :, :, :] = data[:, :, i::operands[ll]]
+                data = d
+        else:
+            data = np.expand_dims(data, 0)
 
         show_data(
             ll,
@@ -1437,24 +1446,20 @@ def create_net(
             operands=operands[ll],
         )
 
+        in_chan = input_chan[ll]
+
         # Run in-flight element-wise operations first?
         if operands[ll] > 1 and not pool_first[ll]:
-            data = run_eltwise(data, ll, in_chan, input_dim[ll])
-            in_chan //= operands[ll]
-            num_operands = 1
-        else:
-            num_operands = operands[ll]
+            data = np.expand_dims(run_eltwise(data, ll), 0)
 
         # In-flight pooling
         if operator[ll] == op.CONV1D:
-            data = data.reshape(in_chan, input_dim[ll][0])
-        else:
-            data = data.reshape(in_chan * operands[ll], input_dim[ll][0], input_dim[ll][1])
+            data = data.reshape(1, in_chan, input_dim[ll][0])
 
         data, out_size = pooling_layer(
             ll,
             verbose,
-            data.shape,
+            data[0].shape,
             pool[ll],
             pool_stride[ll],
             pool_average[ll],
@@ -1463,25 +1468,28 @@ def create_net(
             expand=in_expand[ll],
             expand_thresh=in_expand_thresh[ll],
             operation=operator[ll],
-            operands=num_operands,
+            operands=data.shape[0],
             rounding=avg_pool_rounding,
         )
 
         if operator[ll] == op.CONV1D:
-            assert out_size[0] == in_chan * operands[ll] \
+            assert out_size[0] == in_chan \
                 and out_size[1] == pooled_dim[ll][0]
         else:
-            assert out_size[0] == in_chan * operands[ll] \
-                and out_size[1] == pooled_dim[ll][0] and out_size[2] == pooled_dim[ll][1]
+            assert out_size[0] == in_chan \
+                and out_size[1] == pooled_dim[ll][0] \
+                and out_size[2] == pooled_dim[ll][1]
 
         if operands[ll] > 1 and pool_first[ll]:
-            data = run_eltwise(data, ll, in_chan, pooled_dim[ll])
+            data = run_eltwise(data, ll)
+        else:
+            data = np.squeeze(data, axis=0)
 
         # Convolution or passthrough
         if operator[ll] == op.CONV2D:
             if flatten[ll]:
                 in_chan *= input_dim[ll][0] * input_dim[ll][1]
-                data = data.reshape(in_chan * operands[ll], 1, 1)
+                data = data.reshape(in_chan, 1, 1)
                 if verbose:
                     print(f"FLATTEN TO {in_chan}x1x1...\n")
 
@@ -2033,6 +2041,7 @@ def main():
             args.input_csv,
             args.input_csv_period,
             args.input_fifo,
+            args.legacy_test,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

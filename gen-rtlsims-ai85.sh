@@ -176,27 +176,27 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-cifar2-hwc --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar-hwc.yaml --ai85 --overwrite-ok
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-stream-transition --config-file tests/test-stream-transition.yaml --ai85 --overwrite-ok
 
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-add --config-file tests/test-eltwiseadd.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-sub --config-file tests/test-eltwisesub.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-xor --config-file tests/test-eltwisexor.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-or --config-file tests/test-eltwiseor.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-add-multipass --config-file tests/test-eltwiseadd-multipass.yaml --ai85 --max-proc 2
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-add7 --config-file tests/test-eltwiseadd-7ch.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-add --config-file tests/test-eltwiseadd.yaml --ai85 --legacy-test
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-sub --config-file tests/test-eltwisesub.yaml --ai85 --legacy-test
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-xor --config-file tests/test-eltwisexor.yaml --ai85 --legacy-test
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-or --config-file tests/test-eltwiseor.yaml --ai85 --legacy-test
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-add-multipass --config-file tests/test-eltwiseadd-multipass.yaml --ai85 --max-proc 2 --legacy-test
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-add7 --config-file tests/test-eltwiseadd-7ch.yaml --ai85 --legacy-test
 
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-add4-7ch --config-file tests/test-eltwiseadd4-7ch.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-add7-conv2d --config-file tests/test-eltwiseaddconv2d-7ch.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-add31 --config-file tests/test-eltwiseadd-31ch.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-add126 --config-file tests/test-eltwiseadd-126ch.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-pool --config-file tests/test-eltwiseadd-pool.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-poolafter --config-file tests/test-eltwiseadd-poolafter.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-add5op31 --config-file tests/test-eltwiseadd-5op-31ch.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-add5op31-32bit --config-file tests/test-eltwiseadd-5op-31ch-32bit.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-add4-7ch --config-file tests/test-eltwiseadd4-7ch.yaml --ai85 --legacy-test
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-add7-conv2d --config-file tests/test-eltwiseaddconv2d-7ch.yaml --ai85 --legacy-test
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-add31 --config-file tests/test-eltwiseadd-31ch.yaml --ai85 --legacy-test
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-add126 --config-file tests/test-eltwiseadd-126ch.yaml --ai85 --legacy-test
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-pool --config-file tests/test-eltwiseadd-pool.yaml --ai85 --legacy-test
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-poolafter --config-file tests/test-eltwiseadd-poolafter.yaml --ai85 --legacy-test
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-add5op31 --config-file tests/test-eltwiseadd-5op-31ch.yaml --ai85 --legacy-test
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-add5op31-32bit --config-file tests/test-eltwiseadd-5op-31ch-32bit.yaml --ai85 --legacy-test
 
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-passthroughmp --config-file tests/test-passthroughmultipass.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-widein-1x1 --config-file tests/test-widein-1x1.yaml --ai85
 
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-pool-avg --config-file tests/test-eltwiseadd-pool-avg.yaml --ai85
-./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-poolafter-avg --config-file tests/test-eltwiseadd-poolafter-avg.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-pool-avg --config-file tests/test-eltwiseadd-pool-avg.yaml --ai85 --legacy-test
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-eltwise-poolafter-avg --config-file tests/test-eltwiseadd-poolafter-avg.yaml --ai85 --legacy-test
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-q4-16x16avgpool-round --checkpoint-file trained/ai85-cifar10-bias-quant4.pth.tar --config-file tests/test-ai85-cifar10-hwc-16x16avgpool.yaml --stop-after 0 --ai85 --avg-pool-rounding
 
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fifostream-cifar2 --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-fifostream-cifar.yaml --ai85 --fifo

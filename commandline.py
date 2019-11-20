@@ -87,6 +87,8 @@ def get_parser():
                         help="input offset (x8 hex, defaults to 0x0000)")
     parser.add_argument('--one-shot', action='store_true', default=False,
                         help="use layer-by-layer one-shot mechanism (default: false)")
+    parser.add_argument('--legacy-test', action='store_true', default=False,
+                        help="enable compatibility for certain old RTL sims (default: false)")
     parser.add_argument('--overlap-data', '--overwrite-ok', dest='overwrite_ok',
                         action='store_true', default=False,
                         help="allow output to overwrite input (default: warn/stop)")
