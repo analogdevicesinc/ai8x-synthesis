@@ -508,54 +508,44 @@ def pooling_layer(
     """
     if pool[0] > 1 or pool[1] > 1:
         if operation != op.CONV1D:
-            in_chan = input_size[0] // operands
-
             pooled_size = [input_size[0],
                            (input_size[1] + pool_stride[0] - pool[0]) // pool_stride[0],
                            (input_size[2] + pool_stride[1] - pool[1]) // pool_stride[1]]
-            pooled = pool2d(
-                data,
-                input_size,
-                pooled_size,
-                pool,
-                pool_stride,
-                pool_average,
-                floor=not rounding,
-                debug=debug
-            )
-            if verbose:
-                if operands == 1:
-                    print_data(f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
-                               f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]} "
-                               f"{input_size} -> {pooled_size}:",
-                               pooled,
-                               pooled_size,
-                               expand,
-                               expand_thresh)
-                else:
-                    d = np.split(pooled,
-                                 operands,
-                                 axis=0)
-                    for i in range(operands):
-                        print_data(f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
-                                   f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]} "
-                                   f"{[in_chan, input_size[1], input_size[2]]} -> "
-                                   f"{[in_chan, pooled_size[1], pooled_size[2]]}, "
-                                   f"POOLED DATA {i}:",
-                                   d[i],
-                                   [in_chan, pooled_size[1], pooled_size[2]],
-                                   expand,
-                                   expand_thresh)
+            pooled = np.empty((operands, pooled_size[0], pooled_size[1], pooled_size[2]),
+                              dtype=np.int64)
+            for i in range(operands):
+                pooled[i] = pool2d(
+                    data[i],
+                    input_size,
+                    pooled_size,
+                    pool,
+                    pool_stride,
+                    pool_average,
+                    floor=not rounding,
+                    debug=debug
+                )
+                if verbose:
+                    print_data(
+                        f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
+                        f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]} "
+                        f"{input_size} -> {pooled_size}"
+                        + (f", POOLED DATA {i}:" if operands > 1 else ":"),
+                        pooled[i],
+                        pooled_size,
+                        expand,
+                        expand_thresh,
+                    )
 
+            st = pool[0] * pool[1] * pooled_size[0] * pooled_size[1] * pooled_size[2] * operands
             if pool_average:
-                stats.add += pool[0] * pool[1] * pooled_size[0] * pooled_size[1] * pooled_size[2]
+                stats.add += st
             else:
-                stats.comp += pool[0] * pool[1] * pooled_size[0] * pooled_size[1] * pooled_size[2]
+                stats.comp += st
         else:
             pooled_size = [input_size[0],
                            (input_size[1] + pool_stride[0] - pool[0]) // pool_stride[0]]
             pooled = pool1d(
-                data,
+                data[0],
                 input_size,
                 pooled_size,
                 pool[0],
@@ -575,6 +565,8 @@ def pooling_layer(
                 stats.add += pool[0] * pooled_size[0] * pooled_size[1]
             else:
                 stats.comp += pool[0] * pooled_size[0] * pooled_size[1]
+
+            pooled = np.expand_dims(pooled, axis=0)
 
     else:
         pooled_size = input_size
@@ -604,31 +596,26 @@ def show_data(
         if operation != op.CONV1D:
             if operands == 1:
                 op_string = f"LAYER {layer} ({op.string(operation).upper()})...\n"
-                in_chan = input_size[0]
             else:
                 op_string = f"LAYER {layer} ({op.string(operation).upper()}, " \
                             f"{operands} OPERANDS)...\n"
-                in_chan = input_size[0] // operands
             print(op_string)
 
             if operands == 1:
-                print_data(f"{in_chan}x{input_size[1]}x{input_size[2]} INPUT DATA:",
-                           data,
-                           [in_chan, input_size[1], input_size[2]],
+                print_data(f"{data.shape[1]}x{data.shape[2]}x{data.shape[3]} INPUT DATA:",
+                           data[0],
+                           [data.shape[1], data.shape[2], data.shape[3]],
                            expand,
                            expand_thresh)
             else:
-                d = np.split(data.reshape(input_size[0], input_size[1], input_size[2]),
-                             operands,
-                             axis=0)
                 for i in range(operands):
-                    print_data(f"{in_chan}x{input_size[1]}x{input_size[2]} INPUT DATA {i}:",
-                               d[i],
-                               [in_chan, input_size[1], input_size[2]],
+                    print_data(f"{data.shape[1]}x{data.shape[2]}x{data.shape[3]} INPUT DATA {i}:",
+                               data[i],
+                               [data.shape[1], data.shape[2], data.shape[3]],
                                expand,
                                expand_thresh)
         else:
             print(f"LAYER {layer} ({op.string(operation).upper()})...\n")
-            print(f"{input_size[0]}x{input_size[1]} INPUT DATA:")
+            print(f"{input_size[1]}x{input_size[2]} INPUT DATA:")
             print(np.squeeze(data))
             print('')
