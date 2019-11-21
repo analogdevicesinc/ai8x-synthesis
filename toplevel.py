@@ -182,7 +182,7 @@ def main(
                       '                        MXC_S_CAMERAIF_CTRL_DS_TIMING_EN_DIS +\n'
                       '                        MXC_S_CAMERAIF_CTRL_PCIF_SYS_EN_EN')
         if channels == 3:
-            memfile.write(' +\n                        0x10000;\n\n')
+            memfile.write(' +\n                        (1<<30);\n\n')
         else:
             memfile.write(';\n\n')
 

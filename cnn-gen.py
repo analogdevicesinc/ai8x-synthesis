@@ -1887,7 +1887,10 @@ def main():
     big_data = params['big_data'][:layers]
     output_width = params['output_width'][:layers]
     operator = params['operator'][:layers]
-    streaming = params['streaming'][:layers]
+    if args.ignore_streaming:
+        streaming = [False] * layers
+    else:
+        streaming = params['streaming'][:layers]
     flatten = params['flatten'][:layers]
     operands = params['operands'][:layers]
     eltwise = params['eltwise'][:layers]
