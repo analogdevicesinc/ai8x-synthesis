@@ -564,14 +564,56 @@ def create_net(
 
         if device != 84 and zero_sram:
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0b101010,
-                              verbose, comment=' // Zero SRAM')
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 0,
+                              verbose, comment=' // Data SRAM BIST')
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 28, 1 << 28,
-                               comment=' // Wait for zeroization')
+                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 27 | 1 << 18, 1 << 27 | 1 << 18,
+                             comment=' // Wait for BIST')
+            for group in range(tc.dev.P_NUMGROUPS):
+                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 14, 0,
+                               comment=' // Return on BIST error')
             for group in range(tc.dev.P_NUMGROUPS):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
-                              verbose, comment=' // Reset zero SRAM', force_write=True)
+                              verbose, comment=' // Reset BIST', force_write=True)
+            apb.output('\n')
+            for group in range(tc.dev.P_NUMGROUPS):
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 2,
+                              verbose, comment=' // Mask SRAM BIST')
+            for group in range(tc.dev.P_NUMGROUPS):
+                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 27 | 1 << 19, 1 << 27 | 1 << 19,
+                             comment=' // Wait for BIST')
+            for group in range(tc.dev.P_NUMGROUPS):
+                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 15, 0,
+                               comment=' // Return on BIST error')
+            for group in range(tc.dev.P_NUMGROUPS):
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
+                              verbose, comment=' // Reset BIST', force_write=True)
+            apb.output('\n')
+            for group in range(tc.dev.P_NUMGROUPS):
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 4,
+                              verbose, comment=' // Tornado SRAM BIST')
+            for group in range(tc.dev.P_NUMGROUPS):
+                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 27 | 1 << 20, 1 << 27 | 1 << 20,
+                             comment=' // Wait for BIST')
+            for group in range(tc.dev.P_NUMGROUPS):
+                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 16, 0,
+                               comment=' // Return on BIST error')
+            for group in range(tc.dev.P_NUMGROUPS):
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
+                              verbose, comment=' // Reset BIST', force_write=True)
+            apb.output('\n')
+            for group in range(tc.dev.P_NUMGROUPS):
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 6,
+                              verbose, comment=' // Bias Rfile BIST')
+            for group in range(tc.dev.P_NUMGROUPS):
+                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 27 | 1 << 21, 1 << 27 | 1 << 21,
+                             comment=' // Wait for BIST')
+            for group in range(tc.dev.P_NUMGROUPS):
+                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 17, 0,
+                               comment=' // Return on BIST error')
+            for group in range(tc.dev.P_NUMGROUPS):
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
+                              verbose, comment=' // Reset BIST', force_write=True)
             apb.output('\n')
 
         if not (embedded_code or mexpress or compact_weights):
@@ -1718,6 +1760,8 @@ def create_net(
         if not timeout:
             # If no timeout specified, calculate one based on reads/writes
             timeout = 10 * (apb.get_time() + rtlsim.GLOBAL_TIME_OFFSET)
+            if zero_sram:
+                timeout += 16
         rtlsim.create_runtest_sv(
             block_mode,
             base_directory,
