@@ -113,6 +113,7 @@ class APB(object):
             self,
             addr,
             val,
+            mask=None,
             num_bytes=4,
             first_proc=0,
             comment='',
@@ -212,6 +213,21 @@ class APB(object):
             reg = f'{reg:02}'
             print(f'R{reg:<3}({addr:08x}): {val:08x}{comment}')
 
+    def wait_ctl(
+            self,
+            group,
+            reg,
+            mask,
+            val,
+            comment='',
+    ):
+        """
+        Reads from global control register `reg` in group `group` until `mask`ed value is `val`.
+        An optional `comment` can be added to the output.
+        """
+        addr = tc.dev.C_GROUP_OFFS*group + tc.dev.C_CNN_BASE + reg*4
+        self.wait(addr, mask, val, comment)
+
     def verify_ctl(
             self,
             group,
@@ -221,12 +237,11 @@ class APB(object):
             comment='',
     ):
         """
-        Reads from global control register `reg` in group `group` to value `val`.
-        Unless `force_write` is set, zero values will not be written.
+        Reads from global control register `reg` in group `group`, comparing to value `val`.
         An optional `comment` can be added to the output.
         """
         addr = tc.dev.C_GROUP_OFFS*group + tc.dev.C_CNN_BASE + reg*4
-        self.wait(addr, mask, val, comment)
+        self.verify(addr, val, mask=mask, comment=comment)
 
     def write_lreg(
             self,
@@ -607,6 +622,7 @@ class APBBlockLevel(APB):
             self,
             addr,
             val,
+            mask=None,
             num_bytes=4,
             first_proc=0,
             comment='',
@@ -707,6 +723,7 @@ class APBTopLevel(APB):
             self,
             addr,
             val,
+            mask=None,
             num_bytes=4,
             first_proc=0,
             comment='',
@@ -724,25 +741,24 @@ class APBTopLevel(APB):
         if self.memfile is None:
             return
 
-        if num_bytes == 4:
-            mask = ''
-        elif num_bytes == 3:
-            mask = 0xffffff
-        elif num_bytes == 2:
-            mask = 0xffff
-        elif num_bytes == 1:
-            mask = 0xff
-        else:
-            raise NotImplementedError
+        if mask is None:
+            if num_bytes == 4:
+                mask = ''
+            elif num_bytes == 3:
+                mask = 0xffffff
+            elif num_bytes == 2:
+                mask = 0xffff
+            elif num_bytes == 1:
+                mask = 0xff
+            else:
+                raise NotImplementedError
 
         val_bytes = num_bytes
-        if num_bytes != 4:
+        if mask != '':
             mask <<= first_proc * 8
             val_bytes += first_proc
             val &= mask
             mask = f' & 0x{mask:0{2*val_bytes}x}'
-        else:
-            mask = ''
 
         if rv:
             action = 'rv = 0;'
