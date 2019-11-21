@@ -120,6 +120,10 @@ def get_parser():
     parser.add_argument('--riscv-cache', action='store_true', default=False,
                         help="enable RISC-V cache (implies --riscv and --riscv-flash; "
                              "default: false)")
+    parser.add_argument('--simple1b', action='store_true', default=False,
+                        help="use simple XOR instead of 1-but multiplication (default: false)")
+    parser.add_argument('--deepsleep', action='store_true', default=False,
+                        help="put ARM core into deep sleep (default: false)")
     parser.add_argument('--slow-load', type=int, metavar='N', default=0,
                         help="slow down FIFO loads (default: 0)")
     parser.add_argument('--stop-after', type=int, metavar='N',

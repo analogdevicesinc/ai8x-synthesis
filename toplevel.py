@@ -131,6 +131,7 @@ def main(
         camera=False,
         device=84,
         channels=None,
+        sleep=False,
 ):
     """
     Write the main function (including an optional call to the fully connected layer if
@@ -156,14 +157,13 @@ def main(
                 memfile.write('  while ((MXC_GCR->clkcn & MXC_F_GCR_CLKCN_HIRC96M_RDY) == 0) ; '
                               '// Wait for 96M\n')
                 memfile.write('  MXC_GCR->clkcn |= MXC_S_GCR_CLKCN_CLKSEL_HIRC96; // Select 96M\n')
-                memfile.write('  // MXC_GCR->clkcn &= ~MXC_F_GCR_CLKCN_HIRC_EN; // Disable 60M\n')
                 memfile.write('  MXC_GCR->pckdiv = 0x00010000; // AI clock 96M div 2\n')
                 memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable AI clock\n')
         if riscv is not None:
             if riscv_cache:
                 memfile.write(f'  MXC_NBBFC->reg4 = 0x{rv.RISCV_CODE_ORIGIN:08x}; '
                               '// Set RISC-V boot address\n')
-            # # MXC_NBBFC->reg5
+            # MXC_NBBFC->reg5:
             memfile.write('  // *((volatile uint32_t *) 0x40000814) |= 0x00000001; '
                           '// Exclusive SRAM access for RISC-V\n')
             memfile.write('  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_CPU1; '
@@ -216,6 +216,8 @@ def main(
                               '  }\n\n')
 
     if riscv is not None and not riscv:
+        if sleep:
+            memfile.write('  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=1\n')
         memfile.write('  asm volatile("wfi"); // Let RISC-V run\n')
 
     memfile.write('  pass();\n')

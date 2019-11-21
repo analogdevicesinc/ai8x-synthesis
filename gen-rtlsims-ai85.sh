@@ -336,3 +336,6 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-expandcontract --config-file tests/test-fifostream-expandcontract.yaml --ai85 --mexpress --riscv --riscv-flash --riscv-cache --timeout 60
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-expandcontract --config-file tests/test-fifostream-expandcontract.yaml --ai85 --mexpress --riscv --riscv-flash --riscv-cache --timeout 60 --stop-after 1
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-expandcontract --config-file tests/test-fifostream-expandcontract.yaml --ai85 --mexpress --riscv --riscv-flash --riscv-cache --timeout 60 --stop-after 2
+
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-simple1b-widein-q1 --config-file tests/test-widein-q1.yaml --ai85 --simple1b
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-simple1b-conv1d-multilayer-q1248 --config-file tests/test-conv1d-multilayer-q1248.yaml --ai85 --simple1b
