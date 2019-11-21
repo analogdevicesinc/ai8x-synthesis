@@ -124,6 +124,8 @@ def create_net(
         input_csv_period=None,
         input_fifo=False,
         input_sync=False,
+        sleep=False,
+        simple1b=False,
         legacy_test=True,
 ):
     """
@@ -369,6 +371,7 @@ def create_net(
                 master=False,
                 riscv=False,
                 riscv_cache=riscv_cache,
+                sleep=sleep,
             )
             apb.copyright_header()
 
@@ -407,6 +410,7 @@ def create_net(
             fast_fifo=fast_fifo,
             input_csv=input_csv,
             input_chan=input_chan[0],
+            sleep=sleep,
         )
 
         apb.copyright_header()
@@ -1328,6 +1332,8 @@ def create_net(
             val |= 1 << 3  # Enable clocks
         if mexpress:
             val |= 1 << 20
+        if simple1b:
+            val |= 1 << 21
         if fast_fifo_quad:
             val |= 1 << 31  # Qupac bit
 
@@ -2053,6 +2059,8 @@ def main():
             args.input_csv_period,
             args.input_fifo,
             args.input_sync,
+            args.deepsleep,
+            args.simple1b,
             args.legacy_test,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
