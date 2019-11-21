@@ -1204,7 +1204,7 @@ def create_net(
 
                 if ll == 0 and fifo:
                     val = input_dim[0][0] * input_dim[0][1]
-                    if big_data[0]:
+                    if big_data[0] or fast_fifo_quad:
                         val = (val + 3) // 4
                     assert val < 2**20
                     apb.write_ctl(group, tc.dev.REG_IFRM, val, verbose,
