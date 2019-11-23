@@ -137,8 +137,8 @@ class DevAI85(Dev):
     FIFO_STAT = 1
     FIFO_REG = 2
 
-    READY_SEL = 0x03
-    FIFO_READY_SEL = 0x03
+    READY_SEL = 0
+    FIFO_READY_SEL = 0
 
     DEFAULT_WEIGHT_BITS = 8
     ACTIVATION_BITS = 8
