@@ -543,9 +543,28 @@ class APB(object):
         """
         Write a verification function. The layer to unload has the shape `input_shape`,
         and the optional `output_offset` argument can shift the output.
-        The base class does nothing.
         """
-        return
+        unload.verify(
+            self.verify,
+            ll,
+            in_map,
+            out_map,
+            out_buf,
+            processor_map,
+            input_shape,
+            out_offset,
+            out_expand,
+            out_expand_thresh,
+            output_width,
+            pool=pool,
+            pool_stride=pool_stride,
+            overwrite_ok=overwrite_ok,
+            no_error_stop=no_error_stop,
+            device=self.device,
+            mlator=mlator,
+            apb_base=self.apb_base,
+            stream=self.memfile,
+        )
 
     def output_define(
             self,
@@ -578,8 +597,20 @@ class APBBlockLevel(APB):
             compact_weights=False,
             compact_data=False,
             embedded_code=False,
+            write_zero_registers=False,
             weight_filename=None,
             sample_filename=None,
+            device=84,
+            verify_kernels=False,
+            master=None,
+            riscv=None,
+            riscv_flash=False,
+            riscv_cache=False,
+            fast_fifo=False,
+            input_csv=None,
+            input_chan=None,
+            sleep=False,
+
     ):
         super(APBBlockLevel, self).__init__(
             memfile,
@@ -630,11 +661,16 @@ class APBBlockLevel(APB):
     ):  # pylint: disable=unused-argument
         """
         Verify that memory at address `addr` contains data `val`.
-        For block level tests, this function does nothing useful other than ensuring the inputs
-        address and data are not negative.
+        For block level tests, this function ensuring the input address and data are not negative
+        and then writes address and expected data in .mem file format.
         """
         assert val >= 0
         assert addr >= 0
+        addr += self.apb_base
+
+        self.memfile.write(f'@{self.foffs:04x} {addr:08x}\n')
+        self.memfile.write(f'@{self.foffs+1:04x} {val:08x}\n')
+        self.foffs += 2
 
     def wait(
             self,
@@ -926,51 +962,6 @@ class APBTopLevel(APB):
                       output_offset, out_expand, out_expand_thresh, output_width,
                       pool=pool, pool_stride=pool_stride, device=self.device,
                       mlator=mlator)
-
-    def verify_unload(
-            self,
-            ll,
-            in_map,
-            out_map,
-            out_buf,
-            processor_map,
-            input_shape,
-            out_offset=0,
-            out_expand=1,
-            out_expand_thresh=64,
-            output_width=8,
-            pool=None,
-            pool_stride=1,
-            overwrite_ok=False,
-            no_error_stop=False,
-            mlator=False,
-    ):
-        """
-        Write a verification function. The layer to unload has the shape `input_shape`,
-        and the optional `output_offset` argument can shift the output.
-        The base class does nothing.
-        """
-        unload.verify(
-            self.verify,
-            ll,
-            in_map,
-            out_map,
-            out_buf,
-            processor_map,
-            input_shape,
-            out_offset,
-            out_expand,
-            out_expand_thresh,
-            output_width,
-            pool=pool,
-            pool_stride=pool_stride,
-            overwrite_ok=overwrite_ok,
-            no_error_stop=no_error_stop,
-            device=self.device,
-            mlator=mlator,
-            apb_base=self.apb_base,
-            stream=self.memfile,
-        )
 
     def output_define(
             self,

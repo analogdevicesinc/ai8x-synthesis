@@ -1644,7 +1644,7 @@ def create_net(
             if ll == layers-1:
                 filename = output_filename + '.mem'  # Final output
             else:
-                filename = f'{output_filename}-{ll+1}.mem'  # Intermediate output
+                filename = f'{output_filename}-{ll}.mem'  # Intermediate output
             filemode = 'w'
         else:
             if ll == layers-1:
@@ -1713,41 +1713,42 @@ def create_net(
         if debug_computation:
             compute.debug_close()
 
-    with open(os.path.join(base_directory, test_name, filename), mode=filemode) as memfile:
-        apb.set_memfile(memfile)
+    if not block_mode:
+        with open(os.path.join(base_directory, test_name, filename), mode=filemode) as memfile:
+            apb.set_memfile(memfile)
 
-        if fc_weights:
-            apb.unload(
-                output_processor_map[-1],
-                out_size,
-                out_offset[layers-1],
-                out_expand[-1],
-                out_expand_thresh[-1],
-                output_width[-1],
-                pool[-1],
-                pool_stride[-1],
-                mlator=mlator,
+            if fc_weights:
+                apb.unload(
+                    output_processor_map[-1],
+                    out_size,
+                    out_offset[layers-1],
+                    out_expand[-1],
+                    out_expand_thresh[-1],
+                    output_width[-1],
+                    pool[-1],
+                    pool_stride[-1],
+                    mlator=mlator,
+                )
+
+                data = data.flatten()
+
+                out_buf, out_size = linear_layer(
+                    verbose=verbose,
+                    activation=None,
+                    data=data,
+                    weight=fc_weights[0],
+                    bias=fc_bias[0],
+                    debug=debug,
+                )
+
+                apb.fc_layer(fc_weights[0], fc_bias[0])
+                apb.fc_verify(out_buf)
+
+            apb.main(
+                fc_weights,
+                layers - 1 if oneshot else 0,
+                stopstart,
             )
-
-            data = data.flatten()
-
-            out_buf, out_size = linear_layer(
-                verbose=verbose,
-                activation=None,
-                data=data,
-                weight=fc_weights[0],
-                bias=fc_bias[0],
-                debug=debug,
-            )
-
-            apb.fc_layer(fc_weights[0], fc_bias[0])
-            apb.fc_verify(out_buf)
-
-        apb.main(
-            fc_weights,
-            layers - 1 if oneshot else 0,
-            stopstart,
-        )
 
     # Close header files
     if embedded_code or compact_data:
@@ -1756,7 +1757,7 @@ def create_net(
         weight_header.close()
 
     # Create run_test.sv
-    if not embedded_code:
+    if not embedded_code and not block_mode:
         if not timeout:
             # If no timeout specified, calculate one based on reads/writes
             timeout = 10 * (apb.get_time() + rtlsim.GLOBAL_TIME_OFFSET)
