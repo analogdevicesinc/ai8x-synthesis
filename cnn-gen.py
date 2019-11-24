@@ -1213,6 +1213,10 @@ def create_net(
                         else:
                             val = stream_start + (pool[ll][0] - 1) * input_dim[ll][1] \
                                 + max(stride[ll][1], pool_stride[ll][1], pool[ll][1])
+                        # Rollover must be multiple of multi-pass:
+                        rem = val % in_expand[ll]
+                        if rem > 0:
+                            val = val + in_expand[ll] - rem
                     assert val < 2**17
 
                     # Check rollover vs available data memory
@@ -1242,11 +1246,11 @@ def create_net(
                             sys.exit(1)
 
                     apb.write_lreg(group, ll, tc.dev.LREG_FMAX, val,
-                                   comment=' // Rollover')
+                                   verbose, comment=' // Rollover')
 
                 if ll == 0 and fifo:
                     val = input_dim[0][0] * input_dim[0][1]
-                    if big_data[0] or fast_fifo_quad:
+                    if big_data[0]:
                         val = (val + 3) // 4
                     assert val < 2**20
                     apb.write_ctl(group, tc.dev.REG_IFRM, val, verbose,
