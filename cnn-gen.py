@@ -111,12 +111,16 @@ def create_net(
         stopstart=False,
         mexpress=False,
         riscv=False,
+        riscv_exclusive=False,
         riscv_flash=False,
         riscv_cache=False,
         override_start=None,
+        increase_start=0,
         override_rollover=None,
         override_delta1=None,
+        increase_delta1=0,
         override_delta2=None,
+        increase_delta2=0,
         slow_load=False,
         synthesize_input=None,
         mlator_noverify=False,
@@ -148,7 +152,7 @@ def create_net(
     if riscv_cache:
         riscv = True
         riscv_flash = True
-    if riscv_flash:
+    if riscv_flash or riscv_exclusive:
         riscv = True
 
     # Check streaming and FIFO constraints
@@ -371,6 +375,7 @@ def create_net(
                 master=False,
                 riscv=False,
                 riscv_cache=riscv_cache,
+                riscv_exclusive=riscv_exclusive,
                 sleep=sleep,
             )
             apb.copyright_header()
@@ -1156,10 +1161,10 @@ def create_net(
                         delta2 = 0
 
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, stream_start,
-                                   verbose, comment=' // Stream processing 1')
+                                   verbose, comment=' // Stream processing start')
                     val = delta2 << 16 | delta1 << 4
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM2, val,
-                                   verbose, comment=' // Stream processing 2')
+                                   verbose, comment=' // Stream processing delta')
                 elif ll > 0 and streaming[ll]:
                     # [13:0]:  strm_isval[13:0]  Per stream start count - based on previous layer
                     #                            tptr_inc count
@@ -1182,27 +1187,27 @@ def create_net(
                     # + prior layer's kernel width + prior layer's pad
                     stream_start = (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
                         * (kernel_size[ll-1][0] - 1 + pool[ll][0] - 1) \
-                        + kernel_size[ll-1][1] + pool[ll][1]
+                        + kernel_size[ll-1][1] - 1 + pool[ll][1] + increase_start
                     assert stream_start < 2**14
 
                     # Delta 1: This layer's pooling stride
-                    delta1 = pool_stride[ll][1] * operands[ll]
+                    delta1 = pool_stride[ll][1] * operands[ll] + increase_delta1
                     assert delta1 < 2**5
                     # Delta 2: (This layer's pooling - 1) * full prior layer's padded rows + prior
                     # layer's pad
                     delta2 = (pool_stride[ll][0] - 1) \
                         * (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
-                        + pool[ll][1] * operands[ll]
+                        + pool[ll][1] * operands[ll] + increase_delta2
                     assert delta2 < 2**12
 
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM1, stream_start,
-                                   verbose, comment=' // Stream processing 1')
+                                   verbose, comment=' // Stream processing start')
                     # [3:0]:   strm_invol[3:0]   Per stream invol offset - based on stream count
                     val = sum(in_expand[:ll])
                     assert val < 2**4
                     val |= delta2 << 16 | delta1 << 4
                     apb.write_lreg(group, ll, tc.dev.LREG_STREAM2, val,
-                                   verbose, comment=' // Stream processing 2')
+                                   verbose, comment=' // Stream processing delta')
 
                 if fifo and streaming[ll]:
                     if ll == 0 and override_rollover is not None:
@@ -2098,12 +2103,16 @@ def main():
             args.stop_start,
             args.mexpress,
             args.riscv,
+            args.riscv_exclusive,
             args.riscv_flash,
             args.riscv_cache,
             args.override_start,
+            args.increase_start,
             args.override_rollover,
             args.override_delta1,
+            args.increase_delta1,
             args.override_delta2,
+            args.increase_delta2,
             args.slow_load,
             args.synthesize_input,
             args.mlator_noverify,

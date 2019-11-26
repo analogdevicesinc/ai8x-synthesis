@@ -43,6 +43,7 @@ class APB(object):
             verify_kernels=False,
             master=None,
             riscv=None,
+            riscv_exclusive=False,
             riscv_flash=False,
             riscv_cache=False,
             fast_fifo=False,
@@ -69,6 +70,7 @@ class APB(object):
         self.verify_kernels = verify_kernels
         self.master = master
         self.riscv = riscv
+        self.riscv_exclusive = riscv_exclusive
         self.riscv_flash = riscv_flash
         self.riscv_cache = riscv_cache
         self.fast_fifo = fast_fifo
@@ -604,6 +606,7 @@ class APBBlockLevel(APB):
             verify_kernels=False,
             master=None,
             riscv=None,
+            riscv_exclusive=False,
             riscv_flash=False,
             riscv_cache=False,
             fast_fifo=False,
@@ -914,6 +917,7 @@ class APBTopLevel(APB):
             oneshot=oneshot,
             stopstart=stopstart,
             riscv=self.riscv,
+            riscv_exclusive=self.riscv_exclusive,
             riscv_flash=self.riscv_flash,
             riscv_cache=self.riscv_cache,
             device=self.device,
@@ -1000,6 +1004,7 @@ def apbwriter(
         verify_kernels=False,
         master=None,
         riscv=None,
+        riscv_exclusive=False,
         riscv_flash=False,
         riscv_cache=False,
         fast_fifo=False,
@@ -1032,6 +1037,7 @@ def apbwriter(
         verify_kernels=verify_kernels,
         master=master,
         riscv=riscv,
+        riscv_exclusive=riscv_exclusive,
         riscv_flash=riscv_flash,
         riscv_cache=riscv_cache,
         fast_fifo=fast_fifo,

@@ -97,15 +97,24 @@ def get_parser():
     parser.add_argument('--override-start', type=lambda x: int(x, 0),
                         metavar='N',
                         help="override start value (x8 hex)")
+    parser.add_argument('--increase-start', type=int, default=2,
+                        metavar='N',
+                        help="add integer to start value (default: 2)")
     parser.add_argument('--override-rollover', type=lambda x: int(x, 0),
                         metavar='N',
                         help="override rollover value (x8 hex)")
     parser.add_argument('--override-delta1', type=lambda x: int(x, 0),
                         metavar='N',
                         help="override delta1 value (x8 hex)")
+    parser.add_argument('--increase-delta1', type=int, default=0,
+                        metavar='N',
+                        help="add integer to delta1 value (default: 0)")
     parser.add_argument('--override-delta2', type=lambda x: int(x, 0),
                         metavar='N',
                         help="override delta2 value (x8 hex)")
+    parser.add_argument('--increase-delta2', type=int, default=0,
+                        metavar='N',
+                        help="add integer to delta2 value (default: 0)")
     parser.add_argument('--queue-name', default='lowp', metavar='S',
                         help="queue name (default: 'lowp')")
     parser.add_argument('-L', '--log', action='store_true', default=False,
@@ -117,6 +126,8 @@ def get_parser():
                         help="split input into N portions (default: don't split)")
     parser.add_argument('--riscv', action='store_true', default=False,
                         help="use RISC-V processor (default: false)")
+    parser.add_argument('--riscv-exclusive', action='store_true', default=False,
+                        help="exclusive SRAM access for RISC-V (implies --riscv; default: false)")
     parser.add_argument('--riscv-flash', action='store_true', default=False,
                         help="move kernel/input to Flash (implies --riscv; default: false)")
     parser.add_argument('--riscv-cache', action='store_true', default=False,

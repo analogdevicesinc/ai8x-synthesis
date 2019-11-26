@@ -126,6 +126,7 @@ def main(
         oneshot=0,
         stopstart=False,
         riscv=None,
+        riscv_exclusive=False,
         riscv_flash=False,  # pylint: disable=unused-argument
         riscv_cache=False,
         camera=False,
@@ -163,9 +164,9 @@ def main(
             if riscv_cache:
                 memfile.write(f'  MXC_NBBFC->reg4 = 0x{rv.RISCV_CODE_ORIGIN:08x}; '
                               '// Set RISC-V boot address\n')
-            # MXC_NBBFC->reg5:
-            memfile.write('  // *((volatile uint32_t *) 0x40000814) |= 0x00000001; '
-                          '// Exclusive SRAM access for RISC-V\n')
+            if riscv_exclusive:
+                memfile.write('  *((volatile uint32_t *) 0x40000814) |= 0x00000001; '
+                              '// Exclusive SRAM access for RISC-V (MXC_NBBFC->reg5)\n')
             memfile.write('  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_CPU1; '
                           '// Enable RISC-V clock\n')
         memfile.write('\n')
