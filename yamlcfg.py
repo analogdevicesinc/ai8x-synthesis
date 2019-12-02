@@ -76,10 +76,11 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     operands = [1] * tc.dev.MAX_LAYERS
     eltwise = [op.NONE] * tc.dev.MAX_LAYERS
     pool_first = [True] * tc.dev.MAX_LAYERS
+    in_sequences = [None] * tc.dev.MAX_LAYERS
 
     sequence = 0
     for ll in cfg['layers']:
-        if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'in_dim',
+        if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'in_dim', 'in_sequences',
                                'in_offset', 'kernel_size', 'pool_stride', 'out_offset',
                                'activate', 'activation', 'data_format', 'eltwise', 'flatten',
                                'op', 'operands', 'operation', 'operator',
@@ -291,12 +292,12 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             val = ll['stride']
             if pooling_enabled[sequence]:
                 # Must use the default stride when pooling, otherwise stride can be set
-                if operator == op.CONV2D and val != 1 or val != 3:
+                if operator[sequence] == op.CONV2D and val != 1:
                     error_exit('Cannot set `stride` to non-default value when pooling', sequence)
-                if operator != op.CONV2D:
+                if operator[sequence] != op.CONV2D:
                     stride[sequence] = [3, 1]  # Fix default for 1D
             else:
-                if operator == op.CONVTRANSPOSE2D and val != 2:
+                if operator[sequence] == op.CONVTRANSPOSE2D and val != 2:
                     error_exit('Cannot set `stride` to non-default value for ConvTranspose2D',
                                sequence)
                 # Stride can be set
@@ -315,6 +316,14 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                 flatten[sequence] = bool(val)
             except ValueError:
                 error_exit(f'Unsupported value `{val}` for `flatten`', sequence)
+
+        if 'in_sequences' in ll:
+            if isinstance(ll['in_sequences'], list):
+                if any([(i >= sequence) for i in ll['in_sequences']]):
+                    error_exit('`in_sequences` cannot be greater than layer sequence', sequence)
+            elif ll['in_sequences'] >= sequence:
+                error_exit('`in_sequences` cannot be greater than layer sequence', sequence)
+            in_sequences[sequence] = ll['in_sequences']
 
         # Fix up values for 1D convolution or no convolution
         if operator[sequence] == op.CONV1D:
@@ -430,5 +439,6 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     settings['operands'] = operands
     settings['eltwise'] = eltwise
     settings['pool_first'] = pool_first
+    settings['in_sequences'] = in_sequences
 
     return cfg, settings
