@@ -701,6 +701,33 @@ class APBBlockLevel(APB):
         self.foffs = 0
 
 
+class APBDebug(APBBlockLevel):
+    """
+    Intended for debugging memory contents.
+    """
+    def verify(
+            self,
+            addr,
+            val,
+            mask=None,
+            num_bytes=4,
+            first_proc=0,
+            comment='',
+            rv=False,
+    ):  # pylint: disable=unused-argument
+        """
+        Verify that memory at address `addr` contains data `val`.
+        This function ensuring the input address and data are not negative
+        and then writes the expected data to a file.
+        """
+        assert val >= 0
+        assert addr >= 0
+        addr += self.apb_base
+
+        self.memfile.write(f'{val:08x}\n')
+        self.foffs += 2
+
+
 class APBTopLevel(APB):
     """
     APB read and write functionality for top level tests.
@@ -1011,6 +1038,7 @@ def apbwriter(
         input_csv=None,
         input_chan=None,
         sleep=False,
+        debug_mem=False,
 ):
     """
     Depending on `block_level`, return a block level .mem file writer or a top level .c file
@@ -1019,7 +1047,10 @@ def apbwriter(
     If `no_error_stop` is set, continue in the case when the data is trying to overwrite
     previously written data.
     """
-    APBClass = APBBlockLevel if block_level else APBTopLevel
+    if not debug_mem:
+        APBClass = APBBlockLevel if block_level else APBTopLevel
+    else:
+        APBClass = APBDebug
     return APBClass(
         memfile,
         apb_base,

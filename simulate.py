@@ -9,12 +9,13 @@
 """
 Simulate a single CNN layer
 """
+import os
 import numpy as np
 
 import op
 import stats
 import tornadocnn as tc
-from compute import conv1d, conv2d, linear, pool1d, pool2d, eltwise
+from compute import conv1d, conv2d, eltwise, linear, pool1d, pool2d
 
 
 def print_data(
@@ -489,7 +490,7 @@ def eltwise_layer(
 
 
 def pooling_layer(
-        layer,  # pylint: disable=unused-argument
+        layer,
         verbose,
         input_size,
         pool,
@@ -502,6 +503,7 @@ def pooling_layer(
         operation=None,
         operands=1,
         rounding=False,
+        debug_data=None,
 ):
     """
     Perform pooling for one layer.
@@ -514,6 +516,10 @@ def pooling_layer(
             pooled = np.empty((operands, pooled_size[0], pooled_size[1], pooled_size[2]),
                               dtype=np.int64)
             for i in range(operands):
+                if debug_data is not None:
+                    for j in range(input_size[0]):
+                        np.savetxt(os.path.join(debug_data, f"unpooled-{i}-L{layer}-ch{j}.csv"),
+                                   data[i][j, :, :], delimiter=",")
                 pooled[i] = pool2d(
                     data[i],
                     input_size,
@@ -535,6 +541,10 @@ def pooling_layer(
                         expand,
                         expand_thresh,
                     )
+                if debug_data is not None:
+                    for j in range(pooled_size[0]):
+                        np.savetxt(os.path.join(debug_data, f"pooled-{i}-L{layer}-ch{j}.csv"),
+                                   pooled[i][j, :, :], delimiter=",")
 
             st = pool[0] * pool[1] * pooled_size[0] * pooled_size[1] * pooled_size[2] * operands
             if pool_average:
