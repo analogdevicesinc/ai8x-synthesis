@@ -162,6 +162,8 @@ class DevAI85(Dev):
     MEM_SIZE = INSTANCE_SIZE * P_NUMPRO * P_NUMGROUPS // P_SHARED  # x32
     MAX_CHANNELS = 16 * MAX_PROC  # 16 x expansion
 
+    FRAME_SIZE_MAX = 2**21  # x * y * multipass, from cnn_ctl.sv P_FRMABITS
+
     BIAS_DIV = 128
 
     FAST_FIFO_BASE = 0x400c0400

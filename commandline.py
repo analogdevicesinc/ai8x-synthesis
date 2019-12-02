@@ -119,6 +119,11 @@ def get_parser():
                         help="queue name (default: 'lowp')")
     parser.add_argument('-L', '--log', action='store_true', default=False,
                         help="redirect stdout to log file (default: false)")
+    parser.add_argument('--log-intermediate', action='store_true', default=False,
+                        help="log data between layers (default: false)")
+    parser.add_argument('--log-pooling', action='store_true', default=False,
+                        help="log unpooled and pooled data between layers in CSV format "
+                             "(default: false)")
     parser.add_argument('--ignore-streaming', action='store_true', default=False,
                         help="ignore all 'streaming' layer directives (default: false)")
     parser.add_argument('--input-split', type=int, default=1, metavar='N',

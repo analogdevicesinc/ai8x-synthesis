@@ -132,6 +132,8 @@ def create_net(
         sleep=False,
         simple1b=False,
         legacy_test=True,
+        log_intermediate=False,
+        log_pooling=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -223,6 +225,8 @@ def create_net(
             in_expand_thresh[ll] = \
                 min((in_expand_thresh[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1),
                     tc.dev.MAX_PROC)
+
+        assert input_dim[ll][0] * input_dim[ll][1] * in_expand[ll] < tc.dev.FRAME_SIZE_MAX
 
         # Data memory size check - 4 channels share one instance unless CHW format
         in_size = input_dim[ll][0] * input_dim[ll][1] * in_expand[ll] * operands[ll] \
@@ -1554,6 +1558,7 @@ def create_net(
             operation=operator[ll],
             operands=data.shape[0],
             rounding=avg_pool_rounding,
+            debug_data=None if not log_pooling else os.path.join(base_directory, test_name),
         )
 
         if operator[ll] == op.CONV1D:
@@ -1705,6 +1710,52 @@ def create_net(
                     overwrite_ok or streaming[ll],
                     no_error_stop,
                     mlator=False,
+                )
+            if log_intermediate:
+                filename2 = f'{output_filename}-{ll}.mem'  # Intermediate output
+                memfile2 = open(os.path.join(base_directory, test_name, filename2), mode='w')
+                apb2 = apbaccess.apbwriter(
+                    memfile2,
+                    0,
+                    True,
+                    verify_writes=False,
+                    no_error_stop=False,
+                    weight_header=None,
+                    sampledata_header=None,
+                    embedded_code=False,
+                    compact_weights=False,
+                    compact_data=False,
+                    write_zero_registers=True,
+                    weight_filename=None,
+                    sample_filename=None,
+                    device=device,
+                    verify_kernels=verify_kernels,
+                    master=groups_used[0] if oneshot > 0 or stopstart else False,
+                    riscv=None,
+                    riscv_flash=False,
+                    riscv_cache=False,
+                    fast_fifo=False,
+                    input_csv=False,
+                    input_chan=input_chan[0],
+                    sleep=False,
+                    debug_mem=True,
+                )
+                apb2.verify_unload(
+                    ll,
+                    in_map,
+                    out_map,
+                    out_buf,
+                    output_processor_map[ll],
+                    out_size,
+                    out_offset[ll],
+                    out_expand[ll],
+                    out_expand_thresh[ll],
+                    output_width[ll],
+                    pool[ll],
+                    pool_stride[ll],
+                    overwrite_ok or streaming[ll],
+                    no_error_stop,
+                    mlator=mlator if ll == layers-1 else False,
                 )
             apb.verify_unload(
                 ll,
@@ -2203,6 +2254,8 @@ def main():
             args.deepsleep,
             args.simple1b,
             args.legacy_test,
+            args.log_intermediate,
+            args.log_pooling,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(
