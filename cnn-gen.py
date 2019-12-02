@@ -82,6 +82,7 @@ def create_net(
         operands,
         eltwise,
         pool_first,
+        in_sequences,
         input_filename,
         output_filename,
         c_filename,
@@ -1482,10 +1483,26 @@ def create_net(
 
         return data
 
+    data_buf = []
+    data_buf.append(data)
     # Compute layer-by-layer output and chain results into input
     for ll in range(layers):
         if debug_computation:
             compute.debug_open(ll, base_directory, test_name, log_filename)
+
+        # Concatanate input data if needed
+        if in_sequences[ll]:
+            if isinstance(in_sequences[ll], list):
+                data = [data_buf[data_idx+1] for data_idx in in_sequences[ll]]
+                try:
+                    data = np.concatenate(data, axis=0)
+                except ValueError as err:
+                    print('Error in input data concatenation layer.', err)
+                    sys.exit(1)
+            else:
+                data = data_buf[in_sequences[ll]+1]
+        else:
+            data = data_buf[-1]
 
         # Split data into multiple inputs if needed
         if operands[ll] > 1:
@@ -1711,7 +1728,7 @@ def create_net(
             if memfile:
                 memfile.close()
 
-        data = out_buf.reshape(out_size)
+        data_buf.append(out_buf.reshape(out_size))
         if streaming[ll]:
             # When streaming, the output should not overwrite the input of prior layers since
             # these layers are still needed.
@@ -1721,6 +1738,8 @@ def create_net(
 
         if debug_computation:
             compute.debug_close()
+
+    data = data_buf[-1]
 
     if not block_mode:
         with open(os.path.join(base_directory, test_name, filename), mode=filemode) as memfile:
@@ -1836,10 +1855,68 @@ def main():
             sampleweight.load(cfg['dataset'], params['quantization'], len(cfg['layers']),
                               cfg['bias'] if 'bias' in cfg else None)
 
+    def add_non_conv_layers(
+            layers,
+            weights,
+            bias,
+            fc_weights,
+            fc_bias,
+            input_channels,
+            output_channels,
+            config_layers
+    ):
+        '''
+        Add non-convolutional layers.
+        '''
+        idx = 0
+
+        for l in config_layers:
+            if 'conv' in l['operation'] or 'linear' in l['operation']:
+                # Do not increase layers
+                idx += 1
+                continue
+
+            l_weights = None
+            l_bias = None
+
+            if 'in_dim' in l:
+                l_in_dim = l['in_dim'][-1]
+            else:
+                l_in_dim = output_channels[idx-1]
+
+            if 'out_dim' in l:
+                l_out_dim = l['out_dim'][-1]
+            else:
+                l_out_dim = l_in_dim
+
+            weights.insert(idx, l_weights)
+            bias.insert(idx, l_bias)
+            input_channels.insert(idx, l_in_dim)
+            output_channels.insert(idx, l_out_dim)
+
+            idx += 1
+            layers += 1
+
+        return layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels
+
     if layers != len(cfg['layers']):
-        print(f"Number of layers in the YAML configuration file ({len(cfg['layers'])}) "
-              f"does not match the checkpoint file ({layers}).")
-        sys.exit(1)
+        if len(cfg['layers']) > layers:
+            # Add layers not in checkpoint file
+            layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
+                add_non_conv_layers(
+                    layers,
+                    weights,
+                    bias,
+                    fc_weights,
+                    fc_bias,
+                    input_channels,
+                    output_channels,
+                    cfg['layers']
+                )
+        if layers != len(cfg['layers']):
+            print(f"Number of layers in the YAML configuration file ({len(cfg['layers'])}) "
+                  f"does not match the checkpoint file ({layers}).")
+            sys.exit(1)
 
     if any(p < 0 or p > 4*tc.dev.MEM_SIZE for p in params['output_offset']):
         print('Unsupported value for `out_offset` in YAML configuration.')
@@ -1906,6 +1983,7 @@ def main():
     eltwise = params['eltwise'][:layers]
     pool_first = params['pool_first'][:layers]
     activation = params['activation'][:layers]
+    in_sequences = params['in_sequences'][:layers]
 
     # Command line override
     if args.input_offset is not None:
@@ -1933,8 +2011,9 @@ def main():
     else:
         input_dim[0] = conf_input_dim[0]
     for ll in range(layers):
-        assert weights[ll].min() >= -1 << quantization[ll] - 1
-        assert weights[ll].max() <= (1 << quantization[ll] - 1) - 1
+        if operator[ll] != op.NONE:
+            assert weights[ll].min() >= -1 << quantization[ll] - 1
+            assert weights[ll].max() <= (1 << quantization[ll] - 1) - 1
 
         if input_dim[ll] is None:
             auto_input_dim[ll] = output_dim[ll-1]
@@ -2074,6 +2153,7 @@ def main():
             operands,
             eltwise,
             pool_first,
+            in_sequences,
             args.input_filename,
             args.output_filename,
             args.c_filename,
