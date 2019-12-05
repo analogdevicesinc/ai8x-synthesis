@@ -10,6 +10,7 @@
 Command line parser for Tornado CNN
 """
 import argparse
+import camera
 
 
 def get_parser():
@@ -62,6 +63,12 @@ def get_parser():
                         help="checkpoint file containing quantized weights")
     parser.add_argument('--input-csv', metavar='S',
                         help="input data .csv file name for camera sim")
+    parser.add_argument('--input-csv-format', type=int, metavar='N', default=888,
+                        choices=[555, 565, 888],
+                        help="format for .csv input data (555, 565, 888, default: 888)")
+    parser.add_argument('--input-csv-retrace', type=int, metavar='N', default=camera.RETRACE,
+                        help="delay for camera retrace when using .csv input data "
+                             f"(default: {camera.RETRACE})")
     parser.add_argument('--input-csv-period', metavar='N', default=80,
                         help="period for .csv input data (default: 80)")
     parser.add_argument('--input-sync', action='store_true', default=False,
