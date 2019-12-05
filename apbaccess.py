@@ -48,6 +48,7 @@ class APB(object):
             riscv_cache=False,
             fast_fifo=False,
             input_csv=None,
+            input_csv_format=888,
             input_chan=None,
             sleep=False,
     ):
@@ -75,6 +76,7 @@ class APB(object):
         self.riscv_cache = riscv_cache
         self.fast_fifo = fast_fifo
         self.input_csv = input_csv
+        self.input_csv_format = input_csv_format
         self.input_chan = input_chan
         self.sleep = sleep
 
@@ -611,6 +613,7 @@ class APBBlockLevel(APB):
             riscv_cache=False,
             fast_fifo=False,
             input_csv=None,
+            input_csv_format=None,
             input_chan=None,
             sleep=False,
 
@@ -949,6 +952,7 @@ class APBTopLevel(APB):
             riscv_cache=self.riscv_cache,
             device=self.device,
             camera=self.input_csv is not None,
+            camera_format=self.input_csv_format,
             channels=self.input_chan,
             sleep=self.sleep,
         )
@@ -1036,6 +1040,7 @@ def apbwriter(
         riscv_cache=False,
         fast_fifo=False,
         input_csv=None,
+        input_csv_format=888,
         input_chan=None,
         sleep=False,
         debug_mem=False,
@@ -1073,6 +1078,7 @@ def apbwriter(
         riscv_cache=riscv_cache,
         fast_fifo=fast_fifo,
         input_csv=input_csv,
+        input_csv_format=input_csv_format,
         input_chan=input_chan,
         sleep=sleep,
     )

@@ -35,6 +35,8 @@ def load(
         synthesize=None,
         riscv_flash=False,
         csv_file=None,
+        camera_format=888,
+        camera_retrace=0,
         debug=False,
 ):
     """
@@ -57,6 +59,8 @@ def load(
             data,
             slowdown,
             csv_file,
+            camera_format,
+            camera_retrace,
             debug,
         )
     elif fifo:
@@ -407,6 +411,8 @@ def loadcsv(
         data,
         slowdown=0,  # pylint: disable=unused-argument
         csv_file=None,
+        camera_format=888,
+        camera_retrace=0,
         debug=False,  # pylint: disable=unused-argument
 ):
     """
@@ -479,10 +485,31 @@ def loadcsv(
         with open(csv_file, mode='w') as f:
             camera.header(f)
 
-            for row in range(input_size[1]):
-                for col in range(input_size[2]):
-                    for c in range(0, input_size[0]):
-                        camera.pixel(f, s2u(data[c][row][col]) & 0xff)
-                camera.finish_row(f)
+            if camera_format == 888:
+                for row in range(input_size[1]):
+                    for col in range(input_size[2]):
+                        for c in range(0, input_size[0]):
+                            camera.pixel(f, s2u(data[c][row][col]) & 0xff)
+                    camera.finish_row(f, retrace=camera_retrace)
+            elif camera_format == 555:
+                for row in range(input_size[1]):
+                    for col in range(input_size[2]):
+                        w = (s2u(data[0][row][col]) & 0xf8) << 7 \
+                            | (s2u(data[1][row][col]) & 0xf8) << 2 \
+                            | (s2u(data[2][row][col]) & 0xf8) >> 3
+                        camera.pixel(f, w >> 8 & 0xff)
+                        camera.pixel(f, w & 0xff)
+                    camera.finish_row(f, retrace=camera_retrace)
+            elif camera_format == 565:
+                for row in range(input_size[1]):
+                    for col in range(input_size[2]):
+                        w = (s2u(data[0][row][col]) & 0xf8) << 8 \
+                            | (s2u(data[1][row][col]) & 0xfc) << 3 \
+                            | (s2u(data[2][row][col]) & 0xf8) >> 3
+                        camera.pixel(f, w >> 8 & 0xff)
+                        camera.pixel(f, w & 0xff)
+                    camera.finish_row(f, retrace=camera_retrace)
+            else:
+                raise RuntimeError(f'Unknown camera format {camera_format}')
 
             camera.finish_image(f)

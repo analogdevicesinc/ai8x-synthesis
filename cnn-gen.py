@@ -127,6 +127,8 @@ def create_net(
         mlator_noverify=False,
         input_csv=None,
         input_csv_period=None,
+        input_csv_format=None,
+        input_csv_retrace=None,
         input_fifo=False,
         input_sync=False,
         sleep=False,
@@ -419,6 +421,7 @@ def create_net(
             riscv_cache=riscv_cache,
             fast_fifo=fast_fifo,
             input_csv=input_csv,
+            input_csv_format=input_csv_format,
             input_chan=input_chan[0],
             sleep=sleep,
         )
@@ -482,6 +485,8 @@ def create_net(
                 synthesize=synthesize_input,
                 riscv_flash=riscv_flash,
                 csv_file=csv,
+                camera_format=input_csv_format,
+                camera_retrace=input_csv_retrace,
                 debug=debug,
             )
         if embedded_code or mexpress or compact_weights:
@@ -1299,6 +1304,8 @@ def create_net(
                     slowdown=slow_load,
                     riscv_flash=riscv_flash,
                     csv_file=csv,
+                    camera_format=input_csv_format,
+                    camera_retrace=input_csv_retrace,
                     debug=debug,
                 )
 
@@ -1445,6 +1452,8 @@ def create_net(
                     slowdown=slow_load,
                     synthesize=synthesize_input,
                     csv_file=csv,
+                    camera_format=input_csv_format,
+                    camera_retrace=input_csv_retrace,
                     debug=debug,
                 )
 
@@ -1494,7 +1503,7 @@ def create_net(
         if debug_computation:
             compute.debug_open(ll, base_directory, test_name, log_filename)
 
-        # Concatanate input data if needed
+        # Concatenate input data if needed
         if in_sequences[ll]:
             if isinstance(in_sequences[ll], list):
                 data = [data_buf[data_idx+1] for data_idx in in_sequences[ll]]
@@ -2047,6 +2056,15 @@ def main():
     data = sampledata.get(cfg['dataset'])
     input_size = list(data.shape)
 
+    if args.input_csv_format == 555:
+        assert input_size[0] == 3
+        data = data & ~0x7
+    elif args.input_csv_format == 565:
+        assert input_size[0] == 3
+        data[0] = data[0] & ~0x7
+        data[1] = data[1] & ~0x3
+        data[2] = data[2] & ~0x7
+
     # Trace output sizes of the network
     auto_input_dim = [None] * layers
     input_dim = [None] * layers
@@ -2249,6 +2267,8 @@ def main():
             args.mlator_noverify,
             args.input_csv,
             args.input_csv_period,
+            args.input_csv_format,
+            args.input_csv_retrace,
             args.input_fifo,
             args.input_sync,
             args.deepsleep,

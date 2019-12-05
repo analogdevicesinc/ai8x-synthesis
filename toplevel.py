@@ -130,6 +130,7 @@ def main(
         riscv_flash=False,  # pylint: disable=unused-argument
         riscv_cache=False,
         camera=False,
+        camera_format=None,
         device=84,
         channels=None,
         sleep=False,
@@ -177,9 +178,18 @@ def main(
     if camera:
         memfile.write('  enable_pcif_clock(); // Enable camera clock\n')
         memfile.write('  set_pcif_gpio_altf();\n\n')
-        memfile.write('  // Enable 8-bit single image in external timing mode\n')
+        if camera_format == 555:
+            mode = '10'
+            comment = '555'
+        elif camera_format == 565:
+            mode = '12'
+            comment = '565'
+        else:
+            mode = '8'  # Default
+            comment = '888'
+        memfile.write(f'  // Enable {comment} format single image in external timing mode\n')
         memfile.write('  MXC_CAMERAIF0->ctrl = MXC_S_CAMERAIF_CTRL_READ_MODE_SINGLE_IMG +\n'
-                      '                        MXC_S_CAMERAIF_CTRL_DATA_WIDTH_8BIT +\n'
+                      f'                        MXC_S_CAMERAIF_CTRL_DATA_WIDTH_{mode}BIT +\n'
                       '                        MXC_S_CAMERAIF_CTRL_DS_TIMING_EN_DIS +\n'
                       '                        MXC_S_CAMERAIF_CTRL_PCIF_SYS_EN_EN')
         if channels == 3:
