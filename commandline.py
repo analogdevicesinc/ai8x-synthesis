@@ -147,6 +147,8 @@ def get_parser():
                              "default: false)")
     parser.add_argument('--simple1b', action='store_true', default=False,
                         help="use simple XOR instead of 1-but multiplication (default: false)")
+    parser.add_argument('--powerdown', action='store_true', default=False,
+                        help="power down unused MRAM instances (default: false)")
     parser.add_argument('--deepsleep', action='store_true', default=False,
                         help="put ARM core into deep sleep (default: false)")
     parser.add_argument('--slow-load', type=int, metavar='N', default=0,

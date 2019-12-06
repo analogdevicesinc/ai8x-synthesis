@@ -137,6 +137,8 @@ class DevAI85(Dev):
     FIFO_STAT = 1
     FIFO_REG = 2
 
+    AON_CTL = 1024
+
     READY_SEL = 0
     FIFO_READY_SEL = 0
 
