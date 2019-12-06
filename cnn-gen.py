@@ -132,6 +132,7 @@ def create_net(
         input_fifo=False,
         input_sync=False,
         sleep=False,
+        powerdown=False,
         simple1b=False,
         legacy_test=True,
         log_intermediate=False,
@@ -1419,6 +1420,15 @@ def create_net(
                           | fval | groups_used[0] << 9,
                           verbose, comment=f' // Enable group {group}')
 
+        if powerdown:
+            unused_groups = [group for group in list(range(tc.dev.P_NUMGROUPS))
+                             if group not in groups_used]
+            val2 = 0
+            for _, group in enumerate(unused_groups):
+                val2 |= 1 << 12 + group
+            apb.write_fifo_ctl(tc.dev.AON_CTL, val2,
+                               verbose, comment=f' // AON control')
+
         # Master control - go
         if fifo and processor_map_0 & 0x0f << groups_used[0] * 16 != 0:
             val |= 1 << 15
@@ -2272,6 +2282,7 @@ def main():
             args.input_fifo,
             args.input_sync,
             args.deepsleep,
+            args.powerdown,
             args.simple1b,
             args.legacy_test,
             args.log_intermediate,
