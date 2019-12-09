@@ -1044,7 +1044,7 @@ def create_net(
                     if operator[ll] == op.NONE:
                         val |= (popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
                                          % 2**tc.dev.P_NUMPRO) * output_width[ll]//8 - 1) // 4
-                        assert val < 2**4
+                        assert 0 <= val < 2**4
                     if operator[ll] == op.CONV1D:
                         val |= kernel_size[ll][0] << 8 | 1 << 12
                         assert kernel_size[ll][0] < 2**4
@@ -1057,7 +1057,7 @@ def create_net(
                             val |= 1 << 16
                         if operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D]:
                             val |= 1 << 17
-                    assert oned_sad < 2**4
+                    assert 0 <= oned_sad < 2**4
                     val |= oned_sad << 4
 
                     apb.write_lreg(group, ll, tc.dev.LREG_ONED, val,
@@ -1941,31 +1941,32 @@ def main():
         idx = 0
 
         for l in config_layers:
-            if 'conv' in l['operation'] or 'linear' in l['operation']:
-                # Do not increase layers
-                idx += 1
-                continue
+            key = 'convolution' if 'convolution' in l else \
+                  'operation' if 'operation' in l else \
+                  'operator' if 'operator' in l else \
+                  'op'
 
-            l_weights = None
-            l_bias = None
+            if l[key].lower() in ['none', 'passthrough']:
+                l_weights = None
+                l_bias = None
 
-            if 'in_dim' in l:
-                l_in_dim = l['in_dim'][-1]
-            else:
-                l_in_dim = output_channels[idx-1]
+                if 'in_dim' in l:
+                    l_in_dim = l['in_dim'][-1]
+                else:
+                    l_in_dim = output_channels[idx-1]
 
-            if 'out_dim' in l:
-                l_out_dim = l['out_dim'][-1]
-            else:
-                l_out_dim = l_in_dim
+                if 'out_dim' in l:
+                    l_out_dim = l['out_dim'][-1]
+                else:
+                    l_out_dim = l_in_dim
 
-            weights.insert(idx, l_weights)
-            bias.insert(idx, l_bias)
-            input_channels.insert(idx, l_in_dim)
-            output_channels.insert(idx, l_out_dim)
+                weights.insert(idx, l_weights)
+                bias.insert(idx, l_bias)
+                input_channels.insert(idx, l_in_dim)
+                output_channels.insert(idx, l_out_dim)
+                layers += 1
 
             idx += 1
-            layers += 1
 
         return layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels
 

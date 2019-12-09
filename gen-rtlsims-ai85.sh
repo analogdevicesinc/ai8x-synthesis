@@ -355,3 +355,6 @@
 
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-noretrace-riscv-csv-fastfifostream-notvga-hwc --config-file tests/test-fifostream-notvga40x30-hwc.yaml --ai85 --fifo --mexpress --riscv --riscv-flash --fast-fifo --input-csv input.csv --riscv-cache --queue-name long --timeout 2500 --input-csv-period 180 --input-csv-retrace 0
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-powerdown-group0-pool4 --config-file tests/test-group0-pool4.yaml --ai85 --fifo --powerdown
+
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fire --config-file tests/test-ai85-fire-cifar10.yaml --ai85 --checkpoint-file trained/ai85-firetestnet-cifar10.pth.tar
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fire --config-file tests/test-ai85-fire-cifar10.yaml --ai85 --checkpoint-file trained/ai85-firetestnet-cifar10.pth.tar --stop-after 4
