@@ -703,6 +703,14 @@ class APBBlockLevel(APB):
         super(APBBlockLevel, self).set_memfile(memfile)
         self.foffs = 0
 
+    def output(
+            self,
+            comment,
+    ):  # pylint: disable=unused-argument
+        """
+        Do nothing.
+        """
+
 
 class APBDebug(APBBlockLevel):
     """

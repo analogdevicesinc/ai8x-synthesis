@@ -1879,6 +1879,8 @@ def create_net(
             assets.copy('assets', 'riscv-flash', base_directory, test_name)
         elif riscv:
             assets.copy('assets', 'riscv', base_directory, test_name)
+    elif block_mode:
+        assets.copy('assets', 'blocklevel', base_directory, test_name)
 
     return test_name
 
