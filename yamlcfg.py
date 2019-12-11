@@ -48,12 +48,14 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
               f'`layers`, `arch`, or `dataset`.')
         sys.exit(1)
 
-    # These are initializaed with 'None'. Use this to see whether a layer was configured,
+    # These are initialized with 'None'. Use this to see whether a layer was configured,
     # will be auto-initialized to previous layer's value or a default.
     processor_map = [None] * tc.dev.MAX_LAYERS
     output_map = [None] * tc.dev.MAX_LAYERS
     input_offset = [None] * tc.dev.MAX_LAYERS
+    input_chan = [None] * tc.dev.MAX_LAYERS
     input_dim = [None] * tc.dev.MAX_LAYERS
+    output_chan = [None] * tc.dev.MAX_LAYERS
     # All other variables are initialized with the default values
     padding = [[1, 1]] * tc.dev.MAX_LAYERS
     pool = [[1, 1]] * tc.dev.MAX_LAYERS
@@ -80,8 +82,9 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
 
     sequence = 0
     for ll in cfg['layers']:
-        if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'in_dim', 'in_sequences',
-                               'in_offset', 'kernel_size', 'pool_stride', 'out_offset',
+        if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution',
+                               'in_channels', 'in_dim', 'in_sequences', 'in_offset',
+                               'kernel_size', 'pool_stride', 'out_channels', 'out_offset',
                                'activate', 'activation', 'data_format', 'eltwise', 'flatten',
                                'op', 'operands', 'operation', 'operator',
                                'output_processors', 'output_width', 'output_shift',
@@ -145,10 +148,16 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                 error_exit(f'`output_shift` for quantization `{quantization[sequence]} `must be '
                            f'in range [{min_range}, {max_range}]', sequence)
 
+        if 'in_channels' in ll:
+            input_chan[sequence] = ll['in_channels']
         if 'in_dim' in ll:
+            if isinstance(ll['in_dim'], list) and len(ll['in_dim']) > 2:
+                error_exit(f'`in_dim` must not exceed two dimensions', sequence)
             input_dim[sequence] = ll['in_dim']
         if 'in_offset' in ll:
             input_offset[sequence] = ll['in_offset']
+        if 'out_channels' in ll:
+            output_chan[sequence] = ll['out_channels']
         if 'out_offset' in ll:
             output_offset[sequence] = ll['out_offset']
 
@@ -345,8 +354,10 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             del padding[ll]
             del pool[ll]
             del pool_stride[ll]
+            del input_chan[ll]
             del input_dim[ll]
             del input_offset[ll]
+            del output_chan[ll]
             del output_offset[ll]
             del average[ll]
             del activation[ll]
@@ -419,8 +430,10 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     settings['pool'] = pool
     settings['pooling_enabled'] = pooling_enabled
     settings['pool_stride'] = pool_stride
+    settings['input_chan'] = input_chan
     settings['input_dim'] = input_dim
     settings['input_offset'] = input_offset
+    settings['output_chan'] = output_chan
     settings['output_offset'] = output_offset
     settings['processor_map'] = processor_map
     settings['average'] = average
