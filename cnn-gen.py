@@ -1506,24 +1506,22 @@ def create_net(
 
         return data
 
-    data_buf = []
-    data_buf.append(data)
+    data_buf = [data]
     # Compute layer-by-layer output and chain results into input
     for ll in range(layers):
         if debug_computation:
             compute.debug_open(ll, base_directory, test_name, log_filename)
 
         # Concatenate input data if needed
-        if in_sequences[ll]:
+        if in_sequences[ll] is not None:
             if isinstance(in_sequences[ll], list):
-                data = [data_buf[data_idx+1] for data_idx in in_sequences[ll]]
                 try:
-                    data = np.concatenate(data, axis=0)
+                    data = np.concatenate([data_buf[i + 1] for i in in_sequences[ll]], axis=0)
                 except ValueError as err:
-                    print('Error in input data concatenation layer.', err)
+                    print('Error in input data concatenation layer:', err)
                     sys.exit(1)
             else:
-                data = data_buf[in_sequences[ll]+1]
+                data = data_buf[in_sequences[ll] + 1]
         else:
             data = data_buf[-1]
 
@@ -1925,69 +1923,26 @@ def main():
             sampleweight.load(cfg['dataset'], params['quantization'], len(cfg['layers']),
                               cfg['bias'] if 'bias' in cfg else None)
 
-    def add_non_conv_layers(
-            layers,
-            weights,
-            bias,
-            fc_weights,
-            fc_bias,
-            input_channels,
-            output_channels,
-            config_layers
-    ):
-        '''
-        Add non-convolutional layers.
-        '''
-        idx = 0
+    cfg_layers = len(cfg['layers'])
+    if cfg_layers > layers:
+        # Add empty weights/biases and channel counts for layers not in checkpoint file.
+        # The checkpoint file does not contain weights for non-convolution operations.
+        # Insert empty input channels/output channels/weights/biases and increase `layers`
+        # accordingly.
+        for ll in range(cfg_layers):
+            operator = params['operator'][ll]
 
-        for l in config_layers:
-            key = 'convolution' if 'convolution' in l else \
-                  'operation' if 'operation' in l else \
-                  'operator' if 'operator' in l else \
-                  'op'
-
-            if l[key].lower() in ['none', 'passthrough']:
-                l_weights = None
-                l_bias = None
-
-                if 'in_dim' in l:
-                    l_in_dim = l['in_dim'][-1]
-                else:
-                    l_in_dim = output_channels[idx-1]
-
-                if 'out_dim' in l:
-                    l_out_dim = l['out_dim'][-1]
-                else:
-                    l_out_dim = l_in_dim
-
-                weights.insert(idx, l_weights)
-                bias.insert(idx, l_bias)
-                input_channels.insert(idx, l_in_dim)
-                output_channels.insert(idx, l_out_dim)
+            if operator == op.NONE or op.eltwise(operator):
+                weights.insert(ll, None)
+                bias.insert(ll, None)
+                input_channels.insert(ll, 0)
+                output_channels.insert(ll, 0)
                 layers += 1
 
-            idx += 1
-
-        return layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels
-
-    if layers != len(cfg['layers']):
-        if len(cfg['layers']) > layers:
-            # Add layers not in checkpoint file
-            layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
-                add_non_conv_layers(
-                    layers,
-                    weights,
-                    bias,
-                    fc_weights,
-                    fc_bias,
-                    input_channels,
-                    output_channels,
-                    cfg['layers']
-                )
-        if layers != len(cfg['layers']):
-            print(f"Number of layers in the YAML configuration file ({len(cfg['layers'])}) "
-                  f"does not match the checkpoint file ({layers}).")
-            sys.exit(1)
+    if layers != cfg_layers:
+        print(f"Number of layers in the YAML configuration file ({cfg_layers}) "
+              f"does not match the checkpoint file ({layers}).")
+        sys.exit(1)
 
     if any(p < 0 or p > 4*tc.dev.MEM_SIZE for p in params['output_offset']):
         print('Unsupported value for `out_offset` in YAML configuration.')
@@ -2010,6 +1965,24 @@ def main():
 
     if args.stop_after is not None:
         layers = args.stop_after + 1
+
+    in_sequences = params['in_sequences'][:layers]
+
+    # Override channels
+    for ll in range(layers):
+        if in_sequences[ll] is not None:
+            if isinstance(in_sequences[ll], list):
+                input_channels[ll] = sum(output_channels[i] for i in in_sequences[ll])
+            else:
+                input_channels[ll] = output_channels[in_sequences[ll]]
+        if input_channels[ll] <= 0:
+            input_channels[ll] = output_channels[ll-1]
+        if params['input_chan'][ll] is not None:
+            input_channels[ll] = params['input_chan'][ll]
+        if output_channels[ll] <= 0:
+            output_channels[ll] = input_channels[ll]
+        if params['output_chan'][ll] is not None:
+            output_channels[ll] = params['output_chan'][ll]
 
     processor_map = params['processor_map']
     output_processor_map = params['output_processor_map'][:layers]
@@ -2054,7 +2027,6 @@ def main():
     eltwise = params['eltwise'][:layers]
     pool_first = params['pool_first'][:layers]
     activation = params['activation'][:layers]
-    in_sequences = params['in_sequences'][:layers]
 
     # Command line override
     if args.input_offset is not None:
@@ -2091,12 +2063,27 @@ def main():
     else:
         input_dim[0] = conf_input_dim[0]
     for ll in range(layers):
+        if input_channels[ll] <= 0:
+            print(f'Must specify `in_channels` for layer {ll}.')
+            sys.exit(1)
         if operator[ll] != op.NONE:
             assert weights[ll].min() >= -1 << quantization[ll] - 1
             assert weights[ll].max() <= (1 << quantization[ll] - 1) - 1
 
         if input_dim[ll] is None:
-            auto_input_dim[ll] = output_dim[ll-1]
+            if in_sequences[ll] is not None:
+                if isinstance(in_sequences[ll], list):
+                    dim = output_dim[in_sequences[ll][0]]
+                    for _, e in enumerate(in_sequences[ll], start=1):
+                        if output_dim[e] != dim:
+                            print('Cannot concatenate outputs of different dimensions in layer '
+                                  f'{ll}: {dim} vs {output_dim[e]}.')
+                            sys.exit(1)
+                    auto_input_dim[ll] = dim
+                else:
+                    auto_input_dim[ll] = output_dim[in_sequences[ll]]
+            else:
+                auto_input_dim[ll] = output_dim[ll-1]
             if conf_input_dim[ll] is None:
                 input_dim[ll] = auto_input_dim[ll]
             else:

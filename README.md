@@ -1,10 +1,10 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_12/5/2019_
+_12/12/2019_
 
-_Open this file in a markdown enabled viewer, for example Typora (http://typora.io) or Visual Studio Code 
-(https://code.visualstudio.com). See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown._
+_Open this file in a markdown enabled viewer, for example Typora (http://typora.io).
+See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown._
 
 This software consists of two related projects:
 1. AI8X Model Training and Quantization
@@ -50,7 +50,7 @@ This software consists of two related projects:
   - [Active Processors and Layers](#active-processors-and-layers)
   - [Layers and Weight Memory](#layers-and-weight-memory)
   - [Weight Storage Example](#weight-storage-example)
-  - [Example: `Conv2D`](#example-conv2d)
+  - [Example: Conv2D](#example-conv2d)
   - [Limitations of AI84 Networks](#limitations-of-ai84-networks)
   - [Limitations of AI85 Networks](#limitations-of-ai85-networks)
   - [Fully Connected (Linear) Layers](#fully-connected-linear-layers)
@@ -62,36 +62,39 @@ This software consists of two related projects:
 - [Network Loader](#network-loader)
   - [Network Loader Configuration Language](#network-loader-configuration-language)
     - [Global Configuration](#global-configuration)
-      - [`arch` (Mandatory)](#arch-mandatory)
-      - [`bias` (Optional, Test Only)](#bias-optional-test-only)
-      - [`dataset` (Mandatory)](#dataset-mandatory)
-      - [`output_map` (Optional)](#outputmap-optional)
-      - [`layers` (Mandatory)](#layers-mandatory)
+      - [arch (Mandatory)](#arch-mandatory)
+      - [bias (Optional, Test Only)](#bias-optional-test-only)
+      - [dataset (Mandatory)](#dataset-mandatory)
+      - [output_map (Optional)](#outputmap-optional)
+      - [layers (Mandatory)](#layers-mandatory)
     - [Per-Layer Configuration](#per-layer-configuration)
-      - [`sequence` (Optional)](#sequence-optional)
-      - [`processors` (Mandatory)](#processors-mandatory)
-      - [`output_processors` (Optional)](#outputprocessors-optional)
-      - [`out_offset` (Optional)](#outoffset-optional)
-      - [`in_offset` (Optional)](#inoffset-optional)
-      - [`output_width` (Optional)](#outputwidth-optional)
-      - [`data_format` (Optional)](#dataformat-optional)
-      - [`operation` (Optional)](#operation-optional)
-      - [`eltwise` (Optional)](#eltwise-optional)
-      - [`pool_first` (Optional)](#poolfirst-optional)
-      - [`operands` (Optional)](#operands-optional)
-      - [`activate` (Optional)](#activate-optional)
-      - [`quantization` (Optional)](#quantization-optional)
-      - [`output_shift` (Optional)](#outputshift-optional)
-      - [`kernel_size` (Optional)](#kernelsize-optional)
-      - [`stride` (Optional)](#stride-optional)
-      - [`pad` (Optional)](#pad-optional)
-      - [`max_pool` (Optional)](#maxpool-optional)
-      - [`avg_pool` (Optional)](#avgpool-optional)
-      - [`pool_stride` (Optional)](#poolstride-optional)
-      - [`in_dim` (Optional)](#indim-optional)
-      - [`in_sequences` (Optional)](#insequences-optional)
-      - [`streaming` (Optional)](#streaming-optional)
-      - [`flatten` (Optional)](#flatten-optional)
+      - [sequence (Optional)](#sequence-optional)
+      - [processors (Mandatory)](#processors-mandatory)
+      - [output_processors (Optional)](#outputprocessors-optional)
+      - [out_offset (Optional)](#outoffset-optional)
+      - [in_offset (Optional)](#inoffset-optional)
+      - [output_width (Optional)](#outputwidth-optional)
+      - [data_format (Optional)](#dataformat-optional)
+      - [operation (Optional)](#operation-optional)
+      - [eltwise (Optional)](#eltwise-optional)
+      - [pool_first (Optional)](#poolfirst-optional)
+      - [operands (Optional)](#operands-optional)
+      - [activate (Optional)](#activate-optional)
+      - [quantization (Optional)](#quantization-optional)
+      - [output_shift (Optional)](#outputshift-optional)
+      - [kernel_size (Optional)](#kernelsize-optional)
+      - [stride (Optional)](#stride-optional)
+      - [pad (Optional)](#pad-optional)
+      - [max_pool (Optional)](#maxpool-optional)
+      - [avg_pool (Optional)](#avgpool-optional)
+      - [pool_stride (Optional)](#poolstride-optional)
+      - [in_channels (Optional)](#inchannels-optional)
+      - [in_dim (Optional)](#indim-optional)
+      - [in_sequences (Optional)](#insequences-optional)
+      - [out_channels (Optional)](#outchannels-optional)
+      - [streaming (Optional)](#streaming-optional)
+      - [flatten (Optional)](#flatten-optional)
+    - [Example](#example)
   - [Adding Datasets to the Network Loader](#adding-datasets-to-the-network-loader)
   - [Starting an Inference, Waiting for Completion, Multiple Inferences in Sequence](#starting-an-inference-waiting-for-completion-multiple-inferences-in-sequence)
   - [CMSIS5 NN Emulation](#cmsis5-nn-emulation)
@@ -367,7 +370,7 @@ The fast FIFO is only available from the RISC-V core, and runs synchronously wit
     However, weights must be arranged according to specific rules detailed below.
   * There are 16 instances of 16 KB data memory. Any data channel (input, intermediate, or output) must completely fit into one memory instance. This limits the first-layer input to 128×128 pixels per channel in the CHW format. However, when using more than one input channel, the HWC format may be preferred, and all layer output are in HWC format as well. In those cases, it is required that four channels fit into a single memory instance -- or 64×64 pixels per channel. Note that the first layer commonly creates a wide expansion (i.e., large number of output channels) that needs to fit into data memory, so the input size limit is mostly theoretical.
 * AI85:
-  * The maximum number of layers is 32 (pooling and element-wise layers do not count).
+  * The maximum number of layers is 32 (pooling and element-wise layers do not count when preceding a convolution).
   * The maximum number of input channels in any layer is 1024 each.
   * The maximum number of output channels in any layer is 1024 each.
   * The weight memory supports up to 768 * 64 3×3 Q7 kernels (see [Number Format](#Number-Format)).
@@ -605,7 +608,7 @@ The AI84 hardware does not support arbitrary network parameters. Specifically,
   * Average pooling does not support more than 2048 bits in the accumulator. This translates to a 4×4 pooling window if activation was used on the prior layer, 3×3 otherwise. Additionally, average pooling is currently implemented as a `floor()` operation. Since there is also a quantization step at the output of the average pooling, it may not perform as intended (for example, a 2×2 `AvgPool2d` of `[[0, 0], [0, 3]]` will return `0`).
   * Pooling window sizes must be even numbers, and have equal H and W dimensions.
 * The number of input or output channels must not exceed 64.
-* The number of layers must not exceed 32 (where pooling does not add to the count).
+* The number of layers must not exceed 32 (where pooling does not add to the count when preceding a convolution).
 * The maximum dimension (number of rows or columns) for input or output data is 256.
 * Overall weight storage is limited to 64*128 3×3 kernels. However, weights must be arranged in a certain order, see above.
 * The hardware supports 1D and 2D convolution layers. For convenience, a single final fully connected layer with 8-bit inputs/weights/bias, and 16-bit output is supported in software, as well as a software `SoftMax` operator.
@@ -658,7 +661,7 @@ The AI85 hardware does not support arbitrary network parameters. Specifically,
 
 * The number of output channels must not exceed 1024.
 
-* The number of layers must not exceed 32 (where pooling and element-wise operations do not add to the count).
+* The number of layers must not exceed 32 (where pooling and element-wise operations do not add to the count when preceding a convolution).
 
 * The maximum dimension (number of rows or columns) for input or output data is 1023.
   
@@ -942,7 +945,7 @@ This key describes whether to activate the layer output (the default is to not a
 
 Note that the output values are clipped (saturated) to $[0, +127]$. Because of this, `ReLU` behaves more similar to PyTorch’s `nn.Hardtanh(min_value=0, max_value=127)` than to PyTorch’s `nn.ReLU()`.
 
-<img src="docs/relu.png" alt="abs" style="zoom:33%;" />
+<img src="docs/relu.png" alt="relu" style="zoom:33%;" />
 <img src="docs/abs.png" alt="abs" style="zoom:33%;" />
 
 ##### `quantization` (Optional)
@@ -1026,19 +1029,35 @@ When performing a pooling operation, this key describes the pool stride. The poo
 Example:
 	 `pool_stride: 2`
 
+##### `in_channels` (Optional)
+
+`in_channels` specifies the number of channels of the input data. This is usually automatically computed based on the weights file and the layer sequence. This key allows overriding of the number of channels. See also: `in_dim`.
+
+Example:
+  `in_channels: 8` 
+
 ##### `in_dim` (Optional)
 
-`in_dim` specifies the dimensions of the input data. This is usually automatically computed; however, when merging layers or flattening data, this key allows overriding of the dimensions.
+`in_dim` specifies the dimensions of the input data. This is usually automatically computed based on the output of the previous layer or the layer(s) referenced by `in_sequences`. This key allows overriding of the automatically calculated dimensions. See also: `in_channels`.
 
 Example:
   `in_dim: [64, 64]` 
 
 ##### `in_sequences` (Optional)
 
-`in_sequences` can be used to concatenate input data by combining the outputs of several prior layers, for example when implementing a *fire* operator.
+By default, a layer’s input is the output of the previous layer. `in_sequences` can be used to point to the output of one or more arbitrary previous layers, for example when processing the same data using two different kernel sizes, or when combining the outputs of several prior layers. `in_sequences` can be specified as an integer (for a single input) or as a list (for multiple inputs). As a special case, `-1` is the input data. The `in_offset` and `out_offset` must be set to match the specified sequence.
 
 Example:
   `in_sequences: [2, 3]` 
+
+See the [Fire example](#example) for a network that uses `in_sequences`.
+
+##### `out_channels` (Optional)
+
+`out_channels` specifies the number of channels of the output data. This is usually automatically computed based on the weights and layer sequence. This key allows overriding the number of output channels.
+
+Example:
+  `out_channels: 8` 
 
 ##### `streaming` (Optional)
 
@@ -1054,6 +1073,69 @@ Example:
 Example:
 	`flatten: true`
 
+#### Example
+
+The following shows an example for a single “Fire” operation, the AI85/AI86 hardware layer numbers and its YAML description.
+
+<img src="docs/fireexample.png" alt="Fire example" style="zoom:35%;" />
+
+```yaml
+arch: ai85firetestnet
+dataset: CIFAR-10
+# Input dimensions are 3x32x32
+
+layers:
+### Fire
+# Squeeze
+- avg_pool: 2
+  pool_stride: 2
+  pad: 0
+  in_offset: 0x1000
+  processors: 0x0000000000000007
+  data_format: HWC
+  out_offset: 0x0000
+  operation: conv2d
+  kernel_size: 1x1
+  activate: ReLU
+# Expand 1x1
+- in_offset: 0x0000
+  out_offset: 0x1000
+  processors: 0x0000000000000030
+  output_processors: 0x0000000000000f00
+  operation: conv2d
+  kernel_size: 1x1
+  pad: 0
+  activate: ReLU
+# Expand 3x3
+- in_offset: 0x0000
+  out_offset: 0x1000
+  processors: 0x0000000000000030
+  output_processors: 0x000000000000f000
+  operation: conv2d
+  kernel_size: 3x3
+  activate: ReLU
+  in_sequences: 0
+# Concatenate
+- max_pool: 2
+  pool_stride: 2
+  in_offset: 0x1000
+  out_offset: 0x0000
+  processors: 0x000000000000ff00
+  operation: none
+  in_sequences: [1, 2]
+### Additional layers
+- max_pool: 2
+  pool_stride: 2
+  out_offset: 0x1000
+  processors: 0x000000000000ff00
+  operation: none
+- flatten: true
+  out_offset: 0x0000
+  op: mlp
+  processors: 0x000000000000ff00
+  output_width: 32
+```
+
 
 ### Adding Datasets to the Network Loader
 
@@ -1065,7 +1147,7 @@ Adding new datasets to the Network Loader is implemented as follows:
 
 An inference is started by loading registers and kernels, loading the input, and enabling processing.  This code is automatically generated—see the `cnn_load()`, `load_kernels()`, and `load_input()` functions. The sample data can be used as a self-checking feature on device power-up since the output for the sample data is known.
 
-The AI8X accelerator can generate an interrupt on completion, and it will set a status bit (see `cnn_wait()`). The resulting data can now be unloaded from the accelerator (code for this is also auto-generated in `unload()`).
+The AI85/AI86 accelerator can generate an interrupt on completion, and it will set a status bit (see `cnn_wait()`). The resulting data can now be unloaded from the accelerator (code for this is also auto-generated in `unload()`).
 
 To run another inference, ensure all groups are disabled (stopping the state machine, as shown in `cnn_load()`). Next, load the new input data and start processing.
 
