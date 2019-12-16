@@ -73,6 +73,10 @@ def header(
         if embedded_code:
             memfile.write('uint32_t cnn_time; // Stopwatch\n\n')
 
+            memfile.write('void fail(void)\n{\n')
+            memfile.write('  printf("\\n*** FAIL ***\\n\\n");\n')
+            memfile.write('  while (1);\n}\n\n')
+
         memfile.write('void cnn_wait(void)\n{\n')
         memfile.write(f'  while ((*((volatile uint32_t *) 0x{apb_base + tc.dev.C_CNN_BASE:08x}) '
                       '& (1<<12)) != 1<<12) ;\n')
@@ -146,7 +150,11 @@ def main(
     if riscv is None or not riscv:
         memfile.write('  icache_enable();\n\n')
         if embedded_code:
-            memfile.write('  SYS_ClockEnable(SYS_PERIPH_CLOCK_AI);\n')
+            if device == 84:
+                memfile.write('  SYS_ClockEnable(SYS_PERIPH_CLOCK_AI);\n')
+            else:
+                memfile.write('  MXC_GCR->pckdiv = 0x00010000; // AI clock 96M div 2\n')
+                memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable AI clock\n')
         else:
             if device == 84:
                 memfile.write('  MXC_GCR->perckcn1 &= ~0x20; // Enable AI clock\n')

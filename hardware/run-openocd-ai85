@@ -1,0 +1,3 @@
+#!/bin/sh
+openocd -f interface/ftdi/olimex-arm-usb-ocd-h.cfg -f interface/ftdi/olimex-arm-jtag-swd.cfg -f ai85.cfg -f max32xxx.cfg
+
