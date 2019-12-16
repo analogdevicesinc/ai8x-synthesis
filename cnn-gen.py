@@ -1881,6 +1881,8 @@ def create_net(
             assets.copy('assets', 'riscv', base_directory, test_name)
     elif block_mode:
         assets.copy('assets', 'blocklevel', base_directory, test_name)
+    elif embedded_code:
+        assets.copy('assets', 'embedded', base_directory, test_name)
 
     return test_name
 
