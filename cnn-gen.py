@@ -464,7 +464,7 @@ def create_net(
                        '    *dst++ = *src++;\n'
                        '  }\n}\n\n')
 
-        if embedded_code or compact_data or input_csv:
+        if (embedded_code and not fifo) or compact_data or input_csv:
             # Pre-define data memory loader. Inline later when generating RTL sim.
             if input_fifo:
                 apb.output('#define USE_FIFO\n')
@@ -1429,6 +1429,9 @@ def create_net(
             apb.write_fifo_ctl(tc.dev.AON_CTL, val2,
                                verbose, comment=f' // AON control')
 
+        if embedded_code:
+            apb.output('\n  CNN_START; // Allow capture of processing time\n')
+
         # Master control - go
         if fifo and processor_map_0 & 0x0f << groups_used[0] * 16 != 0:
             val |= 1 << 15
@@ -1441,12 +1444,12 @@ def create_net(
 
         if fifo:
             # Load data memory
-            if embedded_code or compact_data or input_csv:
+            if compact_data or input_csv:
                 # Do the actual code generation later
                 apb.output('\n  load_input(); // Load data input\n\n')
             else:
                 load.load(
-                    embedded_code,
+                    False,
                     apb,
                     big_data[0],
                     processor_map_0,
@@ -1882,7 +1885,10 @@ def create_net(
     elif block_mode:
         assets.copy('assets', 'blocklevel', base_directory, test_name)
     elif embedded_code:
-        assets.copy('assets', 'embedded', base_directory, test_name)
+        if riscv:
+            assets.copy('assets', 'embedded-riscv', base_directory, test_name)
+        else:
+            assets.copy('assets', 'embedded', base_directory, test_name)
 
     return test_name
 

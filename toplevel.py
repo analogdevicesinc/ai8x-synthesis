@@ -118,8 +118,6 @@ def load_footer(
     """
     Write the footer for the CNN configuration loader function to `memfile`.
     """
-    if embedded_code:
-        memfile.write('\n  CNN_START; // Allow capture of processing time\n')
     memfile.write('\n  return 1;\n}\n\n')
 
 
@@ -171,8 +169,12 @@ def main(
                 memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable AI clock\n')
         if riscv is not None:
             if riscv_cache:
-                memfile.write(f'  MXC_NBBFC->reg4 = 0x{rv.RISCV_CODE_ORIGIN:08x}; '
-                              '// Set RISC-V boot address\n')
+                if embedded_code:
+                    memfile.write('  MXC_NBBFC->reg4 = (uint32_t) &_rvflash; '
+                                  '// Set RISC-V boot address\n')
+                else:
+                    memfile.write(f'  MXC_NBBFC->reg4 = 0x{rv.RISCV_CODE_ORIGIN:08x}; '
+                                  '// Set RISC-V boot address\n')
             if riscv_exclusive:
                 memfile.write('  *((volatile uint32_t *) 0x40000814) |= 0x00000001; '
                               '// Exclusive SRAM access for RISC-V (MXC_NBBFC->reg5)\n')
