@@ -41,7 +41,6 @@ endif
 
 # Specify the target processor
 ifeq "$(TARGET)" ""
-# TARGET=EMULATOR
 TARGET=AI85
 endif
 
@@ -55,7 +54,6 @@ COMPILER=GCC
 # Specify the board used
 ifeq "$(BOARD)" ""
 # BOARD=EvKit_V1
-# BOARD=BCB
 BOARD=EMULATOR
 endif
 
@@ -67,18 +65,17 @@ LIBS_DIR=/$(subst \,/,$(subst :,,$(MAXIM_PATH))/Firmware/$(TARGET_UC)/Libraries)
 endif
 CMSIS_ROOT=$(LIBS_DIR)/CMSIS
 
+LINKERFILE=$(CMSIS_ROOT)/Device/Maxim/AI85/Source/GCC/ai85_arm.ld
+
 # Source files for this test (add path to VPATH below)
-SRCS  = main.c arm_fully_connected_q7_q8p7_opt.c arm_softmax_q8p7_q15.c arm_softmax_q8p7_q15_frac.c
-# SRCS += testEnv.c
+SRCS  = main.c
 
 
 # Where to find source files for this test
 VPATH  = .
-VPATH += ../TestEnv/
 VPATH += ../Common/
 # Where to find header files for this test
 IPATH  = .
-IPATH += ../TestEnv/
 IPATH += ../Common/
 
 # Enable assertion checking for development
@@ -99,7 +96,7 @@ PROJ_CFLAGS+=-D__FPU_PRESENT -DKINTEX_EMU
 #STARTUPFILE=start.S
 
 # Override the default optimization level using this variable
-#MXC_OPTIMIZE_CFLAGS=-O1
+MXC_OPTIMIZE_CFLAGS=-O1
 
 # Point this variable to a linker file to override the default file
 ################################################################################

@@ -1,10 +1,10 @@
-# I8X Model Training and Quantization
+# AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_12/18/2019_
+_12/20/2019_
 
-_Open this file in a markdown enabled viewer, for example Typora (http://typora.io).
-See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown._
+_Open the `.md` version of this file in a markdown enabled viewer, for example Typora (http://typora.io).
+See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A PDF copy of this file is available in the repository._
 
 This software consists of two related projects:
 1. AI8X Model Training and Quantization
@@ -98,7 +98,9 @@ This software consists of two related projects:
   - [Adding Datasets to the Network Loader](#adding-datasets-to-the-network-loader)
   - [Starting an Inference, Waiting for Completion, Multiple Inferences in Sequence](#starting-an-inference-waiting-for-completion-multiple-inferences-in-sequence)
   - [CMSIS5 NN Emulation](#cmsis5-nn-emulation)
-- [AI84 SDK](#ai84-sdk)
+- [Embedded Software Development Kits (SDKs)](#embedded-software-development-kits-sdks)
+  - [AI84 SDK](#ai84-sdk)
+  - [AI85 SDK](#ai85-sdk)
 - [AI85/AI86 Changes](#ai85ai86-changes)
 - [AHB Memory Addresses](#ahb-memory-addresses)
   - [Data memory](#data-memory)
@@ -125,6 +127,7 @@ Including the SDK from SVN, the expected file system layout will be:
     ..../ai8x-training/
     ..../ai8x-synthesis/
     ..../AI84SDK/
+    ..../AI85SDK/
 
 ### Upstream Code
 
@@ -1186,12 +1189,14 @@ When compiling the CMSIS code, you may have to disable compiler optimizations.
 
 ---
 
-## AI84 SDK
+## Embedded Software Development Kits (SDKs)
 
-Use SVN to check out the AI84 SDK from https://svn.maxim-ic.com/svn/mcbusw/Hardware/Micro/AI84/.
+### AI84 SDK
+
+Use SVN to check out the AI84 SDK from https://svn.maxim-ic.com/svn/mcbusw/Hardware/Micro/AI84/Firmware/.
 
 ```shell
-$ svn co https://svn.maxim-ic.com/svn/mcbusw/Hardware/Micro/AI84/ AI84SDK
+$ svn co https://svn.maxim-ic.com/svn/mcbusw/Hardware/Micro/AI84/Firmware/ AI84SDK
 ```
 
 Additionally, the Arm embedded compiler is required, it is available from https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads.
@@ -1213,6 +1218,24 @@ $ make install
 
 Additional SDK instructions can be found in a separate document,
 https://svn.maxim-ic.com/svn/mcbusw/Hardware/Micro/AI84/docs/trunk/AI84%20Test%20Board%20Setup%20Instructions.docx.
+
+---
+
+### AI85 SDK
+
+Use SVN to check out the AI85 SDK from https://svn.maxim-ic.com/svn/mcbusw/Hardware/Micro/AI85/SDK/.
+
+```shell
+$ svn co https://svn.maxim-ic.com/svn/mcbusw/Hardware/Micro/AI85/SDK/ AI85SDK
+```
+
+The Arm embedded compiler can be downloaded from https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads.
+
+The RISC-V embedded compiler can be downloaded from https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack/releases/.
+
+In order for the debugger to work, the OpenOCD `max32xxx` branch from https://github.com/MaximIntegratedMicros/openocd.git must be installed (see above for more instructions). Working configuration files are and a `run-openocd-ai85` script are contained in the `hardware` folder of the `ai8x-synthesis` project.
+
+`gen-demos-ai85.sh` will create code that is compatible with the SDK and copy it into the SDK directories (which must exist for each test before calling the generator script).
 
 ---
 

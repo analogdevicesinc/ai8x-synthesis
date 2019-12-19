@@ -2,12 +2,15 @@
  * On-device execution
  */
 
+#ifndef __riscv
 #include <arm_math.h>
 #include <arm_nnfunctions.h>
+#endif
 
 #define CNN_START LED_On(0)
 #define CNN_COMPLETE LED_Off(0)
 
+#ifndef __riscv
 arm_status
 arm_fully_connected_q7_q8p7_opt(const q7_t * pV,
                                 const q7_t * pM,
@@ -73,4 +76,6 @@ void arm_avepool_nonsquare_q7_HWC_nonsquare(q7_t * Im_in,
 
 
 void arm_relu32_q7(q7_t * data, uint32_t size);
+#endif
+
 
