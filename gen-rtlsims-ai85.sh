@@ -362,3 +362,4 @@
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-fire2 --config-file tests/test-ai85-fire2-cifar10.yaml --ai85 --checkpoint-file trained/ai85-firetestnet-cifar10.pth.tar --stop-after 4
 
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-kmax_bmax_dmax --config-file tests/test-max.yaml --ai85
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-fastfifo-simple --config-file tests/test-fifo-hwc.yaml --ai85 --fifo --riscv --riscv-flash --fast-fifo
