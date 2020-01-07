@@ -374,7 +374,7 @@ def create_net(
         sys.exit(1)
 
     # Create ARM code wrapper if needed
-    if riscv:
+    if riscv and not block_mode:
         with open(os.path.join(base_directory, test_name, c_filename + '.c'), mode='w') as f:
             apb = apbaccess.apbwriter(
                 f,
