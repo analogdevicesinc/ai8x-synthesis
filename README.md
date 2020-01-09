@@ -1,7 +1,7 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_12/20/2019_
+_1/10/2020_
 
 _Open the `.md` version of this file in a markdown enabled viewer, for example Typora (http://typora.io).
 See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A PDF copy of this file is available in the repository._
@@ -142,7 +142,7 @@ $ git clone https://first.last@gerrit.maxim-ic.com:8443/ai8x-synthesis
 
 When going beyond simple tests, model training requires CUDA hardware acceleration (the network loader does not require CUDA).
 
-Install CUDA10 and CUDNN:
+Install CUDA 10.1 and CUDNN (PyTorch does not currently support CUDA 10.2):
 https://developer.nvidia.com/cuda-downloads
 https://developer.nvidia.com/cudnn
 

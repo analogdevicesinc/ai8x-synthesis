@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2018-2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2018-2020 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -163,7 +163,7 @@ class APB(object):
         """
         if comment is None:
             comment = f' // fifo ctl {reg}'
-        if val == 0:
+        if val == 0 and not force_write:
             comment += ' *'
         addr = tc.dev.C_FIFO_BASE + reg*4
         if force_write or val != 0 or self.write_zero_regs:
@@ -185,7 +185,7 @@ class APB(object):
         """
         if comment is None:
             comment = f' // fast fifo ctl {reg}'
-        if val == 0:
+        if val == 0 and not force_write:
             comment += ' *'
         addr = tc.dev.FAST_FIFO_BASE + reg*4
         if force_write or val != 0 or self.write_zero_regs:
@@ -208,7 +208,7 @@ class APB(object):
         """
         if comment is None:
             comment = f' // global ctl {reg}'
-        if val == 0:
+        if val == 0 and not force_write:
             comment += ' *'
         addr = tc.dev.C_GROUP_OFFS*group + tc.dev.C_CNN_BASE + reg*4
         if force_write or val != 0 or self.write_zero_regs:
@@ -263,7 +263,7 @@ class APB(object):
         """
         if comment is None:
             comment = f' // reg {reg}'
-        if val == 0:
+        if val == 0 and not force_write:
             comment += ' *'
         addr = tc.dev.C_GROUP_OFFS*group + tc.dev.C_CNN_BASE \
             + tc.dev.C_CNN*4 + reg*4 * tc.dev.MAX_LAYERS + layer*4

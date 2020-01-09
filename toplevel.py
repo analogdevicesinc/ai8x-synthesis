@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2018-2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2018-2020 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -15,7 +15,7 @@ from armx4weights import convert_to_x4_q7_weights
 
 COPYRIGHT = \
     '// ---------------------------------------------------------------------------\n' \
-    '// Copyright (C) 2019 Maxim Integrated Products, Inc.\n' \
+    '// Copyright (C) 2019-2020 Maxim Integrated Products, Inc.\n' \
     '// All rights reserved. Product of the U.S.A.\n' \
     '// ---------------------------------------------------------------------------\n\n'
 
@@ -151,6 +151,13 @@ def main(
             if device == 84:
                 memfile.write('  SYS_ClockEnable(SYS_PERIPH_CLOCK_AI);\n')
             else:
+                memfile.write('\n  // Reset all domains, restore power to CNN\n')
+                memfile.write('  MXC_NBBFC->reg3 = 0xf; // Reset\n')
+                memfile.write('  MXC_NBBFC->reg1 = 0xf; // Mask\n')
+                memfile.write('  MXC_NBBFC->reg0 = 0xf; // Power\n')
+                memfile.write('  MXC_NBBFC->reg2 = 0x0; // Iso\n')
+                memfile.write('  MXC_NBBFC->reg3 = 0x0; // Reset\n\n')
+
                 memfile.write('  MXC_GCR->pckdiv = 0x00010000; // AI clock 96M div 2\n')
                 memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable AI clock\n')
         else:
@@ -165,6 +172,14 @@ def main(
                 memfile.write('  while ((MXC_GCR->clkcn & MXC_F_GCR_CLKCN_HIRC96M_RDY) == 0) ; '
                               '// Wait for 96M\n')
                 memfile.write('  MXC_GCR->clkcn |= MXC_S_GCR_CLKCN_CLKSEL_HIRC96; // Select 96M\n')
+
+                memfile.write('\n  // Reset all domains, restore power to CNN\n')
+                memfile.write('  MXC_BBFC->reg3 = 0xf; // Reset\n')
+                memfile.write('  MXC_BBFC->reg1 = 0xf; // Mask\n')
+                memfile.write('  MXC_BBFC->reg0 = 0xf; // Power\n')
+                memfile.write('  MXC_BBFC->reg2 = 0x0; // Iso\n')
+                memfile.write('  MXC_BBFC->reg3 = 0x0; // Reset\n\n')
+
                 memfile.write('  MXC_GCR->pckdiv = 0x00010000; // AI clock 96M div 2\n')
                 memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable AI clock\n')
         if riscv is not None:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 ###################################################################################################
-# Copyright (C) 2018-2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2018-2020 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -536,6 +536,10 @@ def create_net(
         if verbose:
             print('\nGlobal registers:')
             print('-----------------')
+
+        # Reset
+        apb.write_fifo_ctl(tc.dev.AON_CTL, tc.dev.AON_READY_SEL,
+                           verbose, comment=f' // AON control', force_write=True)
 
         # Disable completely unused groups
         for group in range(tc.dev.P_NUMGROUPS):
@@ -1426,7 +1430,7 @@ def create_net(
             val2 = 0
             for _, group in enumerate(unused_groups):
                 val2 |= 1 << 12 + group
-            apb.write_fifo_ctl(tc.dev.AON_CTL, val2,
+            apb.write_fifo_ctl(tc.dev.AON_CTL, val2 | tc.dev.AON_READY_SEL,
                                verbose, comment=f' // AON control')
 
         if embedded_code:
@@ -1915,6 +1919,8 @@ def main():
         tc.dev.READY_SEL = args.ready_sel
     if args.ready_sel_fifo:
         tc.dev.FIFO_READY_SEL = args.ready_sel_fifo
+    if args.ready_sel_aon:
+        tc.dev.AON_READY_SEL = args.ready_sel_aon
 
     # Load configuration file
     cfg, params = yamlcfg.parse(args.config_file, args.device)
