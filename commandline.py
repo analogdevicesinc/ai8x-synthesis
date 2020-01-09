@@ -189,6 +189,8 @@ def get_parser():
                         help="specify memory waitstates")
     parser.add_argument('--ready-sel-fifo', type=int, metavar='N',
                         help="specify FIFO waitstates")
+    parser.add_argument('--ready-sel-aon', type=int, metavar='N',
+                        help="specify AON waitstates")
     args = parser.parse_args()
 
     if not args.c_filename:

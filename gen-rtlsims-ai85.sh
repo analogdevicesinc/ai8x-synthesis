@@ -363,3 +363,5 @@
 
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-kmax_bmax_dmax --config-file tests/test-max.yaml --ai85
 ./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-riscv-fastfifo-simple --config-file tests/test-fifo-hwc.yaml --ai85 --fifo --riscv --riscv-flash --fast-fifo
+
+./cnn-gen.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-rdysel --config-file tests/test-pooling13x1s1.yaml --ai85 --ready-sel 3 --ready-sel-fifo 3 --ready-sel-aon 3

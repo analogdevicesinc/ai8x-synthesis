@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2020 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -141,6 +141,7 @@ class DevAI85(Dev):
 
     READY_SEL = 0
     FIFO_READY_SEL = 0
+    AON_READY_SEL = 0
 
     DEFAULT_WEIGHT_BITS = 8
     ACTIVATION_BITS = 8
