@@ -1,7 +1,7 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_1/10/2020_
+_1/14/2020_
 
 _Open the `.md` version of this file in a markdown enabled viewer, for example Typora (http://typora.io).
 See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A PDF copy of this file is available in the repository._
@@ -26,6 +26,7 @@ This software consists of two related projects:
     - [Creating the Virtual Environment](#creating-the-virtual-environment)
     - [Building TensorFlow (for old CPUs)](#building-tensorflow-for-old-cpus)
     - [Nervana Distiller](#nervana-distiller)
+    - [Uber Manifold](#uber-manifold)
     - [Synthesis Project](#synthesis-project)
 - [AI8X Hardware and Resources](#ai8x-hardware-and-resources)
   - [Overview](#overview-1)
@@ -50,50 +51,52 @@ This software consists of two related projects:
   - [Active Processors and Layers](#active-processors-and-layers)
   - [Layers and Weight Memory](#layers-and-weight-memory)
   - [Weight Storage Example](#weight-storage-example)
-  - [Example: Conv2D](#example-conv2d)
+  - [Example: `Conv2D`](#example-conv2d)
   - [Limitations of AI84 Networks](#limitations-of-ai84-networks)
   - [Limitations of AI85 Networks](#limitations-of-ai85-networks)
   - [Fully Connected (Linear) Layers](#fully-connected-linear-layers)
   - [Upsampling (Fractionally-Strided 2D Convolutions)](#upsampling-fractionally-strided-2d-convolutions)
 - [Model Training and Quantization](#model-training-and-quantization)
+  - [Model Comparison and Feature Attribution](#model-comparison-and-feature-attribution)
+    - [SHAP — SHapely Additive exPlanations](#shap--shapely-additive-explanations)
   - [Quantization](#quantization)
   - [Alternative Quantization Approaches](#alternative-quantization-approaches)
   - [Adding Datasets and New Networks to the Training Process](#adding-datasets-and-new-networks-to-the-training-process)
 - [Network Loader](#network-loader)
   - [Network Loader Configuration Language](#network-loader-configuration-language)
     - [Global Configuration](#global-configuration)
-      - [arch (Mandatory)](#arch-mandatory)
-      - [bias (Optional, Test Only)](#bias-optional-test-only)
-      - [dataset (Mandatory)](#dataset-mandatory)
-      - [output_map (Optional)](#outputmap-optional)
-      - [layers (Mandatory)](#layers-mandatory)
+      - [`arch` (Mandatory)](#arch-mandatory)
+      - [`bias` (Optional, Test Only)](#bias-optional-test-only)
+      - [`dataset` (Mandatory)](#dataset-mandatory)
+      - [`output_map` (Optional)](#outputmap-optional)
+      - [`layers` (Mandatory)](#layers-mandatory)
     - [Per-Layer Configuration](#per-layer-configuration)
-      - [sequence (Optional)](#sequence-optional)
-      - [processors (Mandatory)](#processors-mandatory)
-      - [output_processors (Optional)](#outputprocessors-optional)
-      - [out_offset (Optional)](#outoffset-optional)
-      - [in_offset (Optional)](#inoffset-optional)
-      - [output_width (Optional)](#outputwidth-optional)
-      - [data_format (Optional)](#dataformat-optional)
-      - [operation (Optional)](#operation-optional)
-      - [eltwise (Optional)](#eltwise-optional)
-      - [pool_first (Optional)](#poolfirst-optional)
-      - [operands (Optional)](#operands-optional)
-      - [activate (Optional)](#activate-optional)
-      - [quantization (Optional)](#quantization-optional)
-      - [output_shift (Optional)](#outputshift-optional)
-      - [kernel_size (Optional)](#kernelsize-optional)
-      - [stride (Optional)](#stride-optional)
-      - [pad (Optional)](#pad-optional)
-      - [max_pool (Optional)](#maxpool-optional)
-      - [avg_pool (Optional)](#avgpool-optional)
-      - [pool_stride (Optional)](#poolstride-optional)
-      - [in_channels (Optional)](#inchannels-optional)
-      - [in_dim (Optional)](#indim-optional)
-      - [in_sequences (Optional)](#insequences-optional)
-      - [out_channels (Optional)](#outchannels-optional)
-      - [streaming (Optional)](#streaming-optional)
-      - [flatten (Optional)](#flatten-optional)
+      - [`sequence` (Optional)](#sequence-optional)
+      - [`processors` (Mandatory)](#processors-mandatory)
+      - [`output_processors` (Optional)](#outputprocessors-optional)
+      - [`out_offset` (Optional)](#outoffset-optional)
+      - [`in_offset` (Optional)](#inoffset-optional)
+      - [`output_width` (Optional)](#outputwidth-optional)
+      - [`data_format` (Optional)](#dataformat-optional)
+      - [`operation` (Optional)](#operation-optional)
+      - [`eltwise` (Optional)](#eltwise-optional)
+      - [`pool_first` (Optional)](#poolfirst-optional)
+      - [`operands` (Optional)](#operands-optional)
+      - [`activate` (Optional)](#activate-optional)
+      - [`quantization` (Optional)](#quantization-optional)
+      - [`output_shift` (Optional)](#outputshift-optional)
+      - [`kernel_size` (Optional)](#kernelsize-optional)
+      - [`stride` (Optional)](#stride-optional)
+      - [`pad` (Optional)](#pad-optional)
+      - [`max_pool` (Optional)](#maxpool-optional)
+      - [`avg_pool` (Optional)](#avgpool-optional)
+      - [`pool_stride` (Optional)](#poolstride-optional)
+      - [`in_channels` (Optional)](#inchannels-optional)
+      - [`in_dim` (Optional)](#indim-optional)
+      - [`in_sequences` (Optional)](#insequences-optional)
+      - [`out_channels` (Optional)](#outchannels-optional)
+      - [`streaming` (Optional)](#streaming-optional)
+      - [`flatten` (Optional)](#flatten-optional)
     - [Example](#example)
   - [Adding Datasets to the Network Loader](#adding-datasets-to-the-network-loader)
   - [Starting an Inference, Waiting for Completion, Multiple Inferences in Sequence](#starting-an-inference-waiting-for-completion-multiple-inferences-in-sequence)
@@ -103,7 +106,7 @@ This software consists of two related projects:
   - [AI85 SDK](#ai85-sdk)
 - [AI85/AI86 Changes](#ai85ai86-changes)
 - [AHB Memory Addresses](#ahb-memory-addresses)
-  - [Data memory](#data-memory)
+  - [Data memory](#data-memory-1)
   - [TRAM](#tram)
   - [Kernel memory (“MRAM”)](#kernel-memory-mram)
   - [Bias memory](#bias-memory)
@@ -126,8 +129,11 @@ Including the SDK from SVN, the expected file system layout will be:
 
     ..../ai8x-training/
     ..../ai8x-synthesis/
+    ..../manifold/
     ..../AI84SDK/
     ..../AI85SDK/
+
+where “….” is the project root.
 
 ### Upstream Code
 
@@ -166,7 +172,7 @@ It is not necessary to install Python 3.6.9 system-wide, or to rely on the sys t
 On macOS (no CUDA support available):
 
 ```shell
-$ brew install pyenv pyenv-virtualenv libomp
+$ brew install pyenv pyenv-virtualenv libomp libsndfile
 ```
 
 On Ubuntu 18.04 LTS:
@@ -174,7 +180,8 @@ On Ubuntu 18.04 LTS:
 ```
 $ sudo apt-get install -y make build-essential libssl-dev zlib1g-dev \
   libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm \
-  libncurses5-dev libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev
+  libncurses5-dev libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev \
+  libsndfile-dev
 $ curl -L https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash
 ```
 
@@ -257,7 +264,9 @@ The removal of `-mfpu=neon` does not seem to be necessary.
 
 #### Nervana Distiller
 
-To install Nervana’s distiller:
+Nirvana Distiller is package for neural network compression and quantization. Network compression can reduce the memory footprint of a neural network, increase its inference speed and save energy.
+
+To install Distiller:
 
 ```shell
 (ai8x-training) $ pip3 install -e distiller
@@ -267,6 +276,41 @@ On macOS, add to `~/.matplotlib/matplotrc`:
 
     backend: TkAgg
 
+#### Uber Manifold
+
+Manifold is a model-agnostic visual debugging tool for machine learning. Manifold can compare models, detects which subset of data a model is inaccurately predicting, and explains the potential cause of poor model performance by surfacing the feature distribution difference between better and worse-performing subsets of data.
+
+There is a hosted version of Manifold at http://manifold.mlvis.io/. To install it locally (for IP reasons and higher speed):
+
+On macOS,
+
+```shell
+brew install yarn npm
+```
+
+On Ubuntu 18.04 LTS,
+
+```shell
+$ cd PROJECT_ROOT
+$ curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
+$ echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
+$ curl -sL https://deb.nodesource.com/setup_13.x | sudo -E bash -
+$ sudo apt-get update
+$ sudo apt-get install nodejs yarn
+```
+
+On both Mac and Linux:
+
+```shell
+$ git clone https://github.com/uber/manifold.git
+$ cd manifold
+$ yarn
+# ignore warnings
+$ cd examples/manifold
+$ yarn
+# ignore warnings
+```
+
 #### Synthesis Project
 
 For `ai8x-synthesis`, some of the installation steps can be simplified. Specifically, CUDA is not necessary.
@@ -274,6 +318,7 @@ For `ai8x-synthesis`, some of the installation steps can be simplified. Specific
 Start by creating a second virtual environment:
 
 ```shell
+$ cd PROJECT_ROOT
 $ cd ai8x-synthesis
 $ git submodule update --init
 $ pyenv local 3.6.9
@@ -721,6 +766,42 @@ Training progress can be observed by starting TensorBoard and pointing a web bro
 TensorBoard 1.14.0 at http://127.0.0.1:6006/ (Press CTRL+C to quit)
 ```
 
+### Model Comparison and Feature Attribution
+
+Manifold can be used for model comparison and feature attribution. The quickest way to integrate manifold is by creating CSV files from the training software. *Note that performance will suffer when there are more than about 20,000 records in the CSV file. Subsampling the data is one way to avoid this problem.*
+
+The train.py program can create CSV files using the `--save-csv` command line argument in combination with `--evaluate`:
+
+```shell
+./train.py --model ai84net5 --dataset MNIST --confusion --evaluate --save-csv mnist --ai84 --exp-load-weights-from ../ai8x-synthesis/trained/ai84-mnist.pth.tar -8
+```
+
+To run the manifold example application:
+
+```shell
+$ cd manifold/examples/manifold
+$ npm run start
+```
+
+The code will run in JavaScript inside the browser (this may cause warnings that the web page is consuming lots of resources). To run a browser remotely on a development machine, forward X11 using the following command:
+
+```shell
+ssh -Yn targethost firefox http://localhost:8080/
+```
+
+#### SHAP — SHapely Additive exPlanations
+
+The training software integrates code to generate SHAP plots (see https://github.com/slundberg/shap). This  can help with feature attribution for input images.
+
+The train.py program can create plots using the `--shap` command line argument in combination with `--evaluate`:
+
+```shell
+./train.py --model ai84net5 --dataset CIFAR10 --confusion --evaluate --ai84 --exp-load-weights-from logs/CIFAR-new/best.pth.tar --shap 3
+```
+
+This will create a plot with a random selection of 3 test images. The plot shows ten outputs (the ten classes) for the three different input images on the left. Red pixels increase the model’s output while blue pixels decrease the output. The sum of the SHAP values equals the difference between the expected model output (averaged over the background dataset) and the current model output.
+
+<img src="docs/shap.png" alt="shap"  />
 
 ### Quantization
 
