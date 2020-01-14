@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2018-2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2018-2020 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -122,8 +122,8 @@ def get_parser():
     parser.add_argument('--increase-delta2', type=int, default=0,
                         metavar='N',
                         help="add integer to delta2 value (default: 0)")
-    parser.add_argument('--queue-name', default='lowp', metavar='S',
-                        help="queue name (default: 'lowp')")
+    parser.add_argument('--queue-name', default='short', metavar='S',
+                        help="queue name (default: 'short')")
     parser.add_argument('-L', '--log', action='store_true', default=False,
                         help="redirect stdout to log file (default: false)")
     parser.add_argument('--log-intermediate', action='store_true', default=False,
