@@ -51,6 +51,7 @@ class APB(object):
             input_csv_format=888,
             input_chan=None,
             sleep=False,
+            blocklevel=False,
     ):
         """
         Create an APB class object that writes to memfile.
@@ -79,6 +80,7 @@ class APB(object):
         self.input_csv_format = input_csv_format
         self.input_chan = input_chan
         self.sleep = sleep
+        self.blocklevel = blocklevel
 
         self.data = 0
         self.num = 0
@@ -616,7 +618,6 @@ class APBBlockLevel(APB):
             input_csv_format=None,
             input_chan=None,
             sleep=False,
-
     ):
         super(APBBlockLevel, self).__init__(
             memfile,
@@ -630,6 +631,7 @@ class APBBlockLevel(APB):
             compact_data=False,
             weight_filename=None,
             sample_filename=None,
+            blocklevel=True,
         )
         self.foffs = 0
 
@@ -1004,7 +1006,7 @@ class APBTopLevel(APB):
         unload.unload(self.memfile, self.apb_base, processor_map, input_shape,
                       output_offset, out_expand, out_expand_thresh, output_width,
                       pool=pool, pool_stride=pool_stride, device=self.device,
-                      mlator=mlator)
+                      mlator=mlator, blocklevel=self.blocklevel)
 
     def output_define(
             self,
