@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2020 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -27,6 +27,7 @@ def unload(
         pool_stride=None,
         device=84,
         mlator=False,
+        blocklevel=False,
 ):
     """
     Unload HWC memory from AI84, writing C code to the `memfile` handle.
@@ -37,6 +38,8 @@ def unload(
     When `mlator` is set, use the hardware mechanism to rearrange 4-channel data into single
     channels.
     """
+    assert not blocklevel or not mlator
+
     memfile.write('// Custom unload for this network:\n'
                   f'// Input shape: {input_shape}\n'
                   'void unload(uint8_t *out_buf)\n'

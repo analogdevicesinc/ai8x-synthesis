@@ -310,12 +310,12 @@ def create_net(
         filename = input_filename + '.mem'
     else:
         filename = c_filename + ('_riscv' if riscv else '') + '.c'
-    if embedded_code or compact_data:
+    if not block_mode and (embedded_code or compact_data):
         sampledata_header = \
             open(os.path.join(base_directory, test_name, sample_filename), mode='w')
     else:
         sampledata_header = None
-    if embedded_code or mexpress or compact_weights:
+    if not block_mode and (embedded_code or mexpress or compact_weights):
         weight_header = \
             open(os.path.join(base_directory, test_name, weight_filename), mode='w')
     else:
@@ -490,7 +490,7 @@ def create_net(
                 camera_retrace=input_csv_retrace,
                 debug=debug,
             )
-        if embedded_code or mexpress or compact_weights:
+        if not block_mode and (embedded_code or mexpress or compact_weights):
             # Pre-define the kernels and bias values
             kern_offs, kern_len = kernels.load(
                 verbose,
@@ -516,6 +516,7 @@ def create_net(
                 riscv_flash and not riscv_cache,
                 fast_fifo_quad,
                 debug,
+                block_mode,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
                 verbose,
@@ -636,7 +637,7 @@ def create_net(
                               verbose, comment=' // Reset BIST', force_write=True)
             apb.output('\n')
 
-        if not (embedded_code or mexpress or compact_weights):
+        if block_mode or not (embedded_code or mexpress or compact_weights):
             kern_offs, kern_len = kernels.load(
                 verbose,
                 embedded_code,
@@ -660,6 +661,7 @@ def create_net(
                 riscv_flash and not riscv_cache,
                 fast_fifo_quad,
                 debug,
+                block_mode,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
                 verbose,
@@ -1854,9 +1856,9 @@ def create_net(
             )
 
     # Close header files
-    if embedded_code or compact_data:
+    if sampledata_header is not None:
         sampledata_header.close()
-    if embedded_code or mexpress or compact_weights:
+    if weight_header is not None:
         weight_header.close()
 
     # Create run_test.sv

@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2018-2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2018-2020 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -68,6 +68,7 @@ def load(
         riscv_flash=False,
         quad=False,
         debug=False,
+        blocklevel=False,
 ):
     """
     Stack `kernel` values and write them to C code (for `embedded_code` if `True` or
@@ -395,40 +396,51 @@ def load(
                     if len(k) % 4 != 0:
                         k = np.concatenate((k, zero_kernel[:4 - len(k) % 4]))
                     # '>u4' swaps endianness to what the hardware needs, `view` packs into 32-bit
-                    apb.output_define(k.view(dtype='>u4'), f'KERNELS_{p}', '0x%08x', 8)
+                    if not blocklevel:
+                        apb.output_define(k.view(dtype='>u4'), f'KERNELS_{p}', '0x%08x', 8)
+                    else:
+                        addr = tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
+                            + tc.dev.C_MRAM_BASE + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16
+                        apb.write(addr | 0x01, 0x01)
+                        kb = k.view(dtype=">u4")
+                        for _, e in enumerate(kb):
+                            apb.write(addr, e)
+                            addr += 4
+
                     if riscv_flash:
                         apb.output(rv.RISCV_FLASH)
                     apb.output(f'static const uint32_t kernels_{p}[] = KERNELS_{p};\n')
                     k = None
             apb.output('\n')
 
-        apb.output('void load_kernels(void)\n{\n')
-        p = 0
-        while p < tc.dev.MAX_PROC:
-            if proc_kern_max[p] > 0:
-                span = proc_kern_max[p]
-                start = p
-                addr = apb.apb_base + tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
-                    + tc.dev.C_MRAM_BASE + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16
-                while (
-                        proc_kern_max[p] == tc.dev.MASK_OFFS and
-                        p+1 < tc.dev.MAX_PROC and
-                        proc_kern_max[p+1] and
-                        (start & ~(tc.dev.P_NUMPRO-1)) == (p+1 & ~(tc.dev.P_NUMPRO-1))
-                ):
-                    p += 1
-                    span += proc_kern_max[p]
-                assert addr % 16 == 0
-                if not mexpress:
-                    apb.output(f'  memcpy_96to128((uint32_t *) 0x{addr:08x}, '
-                               f'kernels_{start}, {span});\n')
-                else:
-                    apb.output(f'  *((volatile uint8_t *) 0x{addr | 0x01:08x}) = 0x01; '
-                               '// Set address\n')
-                    apb.output(f'  memcpy32((uint32_t *) 0x{addr:08x}, '
-                               f'kernels_{start}, {(span * 9+3) // 4});\n')
-            p += 1
+        if not blocklevel:
+            apb.output('void load_kernels(void)\n{\n')
+            p = 0
+            while p < tc.dev.MAX_PROC:
+                if proc_kern_max[p] > 0:
+                    span = proc_kern_max[p]
+                    start = p
+                    addr = apb.apb_base + tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
+                        + tc.dev.C_MRAM_BASE + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16
+                    while (
+                            proc_kern_max[p] == tc.dev.MASK_OFFS and
+                            p+1 < tc.dev.MAX_PROC and
+                            proc_kern_max[p+1] and
+                            (start & ~(tc.dev.P_NUMPRO-1)) == (p+1 & ~(tc.dev.P_NUMPRO-1))
+                    ):
+                        p += 1
+                        span += proc_kern_max[p]
+                    assert addr % 16 == 0
+                    if not mexpress:
+                        apb.output(f'  memcpy_96to128((uint32_t *) 0x{addr:08x}, '
+                                   f'kernels_{start}, {span});\n')
+                    else:
+                        apb.output(f'  *((volatile uint8_t *) 0x{addr | 0x01:08x}) = 0x01; '
+                                   '// Set address\n')
+                        apb.output(f'  memcpy32((uint32_t *) 0x{addr:08x}, '
+                                   f'kernels_{start}, {(span * 9+3) // 4});\n')
+                p += 1
 
-        apb.output('}\n\n')
+            apb.output('}\n\n')
 
     return kern_offs, kern_len
