@@ -191,6 +191,8 @@ def get_device(
         d = DevAI84()
     elif device == 85:
         d = DevAI85()
+    elif device == 86:
+        d = DevAI85()  # For now, no differences from AI85
     else:
         print(f'Unknown device code `{device}`')
         sys.exit(1)
