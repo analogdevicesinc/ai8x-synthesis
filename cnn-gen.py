@@ -1909,6 +1909,10 @@ def main():
 
     # Configure device
     tc.dev = tc.get_device(args.device)
+
+    if args.device == 86:
+        args.device = 85  # For now, there are no differences between AI85 and AI86
+
     if args.apb_base:
         apb_base = args.apb_base
     else:
