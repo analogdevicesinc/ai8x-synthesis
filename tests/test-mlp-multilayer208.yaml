@@ -1,0 +1,55 @@
+# Test 1x1 Conv2D as MLP (Multilayer)
+
+arch: test
+dataset: test_mlp-multilayer208
+
+layers:
+- out_offset: 0x2000
+  processors: 0x000fffffffffffff
+  operation: linear
+  activate: ReLU
+  flatten: true
+- out_offset: 0
+  processors: 0x000fffffffffffff
+  operation: linear
+  activate: ReLU
+- out_offset: 0x2000
+  processors: 0x000fffffffffffff
+  operation: linear
+  activate: ReLU
+- out_offset: 0
+  processors: 0x000fffffffffffff
+  operation: linear
+  activate: ReLU
+- out_offset: 0x2000
+  processors: 0x000fffffffffffff
+  operation: linear
+  activate: ReLU
+- out_offset: 0
+  processors: 0x000fffffffffffff
+  operation: linear
+  activate: ReLU
+- out_offset: 0x2000
+  processors: 0x000fffffffffffff
+  operation: linear
+  activate: ReLU
+- out_offset: 0
+  processors: 0x000fffffffffffff
+  operation: linear
+  activate: ReLU
+- out_offset: 0x2000
+  processors: 0x000fffffffffffff
+  operation: linear
+  activate: ReLU
+- out_offset: 0
+  processors: 0x000fffffffffffff
+  operation: linear
+  activate: ReLU
+- out_offset: 0x2000
+  processors: 0x000fffffffffffff
+  operation: linear
+  activate: ReLU
+- out_offset: 0
+  processors: 0x000fffffffffffff
+  operation: linear
+  activate: ReLU

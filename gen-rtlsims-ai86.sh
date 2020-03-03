@@ -367,3 +367,9 @@
 ./cnn-gen.py --verbose --autogen rtlsim-ai86 --top-level cnn -L --test-dir rtlsim-ai86 --prefix ai86-rdysel --config-file tests/test-pooling13x1s1.yaml --ai86 --ready-sel 3 --ready-sel-fifo 3 --ready-sel-aon 3
 
 ./cnn-gen.py --verbose --autogen rtlsim-ai86 --top-level cnn -L --test-dir rtlsim-ai86 --prefix ai86-nonsquare-mexpress-mlator --config-file tests/test-nonsquare.yaml --ai86 --mexpress --mlator
+
+./cnn-gen.py --verbose --autogen rtlsim-ai85 --top-level cnn -L --test-dir rtlsim-ai86 --prefix ai86-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --ai86 --stop-after 0
+
+./cnn-gen.py --verbose --autogen rtlsim-ai85 --top-level cnn -L --test-dir rtlsim-ai86 --prefix ai86-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --ai86 --stop-after 1
+./cnn-gen.py --verbose --autogen rtlsim-ai85 --top-level cnn -L --test-dir rtlsim-ai86 --prefix ai86-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --ai86 --mexpress --stop-after 5
+./cnn-gen.py --verbose --autogen rtlsim-ai85 --top-level cnn -L --test-dir rtlsim-ai86 --prefix ai86-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --ai86 --mexpress
