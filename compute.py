@@ -69,12 +69,11 @@ def conv2d(
         dilation,
         fractional_stride,
         output_pad,
+        groups=1,
         debug=False,
 ):
     """
     Compute a 2D convolution.
-
-    SIMPLIFIED TO REMOVE GROUPS
 
     Note that all PyTorch numbers are ordered (C, H, W)
     """
@@ -99,6 +98,7 @@ def conv2d(
                             val = np.int64(0)
                             c = 0
                             while True:
+                                dc = c if groups == 1 else c + k * (in_channels // groups)
                                 sval = np.int(0)
                                 for h in range(kernel_size[0]):
                                     for w in range(kernel_size[1]):
@@ -110,18 +110,18 @@ def conv2d(
                                         xd, xr = divmod(xpos, fractional_stride[1])
                                         if yr == 0 and yd >= 0 and yd < input_size[1] and \
                                            xr == 0 and xd >= 0 and xd < input_size[2]:
-                                            prod = weight[k][c][h][w] * data[c][yd][xd]
+                                            prod = weight[k][c][h][w] * data[dc][yd][xd]
                                             sval += prod
                                             val += prod
                                             stats.true_macc += 1
                                             debug_print(
                                                 f'{k},{c},{x},{y},{weight[k][c][h][w]},'
-                                                f'{data[c][yd][xd]},{prod},{sval},{val}'
+                                                f'{data[dc][yd][xd]},{prod},{sval},{val}'
                                             )
                                 c += 16
-                                if c >= in_channels:
+                                if c >= in_channels // groups:
                                     c = (c + 1) % 16
-                                    if c == 0 or c == in_channels:
+                                    if c == 0 or c == in_channels // groups:
                                         break
 
                             if bias is not None:
@@ -170,6 +170,15 @@ def conv2d(
                       strides=((data.strides[1] * stride[0], data.strides[2] * stride[1],
                                 data.strides[0], data.strides[1], data.strides[2])),
                       writeable=False)
+
+    if groups > 1:
+        nweight = np.zeros((weight.shape[0], in_channels, weight.shape[2], weight.shape[3]),
+                           dtype=weight.dtype)
+        for i in range(weight.shape[0]):
+            for j in range(in_channels // groups):
+                nweight[i, i * (in_channels // groups) + j, :, :] = weight[i, j, :, :]
+        weight = nweight
+
     output = np.tensordot(view, weight, axes=((2, 3, 4), (1, 2, 3))).transpose(2, 0, 1)
 
     # Apply bias
@@ -198,18 +207,17 @@ def conv1d(
         stride,
         pad,
         dilation,
+        groups=1,
         debug=False,
 ):
     """
     Compute a 1D convolution.
 
-    SIMPLIFIED TO REMOVE GROUPS
-
     Note that all PyTorch numbers are ordered (C, L)
     """
     in_channels = input_size[0]
 
-    weight = weight.reshape(out_channels, input_size[0], -1)
+    weight = weight.reshape(out_channels, input_size[0] // groups, -1)
     data = data.reshape(input_size[0], -1)
 
     output = np.full(shape=(output_size[0], output_size[1]),
@@ -222,16 +230,17 @@ def conv1d(
         out_offs = 0
         for x in range(-pad, input_size[1] - dilation * (kernel_size - 1) + pad, stride):
             val = np.int64(0)
-            for c in range(in_channels):
+            for c in range(in_channels // groups):
+                dc = c if groups == 1 else c + k * (in_channels // groups)
                 for w in range(kernel_size):
                     src_offs = x + w * dilation
                     if src_offs >= 0 and src_offs < input_size[1]:
-                        val += weight[k][c][w] * data[c][src_offs]
+                        val += weight[k][c][w] * data[dc][src_offs]
                         stats.true_macc += 1
                         if debug:
                             debug_print(
                                 f'{k},{c},{x},{src_offs},{w},{weight[k][c][w]},'
-                                f'{data[c][src_offs]},{val}'
+                                f'{data[dc][src_offs]},{val}'
                             )
 
             if bias is not None:

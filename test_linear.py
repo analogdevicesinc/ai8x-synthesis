@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 ###################################################################################################
-# Copyright (C) 2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2020 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -11,12 +11,72 @@
 Test the linear operator.
 """
 import numpy as np
+import torch
 import compute
+
+
+def linear(data, weight, bias, expected):
+    """Fully conected (linear) transformation."""
+
+    print('Input:', data)
+
+    t = torch.nn.functional.linear(
+        torch.as_tensor(data, dtype=torch.float).unsqueeze(0),  # Add batch dimension
+        torch.as_tensor(weight, dtype=torch.float),
+        torch.as_tensor(bias, dtype=torch.float),
+    ).int().squeeze().numpy()
+
+    output = compute.linear(
+        data,
+        weight,
+        bias,
+        in_features=len(data),
+        out_features=weight.shape[0],
+        debug=True,
+    )
+
+    print("PYTORCH OK" if np.array_equal(output, t) else "*** FAILURE ***")
+    assert np.array_equal(output, t)
+    
+    # MLP emulation
+    emu_output = compute.conv2d(
+        data[:, np.newaxis, np.newaxis],
+        weight[:, :, np.newaxis, np.newaxis],
+        bias,
+        [data.shape[0], 1, 1],
+        [expected.shape[0], 1, 1],
+        kernel_size=[1, 1],
+        stride=[1, 1],
+        pad=[0, 0],
+        dilation=[1, 1],
+        fractional_stride=[1, 1],
+        output_pad=[0, 0],
+        groups=1,
+        debug=True,
+    ).squeeze()
+
+    print("MLP EMULATION OK" if np.array_equal(emu_output, t) else "*** FAILURE ***")
+    assert np.array_equal(emu_output, t)
+
+    assert np.array_equal(output, expected)
+
+    print('Output before division:', output)
+    output += 64
+    output //= 128
+    print('Output:', output)
+
+    expected += 64
+    expected //= 128
+
+    print('Expected:', expected)
+    print("SUCCESS" if np.array_equal(output, expected) else "*** FAILURE ***")
+
+    assert np.array_equal(output, expected)
 
 
 def test_linear():
     """Main program to test compute.linear."""
-    weight = np.array(
+    w0 = np.array(
         [[-16, 26, 35, -6, -40, -31, -27, -54, -51, -84, -69, -65,
           -8, -8, -13, -16, -3, 33, 48, 39, 27, 56, 50, 57, 31, 35,
           2, 8, 16, 28, 13, -18, 8, -6, 32, 20, -3, 4, 42, 41, 3, 23,
@@ -169,9 +229,9 @@ def test_linear():
           -10, -12, 36, 33, 15, -17, 7, 21, -15, -25]],
         dtype=np.int64)
 
-    bias = np.array([0, 24, -12, -19, 13, 3, -7, -1, -3, 2], dtype=np.int64)
+    b0 = np.array([0, 24, -12, -19, 13, 3, -7, -1, -3, 2], dtype=np.int64)
 
-    data = np.array(
+    d0 = np.array(
         [[[85, 112, 69, 78],
           [69, 81, 51, 65],
           [45, 24, 0, 20],
@@ -222,30 +282,14 @@ def test_linear():
           [8, 0, 10, 0]]],
         dtype=np.int64).flatten()
 
-    assert len(data) == 12*4*4
-    assert len(bias) == weight.shape[0] == 10
+    assert len(d0) == 12*4*4
+    assert len(b0) == w0.shape[0] == 10
 
-    output = np.zeros(10, dtype=np.int64)
+    e0 = np.array([-34711, 37520, 22738, 16559, 2293,
+                   -48963, -85140, 136144, -38265, -9148],
+                  dtype=np.int64)
 
-    print('Input:', data)
-
-    output = compute.linear(data, weight, bias,
-                            in_features=len(data), out_features=weight.shape[0], debug=True)
-
-    print('Output before division:', output)
-    output += 64
-    output //= 128
-    print('Output:', output)
-
-    compare = np.array([-34711, 37520, 22738, 16559, 2293,
-                        -48963, -85140, 136144, -38265, -9148])
-    compare += 64
-    compare //= 128
-
-    print('Expected:', compare)
-    print("SUCCESS" if np.array_equal(output, compare) else "*** FAILURE ***")
-
-    assert np.array_equal(output, compare)
+    linear(d0, w0, b0, e0)
 
 
 if __name__ == '__main__':

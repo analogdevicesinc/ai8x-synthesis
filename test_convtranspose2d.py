@@ -15,7 +15,7 @@ import torch
 import compute
 
 
-def deconvolve(data, weight, expected):
+def deconvolve(groups, data, weight, expected):
     """Upsample data"""
     print('Input:\n', data)
 
@@ -30,9 +30,12 @@ def deconvolve(data, weight, expected):
         stride=2,
         padding=1,
         output_padding=1,
-        groups=1,
+        groups=groups,
         dilation=1,
     ).int().squeeze().numpy()
+
+    if groups > 1:
+        weight = weight.transpose(1, 0, 2, 3)
 
     output = compute.conv2d(
         data,
@@ -46,6 +49,7 @@ def deconvolve(data, weight, expected):
         dilation=[1, 1],
         fractional_stride=[2, 2],
         output_pad=[0, 0],
+        groups=groups,
         debug=True,
     )
 
@@ -177,7 +181,7 @@ def test_convtranspose2d():
         dtype=np.int64,
     )
 
-    deconvolve(d0, w0, e0)
+    deconvolve(1, d0, w0, e0)
 
     d1 = np.array(
         [[[-41, -98],
@@ -225,7 +229,39 @@ def test_convtranspose2d():
         dtype=np.int64,
     )
 
-    deconvolve(d1, w1, e1)
+    deconvolve(1, d1, w1, e1)
+
+    d2 = np.array(
+        [[[-41, -98],
+          [49, 73]],
+         [[-98, 31],
+          [-59, 86]]],
+        dtype=np.int64,
+    )
+
+    w2 = np.array(
+        [[[[-54, -64, 14],
+           [52, -44, -60],
+           [-90, -52, 42]],
+          [[-67, 51, 43],
+           [-7, -12, 118],
+           [102, -68, 54]]]],
+        dtype=np.int64,
+    )
+
+    e2 = np.array(
+        [[[14, 29, 34, -40],
+          [1, -4, 19, -10],
+          [-17, -14, -25, 30],
+          [-24, -13, -36, -31]],
+         [[9, 34, -3, -2],
+          [-8, 51, -33, 52],
+          [6, 83, -8, -5],
+          [-24, 60, 34, -45]]],
+        dtype=np.int64,
+    )
+
+    deconvolve(2, d2, w2, e2)
 
 
 if __name__ == '__main__':
