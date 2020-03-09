@@ -72,6 +72,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     # We don't support changing the following (yet), but leave as parameters:
     dilation = [[1, 1]] * tc.dev.MAX_LAYERS
     kernel_size = [DEFAULT_2D_KERNEL] * tc.dev.MAX_LAYERS
+    conv_groups = [1] * tc.dev.MAX_LAYERS
     stride = [[1, 1]] * tc.dev.MAX_LAYERS
     streaming = [False] * tc.dev.MAX_LAYERS
     flatten = [False] * tc.dev.MAX_LAYERS
@@ -82,7 +83,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
 
     sequence = 0
     for ll in cfg['layers']:
-        if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution',
+        if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'conv_groups',
                                'in_channels', 'in_dim', 'in_sequences', 'in_offset',
                                'kernel_size', 'pool_stride', 'out_channels', 'out_offset',
                                'activate', 'activation', 'data_format', 'eltwise', 'flatten',
@@ -334,6 +335,9 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
                 error_exit('`in_sequences` cannot be greater than layer sequence', sequence)
             in_sequences[sequence] = ll['in_sequences']
 
+        if 'conv_groups' in ll:
+            conv_groups[sequence] = ll['conv_groups']
+
         # Fix up values for 1D convolution or no convolution
         if operator[sequence] == op.CONV1D:
             padding[sequence][1] = 0
@@ -375,6 +379,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
             del flatten[ll]
             del operands[ll]
             del eltwise[ll]
+            del conv_groups[ll]
 
     # Check all but last layer
     for ll in range(len(output_map) - 1):
@@ -453,5 +458,6 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument
     settings['eltwise'] = eltwise
     settings['pool_first'] = pool_first
     settings['in_sequences'] = in_sequences
+    settings['conv_groups'] = conv_groups
 
     return cfg, settings

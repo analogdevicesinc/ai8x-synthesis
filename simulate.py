@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2018-2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2018-2020 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -73,6 +73,7 @@ def conv2d_layer(
         data,
         bits=8,
         output_width=8,
+        groups=1,
         device=84,  # pylint: disable=unused-argument
         debug=False,
 ):
@@ -111,6 +112,7 @@ def conv2d_layer(
         dilation=dilation,
         fractional_stride=[1, 1],
         output_pad=[0, 0],
+        groups=groups,
         debug=debug,
     )
 
@@ -122,7 +124,7 @@ def conv2d_layer(
             print(out_buf)
         print('')
 
-    stats.macc += input_size[0] * kernel_size[0] * kernel_size[1] * out_size[0] \
+    stats.macc += (input_size[0] // groups) * kernel_size[0] * kernel_size[1] * out_size[0] \
         * out_size[1] * out_size[2]
 
     if output_width != 32:
@@ -178,6 +180,7 @@ def convtranspose2d_layer(
         data,
         bits=8,
         output_width=8,
+        groups=1,
         device=84,  # pylint: disable=unused-argument
         debug=False,
 ):
@@ -218,6 +221,7 @@ def convtranspose2d_layer(
         dilation=dilation,
         fractional_stride=fractional_stride,
         output_pad=output_padding,
+        groups=groups,
         debug=debug,
     )
 
@@ -229,7 +233,7 @@ def convtranspose2d_layer(
             print(out_buf)
         print('')
 
-    stats.macc += input_size[0] * kernel_size[0] * kernel_size[1] * out_size[0] \
+    stats.macc += (input_size[0] // groups) * kernel_size[0] * kernel_size[1] * out_size[0] \
         * out_size[1] * out_size[2]
 
     if output_width != 32:
@@ -284,6 +288,7 @@ def conv1d_layer(
         data,
         bits=8,
         output_width=8,
+        groups=1,
         device=84,  # pylint: disable=unused-argument
         debug=False,
 ):
@@ -314,6 +319,7 @@ def conv1d_layer(
         stride=stride,
         pad=padding,
         dilation=dilation,
+        groups=groups,
         debug=debug,
     )
 
@@ -322,7 +328,7 @@ def conv1d_layer(
         print(out_buf.squeeze(axis=-1))
         print('')
 
-    stats.macc += input_size[0] * kernel_size * out_size[0] \
+    stats.macc += (input_size[0] // groups) * kernel_size * out_size[0] \
         * out_size[1]
 
     if output_width != 32:
@@ -365,7 +371,7 @@ def linear_layer(
         debug=False,
 ):
     """
-    Perform one linear layer.
+    Perform one software linear layer.
     """
     in_features = data.shape[0]
     out_features = weight.shape[0]

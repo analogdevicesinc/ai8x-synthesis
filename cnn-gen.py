@@ -60,6 +60,7 @@ def create_net(
         output_shift,
         input_chan,
         output_chan,
+        conv_groups,
         output_width,
         padding,
         dilation,
@@ -273,6 +274,11 @@ def create_net(
             tram_max[ll] = max(0, pooled_dim[ll][1] + 2*padding[ll][1] - kernel_size[ll][1]) + 1
             if operator[ll] == op.CONVTRANSPOSE2D:
                 tram_max[ll] *= stride[ll][1]
+
+        if input_chan[ll] % conv_groups[ll] != 0 or output_chan[ll] % conv_groups[ll] != 0:
+            print(f'Layer {ll}: convolution groups {conv_groups[ll]} does not divide'
+                  f' the input channels {input_chan[ll]} or output channels {output_chan[ll]}.')
+            sys.exit(1)
 
     # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
     test_name = prefix
@@ -695,6 +701,7 @@ def create_net(
             print('------------------------')
             print(f'Input dimensions    = {input_dim}')
             print(f'Input channels      = {input_chan}')
+            print(f'Convolution groups  = {conv_groups}')
             print(f'Flatten             = {flatten}')
             print('Processor map       = [',
                   ', '.join('0x{:016x}'.format(k) for k in processor_map), ']', sep='',)
@@ -1628,6 +1635,7 @@ def create_net(
                 bias[ll],
                 data,
                 output_width=output_width[ll],
+                groups=conv_groups[ll],
                 device=device,
                 debug=debug_computation,
             )
@@ -1653,6 +1661,7 @@ def create_net(
                 bias[ll],
                 data,
                 output_width=output_width[ll],
+                groups=conv_groups[ll],
                 device=device,
                 debug=debug_computation,
             )
@@ -1676,6 +1685,7 @@ def create_net(
                 bias[ll],
                 data,
                 output_width=output_width[ll],
+                groups=conv_groups[ll],
                 device=device,
                 debug=debug_computation,
             )
@@ -2049,6 +2059,7 @@ def main():
     eltwise = params['eltwise'][:layers]
     pool_first = params['pool_first'][:layers]
     activation = params['activation'][:layers]
+    conv_groups = params['conv_groups'][:layers]
 
     # Command line override
     if args.input_offset is not None:
@@ -2220,6 +2231,7 @@ def main():
             output_shift,
             input_channels,
             output_channels,
+            conv_groups,
             output_width,
             padding,
             dilation,
