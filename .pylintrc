@@ -7,9 +7,14 @@ ignored-classes = ModelProto
 max-line-length = 99
 [DESIGN]
 max-locals=100
-max-statements=100
+max-statements=800
 min-public-methods=1
-max-branches=30
+max-branches=60
 max-module-lines=5000
+max-nested-blocks=10
+max-args=35
+max-attributes=35
+max-public-methods=35
+max-bool-expr=8
 [MASTER]
 ignore=CMSIS_5,distiller

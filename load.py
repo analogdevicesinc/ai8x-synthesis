@@ -63,7 +63,8 @@ def load(
             camera_retrace,
             debug,
         )
-    elif fifo:
+    # else:
+    if fifo:
         return loadfifo(
             embedded_code,
             apb,
@@ -264,6 +265,8 @@ def load(
         apb.output('}\n\n')
     else:
         apb.output(f'  // End of data input\n\n')
+
+    return None
 
 
 def loadfifo(

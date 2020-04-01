@@ -39,7 +39,7 @@ from simulate import conv1d_layer, conv2d_layer, convtranspose2d_layer, \
 from utils import ffs, fls, popcount
 
 
-def create_net(
+def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches
         prefix,
         verbose,
         debug,
@@ -1909,7 +1909,7 @@ def create_net(
     return test_name
 
 
-def main():
+def main():  # pylint: disable=too-many-branches,too-many-statements
     """
     Command line wrapper
     """
