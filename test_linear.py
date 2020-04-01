@@ -37,7 +37,7 @@ def linear(data, weight, bias, expected):
 
     print("PYTORCH OK" if np.array_equal(output, t) else "*** FAILURE ***")
     assert np.array_equal(output, t)
-    
+
     # MLP emulation
     emu_output = compute.conv2d(
         data[:, np.newaxis, np.newaxis],

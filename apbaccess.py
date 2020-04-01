@@ -20,7 +20,7 @@ READ_TIME_NS = 230
 WRITE_TIME_NS = 280
 
 
-class APB(object):
+class APB():
     """
     APB read and write functionality.
     """
@@ -420,7 +420,7 @@ class APB(object):
 
         self.memfile.write(comment)
 
-    def copyright_header(
+    def copyright_header(  # pylint: disable=no-self-use
             self,
     ):
         """
@@ -429,7 +429,7 @@ class APB(object):
         """
         return
 
-    def header(
+    def header(  # pylint: disable=no-self-use
             self,
     ):
         """
@@ -438,7 +438,7 @@ class APB(object):
         """
         return
 
-    def verify_header(
+    def verify_header(  # pylint: disable=no-self-use
             self,
     ):
         """
@@ -447,7 +447,7 @@ class APB(object):
         """
         return
 
-    def verify_footer(
+    def verify_footer(  # pylint: disable=no-self-use
             self,
     ):
         """
@@ -456,7 +456,7 @@ class APB(object):
         """
         return
 
-    def load_header(
+    def load_header(  # pylint: disable=no-self-use
             self,
     ):
         """
@@ -465,7 +465,7 @@ class APB(object):
         """
         return
 
-    def load_footer(
+    def load_footer(  # pylint: disable=no-self-use
             self,
     ):
         """
@@ -474,7 +474,7 @@ class APB(object):
         """
         return
 
-    def main(
+    def main(  # pylint: disable=no-self-use
             self,
             classification_layer=False,
             oneshot=0,
@@ -487,7 +487,7 @@ class APB(object):
         """
         return
 
-    def fc_layer(
+    def fc_layer(  # pylint: disable=no-self-use
             self,
             weights,
             bias,
@@ -499,7 +499,7 @@ class APB(object):
         """
         return
 
-    def fc_verify(
+    def fc_verify(  # pylint: disable=no-self-use
             self,
             data,
     ):  # pylint: disable=unused-argument
@@ -509,7 +509,7 @@ class APB(object):
         """
         return
 
-    def unload(
+    def unload(  # pylint: disable=no-self-use
             self,
             processor_map,
             input_shape,
@@ -572,7 +572,7 @@ class APB(object):
             stream=self.memfile,
         )
 
-    def output_define(
+    def output_define(  # pylint: disable=no-self-use
             self,
             array,
             define_name,

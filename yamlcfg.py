@@ -20,7 +20,7 @@ DEFAULT_1D_KERNEL = [9, 1]
 FC_KERNEL = [1, 1]
 
 
-def parse(config_file, device=84):  # pylint: disable=unused-argument
+def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-branches
     """
     Configure network parameters from the YAML configuration file `config_file`.
     The function returns both the YAML dictionary as well as a settings dictionary.

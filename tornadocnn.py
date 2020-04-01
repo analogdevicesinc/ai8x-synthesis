@@ -19,6 +19,8 @@ class Dev:
     """
     Metaclass for all hardware devices
     """
+    def __str__(self):
+        return self.__class__.__name__
 
 
 class DevAI84(Dev):
@@ -83,6 +85,9 @@ class DevAI84(Dev):
     MAX_CHANNELS = MAX_PROC
 
     BIAS_DIV = 1
+
+    def __str__(self):
+        return self.__class__.__name__
 
 
 class DevAI85(Dev):
@@ -176,6 +181,9 @@ class DevAI85(Dev):
     FAST_FIFO_IS = 3  # Interrupt status (flag) register
     FAST_FIFO_DR = 4  # Data register
     FAST_FIFO_DMA = 5  # DMA register (reserved function, not yet supported)
+
+    def __str__(self):
+        return self.__class__.__name__
 
 
 def get_device(

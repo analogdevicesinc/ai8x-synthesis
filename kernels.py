@@ -44,7 +44,7 @@ def print_map(
     print('-' * kmap.shape[1] * width)
 
 
-def load(
+def load(  # pylint: disable=too-many-branches,too-many-statements
         verbose,
         embedded_code,
         device,

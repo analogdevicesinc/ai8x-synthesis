@@ -56,8 +56,8 @@ def string(
     """
     if not elt:
         return NAMES[op] if op in NAMES else '????'
-    else:
-        return ELT_NAMES[op] if op in ELT_NAMES else '????'
+    # else:
+    return ELT_NAMES[op] if op in ELT_NAMES else '????'
 
 
 def eltwise(

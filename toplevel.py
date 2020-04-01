@@ -113,7 +113,7 @@ def load_header(
 
 def load_footer(
         memfile,
-        embedded_code=False,
+        embedded_code=False,  # pylint: disable=unused-argument
 ):
     """
     Write the footer for the CNN configuration loader function to `memfile`.

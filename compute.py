@@ -29,12 +29,12 @@ def debug_open(
         layer,
         base_directory,
         test_name,
-        log_filename,
+        log_filename,  # pylint: disable=unused-argument
 ):
     """
     Create debug log for a layer
     """
-    global debug_log
+    global debug_log  # pylint: disable=global-statement
     debug_log = open(os.path.join(base_directory, test_name,
                                   f'compute-{layer}.csv'), 'w')
 
@@ -45,7 +45,7 @@ def debug_print(
     """
     Print to the compute debug log
     """
-    global debug_log
+    global debug_log  # pylint: disable=global-statement
     print(t, file=debug_log)
 
 
@@ -53,7 +53,7 @@ def debug_close():
     """
     Close the compute debug log
     """
-    global debug_log
+    global debug_log  # pylint: disable=global-statement
     debug_log.close()
 
 
@@ -108,8 +108,8 @@ def conv2d(
                                         xpos = (x + pad[1])*fractional_stride[1] - pad[1] \
                                             + x_frac + w * dilation[1]
                                         xd, xr = divmod(xpos, fractional_stride[1])
-                                        if yr == 0 and yd >= 0 and yd < input_size[1] and \
-                                           xr == 0 and xd >= 0 and xd < input_size[2]:
+                                        if yr == 0 and 0 <= yd < input_size[1] and \
+                                           xr == 0 and 0 <= xd < input_size[2]:
                                             prod = weight[k][c][h][w] * data[dc][yd][xd]
                                             sval += prod
                                             val += prod
@@ -121,7 +121,7 @@ def conv2d(
                                 c += 16
                                 if c >= in_channels // groups:
                                     c = (c + 1) % 16
-                                    if c == 0 or c == in_channels // groups:
+                                    if c in (0, in_channels // groups):
                                         break
 
                             if bias is not None:
@@ -234,7 +234,7 @@ def conv1d(
                 dc = c if groups == 1 else c + k * (in_channels // groups)
                 for w in range(kernel_size):
                     src_offs = x + w * dilation
-                    if src_offs >= 0 and src_offs < input_size[1]:
+                    if 0 <= src_offs < input_size[1]:
                         val += weight[k][c][w] * data[dc][src_offs]
                         stats.true_macc += 1
                         if debug:
