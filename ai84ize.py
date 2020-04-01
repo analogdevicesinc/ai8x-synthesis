@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 ###################################################################################################
 #
-# Copyright (C) 2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2020 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -10,7 +10,7 @@
 #
 ###################################################################################################
 """
-Load contents of a checkpoint files and save them in a format usable for AI84
+Load contents of a checkpoint files and save them in a format usable for AI84/AI85
 """
 import argparse
 from functools import partial
@@ -24,7 +24,7 @@ FC_SCALE_BITS = 8
 FC_CLAMP_BITS = 8
 
 
-def convert_checkpoint(input_file, output_file, arguments):
+def convert_checkpoint(dev, input_file, output_file, arguments):
     """
     Convert checkpoint file or dump parameters for C code
     """
@@ -101,7 +101,7 @@ def convert_checkpoint(input_file, output_file, arguments):
             if not arguments.quantized:
                 module, _ = k.split(sep='.', maxsplit=1)
 
-                if module != 'fc':
+                if dev != 84 or module != 'fc':
                     if num_layers and layers >= num_layers:
                         continue
                     if not params:
@@ -141,7 +141,7 @@ def convert_checkpoint(input_file, output_file, arguments):
                     weights = factor * checkpoint_state[bias_name]
 
                     # The scale is different for AI84, and this has to happen before clamping.
-                    if not arguments.ai85 and module != 'fc':
+                    if dev == 84 and module != 'fc':
                         weights *= 2**(clamp_bits-1)
 
                     # Ensure it fits and is an integer
@@ -154,7 +154,7 @@ def convert_checkpoint(input_file, output_file, arguments):
                     # we divide the output by 128 to compensate. The bias therefore needs to be
                     # multiplied by 128. This depends on the data width, not the weight width,
                     # and is therefore always 128.
-                    if arguments.ai85 and module != 'fc':
+                    if dev != 84:
                         weights *= 2**(tc.dev.ACTIVATION_BITS-1)
 
                     # Store modified weight/bias back into model
@@ -164,13 +164,12 @@ def convert_checkpoint(input_file, output_file, arguments):
                 # anymore
                 module, st = operation.rsplit('.', maxsplit=1)
                 if st in ['wrapped_module']:
-                    scale = module + '.' + parameter[0] + '_scale'
                     weights = checkpoint_state[k]
                     scale = module + '.' + parameter[0] + '_scale'
                     (scale_bits, clamp_bits) = (CONV_SCALE_BITS, tc.dev.DEFAULT_WEIGHT_BITS) \
-                        if module != 'fc' else (FC_SCALE_BITS, FC_CLAMP_BITS)
+                        if dev != 84 or module != 'fc' else (FC_SCALE_BITS, FC_CLAMP_BITS)
                     fp_scale = checkpoint_state[scale]
-                    if module not in ['fc']:
+                    if dev != 84 or module not in ['fc']:
                         # print("Factor in:", fp_scale, "bits", scale_bits, "out:",
                         #       pow2_round(fp_scale, scale_bits))
                         weights *= fp_scale.clamp(min=1, max=2**scale_bits-1).round()
@@ -186,7 +185,7 @@ def convert_checkpoint(input_file, output_file, arguments):
                     del new_checkpoint_state[k]
                     del new_checkpoint_state[scale]
 
-            if module != 'fc':
+            if dev != 84 or module != 'fc':
                 layers += 1
         elif parameter in ['base_b_q']:
             del new_checkpoint_state[k]
@@ -222,4 +221,4 @@ if __name__ == '__main__':
     # Configure device
     tc.dev = tc.get_device(84 if not args.ai85 else 85)
 
-    convert_checkpoint(args.input, args.output, args)
+    convert_checkpoint(84 if not args.ai85 else 85, args.input, args.output, args)
