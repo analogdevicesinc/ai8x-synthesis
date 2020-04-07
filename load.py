@@ -50,10 +50,6 @@ def load(
     Output is written to the `apb` object.
     """
 
-    # Work with 1D input data
-    if len(data.shape) < 3:
-        data = np.expand_dims(data, axis=2)
-
     if csv_file is not None:
         return loadcsv(
             embedded_code,
