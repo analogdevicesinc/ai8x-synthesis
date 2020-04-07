@@ -2088,6 +2088,10 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
     output_dim = [None] * layers
 
     if operator[0] != op.CONV1D:
+        if len(input_size) < 3:
+            print(f'The input size for layer {ll} is {input_size}, which does not support '
+                  f'2D operations.')
+            sys.exit(1)
         auto_input_dim[0] = [input_size[1], input_size[2]]
     else:
         auto_input_dim[0] = [input_size[1], 1]
