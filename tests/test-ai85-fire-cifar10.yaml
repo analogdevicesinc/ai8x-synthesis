@@ -13,11 +13,13 @@ layers:
   operation: None
   data_format: HWC
   in_channels: 3
+  op: conv2d
 - out_offset: 0x0000
   processors: 0x0000000000000007
   operation: conv2d
   kernel_size: 1x1
   pad: 0
+  op: conv2d
   activate: ReLU
 - in_offset: 0x0000
   out_offset: 0x1000
@@ -28,6 +30,7 @@ layers:
   operation: conv2d
   kernel_size: 1x1
   pad: 0
+  op: conv2d
   activate: ReLU
 - in_offset: 0x0000
   out_offset: 0x1000
@@ -37,6 +40,7 @@ layers:
   in_channels: 2
   operation: conv2d
   kernel_size: 3x3
+  op: conv2d
   activate: ReLU
   in_sequences: 1
 - max_pool: 2
@@ -47,6 +51,7 @@ layers:
   operation: None
   in_channels: 8
   in_sequences: [2, 3]
+  op: conv2d
 # Additional layers
 - max_pool: 2
   pool_stride: 2

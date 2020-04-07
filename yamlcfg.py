@@ -215,6 +215,9 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
             else:
                 error_exit(f'Unknown value "{ll[key]}" for `{key}`', sequence)
                 sys.exit(1)
+        else:
+            print('WARNING: Defaulting to `op: Conv2d` for '
+                  f'layer sequence {sequence} in YAML configuration.')
 
         if 'pad' in ll:
             val = ll['pad']

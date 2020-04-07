@@ -8,4 +8,5 @@ layers:
   processors: 0x000000000000001f
   pad: 1
   max_pool: 2
+  op: conv2d
 

@@ -10,6 +10,7 @@ layers:
   processors: 0x0000000100010001
   data_format: CHW
   streaming: true
+  op: conv2d
 - max_pool: 2
   pool_stride: 2
   pad: 1
@@ -17,9 +18,11 @@ layers:
   out_offset: 0x5d00
   processors: 0x00000000000000ff
   streaming: true
+  op: conv2d
 - max_pool: 2
   pool_stride: 2
   pad: 1
   out_offset: 0x7700
   processors: 0x00000000000000ff
   streaming: true
+  op: conv2d

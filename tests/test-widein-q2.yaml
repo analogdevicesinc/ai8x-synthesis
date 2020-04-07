@@ -8,3 +8,4 @@ layers:
   processors: 0x000000ffffffffff
   data_format: HWC
   quantization: 2
+  op: conv2d

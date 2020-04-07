@@ -1,7 +1,7 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_April 6, 2020_
+_April 7, 2020_
 
 _Open the `.md` version of this file in a markdown enabled viewer, for example Typora (http://typora.io).
 See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A PDF copy of this file is available in the repository._
@@ -1052,15 +1052,15 @@ Example:
 
 When specified for the first layer only, `data_format` can be either `chw`/`big` or `hwc`/`little`. The default is `hwc`. Note that the data format interacts with `processors`. 
 
-##### `operation` (Optional)
+##### `operation`
 
 This key (which can also be specified using `op`, `operator`, or `convolution`) selects a layer’s main operation after the optional input pooling.
-The default is `Conv2d`. AI84 only supports `Conv1d` and `Conv2d`.
+When this key is not specified, a warning is displayed and `Conv2d` is selected. AI84 only supports `Conv1d` and `Conv2d`.
 
 | Operation                 | Description                                                  |
 | :------------------------ | :----------------------------------------------------------- |
 | `Conv1d`                  | 1D convolution over an input composed of several input planes |
-| `Conv2d` (default)        | 2D convolution over an input composed of several input planes |
+| `Conv2d`                  | 2D convolution over an input composed of several input planes |
 | `ConvTranspose2d`         | 2D transposed convolution (upsampling) over an input composed of several input planes |
 | `None` or `Passthrough`   | No operation                                                 |
 | `Linear` or `FC` or `MLP` | Linear transformation to the incoming data                   |

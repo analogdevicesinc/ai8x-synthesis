@@ -10,31 +10,37 @@ layers:
   out_offset: 0x0000
   processors: 0x0000000000000001
   data_format: CHW
+  op: conv2d
 - max_pool: 2
   pool_stride: 2
   pad: 1
   activate: ReLU
   out_offset: 0x2000
   processors: 0x000000000007fff0
+  op: conv2d
 - max_pool: 2
   pool_stride: 2
   pad: 1
   activate: ReLU
   out_offset: 0x0000
   processors: 0x0003fffffff00000
+  op: conv2d
 - max_pool: 2
   pool_stride: 2
   pad: 1
   activate: ReLU
   out_offset: 0x2000
   processors: 0xfffffffffffffff0
+  op: conv2d
 - max_pool: 2
   pool_stride: 2
   pad: 1
   activate: ReLU
   out_offset: 0x0000
   processors: 0x00000003fffffff0
+  op: conv2d
 - pad: 1
   activate: ReLU
   out_offset: 0x2000
   processors: 0xfffffffc00000000
+  op: conv2d

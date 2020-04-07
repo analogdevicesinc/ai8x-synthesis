@@ -11,18 +11,21 @@ layers:
   out_offset: 0x2000
   processors: 0x0000000000000007
   data_format: HWC
+  op: conv2d
 - max_pool: 2
   pool_stride: 2
   pad: 1
   activate: ReLU
   out_offset: 0
   processors: 0xfffffffffffffff0
+  op: conv2d
 - max_pool: 2
   pool_stride: 2
   pad: 1
   activate: ReLU
   out_offset: 0x2000
   processors: 0xfffffffffffffff0
+  op: conv2d
 - avg_pool: 2
   pool_stride: 2
   pad: 1
@@ -30,8 +33,10 @@ layers:
   out_offset: 0
   processors: 0x0ffffffffffffff0
   output_processors: 0x0000000000000fff
+  op: conv2d
 - pad: 0
   out_offset: 0x2000
   kernel_size: 1x1
   flatten: true
   processors: 0x0000000000000fff
+  op: conv2d

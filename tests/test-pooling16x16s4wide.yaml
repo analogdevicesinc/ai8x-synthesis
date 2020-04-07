@@ -9,5 +9,6 @@ layers:
   processors: 0x0000000000000007
   data_format: HWC
   avg_pool: 16
-  pool_stride : 4
+  pool_stride: 4
   output_width: 32
+  op: conv2d

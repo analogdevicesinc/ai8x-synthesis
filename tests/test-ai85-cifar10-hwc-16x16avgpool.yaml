@@ -14,6 +14,7 @@ layers:
   quantization: 4
   avg_pool: 16
   pool_stride: 16
+  op: conv2d
 - max_pool: 2
   pool_stride: 2
   pad: 1
@@ -21,6 +22,7 @@ layers:
   out_offset: 0
   processors: 0xfffffffffffffff0
   quantization: 4
+  op: conv2d
 - max_pool: 2
   pool_stride: 2
   pad: 1
@@ -28,6 +30,7 @@ layers:
   out_offset: 0x2000
   processors: 0xfffffffffffffff0
   quantization: 4
+  op: conv2d
 - avg_pool: 2
   pool_stride: 2
   pad: 1
@@ -35,4 +38,5 @@ layers:
   out_offset: 0
   processors: 0x0ffffffffffffff0
   quantization: 4
+  op: conv2d
 

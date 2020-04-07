@@ -13,22 +13,26 @@ layers:
   out_offset: 0x2000
   processors: 0x0000000000000007
   data_format: HWC
+  op: conv2d
 - max_pool: 2
   pool_stride: 2
   pad: 1
   activate: ReLU
   out_offset: 0
   processors: 0x7ffffffffffffff8
+  op: conv2d
 - max_pool: 2
   pool_stride: 2
   pad: 1
   activate: ReLU
   out_offset: 0x2000
   processors: 0x3ffffffffffffffc
+  op: conv2d
 - avg_pool: 2
   pool_stride: 2
   pad: 1
   activate: ReLU
   out_offset: 0
   processors: 0x0ffffffffffffff0
+  op: conv2d
 

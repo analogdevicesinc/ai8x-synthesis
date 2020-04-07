@@ -6,3 +6,4 @@ layers:
   out_offset: 0x2000
   processors: 0x0000000000000001
   data_format: CHW
+  op: conv2d
