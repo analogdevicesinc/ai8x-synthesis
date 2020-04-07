@@ -7,6 +7,7 @@ layers:
   data_format: HWC
   pad: 1
   streaming: true
+  op: conv2d
 - out_offset: 0x2000
   in_dim: [20, 10]
   processors: 0x00000000000000ff

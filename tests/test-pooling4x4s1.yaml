@@ -10,4 +10,5 @@ layers:
   processors: 0x000000000000001f
   data_format: HWC
   max_pool: 4
-  pool_stride : 1
+  pool_stride: 1
+  op: conv2d

@@ -8,3 +8,4 @@ layers:
   out_offset: 0x2000
   processors: 0x000000ffffffffff
   data_format: HWC
+  op: conv2d

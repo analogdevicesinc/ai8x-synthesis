@@ -9,7 +9,9 @@ layers:
   processors: 0x000f000f000f000f
   data_format: HWC
   streaming: true
+  op: conv2d
 - pad: 1
   out_offset: 0x800
   processors: 0x000000000000fffe
   streaming: true
+  op: conv2d
