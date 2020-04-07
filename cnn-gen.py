@@ -1917,6 +1917,9 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
 
     args = commandline.get_parser()
 
+    if args.device != 84 and args.fc_layer:
+        print("WARNING: --fc-layer should only be used on AI84")
+
     # Configure device
     tc.dev = tc.get_device(args.device)
 
