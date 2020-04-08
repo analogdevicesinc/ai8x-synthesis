@@ -1951,8 +1951,13 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
             print("--checkpoint-file is a required argument.")
             sys.exit(1)
         layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
-            checkpoint.load(args.checkpoint_file, cfg['arch'],
-                            args.fc_layer, params['quantization'])
+            checkpoint.load(
+                args.checkpoint_file,
+                cfg['arch'],
+                args.fc_layer,
+                params['quantization'],
+                args.display_checkpoint,
+            )
     else:  # Get some hard-coded sample weights
         layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
             sampleweight.load(cfg['dataset'], params['quantization'], len(cfg['layers']),

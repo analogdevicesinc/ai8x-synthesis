@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2020 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -15,7 +15,13 @@ import torch
 import tornadocnn
 
 
-def load(checkpoint_file, arch, fc_layer, quantization):
+def load(
+        checkpoint_file,
+        arch,
+        fc_layer,
+        quantization,
+        verbose=False,
+):
     """
     Load weights and biases from `checkpoint_file`. If `arch` is not None and does not match
     the architecuture in the checkpoint file, abort with an error message. If `fc_layer` is
@@ -25,11 +31,15 @@ def load(checkpoint_file, arch, fc_layer, quantization):
     This value is checked against the weight inputs.
     In addition to returning weights anf biases, this function configures the network output
     channels and the number of layers.
+    When `verbose` is set, display the shapes of the weights.
     """
     weights = []
     bias = []
     fc_weights = []
     fc_bias = []
+    weight_keys = []
+    bias_keys = []
+    quant = []
 
     checkpoint = torch.load(checkpoint_file, map_location='cpu')
     print(f'Reading {checkpoint_file} to configure network weights...')
@@ -58,11 +68,14 @@ def load(checkpoint_file, arch, fc_layer, quantization):
                 w = checkpoint_state[k].numpy().astype(np.int64)
                 assert w.min() >= -(2**(quantization[layers]-1))
                 assert w.max() < 2**(quantization[layers]-1)
+                quant.append(quantization[layers])
+
                 # FIXME: When this is a ConvTranspose2d, need to flip the weights as follows:
                 # w = np.flip(w, axis=(2, 3)).swapaxes(0, 1)
                 input_channels.append(w.shape[1])  # Input channels
                 output_channels.append(w.shape[0])  # Output channels
                 weights.append(w.reshape(-1, w.shape[-2], w.shape[-1]))
+                weight_keys.append(k)
                 # Is there a bias for this layer?
                 bias_name = operation + '.bias'
                 if bias_name in checkpoint_state:
@@ -71,8 +84,10 @@ def load(checkpoint_file, arch, fc_layer, quantization):
                     assert w.min() >= -(2**(quantization[layers]-1))
                     assert w.max() < 2**(quantization[layers]-1)
                     bias.append(w)
+                    bias_keys.append(bias_name)
                 else:
                     bias.append(None)
+                    bias_keys.append('N/A')
                 layers += 1
             elif have_fc_layer:
                 print('The network cannot have more than one fully connected software layer, '
@@ -92,5 +107,19 @@ def load(checkpoint_file, arch, fc_layer, quantization):
                 else:
                     fc_bias.append(None)
                 have_fc_layer = True
+
+    if verbose:
+        print(f'Parsed checkpoint for {layers} layers:')
+        print('Layer  Quant  InCh OutCh  Weight          Key                   Bias       Key')
+        for ll in range(layers):
+            if ll < len(weights) and weights[ll] is not None:
+                weight_shape = str(weights[ll].shape)
+                if bias[ll] is not None:
+                    bias_shape = str(bias[ll].shape)
+                else:
+                    bias_shape = 'N/A'
+                print(f'{ll:4}: {quant[ll]:6} {input_channels[ll]:5} {output_channels[ll]:5}  '
+                      f'{weight_shape:15} {weight_keys[ll]:21} '
+                      f'{bias_shape:10} {bias_keys[ll]:21}')
 
     return layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels
