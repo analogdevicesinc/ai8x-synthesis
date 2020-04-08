@@ -40,6 +40,8 @@ def load(
     weight_keys = []
     bias_keys = []
     quant = []
+    weight_min = []
+    weight_max = []
 
     checkpoint = torch.load(checkpoint_file, map_location='cpu')
     print(f'Reading {checkpoint_file} to configure network weights...')
@@ -61,20 +63,35 @@ def load(
     for _, k in enumerate(checkpoint_state.keys()):
         operation, parameter = k.rsplit(sep='.', maxsplit=1)
         if parameter in ['weight']:
-            module, _ = k.split(sep='.', maxsplit=1)
+            module, op = k.split(sep='.', maxsplit=1)
+            op = op.rsplit(sep='.', maxsplit=1)[0]
             if module != 'fc' or module == 'fc' and not fc_layer:
                 if layers >= num_conv_layers:
                     continue
-                w = checkpoint_state[k].numpy().astype(np.int64)
-                assert w.min() >= -(2**(quantization[layers]-1))
-                assert w.max() < 2**(quantization[layers]-1)
                 quant.append(quantization[layers])
 
-                # FIXME: When this is a ConvTranspose2d, need to flip the weights as follows:
-                # w = np.flip(w, axis=(2, 3)).swapaxes(0, 1)
+                w = checkpoint_state[k].numpy().astype(np.int64)
+                w_min, w_max = w.min(), w.max()
+
+                assert w_min >= -(2**(quantization[layers]-1))
+                assert w_max < 2**(quantization[layers]-1)
+
+                weight_min.append(w_min)
+                weight_max.append(w_max)
+
                 input_channels.append(w.shape[1])  # Input channels
                 output_channels.append(w.shape[0])  # Output channels
-                weights.append(w.reshape(-1, w.shape[-2], w.shape[-1]))
+
+                if op == 'convtranspose2d':
+                    # For ConvTranspose2d, flip the weights as follows:
+                    w = np.flip(w, axis=(2, 3)).swapaxes(0, 1)
+
+                if len(w.shape) == 2:  # linear - add dummy 'channel'
+                    w = np.expand_dims(w, axis=0)
+                else:  # conv1d, conv2d, ... - combine input and output channels
+                    w = np.reshape(w, (-1, ) + w.shape[2:])
+
+                weights.append(w)
                 weight_keys.append(k)
                 # Is there a bias for this layer?
                 bias_name = operation + '.bias'
@@ -110,7 +127,8 @@ def load(
 
     if verbose:
         print(f'Parsed checkpoint for {layers} layers:')
-        print('Layer  Quant  InCh OutCh  Weight          Key                   Bias       Key')
+        print('Layer  Quant  Min Max  InCh OutCh  Weight          '
+              'Key                       Bias       Key')
         for ll in range(layers):
             if ll < len(weights) and weights[ll] is not None:
                 weight_shape = str(weights[ll].shape)
@@ -118,8 +136,9 @@ def load(
                     bias_shape = str(bias[ll].shape)
                 else:
                     bias_shape = 'N/A'
-                print(f'{ll:4}: {quant[ll]:6} {input_channels[ll]:5} {output_channels[ll]:5}  '
-                      f'{weight_shape:15} {weight_keys[ll]:21} '
-                      f'{bias_shape:10} {bias_keys[ll]:21}')
+                print(f'{ll:4}: {quant[ll]:6} {weight_min[ll]:4} {weight_max[ll]:3} '
+                      f'{input_channels[ll]:5} {output_channels[ll]:5}  '
+                      f'{weight_shape:15} {weight_keys[ll]:25} '
+                      f'{bias_shape:10} {bias_keys[ll]:25}')
 
     return layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels
