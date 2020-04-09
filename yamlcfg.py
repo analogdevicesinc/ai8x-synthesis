@@ -63,6 +63,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
     average = [0] * tc.dev.MAX_LAYERS
     pool_stride = [[1, 1]] * tc.dev.MAX_LAYERS
     quantization = [8] * tc.dev.MAX_LAYERS
+    bias_quantization = [8] * tc.dev.MAX_LAYERS
     output_shift = [0] * tc.dev.MAX_LAYERS
     output_offset = [0] * tc.dev.MAX_LAYERS
     activation = [None] * tc.dev.MAX_LAYERS
@@ -370,6 +371,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
             del activation[ll]
             del big_data[ll]
             del quantization[ll]
+            del bias_quantization[ll]
             del output_shift[ll]
             del output_map[ll]
             del output_width[ll]
@@ -448,6 +450,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
     settings['activation'] = activation
     settings['big_data'] = big_data
     settings['quantization'] = quantization
+    settings['bias_quantization'] = quantization
     settings['output_shift'] = output_shift
     settings['output_processor_map'] = output_map
     settings['output_width'] = output_width

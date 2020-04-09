@@ -20,6 +20,7 @@ from utils import fls
 def load(
         dataset,
         quantization,
+        bias_quantization,  # pylint: disable=unused-argument
         cfg_layers,
         cfg_bias,
 ):
