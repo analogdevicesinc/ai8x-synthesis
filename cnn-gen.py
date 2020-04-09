@@ -1956,12 +1956,18 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
                 cfg['arch'],
                 args.fc_layer,
                 params['quantization'],
+                params['bias_quantization'],
                 args.display_checkpoint,
             )
     else:  # Get some hard-coded sample weights
         layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
-            sampleweight.load(cfg['dataset'], params['quantization'], len(cfg['layers']),
-                              cfg['bias'] if 'bias' in cfg else None)
+            sampleweight.load(
+                cfg['dataset'],
+                params['quantization'],
+                params['bias_quantization'],
+                len(cfg['layers']),
+                cfg['bias'] if 'bias' in cfg else None,
+            )
 
     cfg_layers = len(cfg['layers'])
     if cfg_layers > layers:
@@ -2002,6 +2008,10 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
                or p1 == 3 or p1 < 0 or p1 > 4 for [p0, p1] in params['pool_stride']):
             print('Unsupported value for `pool_stride` in YAML configuration.')
             sys.exit(1)
+
+    if any(q != 8 for q in params['bias_quantization']):
+        print('All bias quantization configuration values must be 8.')
+        sys.exit(1)
 
     if args.stop_after is not None:
         layers = args.stop_after + 1
