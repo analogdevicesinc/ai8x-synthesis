@@ -140,6 +140,8 @@ def get_parser():
                              "(default: false)")
     parser.add_argument('--ignore-streaming', action='store_true', default=False,
                         help="ignore all 'streaming' layer directives (default: false)")
+    parser.add_argument('--allow-streaming', action='store_true', default=False,
+                        help="allow streaming without use of a FIFO (default: false)")
     parser.add_argument('--input-split', type=int, default=1, metavar='N',
                         choices=range(1, 1025),
                         help="split input into N portions (default: don't split)")

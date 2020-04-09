@@ -138,6 +138,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         legacy_test=True,
         log_intermediate=False,
         log_pooling=False,
+        allow_streaming=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -197,6 +198,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             if operator[0] not in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
                 print('Fast FIFO requies a convolution operation in the first layer.')
                 sys.exit(1)
+    elif streaming[0] and not allow_streaming:
+        print('Streaming in the first layer requires use of a FIFO.')
+        sys.exit(1)
 
     processor_map_0 = processor_map[0]
     if fast_fifo_quad:
@@ -1596,7 +1600,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
         if operator[ll] == op.CONV1D:
             assert out_size[0] == in_chan \
-                and out_size[1] == pooled_dim[ll][0]
+                and out_size[1] == pooled_dim[ll][0] \
+                and pooled_dim[ll][1] == 1
         else:
             assert out_size[0] == in_chan \
                 and out_size[1] == pooled_dim[ll][0] \
@@ -2332,6 +2337,7 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
             args.legacy_test,
             args.log_intermediate,
             args.log_pooling,
+            args.allow_streaming,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(
