@@ -10,7 +10,6 @@
 Checkpoint File Routines
 """
 import sys
-from functools import reduce
 
 import numpy as np
 import torch
@@ -96,7 +95,7 @@ def load(
                 input_channels.append(w.shape[1])  # Input channels
                 output_channels.append(w.shape[0])  # Output channels
 
-                w_count = reduce(lambda x, y: x * y, w.shape)
+                w_count = np.prod(w.shape)
                 param_count += w_count
                 w_size = (w_count * 8 + (quantization[layers]-1)) // quantization[layers]
                 weight_size.append(w_size)
@@ -130,7 +129,7 @@ def load(
                     bias.append(w)
                     bias_keys.append(bias_name)
                     bias_quant.append(bias_quantization[layers])
-                    w_count = reduce(lambda x, y: x * y, w.shape)
+                    w_count = np.prod(w.shape)
                     param_count += w_count
                     w_size = (
                         w_count * 8 + (bias_quantization[layers]-1)
@@ -184,6 +183,6 @@ def load(
                       f'{bias_shape:10} '
                       f'{bias_quant[ll]:5} {bias_min[ll]:4} {bias_max[ll]:3} {bias_size[ll]:4} '
                       f'{bias_keys[ll]:25}')
-        print(f'TOTAL: {layers} layers, {param_count} parameters, {param_size} bytes')
+        print(f'TOTAL: {layers} layers, {param_count:,} parameters, {param_size:,} bytes')
 
     return layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels

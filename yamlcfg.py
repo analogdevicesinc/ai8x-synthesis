@@ -450,7 +450,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
     settings['activation'] = activation
     settings['big_data'] = big_data
     settings['quantization'] = quantization
-    settings['bias_quantization'] = quantization
+    settings['bias_quantization'] = bias_quantization
     settings['output_shift'] = output_shift
     settings['output_processor_map'] = output_map
     settings['output_width'] = output_width
