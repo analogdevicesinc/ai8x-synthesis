@@ -359,7 +359,7 @@ def loadfifo(
                         for _ in range(slowdown):
                             apb.output('  asm volatile("nop");\n')
                     else:
-                        code_buffer[fifo][row * col] = val
+                        code_buffer[fifo][row * input_size[2] + col] = val
                     pmap >>= 12
                     fifo += 1
 
