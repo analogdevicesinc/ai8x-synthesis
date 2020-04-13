@@ -38,6 +38,9 @@ def get_parser():
                              "otherwise 'main' -> 'main.c')")
     parser.add_argument('--weight-filename', metavar='S', default='weights.h',
                         help="weight header file name (default: 'weights.h')")
+    parser.add_argument('--no-bias', default=None,
+                        help="comma-separated list of layers where bias values will be ignored "
+                             "(default: None)")
     parser.add_argument('--sample-filename', metavar='S', default='sampledata.h',
                         help="sample data header file name (default: 'sampledata.h')")
     parser.add_argument('-e', '--embedded-code', action='store_true', default=False,
@@ -207,5 +210,14 @@ def get_parser():
 
     if not args.device:
         args.device = 84
+
+    if args.no_bias is None:
+        args.no_bias = []
+    else:
+        try:
+            args.no_bias = [int(s) for s in args.no_bias.split(',')]
+        except ValueError:
+            raise ValueError('ERROR: Argument --no-bias must be a comma-separated '
+                             'list of integers only')
 
     return args

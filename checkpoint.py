@@ -24,6 +24,7 @@ def load(
         quantization,
         bias_quantization,
         verbose=False,
+        no_bias=None,
 ):
     """
     Load weights and biases from `checkpoint_file`. If `arch` is not None and does not match
@@ -38,6 +39,7 @@ def load(
     channels and the number of layers.
     When `verbose` is set, display the shapes of the weights.
     """
+    no_bias = no_bias or []
     weights = []
     bias = []
     fc_weights = []
@@ -115,7 +117,7 @@ def load(
                 # Is there a bias for this layer?
                 bias_name = operation + '.bias'
 
-                if bias_name in checkpoint_state:
+                if bias_name in checkpoint_state and layers not in no_bias:
                     w = checkpoint_state[bias_name].numpy(). \
                         astype(np.int64) // tornadocnn.dev.BIAS_DIV
 
