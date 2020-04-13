@@ -10,7 +10,9 @@
 Unload AI84 HWC memory into standard representation.
 """
 import sys
+
 import tornadocnn as tc
+from eprint import eprint
 from utils import ffs, popcount
 
 
@@ -234,18 +236,18 @@ def verify(
     ):
         # If using single layer, make sure we're not overwriting the input
         if (not overwrite_ok) and in_map[target_offs >> 2] is not None:
-            print(f'Processor {p}: '
-                  f'Layer {ll} output for CHW={c},{row},{col} is overwriting '
-                  f'input at offset 0x{target_offs:08x}.')
+            eprint(f'Processor {p}: '
+                   f'Layer {ll} output for CHW={c},{row},{col} is overwriting '
+                   f'input at offset 0x{target_offs:08x}.')
             if not no_error_stop:
                 sys.exit(1)
         # Check we're not overflowing the data memory
         if (not overwrite_ok) and out_map is not None and out_map[target_offs >> 2] is not None:
             old_c, old_row, old_col, old_val = out_map[target_offs >> 2]
-            print(f'Processor {p}: '
-                  f'Layer {ll} output for CHW={c},{row},{col} is overwriting '
-                  f'itself at offset 0x{target_offs:08x}. Previous write by '
-                  f'CHW={old_c},{old_row},{old_col} with value 0x{old_val:08x}.')
+            eprint(f'Processor {p}: '
+                   f'Layer {ll} output for CHW={c},{row},{col} is overwriting '
+                   f'itself at offset 0x{target_offs:08x}. Previous write by '
+                   f'CHW={old_c},{old_row},{old_col} with value 0x{old_val:08x}.')
             if not no_error_stop:
                 sys.exit(1)
 

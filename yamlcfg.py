@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2020 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -14,6 +14,8 @@ import yaml
 import op
 import tornadocnn as tc
 from utils import ffs
+from eprint import eprint
+
 
 DEFAULT_2D_KERNEL = [3, 3]
 DEFAULT_1D_KERNEL = [9, 1]
@@ -31,7 +33,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
         """
         Print error message `message` for layer sequence `sequence` and exit.
         """
-        print(f'{message} (found in layer sequence {sequence} in YAML configuration).')
+        eprint(f'{message} (found in layer sequence {sequence} in YAML configuration).')
         sys.exit(1)
 
     # Load configuration file
@@ -40,12 +42,12 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
         cfg = yaml.load(cfg_file, Loader=yaml.SafeLoader)
 
     if bool(set(cfg) - set(['bias', 'dataset', 'layers', 'output_map', 'arch'])):
-        print(f'Configuration file {config_file} contains unknown key(s).')
+        eprint(f'Configuration file {config_file} contains unknown key(s).')
         sys.exit(1)
 
     if 'layers' not in cfg or 'arch' not in cfg or 'dataset' not in cfg:
-        print(f'Configuration file {config_file} does not contain '
-              f'`layers`, `arch`, or `dataset`.')
+        eprint(f'Configuration file {config_file} does not contain '
+               f'`layers`, `arch`, or `dataset`.')
         sys.exit(1)
 
     # These are initialized with 'None'. Use this to see whether a layer was configured,
@@ -92,7 +94,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
                                'output_processors', 'output_width', 'output_shift',
                                'pool_first', 'processors', 'pad', 'quantization',
                                'sequence', 'streaming', 'stride'])):
-            print(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
+            eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
             sys.exit(1)
 
         if 'sequence' in ll:

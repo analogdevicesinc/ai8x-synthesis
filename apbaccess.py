@@ -14,7 +14,7 @@ import sys
 import toplevel
 import tornadocnn as tc
 import unload
-
+from eprint import eprint
 
 READ_TIME_NS = 230
 WRITE_TIME_NS = 280
@@ -352,7 +352,7 @@ class APB():
         Check whether we're overwriting location `offs`.
         """
         if self.mem[offs >> 2]:
-            print(f'Overwriting location {offs:08x}')
+            eprint(f'Overwriting location {offs:08x}')
             if not self.no_error_stop:
                 sys.exit(1)
 

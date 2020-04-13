@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2020 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -11,9 +11,12 @@ Routines to generate software CNNs using Arm's CMSIS NN library
 """
 import os
 import sys
+
 import numpy as np
+
 import op
 import toplevel
+from eprint import eprint
 from simulate import conv1d_layer, conv2d_layer, linear_layer
 
 
@@ -31,7 +34,7 @@ def create_net(prefix, verbose, debug, log,
     Create the CMSIS NN network.
     """
     if any(w != 8 for w in output_width):
-        print('CMSIS network generator does not currently support `output_width` that is not 8.')
+        eprint('CMSIS network generator does not currently support `output_width` that is not 8.')
         sys.exit(1)
 
     test_name = prefix
