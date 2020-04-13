@@ -33,6 +33,7 @@ import sampleweight
 import stats
 import tornadocnn as tc
 import yamlcfg
+from eprint import eprint
 from simulate import conv1d_layer, conv2d_layer, convtranspose2d_layer, \
     linear_layer, passthrough_layer, eltwise_layer, \
     pooling_layer, show_data
@@ -173,33 +174,33 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         fifo_group = False
     if fifo:
         if input_chan[0] > 16 or big_data[0] and input_chan[0] > 4:
-            print("Using the FIFO is restricted to a maximum of 4 input channels (CHW) or "
-                  f"16 channels (HWC); this test is using {input_chan[0]} channels.")
+            eprint("Using the FIFO is restricted to a maximum of 4 input channels (CHW) or "
+                   f"16 channels (HWC); this test is using {input_chan[0]} channels.")
             sys.exit(1)
         if big_data[0] and processor_map[0] & ~0x0001000100010001 != 0 \
            or not big_data[0] and processor_map[0] & ~0x000f000f000f000f != 0:
-            print("The FIFO is restricted to processors 0, 16, 32, 48 (CHW) or "
-                  "0-3, 16-19, 32-35, 48-51 (HWC).")
+            eprint("The FIFO is restricted to processors 0, 16, 32, 48 (CHW) or "
+                   "0-3, 16-19, 32-35, 48-51 (HWC).")
             sys.exit(1)
         if fast_fifo:
             if big_data[0] and input_chan[0] > 1:
-                print("Fast FIFO supports only a single CHW input channel; "
-                      f"this test is using {input_chan[0]} channels.")
+                eprint("Fast FIFO supports only a single CHW input channel; "
+                       f"this test is using {input_chan[0]} channels.")
                 sys.exit(1)
             elif not big_data[0] and input_chan[0] > 4:
-                print("Fast FIFO supports up to four HWC input channels; "
-                      f"this test is using {input_chan[0]} channels.")
+                eprint("Fast FIFO supports up to four HWC input channels; "
+                       f"this test is using {input_chan[0]} channels.")
                 sys.exit(1)
             if processor_map[0] & 0x0e == 0:
                 fifo_group = False
             if output_width[0] != 8:
-                print('Single-layer fast FIFO setup requires output width of 8.')
+                eprint('Single-layer fast FIFO setup requires output width of 8.')
                 sys.exit(1)
             if operator[0] not in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
-                print('Fast FIFO requies a convolution operation in the first layer.')
+                eprint('Fast FIFO requies a convolution operation in the first layer.')
                 sys.exit(1)
     elif streaming[0] and not allow_streaming:
-        print('Streaming in the first layer requires use of a FIFO.')
+        eprint('Streaming in the first layer requires use of a FIFO.')
         sys.exit(1)
 
     processor_map_0 = processor_map[0]
@@ -214,9 +215,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             p = processor_map[ll] >> (ffs(processor_map[ll]) & ~(tc.dev.P_SHARED-1))
             while p:
                 if popcount(p & (tc.dev.P_SHARED-1)) > 1:
-                    print(f"Layer {ll} uses CHW (big data) input format, but multiple channels "
-                          "share the same memory instance. Modify the processor map for "
-                          f"layer {ll}.")
+                    eprint(f"Layer {ll} uses CHW (big data) input format, but multiple channels "
+                           "share the same memory instance. Modify the processor map for "
+                           f"layer {ll}.")
                     sys.exit(1)
                 p >>= tc.dev.P_SHARED
 
@@ -240,17 +241,17 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         in_size = input_dim[ll][0] * input_dim[ll][1] * in_expand[ll] * operands[ll] \
             * (1 if big_data[ll] else 4)
         if not streaming[ll] and in_size + in_offset[ll] > tc.dev.INSTANCE_SIZE*16:
-            print(f'Layer {ll}: {1 if big_data[ll] else 4}-channel input size {in_size} '
-                  f'with input offset 0x{in_offset[ll]:04x} and expansion {in_expand[ll]}x '
-                  f'exceeds data memory instance size of {tc.dev.INSTANCE_SIZE*16}.')
+            eprint(f'Layer {ll}: {1 if big_data[ll] else 4}-channel input size {in_size} '
+                   f'with input offset 0x{in_offset[ll]:04x} and expansion {in_expand[ll]}x '
+                   f'exceeds data memory instance size of {tc.dev.INSTANCE_SIZE*16}.')
             sys.exit(1)
         out_size = output_dim[ll][0] * output_dim[ll][1] * out_expand[ll] \
             * 4 * output_width[ll] // 8
         if (not streaming[ll] or ll == layers - 1) \
            and out_size + out_offset[ll] > tc.dev.INSTANCE_SIZE*16:
-            print(f'Layer {ll}: 4-channel, {output_width[ll]}-bit output size {out_size} '
-                  f'with output offset 0x{out_offset[ll]:04x} and expansion {out_expand[ll]}x '
-                  f'exceeds data memory instance size of {tc.dev.INSTANCE_SIZE*16}.')
+            eprint(f'Layer {ll}: 4-channel, {output_width[ll]}-bit output size {out_size} '
+                   f'with output offset 0x{out_offset[ll]:04x} and expansion {out_expand[ll]}x '
+                   f'exceeds data memory instance size of {tc.dev.INSTANCE_SIZE*16}.')
             sys.exit(1)
 
         if operator[ll] != op.CONV1D:
@@ -280,8 +281,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 tram_max[ll] *= stride[ll][1]
 
         if input_chan[ll] % conv_groups[ll] != 0 or output_chan[ll] % conv_groups[ll] != 0:
-            print(f'Layer {ll}: convolution groups {conv_groups[ll]} does not divide'
-                  f' the input channels {input_chan[ll]} or output channels {output_chan[ll]}.')
+            eprint(f'Layer {ll}: convolution groups {conv_groups[ll]} does not divide'
+                   f' the input channels {input_chan[ll]} or output channels {output_chan[ll]}.')
             sys.exit(1)
 
     # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
@@ -339,33 +340,33 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         processors_used |= bits
 
         if input_chan[ll] > tc.dev.MAX_CHANNELS:
-            print(f'Layer {ll} is configured for {input_chan[ll]} inputs, which exceeds '
-                  f'the system maximum of {tc.dev.MAX_CHANNELS}.')
+            eprint(f'Layer {ll} is configured for {input_chan[ll]} inputs, which exceeds '
+                   f'the system maximum of {tc.dev.MAX_CHANNELS}.')
             sys.exit(1)
         if output_chan[ll] > tc.dev.MAX_CHANNELS:
-            print(f'Layer {ll} is configured for {output_chan[ll]} outputs, which exceeds '
-                  f'the system maximum of {tc.dev.MAX_CHANNELS}.')
+            eprint(f'Layer {ll} is configured for {output_chan[ll]} outputs, which exceeds '
+                   f'the system maximum of {tc.dev.MAX_CHANNELS}.')
             sys.exit(1)
         if (ll != 0 or not fast_fifo_quad) and popcount(processor_map[ll]) != in_expand_thresh[ll]:
-            print(f'Layer {ll} has {input_chan[ll]} inputs with input expansion '
-                  f'{in_expand[ll]}, threshold {in_expand_thresh[ll]}, but '
-                  f'enabled processor map 0x{processor_map[ll]:016x} '
-                  f'has {popcount(processor_map[ll])} bits instead of the '
-                  f'expected number of {in_expand_thresh[ll]}.')
+            eprint(f'Layer {ll} has {input_chan[ll]} inputs with input expansion '
+                   f'{in_expand[ll]}, threshold {in_expand_thresh[ll]}, but '
+                   f'enabled processor map 0x{processor_map[ll]:016x} '
+                   f'has {popcount(processor_map[ll])} bits instead of the '
+                   f'expected number of {in_expand_thresh[ll]}.')
             sys.exit(1)
         if ll == 0 and fast_fifo_quad and popcount(processor_map_0) != in_expand_thresh[ll]:
-            print(f'Layer {ll} has {input_chan[ll]} inputs with input expansion '
-                  f'{in_expand[ll]}, threshold {in_expand_thresh[ll]}, but '
-                  f'enabled processor map 0x{processor_map[ll]:016x} '
-                  f'has {popcount(processor_map[ll])} bits instead of the '
-                  f'expected number of {in_expand_thresh[ll]}.')
+            eprint(f'Layer {ll} has {input_chan[ll]} inputs with input expansion '
+                   f'{in_expand[ll]}, threshold {in_expand_thresh[ll]}, but '
+                   f'enabled processor map 0x{processor_map[ll]:016x} '
+                   f'has {popcount(processor_map[ll])} bits instead of the '
+                   f'expected number of {in_expand_thresh[ll]}.')
             sys.exit(1)
         if popcount(output_processor_map[ll]) != out_expand_thresh[ll]:
-            print(f'Layer {ll} has {output_chan[ll]} outputs with output expansion '
-                  f'{out_expand[ll]}, threshold {out_expand_thresh[ll]}, but '
-                  f'processor output map 0x{output_processor_map[ll]:016x} '
-                  f'has {popcount(output_processor_map[ll])} bits instead of the '
-                  f'expected number of {out_expand_thresh[ll]}.')
+            eprint(f'Layer {ll} has {output_chan[ll]} outputs with output expansion '
+                   f'{out_expand[ll]}, threshold {out_expand_thresh[ll]}, but '
+                   f'processor output map 0x{output_processor_map[ll]:016x} '
+                   f'has {popcount(output_processor_map[ll])} bits instead of the '
+                   f'expected number of {out_expand_thresh[ll]}.')
             sys.exit(1)
         this_map = []
         for group in range(tc.dev.P_NUMGROUPS):
@@ -380,7 +381,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             groups_used.append(group)
 
     if 0 not in groups_used:
-        print('Group 0 is not used, this currently does not work.')
+        eprint('Group 0 is not used, this currently does not work.')
         sys.exit(1)
 
     # Create ARM code wrapper if needed
@@ -537,6 +538,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 quantization,
                 group_map,
                 output_chan,
+                streaming,
                 debug,
             )
 
@@ -682,6 +684,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 quantization,
                 group_map,
                 output_chan,
+                streaming,
                 debug,
             )
         else:
@@ -1255,26 +1258,26 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     # Check rollover vs available data memory
                     if in_offset[ll] < out_offset[ll]:
                         if in_offset[ll] + val * 4 >= out_offset[ll]:
-                            print('Overlapping input and output: '
-                                  f'in_offset 0x{in_offset[ll]:08x} < '
-                                  f'out_offset 0x{out_offset[ll]:08x}, '
-                                  f'rollover 0x{val:08x}.')
+                            eprint('Overlapping input and output: '
+                                   f'in_offset 0x{in_offset[ll]:08x} < '
+                                   f'out_offset 0x{out_offset[ll]:08x}, '
+                                   f'rollover 0x{val:08x}.')
                             if not no_error_stop:
                                 sys.exit(1)
                     else:
                         if out_offset[ll] + val * 4 >= in_offset[ll]:
-                            print('Overlapping input and output: '
-                                  f'in_offset 0x{in_offset[ll]:08x} >= '
-                                  f'out_offset 0x{out_offset[ll]:08x}, '
-                                  f'rollover 0x{val:08x}.')
+                            eprint('Overlapping input and output: '
+                                   f'in_offset 0x{in_offset[ll]:08x} >= '
+                                   f'out_offset 0x{out_offset[ll]:08x}, '
+                                   f'rollover 0x{val:08x}.')
                             if not no_error_stop:
                                 sys.exit(1)
                     if in_offset[ll] + val * 4 >= tc.dev.INSTANCE_SIZE * tc.dev.P_SHARED * 4:
-                        print('Input plus rollover exceeds instance size: '
-                              f'in_offset 0x{in_offset[ll]:08x}, '
-                              f'out_offset 0x{out_offset[ll]:08x}, '
-                              f'rollover 0x{val:08x}, '
-                              f'instance size 0x{tc.dev.INSTANCE_SIZE*4:08x}.')
+                        eprint('Input plus rollover exceeds instance size: '
+                               f'in_offset 0x{in_offset[ll]:08x}, '
+                               f'out_offset 0x{out_offset[ll]:08x}, '
+                               f'rollover 0x{val:08x}, '
+                               f'instance size 0x{tc.dev.INSTANCE_SIZE*4:08x}.')
                         if not no_error_stop:
                             sys.exit(1)
 
@@ -1538,7 +1541,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 try:
                     data = np.concatenate([data_buf[i + 1] for i in in_sequences[ll]], axis=0)
                 except ValueError as err:
-                    print('Error in input data concatenation layer:', err)
+                    eprint('Error in input data concatenation layer:', err)
                     sys.exit(1)
             else:
                 data = data_buf[in_sequences[ll] + 1]
@@ -1704,7 +1707,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 debug=debug_computation,
             )
         else:
-            print(f'Unknown operator `{op.string(operator[ll])}`.')
+            eprint(f'Unknown operator `{op.string(operator[ll])}`.')
             sys.exit(1)
 
         assert out_size[0] == output_chan[ll] \
@@ -1953,7 +1956,7 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
     # This also configures the network's output channels
     if cfg['arch'] != 'test':
         if not args.checkpoint_file:
-            print("--checkpoint-file is a required argument.")
+            eprint("--checkpoint-file is a required argument.")
             sys.exit(1)
         layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
             checkpoint.load(
@@ -1993,31 +1996,31 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
                 layers += 1
 
     if layers != cfg_layers:
-        print(f"Number of layers in the YAML configuration file ({cfg_layers}) "
-              f"does not match the checkpoint file ({layers}).")
+        eprint(f"Number of layers in the YAML configuration file ({cfg_layers}) "
+               f"does not match the checkpoint file ({layers}).")
         sys.exit(1)
 
     if any(p < 0 or p > 4*tc.dev.MEM_SIZE for p in params['output_offset']):
-        print('Unsupported value for `out_offset` in YAML configuration.')
+        eprint('Unsupported value for `out_offset` in YAML configuration.')
         sys.exit(1)
 
     if args.device == 84:
         if any(q != 8 for q in params['quantization']):
-            print('All quantization configuration values must be 8 for AI84.')
+            eprint('All quantization configuration values must be 8 for AI84.')
             sys.exit(1)
 
         if any(p0 & 1 != 0 or p0 < 0 or p0 > 4 or p1 & 1 != 0
                or p1 < 0 or p1 > 4 for [p0, p1] in params['pool']):
-            print('Unsupported value for `max_pool`/`avg_pool` for AI84 in YAML configuration.')
+            eprint('Unsupported value for `max_pool`/`avg_pool` for AI84 in YAML configuration.')
             sys.exit(1)
 
         if any(p0 == 3 or p0 < 0 or p0 > 4
                or p1 == 3 or p1 < 0 or p1 > 4 for [p0, p1] in params['pool_stride']):
-            print('Unsupported value for `pool_stride` in YAML configuration.')
+            eprint('Unsupported value for `pool_stride` in YAML configuration.')
             sys.exit(1)
 
     if any(q != 8 for q in params['bias_quantization']):
-        print('All bias quantization configuration values must be 8.')
+        eprint('All bias quantization configuration values must be 8.')
         sys.exit(1)
 
     if args.stop_after is not None:
@@ -2123,7 +2126,7 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
         input_dim[0] = conf_input_dim[0]
     for ll in range(layers):
         if input_channels[ll] <= 0:
-            print(f'Must specify `in_channels` for layer {ll}.')
+            eprint(f'Must specify `in_channels` for layer {ll}.')
             sys.exit(1)
         if operator[ll] != op.NONE:
             assert weights[ll].min() >= -1 << quantization[ll] - 1
@@ -2135,8 +2138,8 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
                     dim = output_dim[in_sequences[ll][0]]
                     for _, e in enumerate(in_sequences[ll], start=1):
                         if output_dim[e] != dim:
-                            print('Cannot concatenate outputs of different dimensions in layer '
-                                  f'{ll}: {dim} vs {output_dim[e]}.')
+                            eprint('Cannot concatenate outputs of different dimensions in layer '
+                                   f'{ll}: {dim} vs {output_dim[e]}.')
                             sys.exit(1)
                     auto_input_dim[ll] = dim
                 else:
@@ -2150,9 +2153,9 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
         if pool[ll][0] > 1 or pool[ll][1] > 1:
             if operator[ll] != op.CONV1D:
                 if pool_stride[ll][0] != pool_stride[ll][1]:
-                    print(f'{op.string(operator[ll])} in layer {ll} does not support non-square'
-                          f'pooling stride (currently set to '
-                          f'{pool_stride[ll][0]}x{pool_stride[ll][1]}).')
+                    eprint(f'{op.string(operator[ll])} in layer {ll} does not support non-square'
+                           f'pooling stride (currently set to '
+                           f'{pool_stride[ll][0]}x{pool_stride[ll][1]}).')
                     sys.exit(1)
                 pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])
                                // pool_stride[ll][0],
@@ -2167,18 +2170,18 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
 
         pooled_dim[ll] = pooled_size
         if any(dim == 0 for dim in pooled_dim[ll]):
-            print(f'Pooling in layer {ll} results in a zero data dimension '
-                  f'(input {input_dim[ll]}, pooled {pooled_dim[ll]}).')
+            eprint(f'Pooling in layer {ll} results in a zero data dimension '
+                   f'(input {input_dim[ll]}, pooled {pooled_dim[ll]}).')
             sys.exit(1)
 
         if operator[ll] != op.CONV1D:
             if stride[ll][0] != stride[ll][1]:
-                print(f'{op.string(operator[ll])} in layer {ll} does not support non-square '
-                      f'stride (currently set to {stride[ll][0]}x{stride[ll][1]}).')
+                eprint(f'{op.string(operator[ll])} in layer {ll} does not support non-square '
+                       f'stride (currently set to {stride[ll][0]}x{stride[ll][1]}).')
                 sys.exit(1)
             if operator[ll] != op.CONVTRANSPOSE2D and stride[ll][0] != 1:
-                print(f'{op.string(operator[ll])} in layer {ll} does not support stride other '
-                      f'than 1 (currently set to {stride[ll][0]}x{stride[ll][1]}).')
+                eprint(f'{op.string(operator[ll])} in layer {ll} does not support stride other '
+                       f'than 1 (currently set to {stride[ll][0]}x{stride[ll][1]}).')
                 sys.exit(1)
             if operator[ll] in [op.NONE, op.CONV2D]:
                 output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1)
@@ -2200,25 +2203,25 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
                 output_dim[ll] = [1, 1]
                 input_channels[ll] //= input_dim[ll][0] * input_dim[ll][1]
             if padding[ll][0] >= 3:
-                print(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
-                      f'(currently set to {padding[ll][0]}).')
+                eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
+                       f'(currently set to {padding[ll][0]}).')
                 sys.exit(1)
         else:
             # We don't have to consider padding for the width calculation,
             # since padding has to be a multiple of 3 and we check for that.
             if args.device == 84:
                 if pooled_size[0] % 3 != 0:
-                    print(f'{op.string(operator[ll])} in layer {ll} requires a multiple of 3 for'
-                          f'the pooled input length (currently {pooled_size[0]}).')
+                    eprint(f'{op.string(operator[ll])} in layer {ll} requires a multiple of 3 for'
+                           f'the pooled input length (currently {pooled_size[0]}).')
                     sys.exit(1)
                 if padding[ll][0] % 3 != 0:
-                    print(f'{op.string(operator[ll])} in layer {ll} requires a multiple of 3 for '
-                          f'`pad` (currently set to {padding[ll][0]}).')
+                    eprint(f'{op.string(operator[ll])} in layer {ll} requires a multiple of 3 for '
+                           f'`pad` (currently set to {padding[ll][0]}).')
                     sys.exit(1)
             else:
                 if padding[ll][0] >= 3:
-                    print(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
-                          f'(currently set to {padding[ll][0]}).')
+                    eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
+                           f'(currently set to {padding[ll][0]}).')
                     sys.exit(1)
             output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
                                2 * padding[ll][0]) // stride[ll][0] + 1,
@@ -2226,17 +2229,17 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
 
         # Prohibit pad greater than or equal to kernel size
         if padding[ll][0] >= kernel_size[ll][0] or padding[ll][1] >= kernel_size[ll][1]:
-            print(f'Pad size for layer {ll} exceeds kernel size.')
+            eprint(f'Pad size for layer {ll} exceeds kernel size.')
             sys.exit(1)
 
         # Check for max dimensions
         if any(dim > tc.dev.MAX_ROW_COL for dim in input_dim[ll]):
-            print(f'Input dimension {input_dim[ll]} exceeds system maximum of '
-                  f'{tc.dev.MAX_ROW_COL} in layer {ll}.')
+            eprint(f'Input dimension {input_dim[ll]} exceeds system maximum of '
+                   f'{tc.dev.MAX_ROW_COL} in layer {ll}.')
             sys.exit(1)
         if any(dim > tc.dev.MAX_ROW_COL for dim in output_dim[ll]):
-            print(f'Output dimension {output_dim[ll]} exceeds system maximum of '
-                  f'{tc.dev.MAX_ROW_COL} in layer {ll}.')
+            eprint(f'Output dimension {output_dim[ll]} exceeds system maximum of '
+                   f'{tc.dev.MAX_ROW_COL} in layer {ll}.')
             sys.exit(1)
 
     if not args.cmsis_software_nn:

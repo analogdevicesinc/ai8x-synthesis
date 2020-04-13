@@ -11,11 +11,15 @@ Kernel related functions
 """
 import math
 import sys
+
 import numpy as np
+
 import op
 import rv
 import tornadocnn as tc
+from eprint import eprint
 from utils import ffs, fls
+
 
 _INVALID_VALUE = -(2**63)
 _WORDS_PER_KERNEL = 3
@@ -24,24 +28,27 @@ _WORDS_PER_KERNEL = 3
 def print_map(
         layers,
         kmap,
+        stderr=False,
 ):
     """
     Print map of all used kernels in kernel map `kmap`. `layers` describes the number of layers
     in the network and is used to align the map.
     """
+    prt = eprint if stderr else print
+
     width = int(math.log10(layers)) + 1
     if width > 1:
         width += 1  # Add space if wider than a single character
 
-    print('-' * kmap.shape[1] * width)
+    prt('-' * kmap.shape[1] * width)
     for row in range(kmap.shape[0]):
         for col in range(kmap.shape[1]):
             val = kmap[row][col]
             if val == _INVALID_VALUE:
                 val = 'X'
-            print('{:>{w}}'.format(val, w=width), end='')
-        print('')
-    print('-' * kmap.shape[1] * width)
+            prt('{:>{w}}'.format(val, w=width), end='')
+        prt('')
+    prt('-' * kmap.shape[1] * width)
 
 
 def load(  # pylint: disable=too-many-branches,too-many-statements
@@ -153,10 +160,10 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         # The kernel offset needs to start at a multiple of 4.
         kern_offs[ll] = (kern_offs[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
         if kern_offs[ll] + kern_len[ll] > tc.dev.MASK_WIDTH:
-            print(f'\nKernel memory exceeded at layer {ll}; offset: {kern_offs[ll]}, '
-                  f'needed: {kern_len[ll]}.')
-            print('\nKernel map so far:')
-            print_map(layers, kernel_map)
+            eprint(f'\nKernel memory exceeded at layer {ll}; offset: {kern_offs[ll]}, '
+                   f'needed: {kern_len[ll]}.')
+            eprint('\nKernel map so far:')
+            print_map(layers, kernel_map, stderr=True)
             sys.exit(1)
 
         proc_mask = 2**qfactor - 1

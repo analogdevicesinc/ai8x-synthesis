@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2018-2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2018-2020 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -20,6 +20,7 @@ from numpy.lib.stride_tricks import as_strided
 
 import op
 import stats
+from eprint import eprint
 
 
 debug_log = None
@@ -188,7 +189,7 @@ def conv2d(
 
     if debug:
         if not (ref == output).all():
-            print('NumPy <-> Python mismatch in compute.conv2d')
+            eprint('NumPy <-> Python mismatch in compute.conv2d')
             sys.exit(1)
 
     assert output.shape == tuple(output_size)
@@ -346,7 +347,7 @@ def pool2d(
     if debug:
         match = (ref == pooled).all()
         if not match:
-            print('NumPy <-> Python mismatch in compute.pool2d')
+            eprint('NumPy <-> Python mismatch in compute.pool2d')
             sys.exit(1)
 
     assert pooled.shape == tuple(output_size)

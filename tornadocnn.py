@@ -11,6 +11,8 @@ Tornado CNN hardware constants - AI84, AI85
 """
 import sys
 
+from eprint import eprint
+
 
 dev = None
 
@@ -19,6 +21,8 @@ class Dev:
     """
     Metaclass for all hardware devices
     """
+    FIX_STREAM_BIAS = False
+
     def __str__(self):
         return self.__class__.__name__
 
@@ -182,6 +186,8 @@ class DevAI85(Dev):
     FAST_FIFO_DR = 4  # Data register
     FAST_FIFO_DMA = 5  # DMA register (reserved function, not yet supported)
 
+    FIX_STREAM_BIAS = True
+
     def __str__(self):
         return self.__class__.__name__
 
@@ -202,7 +208,7 @@ def get_device(
     elif device == 86:
         d = DevAI85()  # For now, no differences from AI85
     else:
-        print(f'Unknown device code `{device}`')
+        eprint(f'Unknown device code `{device}`')
         sys.exit(1)
 
     return d

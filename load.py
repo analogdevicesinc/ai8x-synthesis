@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2018-2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2018-2020 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -10,10 +10,13 @@
 Load Tornado CNN data memory
 """
 import sys
+
 import numpy as np
+
 import camera
 import rv
 import tornadocnn as tc
+from eprint import eprint
 from utils import popcount, s2u
 
 
@@ -108,8 +111,8 @@ def load(
         if expand == 0:
             new_data_offs += input_offset
         if new_data_offs == data_offs:
-            print('Layer 0 processor map is misconfigured for data input. '
-                  f'There is data overlap between processors {ch-1} and {ch}')
+            eprint('Layer 0 processor map is misconfigured for data input. '
+                   f'There is data overlap between processors {ch-1} and {ch}')
             sys.exit(1)
         data_offs = new_data_offs
 

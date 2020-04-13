@@ -15,6 +15,7 @@ import numpy as np
 import torch
 
 import tornadocnn
+from eprint import eprint
 
 
 def load(
@@ -62,8 +63,8 @@ def load(
         raise RuntimeError("\nNo `state_dict` or `arch` in checkpoint file.")
 
     if arch and checkpoint['arch'].lower() != arch.lower():
-        print(f"Network architecture of configuration file ({arch}) does not match "
-              f"network architecture of checkpoint file ({checkpoint['arch']}).")
+        eprint(f"Network architecture of configuration file ({arch}) does not match "
+               f"network architecture of checkpoint file ({checkpoint['arch']}).")
         sys.exit(1)
 
     checkpoint_state = checkpoint['state_dict']
@@ -147,8 +148,8 @@ def load(
                     bias_size.append(0)
                 layers += 1
             elif have_fc_layer:
-                print('The network cannot have more than one fully connected software layer, '
-                      'and it must be the output layer.')
+                eprint('The network cannot have more than one fully connected software layer, '
+                       'and it must be the output layer.')
                 sys.exit(1)
             elif fc_layer:
                 w = checkpoint_state[k].numpy().astype(np.int64)
