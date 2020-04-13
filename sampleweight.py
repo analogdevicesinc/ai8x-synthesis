@@ -23,10 +23,12 @@ def load(
         bias_quantization,  # pylint: disable=unused-argument
         cfg_layers,
         cfg_bias,
+        no_bias=None,
 ):
     """
     Return sample weights.
     """
+    no_bias = no_bias or []
     weights = []
     fc_weights = []
     fc_bias = []
@@ -67,7 +69,8 @@ def load(
             print(f'Reading bias from {fname}...')
             try:
                 while ll < layers:
-                    bias[ll] = np.load(file, allow_pickle=False, fix_imports=False)
+                    if ll not in no_bias:
+                        bias[ll] = np.load(file, allow_pickle=False, fix_imports=False)
                     ll += 1
             except ValueError:
                 pass

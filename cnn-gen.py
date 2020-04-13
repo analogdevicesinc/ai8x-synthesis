@@ -1963,6 +1963,7 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
                 params['quantization'],
                 params['bias_quantization'],
                 args.display_checkpoint,
+                args.no_bias,
             )
     else:  # Get some hard-coded sample weights
         layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
@@ -1972,6 +1973,7 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
                 params['bias_quantization'],
                 len(cfg['layers']),
                 cfg['bias'] if 'bias' in cfg else None,
+                args.no_bias,
             )
 
     cfg_layers = len(cfg['layers'])
