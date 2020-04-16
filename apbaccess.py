@@ -352,7 +352,7 @@ class APB():
         Check whether we're overwriting location `offs`.
         """
         if self.mem[offs >> 2]:
-            eprint(f'Overwriting location {offs:08x}')
+            eprint(f'Overwriting location {offs:08x}', error=not self.no_error_stop)
             if not self.no_error_stop:
                 sys.exit(1)
 
