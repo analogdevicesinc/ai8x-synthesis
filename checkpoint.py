@@ -14,6 +14,7 @@ import sys
 import numpy as np
 import torch
 
+import op as opn
 import tornadocnn
 from eprint import eprint
 
@@ -24,6 +25,8 @@ def load(
         fc_layer,
         quantization,
         bias_quantization,
+        kernel_size,
+        operator,
         verbose=False,
         no_bias=None,
 ):
@@ -75,8 +78,14 @@ def load(
     input_channels = []
     param_count = 0
     param_size = 0
+    error_exit = False
+    seq = 0
 
     for _, k in enumerate(checkpoint_state.keys()):
+        # Skip over non-weight layers
+        while seq < len(operator) and operator[seq] == opn.NONE:
+            seq += 1
+
         operation, parameter = k.rsplit(sep='.', maxsplit=1)
         if parameter in ['weight']:
             module, op = k.split(sep='.', maxsplit=1)
@@ -84,13 +93,13 @@ def load(
             if module != 'fc' or module == 'fc' and not fc_layer:
                 if layers >= num_conv_layers:
                     continue
-                quant.append(quantization[layers])
+                quant.append(quantization[seq])
 
                 w = checkpoint_state[k].numpy().astype(np.int64)
                 w_min, w_max = w.min(), w.max()
 
-                assert w_min >= -(2**(quantization[layers]-1))
-                assert w_max < 2**(quantization[layers]-1)
+                assert w_min >= -(2**(quantization[seq]-1))
+                assert w_max < 2**(quantization[seq]-1)
 
                 weight_min.append(w_min)
                 weight_max.append(w_max)
@@ -98,9 +107,29 @@ def load(
                 input_channels.append(w.shape[1])  # Input channels
                 output_channels.append(w.shape[0])  # Output channels
 
+                if len(w.shape) == 2:  # MLP
+                    if kernel_size[seq][0] != 1 or kernel_size[seq][1] != 1:
+                        eprint(f'The `kernel_size` for the MLP layer {seq} should '
+                               f'be set to 1x1 instead of '
+                               f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.')
+                        error_exit = True
+                elif len(w.shape) == 3:  # 1D
+                    if kernel_size[seq][0] != w.shape[2] or kernel_size[seq][1] != 1:
+                        eprint(f'The `kernel_size` for the 1D layer {seq} should '
+                               f'be set to {w.shape[2]}x1 instead of '
+                               f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.')
+                        error_exit = True
+                elif len(w.shape) == 4:  # 2D
+                    if kernel_size[seq][0] != w.shape[2] \
+                       or kernel_size[seq][1] != w.shape[3]:
+                        eprint(f'The `kernel_size` for the 2D layer {seq} should '
+                               f'be set to {w.shape[2]}x{w.shape[3]} instead of '
+                               f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.')
+                        error_exit = True
+
                 w_count = np.prod(w.shape)
                 param_count += w_count
-                w_size = (w_count * 8 + (quantization[layers]-1)) // quantization[layers]
+                w_size = (w_count * 8 + (quantization[seq]-1)) // quantization[seq]
                 weight_size.append(w_size)
                 param_size += w_size
 
@@ -118,25 +147,25 @@ def load(
                 # Is there a bias for this layer?
                 bias_name = operation + '.bias'
 
-                if bias_name in checkpoint_state and layers not in no_bias:
+                if bias_name in checkpoint_state and seq not in no_bias:
                     w = checkpoint_state[bias_name].numpy(). \
                         astype(np.int64) // tornadocnn.dev.BIAS_DIV
 
                     w_min, w_max = w.min(), w.max()
-                    assert w_min >= -(2**(bias_quantization[layers]-1))
-                    assert w_max < 2**(bias_quantization[layers]-1)
+                    assert w_min >= -(2**(bias_quantization[seq]-1))
+                    assert w_max < 2**(bias_quantization[seq]-1)
 
                     bias_min.append(w_min)
                     bias_max.append(w_max)
 
                     bias.append(w)
                     bias_keys.append(bias_name)
-                    bias_quant.append(bias_quantization[layers])
+                    bias_quant.append(bias_quantization[seq])
                     w_count = np.prod(w.shape)
                     param_count += w_count
                     w_size = (
-                        w_count * 8 + (bias_quantization[layers]-1)
-                    ) // bias_quantization[layers]
+                        w_count * 8 + (bias_quantization[seq]-1)
+                    ) // bias_quantization[seq]
                     bias_size.append(w_size)
                     param_size += w_size
                 else:
@@ -147,6 +176,7 @@ def load(
                     bias_quant.append(0)
                     bias_size.append(0)
                 layers += 1
+                seq += 1
             elif have_fc_layer:
                 eprint('The network cannot have more than one fully connected software layer, '
                        'and it must be the output layer.')
@@ -170,7 +200,7 @@ def load(
         print(f'Checkpoint for epoch {checkpoint["epoch"]}, model {checkpoint["arch"]} - '
               'weight and bias data:')
         print('Layer  InCh OutCh  Weights         Quant  Min Max   Size '
-              'Key                       Bias       Quant  Min Max Size Key')
+              'Key                                 Bias       Quant  Min Max Size Key')
         for ll in range(layers):
             if ll < len(weights) and weights[ll] is not None:
                 weight_shape = str(weights[ll].shape)
@@ -182,10 +212,13 @@ def load(
                       f'{input_channels[ll]:5} {output_channels[ll]:5}  '
                       f'{weight_shape:15} '
                       f'{quant[ll]:5} {weight_min[ll]:4} {weight_max[ll]:3} {weight_size[ll]:6} '
-                      f'{weight_keys[ll]:25} '
+                      f'{weight_keys[ll]:35} '
                       f'{bias_shape:10} '
                       f'{bias_quant[ll]:5} {bias_min[ll]:4} {bias_max[ll]:3} {bias_size[ll]:4} '
                       f'{bias_keys[ll]:25}')
         print(f'TOTAL: {layers} layers, {param_count:,} parameters, {param_size:,} bytes')
+
+    if error_exit:
+        sys.exit(1)
 
     return layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels
