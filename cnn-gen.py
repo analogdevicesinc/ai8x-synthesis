@@ -1972,6 +1972,8 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
                 args.fc_layer,
                 params['quantization'],
                 params['bias_quantization'],
+                params['kernel_size'],
+                params['operator'],
                 args.display_checkpoint,
                 args.no_bias,
             )
