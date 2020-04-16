@@ -1580,10 +1580,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         if operands[ll] > 1 and not pool_first[ll]:
             data = np.expand_dims(run_eltwise(data, ll), 0)
 
-        # In-flight pooling
+        # Allow 1D <-> 2D and 2D W/L conversions
         if operator[ll] == op.CONV1D:
-            data = data.reshape(1, in_chan, input_dim[ll][0])
+            assert input_dim[ll][1] == 1
+            data = data.reshape(data.shape[0], data.shape[1], input_dim[ll][0])
+        else:
+            data = data.reshape(data.shape[0], data.shape[1], input_dim[ll][0], input_dim[ll][1])
 
+        # In-flight pooling
         data, out_size = pooling_layer(
             ll,
             verbose,
