@@ -84,8 +84,9 @@ def load(
             # Work around a problem on AI85
             bias_len += 1
         if streaming[ll] and tc.dev.FIX_STREAM_BIAS:
-            eprint(f'AI85 WARNING: Layer {ll} uses streaming and a bias.\n'
-                   'AI85 WARNING: THIS COMBINATION MIGHT NOT BE FUNCTIONING CORRECTLY!!!')
+            eprint(f'Layer {ll} uses streaming and a bias. '
+                   'THIS COMBINATION MIGHT NOT BE FUNCTIONING CORRECTLY!!!',
+                   error=False)
 
         # Pick the group with the least amount of data in it
         group = argmin(group_bias_max[t] for t in group_map[ll])

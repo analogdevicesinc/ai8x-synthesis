@@ -17,7 +17,7 @@ import numpy as np
 import op
 import rv
 import tornadocnn as tc
-from eprint import eprint
+from eprint import eprint, eprint_noprefix
 from utils import ffs, fls
 
 
@@ -28,27 +28,25 @@ _WORDS_PER_KERNEL = 3
 def print_map(
         layers,
         kmap,
-        stderr=False,
+        print_fn=print,
 ):
     """
     Print map of all used kernels in kernel map `kmap`. `layers` describes the number of layers
     in the network and is used to align the map.
     """
-    prt = eprint if stderr else print
-
     width = int(math.log10(layers)) + 1
     if width > 1:
         width += 1  # Add space if wider than a single character
 
-    prt('-' * kmap.shape[1] * width)
+    print_fn('-' * kmap.shape[1] * width)
     for row in range(kmap.shape[0]):
         for col in range(kmap.shape[1]):
             val = kmap[row][col]
             if val == _INVALID_VALUE:
                 val = 'X'
-            prt('{:>{w}}'.format(val, w=width), end='')
-        prt('')
-    prt('-' * kmap.shape[1] * width)
+            print_fn('{:>{w}}'.format(val, w=width), end='')
+        print_fn('')
+    print_fn('-' * kmap.shape[1] * width)
 
 
 def load(  # pylint: disable=too-many-branches,too-many-statements
@@ -161,9 +159,9 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         kern_offs[ll] = (kern_offs[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
         if kern_offs[ll] + kern_len[ll] > tc.dev.MASK_WIDTH:
             eprint(f'\nKernel memory exceeded at layer {ll}; offset: {kern_offs[ll]}, '
-                   f'needed: {kern_len[ll]}.')
-            eprint('\nKernel map so far:')
-            print_map(layers, kernel_map, stderr=True)
+                   f'needed: {kern_len[ll]}.'
+                   '\n\nKernel map so far:')
+            print_map(layers, kernel_map, print_fn=eprint_noprefix)
             sys.exit(1)
 
         proc_mask = 2**qfactor - 1

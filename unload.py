@@ -238,7 +238,8 @@ def verify(
         if (not overwrite_ok) and in_map[target_offs >> 2] is not None:
             eprint(f'Processor {p}: '
                    f'Layer {ll} output for CHW={c},{row},{col} is overwriting '
-                   f'input at offset 0x{target_offs:08x}.')
+                   f'input at offset 0x{target_offs:08x}.',
+                   error=not no_error_stop)
             if not no_error_stop:
                 sys.exit(1)
         # Check we're not overflowing the data memory
@@ -247,7 +248,8 @@ def verify(
             eprint(f'Processor {p}: '
                    f'Layer {ll} output for CHW={c},{row},{col} is overwriting '
                    f'itself at offset 0x{target_offs:08x}. Previous write by '
-                   f'CHW={old_c},{old_row},{old_col} with value 0x{old_val:08x}.')
+                   f'CHW={old_c},{old_row},{old_col} with value 0x{old_val:08x}.',
+                   error=not no_error_stop)
             if not no_error_stop:
                 sys.exit(1)
 

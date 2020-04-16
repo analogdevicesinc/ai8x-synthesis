@@ -1261,7 +1261,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             eprint('Overlapping input and output: '
                                    f'in_offset 0x{in_offset[ll]:08x} < '
                                    f'out_offset 0x{out_offset[ll]:08x}, '
-                                   f'rollover 0x{val:08x}.')
+                                   f'rollover 0x{val:08x}.',
+                                   error=not no_error_stop)
                             if not no_error_stop:
                                 sys.exit(1)
                     else:
@@ -1269,7 +1270,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             eprint('Overlapping input and output: '
                                    f'in_offset 0x{in_offset[ll]:08x} >= '
                                    f'out_offset 0x{out_offset[ll]:08x}, '
-                                   f'rollover 0x{val:08x}.')
+                                   f'rollover 0x{val:08x}.',
+                                   error=not no_error_stop)
                             if not no_error_stop:
                                 sys.exit(1)
                     if in_offset[ll] + val * 4 >= tc.dev.INSTANCE_SIZE * tc.dev.P_SHARED * 4:
@@ -1277,7 +1279,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                f'in_offset 0x{in_offset[ll]:08x}, '
                                f'out_offset 0x{out_offset[ll]:08x}, '
                                f'rollover 0x{val:08x}, '
-                               f'instance size 0x{tc.dev.INSTANCE_SIZE*4:08x}.')
+                               f'instance size 0x{tc.dev.INSTANCE_SIZE*4:08x}.',
+                               error=not no_error_stop)
                         if not no_error_stop:
                             sys.exit(1)
 
