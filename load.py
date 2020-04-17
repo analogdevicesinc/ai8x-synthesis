@@ -94,6 +94,8 @@ def load(
     step = 1 if chw else 4
     assert operands == data.shape[0] // input_size[0]
 
+    buffer_list = [[] for i in range(tc.dev.MAX_PROC)]
+
     for ch in range(0, tc.dev.MAX_CHANNELS, step):
         instance_map = (processor_map >> (ch % tc.dev.MAX_PROC)) % 2**step
         if not instance_map:
@@ -123,6 +125,11 @@ def load(
             assert split > 0
             assert operands == 1  # We don't support multiple operands here (yet)
             # FIXME: Support multiple operands for CHW data
+
+            if embedded_code and in_expand > 1:
+                # FIXME: This code does not handle multi-pass
+                eprint('--compact-data does not currently support multi-pass CHW input')
+                sys.exit(1)
 
             # CHW ("Big Data") - Separate channel sequences (BBBBB....GGGGG....RRRRR....)
             if embedded_code and split == 1:
@@ -212,8 +219,8 @@ def load(
             # (0BGR0BGR0BGR0BGR0BGR....)
             if not embedded_code:
                 apb.output('  ')
-            apb.output(f'// HWC (little data): {input_size[1]}x{input_size[2]}, '
-                       f'channels {c} to {c+num_ch-1}\n')
+                apb.output(f'// HWC (little data): {input_size[1]}x{input_size[2]}, '
+                           f'channels {c} to {c+num_ch-1}\n')
 
             if embedded_code:
                 offs = 0
@@ -246,11 +253,29 @@ def load(
                     data_offs += 4 * (in_expand - 1) * operands
 
             if embedded_code:
-                apb.output_define(code_buffer, f'INPUT_{ch}', '0x%08x', 8, weights=False)
-                if riscv_flash:
-                    apb.output(rv.RISCV_FLASH)
-                apb.output(f'static const uint32_t input_{ch}[] = INPUT_{ch};\n\n')
-                input_list.append((addr, ch, offs))
+                proc = ch % tc.dev.MAX_PROC
+
+                # Save for merge
+                buffer_list[proc].append((code_buffer, addr, c, c+num_ch-1))
+
+                if expand == in_expand-1:
+                    # Big buffer holds the multi-pass data
+                    buf = np.zeros((expand + 1) * operands * input_size[1] * input_size[2],
+                                   dtype=np.int64)
+
+                    # Merge all buffers into big buffer
+                    for i, e in enumerate(buffer_list[proc]):
+                        apb.output(f'// HWC (little data): {input_size[1]}x{input_size[2]}, '
+                                   f'channels {e[2]} to {e[3]}\n')
+                        buf[i::in_expand] = e[0]
+
+                    apb.output_define(buf, f'INPUT_{proc}', '0x%08x', 8, weights=False)
+                    if riscv_flash:
+                        apb.output(rv.RISCV_FLASH)
+                    apb.output(f'static const uint32_t input_{proc}[] = INPUT_{proc};\n\n')
+
+                    # Append information using first address, processor number, and total length
+                    input_list.append((buffer_list[proc][0][1], proc, offs * in_expand))
 
             c += num_ch
 
