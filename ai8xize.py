@@ -551,8 +551,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             print('-----------------')
 
         # Reset
-        apb.write_fifo_ctl(tc.dev.AON_CTL, tc.dev.AON_READY_SEL,
-                           verbose, comment=f' // AON control', force_write=True)
+        if device != 84:
+            apb.write_fifo_ctl(tc.dev.AON_CTL, tc.dev.AON_READY_SEL,
+                               verbose, comment=f' // AON control', force_write=True)
 
         # Disable completely unused groups
         for group in range(tc.dev.P_NUMGROUPS):
@@ -2018,7 +2019,7 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
             eprint('All quantization configuration values must be 8 for AI84.')
             sys.exit(1)
 
-        if any(p0 & 1 != 0 or p0 < 0 or p0 > 4 or p1 & 1 != 0
+        if any(p0 != 1 and p0 & 1 != 0 or p0 < 0 or p0 > 4 or p1 != 1 and p1 & 1 != 0
                or p1 < 0 or p1 > 4 for [p0, p1] in params['pool']):
             eprint('Unsupported value for `max_pool`/`avg_pool` for AI84 in YAML configuration.')
             sys.exit(1)
