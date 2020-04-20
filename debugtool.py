@@ -13,8 +13,8 @@ Debug RTL simulation output streams.
 The RTL must have datalog enabled. Once the simulation is complete, run this tool as follows:
     debugtool.py test_*.txt
 It will create .mem files for each layers. The output*.mem files should match the files created
-when running cnn-gen.py with the --intermediate-data argument. Further debug will most likely
-also need the pooled/unpooled data in the log.txt file or in the CSV files created by cnn-gen
+when running ai8xize.py with the --intermediate-data argument. Further debug will most likely
+also need the pooled/unpooled data in the log.txt file or in the CSV files created by ai8xize.py
 (--log-pooling argument).
 """
 

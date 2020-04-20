@@ -22,8 +22,8 @@ def get_parser():
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--ai85', action='store_const', const=85, dest='device',
                        help="enable AI85 features (default: AI84)")
-    group.add_argument('--ai86', action='store_const', const=86, dest='device',
-                       help="enable AI86 features (default: AI84)")
+    group.add_argument('--ai87', action='store_const', const=87, dest='device',
+                       help="enable AI87 features (default: AI84)")
     group.add_argument('--device', type=int, metavar='N',
                        help="set device (default: 84)")
     parser.add_argument('--apb-base', type=lambda x: int(x, 0), metavar='N',
