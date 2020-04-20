@@ -1939,7 +1939,7 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
     tc.dev = tc.get_device(args.device)
 
     if args.device == 87:
-        args.device = 85  # For now, there are no differences between AI85 and AI86
+        args.device = 85  # For now, there are no differences between AI85 and AI87
 
     if args.apb_base:
         apb_base = args.apb_base
