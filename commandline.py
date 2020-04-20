@@ -73,6 +73,8 @@ def get_parser():
                        help="weight header file name (default: 'weights.h')")
     group.add_argument('--sample-filename', metavar='S', default='sampledata.h',
                        help="sample data header file name (default: 'sampledata.h')")
+    group.add_argument('--sample-input', metavar='S', default=None,
+                       help="sample data input file name (default: 'tests/sample_dataset.npy')")
 
     # Streaming and FIFOs
     group = parser.add_argument_group('Streaming and FIFOs')

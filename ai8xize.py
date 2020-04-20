@@ -2107,7 +2107,11 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
     pool_average = [bool(x) for x in params['average']]
 
     print(f"Configuring data set: {cfg['dataset']}.")
-    data = sampledata.get(cfg['dataset'])
+    if args.sample_input is None:
+        sampledata_file = os.path.join('tests', f'sample_{cfg["dataset"].lower()}.npy')
+    else:
+        sampledata_file = args.sample_input
+    data = sampledata.get(sampledata_file)
     # Work with 1D input data
     if len(data.shape) < 3:
         data = np.expand_dims(data, axis=2)
