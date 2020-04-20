@@ -88,6 +88,8 @@ class DevAI84(Dev):
     MEM_SIZE = INSTANCE_SIZE * P_NUMPRO * P_NUMGROUPS // P_SHARED  # x32
     MAX_CHANNELS = MAX_PROC
 
+    FRAME_SIZE_MAX = 2**14  # x * y * multipass
+
     BIAS_DIV = 1
 
     def __str__(self):
