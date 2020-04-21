@@ -205,6 +205,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         eprint('Streaming in the first layer requires use of a FIFO.')
         sys.exit(1)
 
+    if mlator and (output_dim[-1][0] * output_dim[-1][1] < 4 or output_width[-1] > 8):
+        eprint('--mlator should only be used with 4 or more 8-bit outputs per channel; ignoring.',
+               error=False)
+        mlator = False
+
     processor_map_0 = processor_map[0]
     if fast_fifo_quad:
         processor_map[0] = processor_map_0 << 48 | processor_map_0 << 32 \
