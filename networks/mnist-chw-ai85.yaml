@@ -1,6 +1,6 @@
 # CHW (big data) configuration for MNIST
 
-arch: ai84net5
+arch: ai85net5
 dataset: MNIST
 
 # Define layer parameters in order of the layer sequence
