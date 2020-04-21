@@ -7,7 +7,7 @@
 # Written by RM
 ###################################################################################################
 """
-Unload AI84 HWC memory into standard representation.
+Unload AI8X HWC memory into standard representation.
 """
 import sys
 
@@ -44,7 +44,7 @@ def unload(
 
     memfile.write('// Custom unload for this network:\n'
                   f'// Input shape: {input_shape}\n'
-                  'void unload(uint8_t *out_buf)\n'
+                  f'void unload(uint{output_width}_t *out_buf)\n'
                   '{\n'
                   '  uint32_t val, offs;\n'
                   '  volatile uint32_t *addr;\n')
@@ -106,8 +106,11 @@ def unload(
                             memfile.write(f'  offs++;\n')
                         write_addr = addr + 1
                     if this_map & 1:
+                        if shift > 0 and out_size > 1:
+                            memfile.write(f'  val = *addr++;\n')
+                            read_addr = offs + 4
                         memfile.write('  out_buf[offs')
-                        if shift > 0:
+                        if shift > 0 and out_size == 1:
                             memfile.write(f'+0x{0x10 * shift:02x}')
                         memfile.write('] = ')
                         if shift == 0 or out_size > 1:
@@ -260,7 +263,10 @@ def verify(
     out_size = output_width // 8
     width = out_expand * out_size
 
-    if not mlator:
+    if not mlator or out_size > 1:
+        if mlator:
+            eprint('ignoring --mlator for 32-bit output', error=False)
+
         for doffs in range(input_shape[1] * input_shape[2]):
             row, col = divmod(doffs, input_shape[2])
             this_map = next_layer_map

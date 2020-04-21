@@ -476,21 +476,18 @@ class APB():
 
     def main(  # pylint: disable=no-self-use
             self,
-            classification_layer=False,
-            oneshot=0,
-            stopstart=False,
-    ):  # pylint: disable=unused-argument
+            **kwargs,  # pylint: disable=unused-argument
+    ):
         """
-        Write the main function, including an optional call to the fully connected layer if
-        `classification_layer` is `True`.
+        Write the main function.
         The base class does nothing.
         """
         return
 
     def fc_layer(  # pylint: disable=no-self-use
             self,
-            weights,
-            bias,
+            *args,
+            **kwargs,
     ):  # pylint: disable=unused-argument
         """
         Write the call to the fully connected layer for the given `weights` and
@@ -942,20 +939,14 @@ class APBTopLevel(APB):
 
     def main(
             self,
-            classification_layer=False,
-            oneshot=0,
-            stopstart=False,
+            **kwargs,
     ):
         """
-        Write the main function, including an optional call to the fully connected layer if
-        `classification_layer` is `True`.
+        Write the main function.
         """
         toplevel.main(
             self.memfile,
-            classification_layer=classification_layer,
             embedded_code=self.embedded_code,
-            oneshot=oneshot,
-            stopstart=stopstart,
             riscv=self.riscv,
             riscv_exclusive=self.riscv_exclusive,
             riscv_flash=self.riscv_flash,
@@ -965,18 +956,19 @@ class APBTopLevel(APB):
             camera_format=self.input_csv_format,
             channels=self.input_chan,
             sleep=self.sleep,
+            **kwargs,
         )
 
     def fc_layer(
             self,
-            weights,
-            bias,
+            *args,
+            **kwargs,
     ):
         """
         Write call to the fully connected layer for the given `weights` and
         `bias`. The `bias` argument can be `None`.
         """
-        toplevel.fc_layer(self.memfile, self.weight_header, weights, bias)
+        toplevel.fc_layer(self.memfile, self.weight_header, *args, **kwargs)
 
     def fc_verify(
             self,
@@ -1028,67 +1020,20 @@ class APBTopLevel(APB):
 
 
 def apbwriter(
-        memfile,
-        apb_base,
+        *args,
         block_level=False,
-        verify_writes=False,
-        no_error_stop=False,
-        weight_header=None,
-        sampledata_header=None,
-        embedded_code=False,
-        compact_weights=False,
-        compact_data=False,
-        write_zero_registers=False,
-        weight_filename=None,
-        sample_filename=None,
-        device=84,
-        verify_kernels=False,
-        master=None,
-        riscv=None,
-        riscv_exclusive=False,
-        riscv_flash=False,
-        riscv_cache=False,
-        fast_fifo=False,
-        input_csv=None,
-        input_csv_format=888,
-        input_chan=None,
-        sleep=False,
         debug_mem=False,
+        **kwargs,
 ):
     """
-    Depending on `block_level`, return a block level .mem file writer or a top level .c file
-    writer to the file `memfile` with APB base address `apb_base`.
-    If `verify_writes` is set, read back everything that was written.
-    If `no_error_stop` is set, continue in the case when the data is trying to overwrite
-    previously written data.
+    Depending on `block_level` and `debug_mem`, return a block level .mem file writer,
+    a top level .c file writer or a debug writer.
     """
     if not debug_mem:
         APBClass = APBBlockLevel if block_level else APBTopLevel
     else:
         APBClass = APBDebug
     return APBClass(
-        memfile,
-        apb_base,
-        verify_writes=verify_writes,
-        no_error_stop=no_error_stop,
-        weight_header=weight_header,
-        sampledata_header=sampledata_header,
-        embedded_code=embedded_code,
-        compact_weights=compact_weights,
-        compact_data=compact_data,
-        write_zero_registers=write_zero_registers,
-        weight_filename=weight_filename,
-        sample_filename=sample_filename,
-        device=device,
-        verify_kernels=verify_kernels,
-        master=master,
-        riscv=riscv,
-        riscv_exclusive=riscv_exclusive,
-        riscv_flash=riscv_flash,
-        riscv_cache=riscv_cache,
-        fast_fifo=fast_fifo,
-        input_csv=input_csv,
-        input_csv_format=input_csv_format,
-        input_chan=input_chan,
-        sleep=sleep,
+        *args,
+        **kwargs,
     )

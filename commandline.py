@@ -63,6 +63,8 @@ def get_parser():
     group.add_argument('-f', '--fc-layer', action='store_true', default=False,
                        help="add a fully connected classification layer in software "
                             "(default: false; AI85 uses hardware)")
+    group.add_argument('--softmax', action='store_true', default=False,
+                       help="add a software softmax (default: false)")
 
     # File names
     group = parser.add_argument_group('File names')
