@@ -140,6 +140,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         log_intermediate=False,
         log_pooling=False,
         allow_streaming=False,
+        softmax=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -414,7 +415,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         apb = apbaccess.apbwriter(
             memfile,
             apb_base,
-            block_mode,
+            block_level=block_mode,
             verify_writes=verify_writes,
             no_error_stop=no_error_stop,
             weight_header=weight_header,
@@ -1769,7 +1770,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 apb2 = apbaccess.apbwriter(
                     memfile2,
                     0,
-                    True,
+                    block_level=True,
                     verify_writes=False,
                     no_error_stop=False,
                     weight_header=None,
@@ -1848,7 +1849,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         with open(os.path.join(base_directory, test_name, filename), mode=filemode) as memfile:
             apb.set_memfile(memfile)
 
-            if fc_weights:
+            if fc_weights or softmax:
                 apb.unload(
                     output_processor_map[-1],
                     out_size,
@@ -1861,6 +1862,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     mlator=mlator,
                 )
 
+            if fc_weights:
                 data = data.flatten()
 
                 out_buf, out_size = linear_layer(
@@ -1872,13 +1874,25 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     debug=debug,
                 )
 
-                apb.fc_layer(fc_weights[0], fc_bias[0])
+                apb.fc_layer(
+                    fc_weights[0],
+                    fc_bias[0],
+                    output_width=output_width[-1],
+                )
                 apb.fc_verify(out_buf)
+            elif softmax:
+                apb.fc_layer(
+                    None,
+                    None,
+                    softmax_only=True,
+                    output_width=output_width[-1],
+                    num_classes=output_chan[-1],
+                )
 
             apb.main(
-                fc_weights,
-                layers - 1 if oneshot else 0,
-                stopstart,
+                oneshot=layers - 1 if oneshot else 0,
+                softmax=softmax,
+                stopstart=stopstart,
             )
 
     # Close header files
@@ -2357,6 +2371,7 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
             args.log_intermediate,
             args.log_pooling,
             args.allow_streaming,
+            args.softmax,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(
