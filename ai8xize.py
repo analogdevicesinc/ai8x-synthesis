@@ -141,6 +141,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         log_pooling=False,
         allow_streaming=False,
         softmax=False,
+        unload=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -1849,7 +1850,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         with open(os.path.join(base_directory, test_name, filename), mode=filemode) as memfile:
             apb.set_memfile(memfile)
 
-            if fc_weights or softmax:
+            if fc_weights or softmax or unload:
                 apb.unload(
                     output_processor_map[-1],
                     out_size,
@@ -1892,7 +1893,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             apb.main(
                 oneshot=layers - 1 if oneshot else 0,
                 softmax=softmax,
+                unload=unload,
                 stopstart=stopstart,
+                num_classes=output_chan[-1],
+                output_width=output_width[-1],
             )
 
     # Close header files
@@ -2372,6 +2376,7 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
             args.log_pooling,
             args.allow_streaming,
             args.softmax,
+            args.unload,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

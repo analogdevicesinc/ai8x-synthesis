@@ -43,11 +43,15 @@ def unload(
     assert not blocklevel or not mlator
 
     memfile.write('// Custom unload for this network:\n'
-                  f'// Input shape: {input_shape}\n'
-                  f'void unload(uint{output_width}_t *out_buf)\n'
+                  f'// {output_width}-bit data, shape: {input_shape}\n'
+                  f'void cnn_unload(uint{output_width}_t *out_buf)\n'
                   '{\n'
-                  '  uint32_t val, offs;\n'
                   '  volatile uint32_t *addr;\n')
+    if output_width != 32:
+        if input_shape[1] * input_shape[2] == 1:
+            memfile.write('  uint32_t val;\n')
+        else:
+            memfile.write('  uint32_t val, offs;\n')
     if mlator:
         memfile.write('  uint32_t *out_buf32 = (uint32_t *) out_buf;\n\n')
     else:
@@ -75,7 +79,7 @@ def unload(
         expand = c // out_expand_thresh  # Channels 64+ handled by processors 0+
         proc = poffs & ~(tc.dev.P_SHARED-1)
 
-        if not mlator:
+        if not mlator or out_size > 1:
             for doffs in range(input_shape[1] * input_shape[2]):
                 row, col = divmod(doffs, input_shape[2])
                 this_map = next_layer_map
@@ -93,34 +97,44 @@ def unload(
                 if offs != read_addr:
                     memfile.write('  addr = (volatile uint32_t *) '
                                   f'0x{apb_base + tc.dev.C_SRAM_BASE + offs:08x};\n')
-                memfile.write(f'  val = *addr++;\n')
-                read_addr = offs + 4
+                if out_size != 4:
+                    memfile.write(f'  val = *addr++;\n')
+                    read_addr = offs + 4
+                else:
+                    read_addr = offs
 
                 # Singulate bytes, ignoring unused processors
                 for shift in range(4):
                     addr = this_c * input_shape[1] * input_shape[2] + row * input_shape[1] + col
-                    if shift == 0 or out_size > 1:
+                    if (shift == 0 or out_size > 1) \
+                       and out_size != 4 and input_shape[1] * input_shape[2] != 1:
                         if addr != write_addr:
                             memfile.write(f'  offs = 0x{addr:04x};\n')
                         else:
                             memfile.write(f'  offs++;\n')
                         write_addr = addr + 1
                     if this_map & 1:
-                        if shift > 0 and out_size > 1:
-                            memfile.write(f'  val = *addr++;\n')
-                            read_addr = offs + 4
-                        memfile.write('  out_buf[offs')
-                        if shift > 0 and out_size == 1:
-                            memfile.write(f'+0x{0x10 * shift:02x}')
-                        memfile.write('] = ')
-                        if shift == 0 or out_size > 1:
-                            memfile.write('val')
-                        else:
-                            memfile.write(f'(val >> {shift * 8})')
-                        if out_size == 1:
-                            memfile.write(' & 0xff;\n')
-                        else:
-                            memfile.write(';\n')
+                        if out_size != 4:
+                            if input_shape[1] * input_shape[2] != 1:
+                                memfile.write('  out_buf[offs')
+                                if shift > 0:
+                                    memfile.write(f'+0x{0x10 * shift:02x}')
+                                memfile.write('] = ')
+                            else:
+                                memfile.write('  *out_buf++ = ')
+                            if shift == 0:
+                                memfile.write('val')
+                            else:
+                                memfile.write(f'(val >> {shift * 8})')
+                            if out_size == 1:
+                                memfile.write(' & 0xff;\n')
+                            else:
+                                memfile.write(';\n')
+                        else:  # out_size == 4
+                            memfile.write(f'  *out_buf++ = *addr++;\n')
+                            write_addr = addr + 4
+                            read_addr += 4
+
                         this_c += 1
                     this_map >>= 1
         else:  # mlator

@@ -60,11 +60,14 @@ def get_parser():
                        help="use express kernel loading (default: false)")
     group.add_argument('--mlator', action='store_true', default=False,
                        help="use hardware to swap output bytes (default: false)")
-    group.add_argument('-f', '--fc-layer', action='store_true', default=False,
-                       help="add a fully connected classification layer in software "
-                            "(default: false; AI85 uses hardware)")
-    group.add_argument('--softmax', action='store_true', default=False,
-                       help="add a software softmax (default: false)")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('-f', '--fc-layer', action='store_true', default=False,
+                        help="add unload, a fully connected classification layer, and softmax"
+                             "in software (default: false; AI85 uses hardware)")
+    mgroup.add_argument('--unload', action='store_true', default=False,
+                        help="add a 'cnn_unload()' function (default: false)")
+    mgroup.add_argument('--softmax', action='store_true', default=False,
+                        help="add unload and software softmax functions (default: false)")
 
     # File names
     group = parser.add_argument_group('File names')

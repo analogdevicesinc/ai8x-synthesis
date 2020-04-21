@@ -124,6 +124,7 @@ def load_footer(
 def main(
         memfile,
         classification_layer=False,
+        unload=False,
         softmax=False,
         embedded_code=False,
         oneshot=0,
@@ -137,11 +138,18 @@ def main(
         device=84,
         channels=None,
         sleep=False,
+        output_width=8,
+        num_classes=None,
 ):
     """
     Write the main function (including an optional call to the fully connected layer if
     `classification_layer` is `True`) to `memfile`.
     """
+
+    if unload:
+        memfile.write(f'#define NUM_OUTPUTS {num_classes}\n')
+        memfile.write(f'static uint{output_width}_t conv_data[NUM_OUTPUTS];\n\n')
+
     memfile.write('int main(void)\n{\n')
     if embedded_code and (classification_layer or softmax) or oneshot > 0:
         memfile.write('  int i;\n\n')
@@ -239,7 +247,9 @@ def main(
             memfile.write('  }\n\n')
         memfile.write('  if (!cnn_check()) fail();\n')
         if classification_layer or softmax:
-            memfile.write('  if (!fc_layer()) fail();\n')
+            memfile.write(f'  if (!{"softmax" if softmax else "fc"}_layer()) fail();\n')
+        elif unload:
+            memfile.write('  cnn_unload(conv_data);\n')
         if classification_layer:
             memfile.write('  if (!fc_verify()) fail();\n')
 
@@ -248,7 +258,7 @@ def main(
             memfile.write('  printf("Time for CNN: %d us\\n\\n", cnn_time);\n\n')
             if classification_layer or softmax:
                 memfile.write('  printf("Classification results:\\n");\n'
-                              '  for (i = 0; i < FC_OUT; i++) {\n'
+                              '  for (i = 0; i < NUM_OUTPUTS; i++) {\n'
                               '    printf("[%6d] -> Class %d: %0.1f%%\\n", fc_output[i], '
                               'i, (double) (100.0 * fc_softmax[i] / 32768.0));\n'
                               '  }\n\n')
@@ -300,10 +310,9 @@ def fc_layer(
     memfile.write('// Classification layer:\n')
     if not softmax_only:
         memfile.write(f'#define FC_IN {weights.shape[1]}\n')
-        memfile.write(f'#define FC_OUT {weights.shape[0]}\n')
+        memfile.write(f'#define NUM_OUTPUTS {weights.shape[0]}\n')
     else:
-        memfile.write(f'#define FC_IN {num_classes}\n')
-        memfile.write(f'#define FC_OUT {num_classes}\n')
+        memfile.write(f'#define NUM_OUTPUTS {num_classes}\n')
 
     if not softmax_only:
         weights = convert_to_x4_q7_weights(weights)
@@ -312,33 +321,33 @@ def fc_layer(
         memfile.write('static const q7_t fc_weights[] = FC_WEIGHTS;\n\n')
 
     if not cmsis_nn:
-        memfile.write(f'static uint{output_width}_t conv_data[FC_IN];\n')
+        memfile.write(f'static uint{output_width}_t conv_data[NUM_OUTPUTS];\n')
     if not softmax_only:
         memfile.write('static q15_t fc_buffer[FC_IN];\n')
-        memfile.write('static q15_t fc_output[FC_OUT];\n')
-    memfile.write('static q15_t fc_softmax[FC_OUT];\n\n')
+        memfile.write('static q15_t fc_output[NUM_OUTPUTS];\n')
+    memfile.write('static q15_t fc_softmax[NUM_OUTPUTS];\n\n')
 
     if bias is not None and not softmax_only:
         c_define(weights_fh, bias, 'FC_BIAS', '%d', 16)
         memfile.write('static const q7_t fc_bias[] = FC_BIAS;\n\n')
 
     if not cmsis_nn:
-        memfile.write('int fc_layer(void)\n'
-                      '{\n  unload(conv_data);\n')
+        memfile.write(f'int {"softmax" if softmax_only else "fc"}_layer(void)\n'
+                      '{\n  cnn_unload(conv_data);\n')
     else:
         memfile.write('int fc_layer(q7_t *conv_data)\n'
                       '{\n')
 
     if not softmax_only:
         memfile.write('  arm_fully_connected_q7_q8p7_opt((q7_t *) conv_data, fc_weights, '
-                      'FC_IN, FC_OUT, 0, 7, '
+                      'FC_IN, NUM_OUTPUTS, 0, 7, '
                       f'{"fc_bias" if bias is not None else "NULL"}, '
                       'fc_output, fc_buffer);\n')
-        memfile.write('  arm_softmax_q8p7_q15(fc_output, FC_OUT, fc_softmax);\n\n')
+        memfile.write('  arm_softmax_q8p7_q15(fc_output, NUM_OUTPUTS, fc_softmax);\n\n')
     elif output_width == 32:
-        memfile.write(f'  arm_softmax_q18p14_q15(conv_data, FC_OUT, fc_softmax);\n\n')
+        memfile.write(f'  arm_softmax_q18p14_q15(conv_data, NUM_OUTPUTS, fc_softmax);\n\n')
     else:
-        memfile.write(f'  arm_softmax_q8p7_q15(conv_data, FC_OUT, fc_softmax);\n\n')
+        memfile.write(f'  arm_softmax_q8p7_q15(conv_data, NUM_OUTPUTS, fc_softmax);\n\n')
 
     memfile.write('  return 1;\n}\n\n')
 
@@ -353,10 +362,11 @@ def fc_verify(
     """
     memfile.write('// Expected output of classification layer:\n')
     c_define(sampledata, data, 'FC_EXPECTED', '%d', 16)
-    memfile.write('static q15_t fc_expected[FC_OUT] = FC_EXPECTED;\n\n')
+    memfile.write('static q15_t fc_expected[NUM_OUTPUTS] = FC_EXPECTED;\n\n')
     memfile.write('int fc_verify(void)\n'
                   '{\n')
-    memfile.write('  return memcmp(fc_output, fc_expected, FC_OUT * sizeof(q15_t)) == 0;\n}\n\n')
+    memfile.write('  return memcmp(fc_output, fc_expected, '
+                  'NUM_OUTPUTS * sizeof(q15_t)) == 0;\n}\n\n')
 
 
 def c_define(
