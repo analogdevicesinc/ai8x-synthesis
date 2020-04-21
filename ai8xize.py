@@ -1679,7 +1679,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     output_chan[ll],
                     in_chan,
                     kernel_size[ll][0],
-                    kernel_size[ll][1]
+                    kernel_size[ll][1],
                 ),
                 bias[ll],
                 data,
@@ -1703,7 +1703,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 kernel[ll].reshape(
                     output_chan[ll],
                     input_chan[ll],
-                    kernel_size[ll][0]
+                    kernel_size[ll][0],
                 ),
                 bias[ll],
                 data,
@@ -2391,6 +2391,8 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
                 args.autogen,
             )
     else:
+        eprint('--cmsis-software-nn is not supported.', error=False)
+
         cmsisnn.create_net(
             args.prefix,
             args.verbose,
@@ -2404,6 +2406,7 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
             output_dim,
             kernel_size,
             quantization,
+            output_shift,
             input_channels,
             output_channels,
             output_width,
@@ -2419,6 +2422,7 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
             bias,
             fc_weights,
             fc_bias,
+            flatten,
             args.c_filename,
             args.test_dir,
             args.log_filename,

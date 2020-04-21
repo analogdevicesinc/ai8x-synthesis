@@ -17,19 +17,46 @@ import numpy as np
 import op
 import toplevel
 from eprint import eprint
-from simulate import conv1d_layer, conv2d_layer, linear_layer
+from simulate import conv1d_layer, conv2d_layer, linear_layer, pooling_layer
 
 
-def create_net(prefix, verbose, debug, log,
-               layers, convolution,
-               auto_input_dim, input_dim, pooled_dim, output_dim,
-               kernel_size, quantization,
-               input_chan, output_chan, output_width,
-               padding, dilation, stride,
-               pool, pool_stride, pool_average, activate,
-               data, kernel, bias, fc_weights, fc_bias,
-               c_filename, base_directory, log_filename,
-               weight_filename, sample_filename, device=84):
+def create_net(
+        prefix,
+        verbose,
+        debug,
+        log,
+        layers,
+        operator,
+        auto_input_dim,
+        input_dim,
+        pooled_dim,
+        output_dim,
+        kernel_size,
+        quantization,  # pylint: disable=unused-argument
+        output_shift,
+        input_chan,
+        output_chan,
+        output_width,
+        padding,
+        dilation,
+        stride,
+        pool,
+        pool_stride,
+        pool_average,
+        activate,
+        data,
+        kernel,
+        bias,
+        fc_weights,
+        fc_bias,
+        flatten,
+        c_filename,
+        base_directory,
+        log_filename,
+        weight_filename,
+        sample_filename,
+        device=84,
+):
     """
     Create the CMSIS NN network.
     """
@@ -97,6 +124,14 @@ def create_net(prefix, verbose, debug, log,
                              kernel_size[ll][0], kernel_size[ll][1])). \
                     transpose((0, 4, 5, 2, 3, 1)). \
                     flatten()
+            elif flatten[ll]:
+                w = kernel[ll]. \
+                    reshape((output_chan[ll],
+                             input_chan[ll],
+                             auto_input_dim[ll][0], auto_input_dim[ll][1],
+                             kernel_size[ll][0], kernel_size[ll][1])). \
+                    transpose((0, 4, 5, 2, 3, 1)). \
+                    flatten()
             else:
                 w = kernel[ll]. \
                     reshape((output_chan[ll], input_chan[ll],
@@ -104,7 +139,7 @@ def create_net(prefix, verbose, debug, log,
                     transpose((0, 2, 3, 1)). \
                     flatten()
             toplevel.c_define(weight_header, w, f'WEIGHTS_{ll}', '%d', 16)
-            if bias[ll]:
+            if bias[ll] is not None:
                 b = bias[ll].flatten()
             else:
                 # We need empty bias values (the Arm code needs them both for rounding of
@@ -146,30 +181,59 @@ def create_net(prefix, verbose, debug, log,
                          f'{input_dim[ll][1]}] -> ')
             if pool[ll][0] > 1 or pool[ll][1] > 1:
                 c_file.write(f'[{input_chan[ll]}, {pooled_dim[ll][0]}, {pooled_dim[ll][1]}] -> ')
-            if convolution[ll] == op.CONV2D:
-                data = data.reshape(input_chan[ll], input_dim[ll][0], input_dim[ll][1])
-                # FIXME
-                # data, out_size = pooling_layer(
-                #     ll,
-                #     verbose,
-                #     data.shape,
-                #     pool[ll],
-                #     pool_stride[ll],
-                #     pool_average[ll],
-                #     data,
-                #     debug=debug_computation,
-                #     expand=in_expand[ll],
-                #     expand_thresh=in_expand_thresh[ll],
-                #     operation=operator[ll],
-                #     operands=num_operands,
-                #     rounding=avg_pool_rounding
-                # )
+
+            # Add element-wise dimension
+            data = np.expand_dims(data, 0)
+
+            in_chan = input_chan[ll]
+
+            # Allow 1D <-> 2D and 2D W/L conversions
+            if operator[ll] == op.CONV1D:
+                assert input_dim[ll][1] == 1
+                data = data.reshape(data.shape[0], data.shape[1], input_dim[ll][0])
+            else:
+                data = data.reshape(data.shape[0], data.shape[1],
+                                    input_dim[ll][0], input_dim[ll][1])
+
+            data, out_size = pooling_layer(
+                ll,
+                verbose,
+                data[0].shape,
+                pool[ll],
+                pool_stride[ll],
+                pool_average[ll],
+                data,
+                expand=1,
+                expand_thresh=16384,
+                operation=operator[ll],
+                operands=data.shape[0],
+                rounding=False,
+                debug=debug,
+            )
+
+            if operator[ll] == op.CONV1D:
+                assert out_size[0] == in_chan \
+                    and out_size[1] == pooled_dim[ll][0] \
+                    and pooled_dim[ll][1] == 1
+            else:
+                assert out_size[0] == in_chan \
+                    and out_size[1] == pooled_dim[ll][0] \
+                    and out_size[2] == pooled_dim[ll][1]
+
+            # Get rid of element-wise dimension
+            data = np.squeeze(data, axis=0)
+
+            if operator[ll] == op.CONV2D:
+                if flatten[ll]:
+                    in_chan *= input_dim[ll][0] * input_dim[ll][1]
+                    data = data.reshape(in_chan, 1, 1)
+
                 out_buf, out_size = conv2d_layer(
                     ll,
                     verbose,
                     data.shape,
                     kernel_size[ll],
-                    quantization[ll],
+                    output_shift[ll],
                     output_chan[ll],
                     padding[ll],
                     dilation[ll],
@@ -177,39 +241,22 @@ def create_net(prefix, verbose, debug, log,
                     activate[ll],
                     kernel[ll].reshape(
                         output_chan[ll],
-                        input_chan[ll],
+                        in_chan,
                         kernel_size[ll][0],
-                        kernel_size[ll][1]
+                        kernel_size[ll][1],
                     ),
                     bias[ll],
                     data,
                     device=device,
-                    debug=debug
+                    debug=debug,
                 )
             else:
-                data = data.reshape(input_chan[ll], input_dim[ll][0])
-                # FIXME
-                # data, out_size = pooling_layer(
-                #     ll,
-                #     verbose,
-                #     data.shape,
-                #     pool[ll],
-                #     pool_stride[ll],
-                #     pool_average[ll],
-                #     data,
-                #     debug=debug_computation,
-                #     expand=in_expand[ll],
-                #     expand_thresh=in_expand_thresh[ll],
-                #     operation=operator[ll],
-                #     operands=num_operands,
-                #     rounding=avg_pool_rounding
-                # )
                 out_buf, out_size = conv1d_layer(
                     ll,
                     verbose,
                     data.shape,
                     kernel_size[ll][0],
-                    quantization[ll],
+                    output_shift[ll],
                     output_chan[ll],
                     padding[ll][0],
                     dilation[ll][0],
@@ -217,13 +264,13 @@ def create_net(prefix, verbose, debug, log,
                     activate[ll],
                     kernel[ll].reshape(
                         output_chan[ll],
-                        input_chan[ll],
+                        in_chan,
                         kernel_size[ll][0]
                     ),
                     bias[ll],
                     data,
                     device=device,
-                    debug=debug
+                    debug=debug,
                 )
             c_file.write(f'{out_size}\n')
 
