@@ -345,7 +345,7 @@ def create_net(prefix, verbose, debug, log,
         if fc_weights:
             c_file.write(f'  fc_layer(output);\n\n')
             c_file.write('  printf("Classification results:\\n");\n'
-                         '  for (i = 0; i < FC_OUT; i++) {\n'
+                         '  for (i = 0; i < NUM_CLASSES; i++) {\n'
                          '    printf("[%6d] -> Class %d: %0.1f%%\\n", fc_output[i], i, '
                          '(double) (100.0 * fc_softmax[i] / 32768.0));\n'
                          '  }\n\n')
