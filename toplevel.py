@@ -12,6 +12,7 @@ Toplevel C file structure generation
 import rv
 import tornadocnn as tc
 from armx4weights import convert_to_x4_q7_weights
+from eprint import eprint
 
 COPYRIGHT = \
     '// ---------------------------------------------------------------------------\n' \
@@ -145,10 +146,12 @@ def main(
     Write the main function (including an optional call to the fully connected layer if
     `classification_layer` is `True`) to `memfile`.
     """
+    if softmax and output_width == 8:
+        eprint('--softmax should only be used with `output_width: 32`', error=False)
 
     if unload:
         memfile.write(f'#define NUM_OUTPUTS {num_classes}\n')
-        memfile.write(f'static uint{output_width}_t conv_data[NUM_OUTPUTS];\n\n')
+        memfile.write(f'static uint{output_width}_t ml_data[NUM_OUTPUTS];\n\n')
 
     memfile.write('int main(void)\n{\n')
     if embedded_code and (classification_layer or softmax) or oneshot > 0:
@@ -249,7 +252,7 @@ def main(
         if classification_layer or softmax:
             memfile.write(f'  if (!{"softmax" if softmax else "fc"}_layer()) fail();\n')
         elif unload:
-            memfile.write('  cnn_unload(conv_data);\n')
+            memfile.write('  cnn_unload(ml_data);\n')
         if classification_layer:
             memfile.write('  if (!fc_verify()) fail();\n')
 
@@ -259,7 +262,8 @@ def main(
             if classification_layer or softmax:
                 memfile.write('  printf("Classification results:\\n");\n'
                               '  for (i = 0; i < NUM_OUTPUTS; i++) {\n'
-                              '    printf("[%6d] -> Class %d: %0.1f%%\\n", fc_output[i], '
+                              '    printf("[%6d] -> Class %d: %0.1f%%\\n", '
+                              f'{"fc_output" if classification_layer else "ml_data"}[i], '
                               'i, (double) (100.0 * fc_softmax[i] / 32768.0));\n'
                               '  }\n\n')
 
@@ -321,7 +325,7 @@ def fc_layer(
         memfile.write('static const q7_t fc_weights[] = FC_WEIGHTS;\n\n')
 
     if not cmsis_nn:
-        memfile.write(f'static uint{output_width}_t conv_data[NUM_OUTPUTS];\n')
+        memfile.write(f'static uint{output_width}_t ml_data[NUM_OUTPUTS];\n')
     if not softmax_only:
         memfile.write('static q15_t fc_buffer[FC_IN];\n')
         memfile.write('static q15_t fc_output[NUM_OUTPUTS];\n')
@@ -333,21 +337,21 @@ def fc_layer(
 
     if not cmsis_nn:
         memfile.write(f'int {"softmax" if softmax_only else "fc"}_layer(void)\n'
-                      '{\n  cnn_unload(conv_data);\n')
+                      '{\n  cnn_unload(ml_data);\n')
     else:
-        memfile.write('int fc_layer(q7_t *conv_data)\n'
+        memfile.write('int fc_layer(q7_t *ml_data)\n'
                       '{\n')
 
     if not softmax_only:
-        memfile.write('  arm_fully_connected_q7_q8p7_opt((q7_t *) conv_data, fc_weights, '
+        memfile.write('  arm_fully_connected_q7_q8p7_opt((q7_t *) ml_data, fc_weights, '
                       'FC_IN, NUM_OUTPUTS, 0, 7, '
                       f'{"fc_bias" if bias is not None else "NULL"}, '
                       'fc_output, fc_buffer);\n')
         memfile.write('  arm_softmax_q8p7_q15(fc_output, NUM_OUTPUTS, fc_softmax);\n\n')
     elif output_width == 32:
-        memfile.write(f'  arm_softmax_q18p14_q15(conv_data, NUM_OUTPUTS, fc_softmax);\n\n')
+        memfile.write(f'  arm_softmax_q18p14_q15(ml_data, NUM_OUTPUTS, fc_softmax);\n\n')
     else:
-        memfile.write(f'  arm_softmax_q8p7_q15(conv_data, NUM_OUTPUTS, fc_softmax);\n\n')
+        memfile.write(f'  arm_softmax_q7_q15(ml_data, NUM_OUTPUTS, fc_softmax);\n\n')
 
     memfile.write('  return 1;\n}\n\n')
 
