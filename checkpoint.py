@@ -104,6 +104,10 @@ def load(
                 weight_min.append(w_min)
                 weight_max.append(w_max)
 
+                if op == 'conv2d' and operator[seq] == opn.CONVTRANSPOSE2D:
+                    # For ConvTranspose2d, flip the weights as follows:
+                    w = np.flip(w, axis=(2, 3)).swapaxes(0, 1)
+
                 input_channels.append(w.shape[1])  # Input channels
                 output_channels.append(w.shape[0])  # Output channels
 
@@ -132,10 +136,6 @@ def load(
                 w_size = (w_count * 8 + (quantization[seq]-1)) // quantization[seq]
                 weight_size.append(w_size)
                 param_size += w_size
-
-                if op == 'convtranspose2d':
-                    # For ConvTranspose2d, flip the weights as follows:
-                    w = np.flip(w, axis=(2, 3)).swapaxes(0, 1)
 
                 if len(w.shape) == 2:  # linear - add dummy 'channel'
                     w = np.expand_dims(w, axis=0)
