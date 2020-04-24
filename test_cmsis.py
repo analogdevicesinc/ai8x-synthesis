@@ -136,17 +136,46 @@ def test_cmsis(test_no):
     input_dim = [[input_size[1], input_size[2]]]
     pooled_dim = input_dim
     output_dim = [[data.shape[1], data.shape[2]]]
+    flatten = [False]
+    output_shift = [0]
 
-    cmsisnn.create_net('test_cmsis', True, False, True,
-                       layers, convolution, input_dim, input_dim, pooled_dim, output_dim,
-                       kernel_size, quantization,
-                       input_chan, output_chan, output_width, padding, dilation, stride,
-                       pool, pool_stride, pool_average, activate,
-                       data, weight, bias, None, None,
-                       'main', 'tests', 'log.txt',
-                       'weights.h', 'sampledata.h',
-                       False)
-
+    cmsisnn.create_net(
+        'test_cmsis',  # prefix
+        True,  # verbose
+        False,  # debug
+        True,  # log
+        layers,
+        convolution,
+        input_dim,
+        input_dim,
+        pooled_dim,
+        output_dim,
+        kernel_size,
+        quantization,
+        output_shift,
+        input_chan,
+        output_chan,
+        output_width,
+        padding,
+        dilation,
+        stride,
+        pool,
+        pool_stride,
+        pool_average,
+        activate,
+        data,
+        weight,
+        bias,
+        None,  # fc_weights
+        None,  # fc_bias
+        flatten,
+        'main',  # c_filename,
+        'tests',  # base_directory
+        'log.txt',  # log_filename
+        'weights.h',  # weight_filename
+        'sampledata.h',  # sample_filename,
+        84,  # device
+    )
 
 if __name__ == '__main__':
     for i in range(5):
