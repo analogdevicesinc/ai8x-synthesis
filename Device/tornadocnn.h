@@ -24,6 +24,8 @@ void arm_softmax_q8p7_q15(const q15_t * vec_in, const uint16_t dim_vec, q15_t * 
 
 void arm_softmax_q8p7_q15_frac(const q15_t * vec_in, const uint16_t dim_vec, q15_t * p_out);
 
+void arm_softmax_q17p14_q15(const q31_t * vec_in, const uint16_t dim_vec, q15_t * p_out);
+
 void arm_maxpool_q7_HWC_nonsquare(q7_t * Im_in,
                                   const uint16_t dim_im_in_x,
                                   const uint16_t dim_im_in_y,
