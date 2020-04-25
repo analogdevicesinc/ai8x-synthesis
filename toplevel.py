@@ -349,7 +349,7 @@ def fc_layer(
                       'fc_output, fc_buffer);\n')
         memfile.write('  arm_softmax_q8p7_q15(fc_output, NUM_OUTPUTS, fc_softmax);\n\n')
     elif output_width == 32:
-        memfile.write(f'  arm_softmax_q18p14_q15(ml_data, NUM_OUTPUTS, fc_softmax);\n\n')
+        memfile.write(f'  arm_softmax_q17p14_q15(ml_data, NUM_OUTPUTS, fc_softmax);\n\n')
     else:
         memfile.write(f'  arm_softmax_q7_q15(ml_data, NUM_OUTPUTS, fc_softmax);\n\n')
 
