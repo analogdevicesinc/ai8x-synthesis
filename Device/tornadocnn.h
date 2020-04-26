@@ -4,7 +4,7 @@
 
 #ifndef __riscv
 #include <arm_math.h>
-// #include <arm_nnfunctions.h>
+#include <arm_nnfunctions.h>
 #endif
 
 #define CNN_START LED_On(0)

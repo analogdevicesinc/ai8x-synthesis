@@ -73,7 +73,7 @@ IPATH  = .
 IPATH += ../Common/
 
 # Enable assertion checking for development
-PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE -DKINTEX_EMU -DRV32
+PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE -DRV32
 
 # Specify STACK SIZE
 STACK_SIZE=1024

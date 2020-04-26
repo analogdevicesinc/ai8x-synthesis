@@ -87,7 +87,7 @@ PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE -DARM_MATH_CM4
 #TOOL_DIR=/opt/gcc-arm-none-eabi-4_8-2013q4/bin
 
 # Use these variables to add project specific tool options
-PROJ_CFLAGS+=-D__FPU_PRESENT -DKINTEX_EMU
+PROJ_CFLAGS+=-D__FPU_PRESENT
 #PROJ_LDFLAGS+=--specs=nano.specs
 
 # Point this variable to a startup file to override the default file

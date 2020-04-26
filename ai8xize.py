@@ -411,7 +411,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             apb.output(f'// Created using {" ".join(str(x) for x in sys.argv)}\n')
 
             apb.header()
-            apb.main()
+            apb.main(
+                clock_trim=clock_trim,
+                embedded_arm=embedded_code,
+            )
 
     if input_csv is not None:
         csv = os.path.join(base_directory, test_name, input_csv)
