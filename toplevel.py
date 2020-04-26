@@ -142,6 +142,7 @@ def main(
         output_width=8,
         num_classes=None,
         clock_trim=None,
+        embedded_arm=False,
 ):
     """
     Write the main function (including an optional call to the fully connected layer if
@@ -155,14 +156,14 @@ def main(
         memfile.write(f'static uint{output_width}_t ml_data[NUM_OUTPUTS];\n\n')
 
     memfile.write('int main(void)\n{\n')
-    if clock_trim is not None and (clock_trim[1] or clock_trim[2]):
+    if clock_trim is not None and (clock_trim[1] or clock_trim[2]) and not riscv:
         memfile.write('  uint32_t trim;\n')
     if embedded_code and (classification_layer or softmax) or oneshot > 0:
         memfile.write('  int i;\n\n')
 
     if riscv is None or not riscv:
         memfile.write('  icache_enable();\n\n')
-        if embedded_code:
+        if embedded_code or embedded_arm:
             if device == 84:
                 memfile.write('  SYS_ClockEnable(SYS_PERIPH_CLOCK_AI);\n')
             else:
