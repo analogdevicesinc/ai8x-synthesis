@@ -1941,9 +1941,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         assets.copy('assets', 'blocklevel', base_directory, test_name)
     elif embedded_code:
         if riscv:
-            assets.copy('assets', 'embedded-riscv', base_directory, test_name)
+            assets.copy('assets', 'embedded-riscv-ai' + str(device), base_directory, test_name)
         else:
-            assets.copy('assets', 'embedded', base_directory, test_name)
+            assets.copy('assets', 'embedded-ai' + str(device), base_directory, test_name)
 
     return test_name
 

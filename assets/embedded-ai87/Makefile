@@ -36,7 +36,7 @@
 
 # This is the name of the build output file
 ifeq "$(PROJECT)" ""
-PROJECT=ai85-arm
+PROJECT=ai85
 endif
 
 # Specify the target processor
@@ -65,8 +65,10 @@ LIBS_DIR=/$(subst \,/,$(subst :,,$(MAXIM_PATH))/Firmware/$(TARGET_UC)/Libraries)
 endif
 CMSIS_ROOT=$(LIBS_DIR)/CMSIS
 
+LINKERFILE=$(CMSIS_ROOT)/Device/Maxim/AI85/Source/GCC/ai85_arm.ld
+
 # Source files for this test (add path to VPATH below)
-SRCS  = main.c
+SRCS  = main.c arm_softmax_q17p14_q15.c
 
 
 # Where to find source files for this test
@@ -110,7 +112,7 @@ include $(PERIPH_DRIVER_DIR)/periphdriver.mk
 
 # Include the CMSIS NN Library
 CMSISNN_DIRECTORY=$(CMSIS_ROOT)/NN
-include $(CMSISNN_DIRECTORY)/cmsisnn.mk
+# include $(CMSISNN_DIRECTORY)/cmsisnn.mk
 
 ################################################################################
 # Include the rules for building for this target. All other makefiles should be

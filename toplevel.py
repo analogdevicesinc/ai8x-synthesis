@@ -163,8 +163,10 @@ def main(
             if device == 84:
                 memfile.write('  SYS_ClockEnable(SYS_PERIPH_CLOCK_AI);\n')
             else:
-                memfile.write('  // *((volatile uint32_t *) 0x40000c00) = 0x00000001; // Set TME\n')
-                memfile.write('  // *((volatile uint32_t *) 0x40006c04) = 0x000001a0; // 96M trim\n')
+                memfile.write('  // *((volatile uint32_t *) 0x40000c00) = 0x00000001; '
+                              '// Set TME\n')
+                memfile.write('  // *((volatile uint32_t *) 0x40006c04) = 0x000001a0; '
+                              '// 96M trim\n')
                 memfile.write('  // *((volatile uint32_t *) 0x40000c00) = 0x00000000; '
                               '// Clear TME\n\n')
                 memfile.write('  MXC_GCR->clkcn |= MXC_F_GCR_CLKCN_HIRC96M_EN; // Enable 96M\n')
@@ -358,9 +360,10 @@ def fc_layer(
                       'fc_output, fc_buffer);\n')
         memfile.write('  arm_softmax_q8p7_q15(fc_output, NUM_OUTPUTS, fc_softmax);\n\n')
     elif output_width == 32:
-        memfile.write(f'  arm_softmax_q17p14_q15(ml_data, NUM_OUTPUTS, fc_softmax);\n\n')
+        memfile.write('  arm_softmax_q17p14_q15((const q31_t *) ml_data, '
+                      'NUM_OUTPUTS, fc_softmax);\n\n')
     else:
-        memfile.write(f'  arm_softmax_q7_q15(ml_data, NUM_OUTPUTS, fc_softmax);\n\n')
+        memfile.write('  arm_softmax_q7_q15((const q7_t *) ml_data, NUM_OUTPUTS, fc_softmax);\n\n')
 
     memfile.write('  return 1;\n}\n\n')
 
