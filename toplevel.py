@@ -141,6 +141,7 @@ def main(
         sleep=False,
         output_width=8,
         num_classes=None,
+        clock_trim=None,
 ):
     """
     Write the main function (including an optional call to the fully connected layer if
@@ -154,6 +155,8 @@ def main(
         memfile.write(f'static uint{output_width}_t ml_data[NUM_OUTPUTS];\n\n')
 
     memfile.write('int main(void)\n{\n')
+    if clock_trim is not None and (clock_trim[1] or clock_trim[2]):
+        memfile.write('  uint32_t trim;\n')
     if embedded_code and (classification_layer or softmax) or oneshot > 0:
         memfile.write('  int i;\n\n')
 
@@ -163,12 +166,27 @@ def main(
             if device == 84:
                 memfile.write('  SYS_ClockEnable(SYS_PERIPH_CLOCK_AI);\n')
             else:
-                memfile.write('  // *((volatile uint32_t *) 0x40000c00) = 0x00000001; '
-                              '// Set TME\n')
-                memfile.write('  // *((volatile uint32_t *) 0x40006c04) = 0x000001a0; '
-                              '// 96M trim\n')
-                memfile.write('  // *((volatile uint32_t *) 0x40000c00) = 0x00000000; '
-                              '// Clear TME\n\n')
+                if clock_trim is not None:
+                    memfile.write('  // Manual clock trim override:\n')
+                    memfile.write('  *((volatile uint32_t *) 0x40000c00) = 0x00000001; '
+                                  '// Set TME\n')
+                    if clock_trim[0] or clock_trim[1]:
+                        memfile.write('  trim = *((volatile uint32_t *) 0x40005420);\n')
+                        if clock_trim[0]:
+                            memfile.write('  trim &= ~0x1ff;\n'
+                                          f'  trim |= 0x{clock_trim[0]:03x}; '
+                                          '// HIRC8M (7.3728 MHz) trim\n')
+                        if clock_trim[1]:
+                            memfile.write('  trim &= ~(0x1ff << 22);\n'
+                                          f'  trim |= 0x{clock_trim[1]:03x} << 22; '
+                                          '// HIRC (60 MHz) trim\n')
+                        memfile.write('  *((volatile uint32_t *) 0x40005420) = trim;\n')
+                    if clock_trim[2]:
+                        memfile.write('  *((volatile uint32_t *) 0x40006c04) = '
+                                      f'0x{clock_trim[2]:08x}; // HIRC96M (100 MHz) trim\n')
+                    memfile.write('  *((volatile uint32_t *) 0x40000c00) = 0x00000000; '
+                                  '// Clear TME\n\n')
+
                 memfile.write('  MXC_GCR->clkcn |= MXC_F_GCR_CLKCN_HIRC96M_EN; // Enable 96M\n')
                 memfile.write('  while ((MXC_GCR->clkcn & MXC_F_GCR_CLKCN_HIRC96M_RDY) == 0) ; '
                               '// Wait for 96M\n')

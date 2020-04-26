@@ -131,6 +131,9 @@ def get_parser():
                        help="stop and then restart the accelerator (default: false)")
     group.add_argument('--one-shot', action='store_true', default=False,
                        help="use layer-by-layer one-shot mechanism (default: false)")
+    group.add_argument('--clock-trim', metavar='LIST', default=None,
+                       help="comma-separated hexadecimal clock trim for HIRC8M,HIRC,HIRC96M; use"
+                            "0 to ignore a particular trim")
 
     # RTL sim
     group = parser.add_argument_group('RTL simulation')
@@ -256,5 +259,17 @@ def get_parser():
         except ValueError:
             raise ValueError('ERROR: Argument --no-bias must be a comma-separated '
                              'list of integers only')
+
+    if args.clock_trim is not None:
+        clock_trim_error = False
+        try:
+            args.clock_trim = [int(s, 0) for s in args.clock_trim.split(',')]
+            if len(args.clock_trim) != 3:
+                clock_trim_error = True
+        except ValueError:
+            clock_trim_error = True
+        if clock_trim_error:
+            raise ValueError('ERROR: Argument --clock-trim must be a comma-separated '
+                             'list of three hexadecimal values (use 0 to ignore a value)')
 
     return args
