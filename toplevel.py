@@ -156,7 +156,7 @@ def main(
         memfile.write(f'static uint{output_width}_t ml_data[NUM_OUTPUTS];\n\n')
 
     memfile.write('int main(void)\n{\n')
-    if clock_trim is not None and (clock_trim[1] or clock_trim[2]) and not riscv:
+    if clock_trim is not None and not riscv:
         memfile.write('  uint32_t trim;\n')
     if embedded_code and (classification_layer or softmax) or oneshot > 0:
         memfile.write('  int i;\n\n')
@@ -169,29 +169,35 @@ def main(
             else:
                 if clock_trim is not None:
                     memfile.write('  // Manual clock trim override:\n')
-                    memfile.write('  *((volatile uint32_t *) 0x40000c00) = 0x00000001; '
+                    memfile.write('  *((volatile uint32_t *) 0x40000c00) = 1; '
                                   '// Set TME\n')
                     if clock_trim[0] or clock_trim[1]:
                         memfile.write('  trim = *((volatile uint32_t *) 0x40005420);\n')
                         if clock_trim[0]:
                             memfile.write('  trim &= ~0x1ff;\n'
-                                          f'  trim |= 0x{clock_trim[0]:03x}; '
+                                          f'  trim |= 0x{clock_trim[0]:x}; '
                                           '// HIRC8M (7.3728 MHz) trim\n')
                         if clock_trim[1]:
                             memfile.write('  trim &= ~(0x1ff << 22);\n'
-                                          f'  trim |= 0x{clock_trim[1]:03x} << 22; '
+                                          f'  trim |= 0x{clock_trim[1]:x} << 22; '
                                           '// HIRC (60 MHz) trim\n')
                         memfile.write('  *((volatile uint32_t *) 0x40005420) = trim;\n')
                     if clock_trim[2]:
+                        memfile.write('  trim = *((volatile uint32_t *) 0x40005440) & '
+                                      '~(0x1ff << 15);\n')
+                        memfile.write('  *((volatile uint32_t *) 0x40005440) = '
+                                      'trim | (0xff << 15); // HILIM\n')
                         memfile.write('  *((volatile uint32_t *) 0x40006c04) = '
-                                      f'0x{clock_trim[2]:08x}; // HIRC96M (100 MHz) trim\n')
-                    memfile.write('  *((volatile uint32_t *) 0x40000c00) = 0x00000000; '
+                                      f'0x{clock_trim[2]:x}; // HIRC96M (96 MHz) trim\n')
+                    memfile.write('  *((volatile uint32_t *) 0x40000c00) = 0; '
                                   '// Clear TME\n\n')
 
-                memfile.write('  MXC_GCR->clkcn |= MXC_F_GCR_CLKCN_HIRC96M_EN; // Enable 96M\n')
+                memfile.write('  MXC_GCR->clkcn |= MXC_F_GCR_CLKCN_HIRC96M_EN; '
+                              '// Enable 96 MHz\n')
                 memfile.write('  while ((MXC_GCR->clkcn & MXC_F_GCR_CLKCN_HIRC96M_RDY) == 0) ; '
-                              '// Wait for 96M\n')
-                memfile.write('  MXC_GCR->clkcn |= MXC_S_GCR_CLKCN_CLKSEL_HIRC96; // Select 96M\n')
+                              '// Wait for 96 MHz\n')
+                memfile.write('  MXC_GCR->clkcn |= MXC_S_GCR_CLKCN_CLKSEL_HIRC96; '
+                              '// Select 96 MHz\n')
 
                 memfile.write('\n  // Reset all domains, restore power to CNN\n')
                 memfile.write('  MXC_BBFC->reg3 = 0xf; // Reset\n')
@@ -200,8 +206,10 @@ def main(
                 memfile.write('  MXC_BBFC->reg2 = 0x0; // Iso\n')
                 memfile.write('  MXC_BBFC->reg3 = 0x0; // Reset\n\n')
 
-                memfile.write('  MXC_GCR->pckdiv = 0x00010000; // AI clock 96M div 2\n')
+                memfile.write('  MXC_GCR->pckdiv = 0x00010000; // AI clock: 96 MHz div 2\n')
                 memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable AI clock\n')
+
+                memfile.write('\n  printf("\\n*** CNN Test ***\\n");\n')
         else:
             if device == 84:
                 memfile.write('  MXC_GCR->perckcn1 &= ~0x20; // Enable AI clock\n')

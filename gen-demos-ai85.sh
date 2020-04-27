@@ -1,6 +1,6 @@
 #!/bin/sh
 CLOCK_TRIM=""
-# Example: CLOCK_TRIM="--clock-trim 0x173,0x5e,0x114"
+# Example: CLOCK_TRIM="--clock-trim 0x173,0x5e,0x14"
 cp Device/*.c ../AI85SDK/Firmware/trunk/Applications/EvKitExamples/Common/
 cp Device/tornadocnn.h ../AI85SDK/Firmware/trunk/Applications/EvKitExamples/Common/
 
