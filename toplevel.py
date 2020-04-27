@@ -174,7 +174,7 @@ def main(
                     if clock_trim[0] or clock_trim[1]:
                         memfile.write('  trim = *((volatile uint32_t *) 0x40005420);\n')
                         if clock_trim[0]:
-                            memfile.write('  trim &= ~0x1ff;\n'
+                            memfile.write('  trim &= ~0xffff;\n'
                                           f'  trim |= 0x{clock_trim[0]:x}; '
                                           '// HIRC8M (7.3728 MHz) trim\n')
                         if clock_trim[1]:
@@ -188,16 +188,16 @@ def main(
                         memfile.write('  *((volatile uint32_t *) 0x40005440) = '
                                       'trim | (0xff << 15); // HILIM\n')
                         memfile.write('  *((volatile uint32_t *) 0x40006c04) = '
-                                      f'0x{clock_trim[2]:x}; // HIRC96M (96 MHz) trim\n')
+                                      f'0x{clock_trim[2]:x}; // HIRC96M (100 MHz) trim\n')
                     memfile.write('  *((volatile uint32_t *) 0x40000c00) = 0; '
                                   '// Clear TME\n\n')
 
                 memfile.write('  MXC_GCR->clkcn |= MXC_F_GCR_CLKCN_HIRC96M_EN; '
-                              '// Enable 96 MHz\n')
+                              '// Enable 100 MHz\n')
                 memfile.write('  while ((MXC_GCR->clkcn & MXC_F_GCR_CLKCN_HIRC96M_RDY) == 0) ; '
-                              '// Wait for 96 MHz\n')
+                              '// Wait for 100 MHz\n')
                 memfile.write('  MXC_GCR->clkcn |= MXC_S_GCR_CLKCN_CLKSEL_HIRC96; '
-                              '// Select 96 MHz\n')
+                              '// Select 100 MHz\n')
 
                 memfile.write('\n  // Reset all domains, restore power to CNN\n')
                 memfile.write('  MXC_BBFC->reg3 = 0xf; // Reset\n')
@@ -206,7 +206,7 @@ def main(
                 memfile.write('  MXC_BBFC->reg2 = 0x0; // Iso\n')
                 memfile.write('  MXC_BBFC->reg3 = 0x0; // Reset\n\n')
 
-                memfile.write('  MXC_GCR->pckdiv = 0x00010000; // AI clock: 96 MHz div 2\n')
+                memfile.write('  MXC_GCR->pckdiv = 0x00010000; // AI clock: 100 MHz div 2\n')
                 memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable AI clock\n')
 
                 memfile.write('\n  printf("\\n*** CNN Test ***\\n");\n')
