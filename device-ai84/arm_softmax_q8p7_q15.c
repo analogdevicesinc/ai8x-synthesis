@@ -15,17 +15,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/* 
- * Portions Copyright (C) 2020 Maxim Integrated Products, Inc.
- */
 
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
- * Title:        arm_softmax_q17p14_q15.c
- * Description:  Q17.14 softmax function with Q15 output
+ * Title:        arm_softmax_q8p7_q15.c
+ * Description:  Q8.7 softmax function with Q15 output
  *
- * $Date:        22. April 2020
- * $Revision:    V.1.0.1
+ * $Date:        20. February 2018
+ * $Revision:    V.1.0.0
  *
  * Target Processor:  Cortex-M cores
  *
@@ -44,9 +41,9 @@
  */
 
   /**
-   * @brief Q17.14 fixed point softmax function, returns Q15
+   * @brief Q8.7 fixed point softmax function, returns Q15
    * @param[in]       vec_in      pointer to input vector
-   * @param[in]       dim_vec     input vector dimension
+   * @param[in]       dim_vec     input vector dimention
    * @param[out]      p_out       pointer to output vector
    * @return none.
    *
@@ -55,21 +52,21 @@
    *  Here, instead of typical e based softmax, we use
    *  2-based softmax, i.e.,:
    *
-   *  y_i = 2^(x_i/16384) / sum(2^(x_j/16384))
+   *  y_i = 2^(x_i/128) / sum(2^(x_j/128))
    *
    *  The relative output will be different here.
    *  But mathematically, the gradient will be the same
    *  with a log(2) scaling factor.
+   *
    */
 
-void arm_softmax_q17p14_q15(const q31_t * vec_in, const uint16_t dim_vec, q15_t * p_out)
+void arm_softmax_q8p7_q15(const q15_t * vec_in, const uint16_t dim_vec, q15_t * p_out)
 {
     q31_t     sum;
     int16_t   i;
     uint8_t   shift;
     q31_t     base;
     base = -1 * 0x80000000;
-
     for (i = 0; i < dim_vec; i++)
     {
         if (vec_in[i] > base)
@@ -78,12 +75,11 @@ void arm_softmax_q17p14_q15(const q31_t * vec_in, const uint16_t dim_vec, q15_t 
         }
     }
 
-    /* we ignore really small values
+    /* we ignore really small values  
      * anyway, they will be 0 after shrinking
      * to q15_t
      */
-
-    base = base - (16<<14);
+    base = base - 2048;
 
     sum = 0;
 
@@ -91,37 +87,26 @@ void arm_softmax_q17p14_q15(const q31_t * vec_in, const uint16_t dim_vec, q15_t 
     {
         if (vec_in[i] > base)
         {
-            shift = (uint8_t)((8192 + vec_in[i] - base) >> 14);
-            sum += (0x1 << shift);
+            shift = (uint8_t)__USAT((63 + vec_in[i] - base) >> 7, 5);
+            sum += 0x1 << shift;
         }
     }
 
-
     /* This is effectively (0x1 << 32) / sum */
     int64_t div_base = 0x100000000LL;
-    int32_t output_base = (int32_t)(div_base / sum);
-    int32_t out;
+    int output_base = (int32_t)(div_base / sum);
 
-    /* Final confidence will be output_base >> ( 17 - (vec_in[i] - base)>>14 )
+    /* Final confidence will be output_base >> ( 17 - (vec_in[i] - base) )
      * so 32768 (0x1<<15) -> 100% confidence when sum = 0x1 << 16, output_base = 0x1 << 16
      * and vec_in[i]-base = 16
      */
-
     for (i = 0; i < dim_vec; i++)
     {
-        if (vec_in[i] > base)
+        if (vec_in[i] > base) 
         {
             /* Here minimum value of 17+base-vec[i] will be 1 */
-            shift = (uint8_t)(17+((8191 + base - vec_in[i]) >> 14));
-
-            out = (output_base >> shift);
-
-            if (out > 32767)
-            	out = 32767;
-
-            p_out[i] = (q15_t)out;
-
-
+            shift = (uint8_t)__USAT(17+((64 + base - vec_in[i]) >> 7), 5);
+            p_out[i] = (q15_t) __SSAT((output_base >> shift), 16);
         } else
         {
             p_out[i] = 0;

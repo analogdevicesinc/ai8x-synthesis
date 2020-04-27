@@ -105,7 +105,7 @@ void arm_softmax_q8p7_q15(const q15_t * vec_in, const uint16_t dim_vec, q15_t * 
         if (vec_in[i] > base) 
         {
             /* Here minimum value of 17+base-vec[i] will be 1 */
-            shift = (uint8_t)__USAT(17+((64 + base - vec_in[i]) >> 7), 5);
+            shift = (uint8_t)__USAT(17+((63 + base - vec_in[i]) >> 7), 5);
             p_out[i] = (q15_t) __SSAT((output_base >> shift), 16);
         } else
         {
