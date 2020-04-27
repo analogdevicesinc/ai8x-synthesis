@@ -8,7 +8,6 @@
 /bin
 /build
 /checkpoint
-/demos
 /etc
 /go
 /include
@@ -19,8 +18,9 @@
 /pytorch
 /pyvenv.cfg
 /rtlsim-ai85
-/rtlsim-ai86
-/rtlsim.old
+/rtlsim-ai85.old
+/rtlsim-ai87
+/rtlsim-ai87.old
 /share
 /tensorflow
 __pycache__

@@ -46,6 +46,7 @@
 
 #include "arm_math.h"
 #include "arm_nnfunctions.h"
+#include "tornadocnnh.h"
 
 /***** Definitions *****/
 void test_q17p14_q15_sigmoid();
@@ -152,7 +153,7 @@ void test_q17p14_q15_sigmoid()
 		vec_in_q31[0] = i;
 		vec_in_q31[1] = 0;
 
-		arm_softmax_q17p14_q15(vec_in_q31, 2, p_out);
+		softmax_q17p14_q15(vec_in_q31, 2, p_out);
 
 		printf("%d,%f,%d,%f,%d,%f\r\n", vec_in_q31[0],(double)(vec_in_q31[0]/16384.0),  p_out[0], (double)(p_out[0]/32768.0), p_out[1], (double)(p_out[1]/32768.0));
 
@@ -178,7 +179,7 @@ void test_q17p14_q15_vector()
 
     q15_t p_out[10];
 
-	arm_softmax_q17p14_q15(vec_in_q31, 10, p_out);
+	softmax_q17p14_q15(vec_in_q31, 10, p_out);
 
 	printf("\r\n +++ Test Vector Input:Output \r\n");
 	for (int i=0;i<10;i++)
@@ -201,7 +202,7 @@ void test_q17p14_q15_Sat()
 	}
 
 	printf("\r\n +++  Max 24bit Test Vector Input:Output \r\n");
-	arm_softmax_q17p14_q15(vec_in_q31, 10, p_out);
+	softmax_q17p14_q15(vec_in_q31, 10, p_out);
 
 	for (int i=0;i<10;i++)
 	{
@@ -214,7 +215,7 @@ void test_q17p14_q15_Sat()
 	}
 
 	printf("\r\n +++  Min 24bit Test Vector Input:Output \r\n");
-	arm_softmax_q17p14_q15(vec_in_q31, 10, p_out);
+	softmax_q17p14_q15(vec_in_q31, 10, p_out);
 
 	for (int i=0;i<10;i++)
 	{

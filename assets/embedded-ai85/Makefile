@@ -1,5 +1,5 @@
 ################################################################################
- # Copyright (C) 2016 Maxim Integrated Products, Inc., All Rights Reserved.
+ # Copyright (C) 2020 Maxim Integrated Products, Inc., All Rights Reserved.
  #
  # Permission is hereby granted, free of charge, to any person obtaining a
  # copy of this software and associated documentation files (the "Software"),
@@ -29,19 +29,17 @@
  # property whatsoever. Maxim Integrated Products, Inc. retains all
  # ownership rights.
  #
- # $Date: 2019-04-23 14:56:25 -0500 (Tue, 23 Apr 2019) $ 
- # $Revision: 42865 $
  #
  ###############################################################################
 
 # This is the name of the build output file
 ifeq "$(PROJECT)" ""
-PROJECT=ai85
+PROJECT=max78000
 endif
 
 # Specify the target processor
 ifeq "$(TARGET)" ""
-TARGET=AI85
+TARGET=MAX78000
 endif
 
 # Create Target name variables
@@ -53,34 +51,44 @@ COMPILER=GCC
 
 # Specify the board used
 ifeq "$(BOARD)" ""
-# BOARD=EvKit_V1
-# BOARD=EMULATOR
-BOARD=BenchDB
+BOARD=BCB
+#BOARD=EvKit_V1
+#BOARD=Emulator
 endif
 
 # This is the path to the CMSIS root directory
 ifeq "$(MAXIM_PATH)" ""
-LIBS_DIR=../../../Libraries
+LIBS_DIR=../../../../Libraries
 else
 LIBS_DIR=/$(subst \,/,$(subst :,,$(MAXIM_PATH))/Firmware/$(TARGET_UC)/Libraries)
 endif
 CMSIS_ROOT=$(LIBS_DIR)/CMSIS
 
-LINKERFILE=$(CMSIS_ROOT)/Device/Maxim/AI85/Source/GCC/ai85_arm.ld
+#Use this for other library make files so they are all based off the same as root as the project
+export CMSIS_ROOT
+
+# LINKERFILE=$(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/GCC/max78000_arm.ld
 
 # Source files for this test (add path to VPATH below)
-SRCS  = main.c arm_softmax_q17p14_q15.c
-
+SRCS  = main.c
+SRCS += softmax.c
 
 # Where to find source files for this test
 VPATH  = .
 VPATH += ../Common/
+VPATH += $(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source
 # Where to find header files for this test
 IPATH  = .
 IPATH += ../Common/
 
 # Enable assertion checking for development
-PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE -DARM_MATH_CM4
+#PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE -DARM_MATH_CM4
+
+# Enable assertion checking for development
+PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE 
+
+# Enable all warnings
+PROJ_CFLAGS+=-Wall
 
 # Specify the target revision to override default
 # "A2" in ASCII
@@ -90,7 +98,7 @@ PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE -DARM_MATH_CM4
 #TOOL_DIR=/opt/gcc-arm-none-eabi-4_8-2013q4/bin
 
 # Use these variables to add project specific tool options
-PROJ_CFLAGS+=-D__FPU_PRESENT -DKINTEX_EMU
+#PROJ_CFLAGS+=-D__FPU_PRESENT -DKINTEX_EMU
 #PROJ_LDFLAGS+=--specs=nano.specs
 
 # Point this variable to a startup file to override the default file
@@ -99,27 +107,36 @@ PROJ_CFLAGS+=-D__FPU_PRESENT -DKINTEX_EMU
 # Override the default optimization level using this variable
 MXC_OPTIMIZE_CFLAGS=-O1
 
-# Point this variable to a linker file to override the default file
 ################################################################################
 # Include external library makefiles here
 
 # Include the BSP
-BOARD_DIR=$(LIBS_DIR)/Boards/$(BOARD)
+BOARD_DIR=$(LIBS_DIR)/Boards/$(TARGET_UC)/$(BOARD)
 include $(BOARD_DIR)/board.mk
 
 # Include the peripheral driver
-PERIPH_DRIVER_DIR=$(LIBS_DIR)/$(TARGET_UC)PeriphDriver
+PERIPH_DRIVER_DIR=$(LIBS_DIR)/PeriphDrivers
 include $(PERIPH_DRIVER_DIR)/periphdriver.mk
-
-# Include the CMSIS NN Library
-CMSISNN_DIRECTORY=$(CMSIS_ROOT)/NN
-# include $(CMSISNN_DIRECTORY)/cmsisnn.mk
+export PERIPH_DRIVER_DIR
 
 ################################################################################
 # Include the rules for building for this target. All other makefiles should be
 # included before this one.
 include $(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/$(COMPILER)/$(TARGET_LC).mk
 
+all:
+# 	arm-none-eabi-objcopy $(BUILD_DIR)/$(PROJECT).elf -R .sig -O binary $(BUILD_DIR)/$(PROJECT).bin
+# 	$(CA_SIGN_BUILD) $(BUILD_DIR)/$(PROJECT).bin $(TEST_KEY)
+# 	arm-none-eabi-objcopy  $(BUILD_DIR)/$(PROJECT).elf --update-section .sig=$(BUILD_DIR)/$(PROJECT).bin.sig
+
+libclean: 
+	$(MAKE)  -f ${PERIPH_DRIVER_DIR}/periphdriver.mk clean.periph
+	
 # The rule to clean out all the build products.
-distclean: clean
-	$(MAKE) -C ${PERIPH_DRIVER_DIR} clean
+distclean: clean libclean
+
+sla: all
+
+#	arm-none-eabi-objcopy $(BUILD_DIR)/$(PROJECT).elf -O binary $(BUILD_DIR)/$(PROJECT).sbin
+#	$(BUILD_SESSION) $(BUILD_DIR)/$(PROJECT).sbin scp_packets $(TEST_KEY)
+

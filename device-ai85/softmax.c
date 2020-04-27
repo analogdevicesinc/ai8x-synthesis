@@ -15,24 +15,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 /* 
  * Portions Copyright (C) 2020 Maxim Integrated Products, Inc.
  */
 
 /* ----------------------------------------------------------------------
- * Project:      CMSIS NN Library
- * Title:        arm_softmax_q17p14_q15.c
+ * Project:      NN Library
+ * Title:        softmax.c
  * Description:  Q17.14 softmax function with Q15 output
  *
  * $Date:        22. April 2020
  * $Revision:    V.1.0.1
  *
- * Target Processor:  Cortex-M cores
+ * Target Processor:  Cortex-M and RISC-V cores
  *
  * -------------------------------------------------------------------- */
 
-#include "arm_math.h"
-#include "arm_nnfunctions.h"
+#include "tornadocnn.h"
 
 /**
  *  @ingroup groupNN
@@ -62,7 +62,7 @@
    *  with a log(2) scaling factor.
    */
 
-void arm_softmax_q17p14_q15(const q31_t * vec_in, const uint16_t dim_vec, q15_t * p_out)
+void softmax_q17p14_q15(const q31_t * vec_in, const uint16_t dim_vec, q15_t * p_out)
 {
     q31_t     sum;
     int16_t   i;

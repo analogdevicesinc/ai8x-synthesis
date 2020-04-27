@@ -57,7 +57,7 @@ def header(
     if not cmsis_nn:
         memfile.write('#include "global_functions.h" // For RTL Simulation\n')
         if embedded_code:
-            memfile.write('#include "tmr_utils.h"\n')
+            memfile.write('#include "tmr.h"\n')
     if camera:
         memfile.write('#include "pcif_defines_af2.h"\n')
         memfile.write('#define NUM_DATA_WORDS 4\n')
@@ -83,7 +83,7 @@ def header(
                       '& (1<<12)) != 1<<12) ;\n')
         if embedded_code:
             memfile.write('  CNN_COMPLETE; // Signal that processing is complete\n')
-            memfile.write('  cnn_time = TMR_SW_Stop(MXC_TMR0);\n')
+            memfile.write('  cnn_time = MXC_TMR_SW_Stop(MXC_TMR0);\n')
         memfile.write('}\n\n')
 
     if master is not False:
@@ -156,6 +156,7 @@ def main(
         memfile.write(f'static uint{output_width}_t ml_data[NUM_OUTPUTS];\n\n')
 
     memfile.write('int main(void)\n{\n')
+    memfile.write('  // Note: Interrupts are still disabled\n\n')
     if clock_trim is not None and not riscv:
         memfile.write('  uint32_t trim;\n')
     if embedded_code and (classification_layer or softmax) or oneshot > 0:
@@ -192,12 +193,9 @@ def main(
                     memfile.write('  *((volatile uint32_t *) 0x40000c00) = 0; '
                                   '// Clear TME\n\n')
 
-                memfile.write('  MXC_GCR->clkcn |= MXC_F_GCR_CLKCN_HIRC96M_EN; '
-                              '// Enable 100 MHz\n')
-                memfile.write('  while ((MXC_GCR->clkcn & MXC_F_GCR_CLKCN_HIRC96M_RDY) == 0) ; '
-                              '// Wait for 100 MHz\n')
-                memfile.write('  MXC_GCR->clkcn |= MXC_S_GCR_CLKCN_CLKSEL_HIRC96; '
-                              '// Select 100 MHz\n')
+                memfile.write('  // Switch to 100 MHz clock\n')
+                memfile.write('  MXC_SYS_Clock_Select(MXC_SYS_CLOCK_IPO);\n')
+                memfile.write('  SystemCoreClockUpdate();\n')
 
                 memfile.write('\n  // Reset all domains, restore power to CNN\n')
                 memfile.write('  MXC_BBFC->reg3 = 0xf; // Reset\n')
@@ -207,9 +205,7 @@ def main(
                 memfile.write('  MXC_BBFC->reg3 = 0x0; // Reset\n\n')
 
                 memfile.write('  MXC_GCR->pckdiv = 0x00010000; // AI clock: 100 MHz div 2\n')
-                memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable AI clock\n')
-
-                memfile.write('\n  printf("\\n*** CNN Test ***\\n");\n')
+                memfile.write('  MXC_GCR->perckcn0 &= ~0x2000000; // Enable AI clock\n')
         else:
             if device == 84:
                 memfile.write('  MXC_GCR->perckcn1 &= ~0x20; // Enable AI clock\n')
@@ -273,9 +269,12 @@ def main(
             memfile.write(';\n\n')
 
     if riscv is None or riscv:
+        if embedded_code:
+            memfile.write('  printf("\\n*** CNN Test ***\\n");\n\n')
+
         memfile.write('  if (!cnn_load()) { fail(); pass(); return 0; }\n')
         if embedded_code:
-            memfile.write('  TMR_SW_Start(MXC_TMR0, NULL);\n')
+            memfile.write('  MXC_TMR_SW_Start(MXC_TMR0);\n')
         if stopstart:
             memfile.write('\n  cnn_stop();\n')
             memfile.write('  cnn_restart();\n\n')
@@ -302,7 +301,7 @@ def main(
                               '  for (i = 0; i < NUM_OUTPUTS; i++) {\n'
                               '    printf("[%6d] -> Class %d: %0.1f%%\\n", '
                               f'{"fc_output" if classification_layer else "ml_data"}[i], '
-                              'i, (double) (100.0 * fc_softmax[i] / 32768.0));\n'
+                              'i, (double) (100.0 * ml_softmax[i] / 32768.0));\n'
                               '  }\n\n')
 
     if riscv is not None and not riscv:
@@ -367,7 +366,7 @@ def fc_layer(
     if not softmax_only:
         memfile.write('static q15_t fc_buffer[FC_IN];\n')
         memfile.write('static q15_t fc_output[NUM_OUTPUTS];\n')
-    memfile.write('static q15_t fc_softmax[NUM_OUTPUTS];\n\n')
+    memfile.write('static q15_t ml_softmax[NUM_OUTPUTS];\n\n')
 
     if bias is not None and not softmax_only:
         c_define(weights_fh, bias, 'FC_BIAS', '%d', 16)
@@ -385,12 +384,12 @@ def fc_layer(
                       'FC_IN, NUM_OUTPUTS, 0, 7, '
                       f'{"fc_bias" if bias is not None else "NULL"}, '
                       'fc_output, fc_buffer);\n')
-        memfile.write('  arm_softmax_q8p7_q15(fc_output, NUM_OUTPUTS, fc_softmax);\n\n')
+        memfile.write('  arm_softmax_q8p7_q15(fc_output, NUM_OUTPUTS, ml_softmax);\n\n')
     elif output_width == 32:
-        memfile.write('  arm_softmax_q17p14_q15((const q31_t *) ml_data, '
-                      'NUM_OUTPUTS, fc_softmax);\n\n')
+        memfile.write('  softmax_q17p14_q15((const q31_t *) ml_data, '
+                      'NUM_OUTPUTS, ml_softmax);\n\n')
     else:
-        memfile.write('  arm_softmax_q7_q15((const q7_t *) ml_data, NUM_OUTPUTS, fc_softmax);\n\n')
+        memfile.write('  arm_softmax_q7_q15((const q7_t *) ml_data, NUM_OUTPUTS, ml_softmax);\n\n')
 
     memfile.write('  return 1;\n}\n\n')
 

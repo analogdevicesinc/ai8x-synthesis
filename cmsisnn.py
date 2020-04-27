@@ -394,7 +394,7 @@ def create_net(
             c_file.write('  printf("Classification results:\\n");\n'
                          '  for (i = 0; i < NUM_CLASSES; i++) {\n'
                          '    printf("[%6d] -> Class %d: %0.1f%%\\n", fc_output[i], i, '
-                         '(double) (100.0 * fc_softmax[i] / 32768.0));\n'
+                         '(double) (100.0 * ml_softmax[i] / 32768.0));\n'
                          '  }\n\n')
         else:
             c_file.write('  printf("Output of final layer:\\n");\n'

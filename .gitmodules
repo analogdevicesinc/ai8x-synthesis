@@ -4,3 +4,7 @@
 [submodule "distiller"]
 	path = distiller
 	url = https://github.com/NervanaSystems/distiller.git
+[submodule "sdk"]
+	path = sdk
+	url = https://gerrit.maxim-ic.com:8443/MnS/MSDK/msdk.git
+	branch = ai85_add
