@@ -54,7 +54,8 @@ COMPILER=GCC
 # Specify the board used
 ifeq "$(BOARD)" ""
 # BOARD=EvKit_V1
-BOARD=EMULATOR
+# BOARD=EMULATOR
+BOARD=BenchDB
 endif
 
 # This is the path to the CMSIS root directory
