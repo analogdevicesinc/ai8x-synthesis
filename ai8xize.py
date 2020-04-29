@@ -410,7 +410,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             apb.output(f'// ARM wrapper code\n// {test_name}\n')
             apb.output(f'// Created using {" ".join(str(x) for x in sys.argv)}\n')
 
-            apb.header()
+            apb.header(
+                embedded_arm=embedded_code,
+            )
             apb.main(
                 clock_trim=clock_trim,
                 embedded_arm=embedded_code,

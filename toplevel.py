@@ -43,6 +43,7 @@ def header(
         verify_kernels=False,
         riscv=False,
         camera=False,
+        embedded_arm=False,
 ):
     """
     Write include files and forward definitions to .c file handle `memfile`.
@@ -55,9 +56,15 @@ def header(
     if embedded_code:
         memfile.write('#include <stdio.h>\n')
     if not cmsis_nn:
-        memfile.write('#include "global_functions.h" // For RTL Simulation\n')
-        if embedded_code:
+        if embedded_code or embedded_arm:
+            memfile.write('#include "mxc_sys.h"\n')
+            memfile.write('#include "bbfc_regs.h"\n')
+            memfile.write('#include "fcr_regs.h"\n')
+            memfile.write('#include "icc.h"\n')
+            memfile.write('#include "led.h"\n')
             memfile.write('#include "tmr.h"\n')
+        else:
+            memfile.write('#include "global_functions.h" // For RTL Simulation\n')
     if camera:
         memfile.write('#include "pcif_defines_af2.h"\n')
         memfile.write('#define NUM_DATA_WORDS 4\n')
@@ -69,6 +76,9 @@ def header(
     if embedded_code or compact_data:
         memfile.write(f'#include "{sample_filename}"\n')
     memfile.write('\n')
+
+    if embedded_arm:
+        memfile.write('extern void *_rvflash;\n\n')
 
     if not cmsis_nn and (riscv is None or riscv):
         if embedded_code:
@@ -162,11 +172,12 @@ def main(
         memfile.write('  int i;\n\n')
 
     if riscv is None or not riscv:
-        memfile.write('  icache_enable();\n\n')
         if embedded_code or embedded_arm:
             if device == 84:
+                memfile.write('  icache_enable();\n\n')
                 memfile.write('  SYS_ClockEnable(SYS_PERIPH_CLOCK_AI);\n')
             else:
+                memfile.write('\n  MXC_ICC_Enable();\n\n')
                 if clock_trim is not None:
                     memfile.write('  // Manual clock trim override:\n')
                     memfile.write('  *((volatile uint32_t *) 0x40000c00) = 1; '
@@ -206,6 +217,7 @@ def main(
                 memfile.write('  MXC_GCR->pckdiv = 0x00010000; // AI clock: 100 MHz div 2\n')
                 memfile.write('  MXC_GCR->perckcn0 &= ~0x2000000; // Enable AI clock\n')
         else:
+            memfile.write('  icache_enable();\n\n')
             if device == 84:
                 memfile.write('  MXC_GCR->perckcn1 &= ~0x20; // Enable AI clock\n')
             else:
@@ -243,12 +255,19 @@ def main(
                 else:
                     memfile.write('  *((volatile uint32_t *) 0x40000814) |= 0x00000001; '
                                   '// Exclusive SRAM access for RISC-V (MXC_NBBFC->reg5)\n')
-            memfile.write('  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_CPU1; '
-                          '// Enable RISC-V clock\n')
+            if embedded_code or embedded_arm:
+                memfile.write('  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_CPU1D; '
+                              '// Enable RISC-V clock\n')
+            else:
+                memfile.write('  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_CPU1; '
+                              '// Enable RISC-V clock\n')
         memfile.write('\n')
     elif riscv and riscv_cache:
-        memfile.write('  icache1_enable();\n')
-        memfile.write('  invalidate_icache1();\n\n')
+        if not embedded_code:
+            memfile.write('  icache1_enable();\n')
+            memfile.write('  invalidate_icache1();\n\n')
+        else:
+            memfile.write('  MXC_ICC_RevA_Enable(MXC_ICC1);\n')
 
     if camera:
         memfile.write('  enable_pcif_clock(); // Enable camera clock\n')
@@ -276,9 +295,12 @@ def main(
         if embedded_code:
             memfile.write('  printf("\\n*** CNN Test ***\\n");\n\n')
 
-        memfile.write('  if (!cnn_load()) { fail(); pass(); return 0; }\n')
         if embedded_code:
+            memfile.write('  if (!cnn_load()) fail();\n')
             memfile.write('  MXC_TMR_SW_Start(MXC_TMR0);\n')
+        else:
+            memfile.write('  if (!cnn_load()) { fail(); pass(); return 0; }\n')
+
         if stopstart:
             memfile.write('\n  cnn_stop();\n')
             memfile.write('  cnn_restart();\n\n')
@@ -313,7 +335,8 @@ def main(
             memfile.write('  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=1\n')
         memfile.write('  asm volatile("wfi"); // Let RISC-V run\n')
 
-    memfile.write('  pass();\n')
+    if not embedded_code and not embedded_arm:
+        memfile.write('  pass();\n')
     memfile.write('  return 0;\n}\n\n')
 
 
