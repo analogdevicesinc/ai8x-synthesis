@@ -156,7 +156,6 @@ def main(
         memfile.write(f'static uint{output_width}_t ml_data[NUM_OUTPUTS];\n\n')
 
     memfile.write('int main(void)\n{\n')
-    memfile.write('  // Note: Interrupts are still disabled\n\n')
     if clock_trim is not None and not riscv:
         memfile.write('  uint32_t trim;\n')
     if embedded_code and (classification_layer or softmax) or oneshot > 0:
@@ -228,17 +227,22 @@ def main(
 
                 memfile.write('  MXC_GCR->pckdiv = 0x00010000; // AI clock 96M div 2\n')
                 memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable AI clock\n')
+
         if riscv is not None:
             if riscv_cache:
-                if embedded_code:
-                    memfile.write('  MXC_NBBFC->reg4 = (uint32_t) &_rvflash; '
+                if embedded_code or embedded_arm:
+                    memfile.write('  MXC_FCR->reg4 = (uint32_t) &_rvflash; '
                                   '// Set RISC-V boot address\n')
                 else:
                     memfile.write(f'  MXC_NBBFC->reg4 = 0x{rv.RISCV_CODE_ORIGIN:08x}; '
                                   '// Set RISC-V boot address\n')
             if riscv_exclusive:
-                memfile.write('  *((volatile uint32_t *) 0x40000814) |= 0x00000001; '
-                              '// Exclusive SRAM access for RISC-V (MXC_NBBFC->reg5)\n')
+                if embedded_code or embedded_arm:
+                    memfile.write('  MXC_FCR->reg5 |= 0x00000001; '
+                                  '// Exclusive SRAM access for RISC-V\n')
+                else:
+                    memfile.write('  *((volatile uint32_t *) 0x40000814) |= 0x00000001; '
+                                  '// Exclusive SRAM access for RISC-V (MXC_NBBFC->reg5)\n')
             memfile.write('  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_CPU1; '
                           '// Enable RISC-V clock\n')
         memfile.write('\n')
