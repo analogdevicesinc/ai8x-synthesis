@@ -56,6 +56,7 @@ BOARD=BCB
 endif
 
 RISCV_CORE=RV32
+export RISCV_CORE
 
 # This is the path to the CMSIS root directory
 ifeq "$(MAXIM_PATH)" ""
@@ -67,7 +68,6 @@ CMSIS_ROOT=$(LIBS_DIR)/CMSIS
 
 #Use this for other library make files so they are all based off the same as root as the project
 export CMSIS_ROOT
-#LINKERFILE=$(CMSIS_ROOT)/Device/Maxim/AI85/Source/GCC/ai85_arm.ld
 # Source files for this test (add path to VPATH below)
 SRCS  = main_riscv.c
 SRCS += softmax.c
@@ -108,14 +108,13 @@ PROJ_CFLAGS+=-Wall
 #PROJ_LDFLAGS+=--specs=nano.specs
 
 # Point this variable to a startup file to override the default file
-#STARTUPFILE=startup_riscv_ai85.S
+#STARTUPFILE=startup_riscv_max78000.S
 
 # Override the default optimization level using this variable
 MXC_OPTIMIZE_CFLAGS=-O0
 
 # Point this variable to a linker file to override the default file
 LINKERFILE=$(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/GCC/$(TARGET_LC)_riscv.ld
-#LINKERFILE=$(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/GCC/$(TARGET_LC)_emulator.ld
 
 ################################################################################
 # Include external library makefiles here
@@ -138,7 +137,7 @@ include $(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/$(COMPILER)/$(TARGET_LC).
 # 	$(CA_SIGN_BUILD) $(BUILD_DIR)/$(PROJECT).bin $(TEST_KEY)
 # 	arm-none-eabi-objcopy  $(BUILD_DIR)/$(PROJECT).elf --update-section .sig=$(BUILD_DIR)/$(PROJECT).bin.sig
 libclean: 
-	$(MAKE)  -f ${PERIPH_DRIVER_DIR}/periphdriver.mk clean.periph
+	$(MAKE) -f ${PERIPH_DRIVER_DIR}/periphdriver.mk clean.periph
 
 # The rule to clean out all the build products.
 distclean: clean libclean

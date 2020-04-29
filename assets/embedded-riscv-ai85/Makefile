@@ -5,3 +5,7 @@ build:
 clean:
 	$(MAKE) -f Makefile.ARM clean
 	$(MAKE) -f Makefile.RISCV clean
+
+distclean:
+	$(MAKE) -f Makefile.ARM distclean
+	$(MAKE) -f Makefile.RISCV distclean
