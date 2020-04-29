@@ -61,6 +61,8 @@ def header(
             memfile.write('#include "bbfc_regs.h"\n')
             memfile.write('#include "fcr_regs.h"\n')
             memfile.write('#include "icc.h"\n')
+            if riscv:
+                memfile.write('#include "icc_reva.h"\n')
             memfile.write('#include "led.h"\n')
             memfile.write('#include "tmr.h"\n')
         else:
