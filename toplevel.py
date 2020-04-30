@@ -247,14 +247,14 @@ def main(
         if riscv is not None:
             if riscv_cache:
                 if embedded_code or embedded_arm:
-                    memfile.write('  MXC_FCR->reg4 = (uint32_t) &_rvflash; '
+                    memfile.write('  MXC_FCR->urvbootaddr = (uint32_t) &_rvflash; '
                                   '// Set RISC-V boot address\n')
                 else:
                     memfile.write(f'  MXC_NBBFC->reg4 = 0x{rv.RISCV_CODE_ORIGIN:08x}; '
                                   '// Set RISC-V boot address\n')
             if riscv_exclusive:
                 if embedded_code or embedded_arm:
-                    memfile.write('  MXC_FCR->reg5 |= 0x00000001; '
+                    memfile.write('  MXC_FCR->urvctrl |= 0x00000001; '
                                   '// Exclusive SRAM access for RISC-V\n')
                 else:
                     memfile.write('  *((volatile uint32_t *) 0x40000814) |= 0x00000001; '
