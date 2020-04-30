@@ -77,11 +77,11 @@ VPATH += $(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source
 IPATH  = .
 IPATH += ../Common/
 
-# Enable assertion checking for development
-#PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE -DARM_MATH_CM4
+PROJ_CFLAGS+=-DARM_MATH_CM4
 
 # Enable assertion checking for development
-PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE 
+PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE
+
 # Enable all warnings
 PROJ_CFLAGS+=-Wall
 # Specify the target revision to override default

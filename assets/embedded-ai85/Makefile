@@ -82,10 +82,9 @@ IPATH  = .
 IPATH += ../Common/
 
 # Enable assertion checking for development
-#PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE -DARM_MATH_CM4
+PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE
 
-# Enable assertion checking for development
-PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE 
+PROJ_CFLAGS+=-DARM_MATH_CM4
 
 # Enable all warnings
 PROJ_CFLAGS+=-Wall
