@@ -81,7 +81,7 @@ IPATH  = .
 IPATH += ../Common/
 
 # Enable assertion checking for development
-#PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE
+PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE
 
 # Specify STACK SIZE
 STACK_SIZE=1024
