@@ -171,7 +171,9 @@ def main(
     if clock_trim is not None and not riscv:
         memfile.write('  uint32_t trim;\n')
     if embedded_code and (classification_layer or softmax) or oneshot > 0:
-        memfile.write('  int i;\n\n')
+        memfile.write('  int i;\n')
+    if embedded_code:
+        memfile.write('  mxc_tmr_unit_t units;\n\n')
 
     if riscv is None or not riscv:
         if embedded_code or embedded_arm:
@@ -322,7 +324,18 @@ def main(
             memfile.write('  if (!fc_verify()) fail();\n')
 
         if embedded_code:
-            memfile.write('\n  printf("\\n*** PASS ***\\n\\n");\n')
+            memfile.write('\n  printf("\\n*** PASS ***\\n\\n");\n\n')
+            memfile.write('  MXC_TMR_GetTime(MXC_TMR0, cnn_time, &cnn_time, &units);\n')
+            memfile.write('  switch (units) {\n')
+            memfile.write('    case TMR_UNIT_NANOSEC:\n')
+            memfile.write('       cnn_time /= 1000; break;\n')
+            memfile.write('    case TMR_UNIT_MILLISEC:\n')
+            memfile.write('       cnn_time *= 1000; break;\n')
+            memfile.write('    case TMR_UNIT_SEC:\n')
+            memfile.write('       cnn_time *= 1000000; break;\n')
+            memfile.write('    default:\n')
+            memfile.write('       break;\n')
+            memfile.write('  }\n')
             memfile.write('  printf("Time for CNN: %d us\\n\\n", cnn_time);\n\n')
             if classification_layer or softmax:
                 memfile.write('  printf("Classification results:\\n");\n'
