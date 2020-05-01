@@ -219,11 +219,7 @@ def main(
                 memfile.write('  MXC_BBFC->reg3 = 0x0; // Reset\n\n')
 
                 memfile.write('  MXC_GCR->pckdiv = 0x00010000; // AI clock: 100 MHz div 2\n')
-                memfile.write('  MXC_GCR->perckcn0 &= ~0x2000000; // Enable AI clock\n\n')
-
-                memfile.write('  // Enable GPIO\n')
-                memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_GPIO0);\n')
-                memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_GPIO1);\n')
+                memfile.write('  MXC_GCR->perckcn0 &= ~0x2000000; // Enable AI clock\n')
         else:
             memfile.write('  icache_enable();\n\n')
             if device == 84:
