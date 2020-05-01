@@ -181,7 +181,7 @@ def main(
                 memfile.write('  icache_enable();\n\n')
                 memfile.write('  SYS_ClockEnable(SYS_PERIPH_CLOCK_AI);\n')
             else:
-                memfile.write('\n  MXC_ICC_Enable();\n\n')
+                memfile.write('\n  MXC_ICC_Enable(); // Enable cache\n\n')
                 if clock_trim is not None:
                     memfile.write('  // Manual clock trim override:\n')
                     memfile.write('  *((volatile uint32_t *) 0x40000c00) = 1; '
@@ -219,7 +219,11 @@ def main(
                 memfile.write('  MXC_BBFC->reg3 = 0x0; // Reset\n\n')
 
                 memfile.write('  MXC_GCR->pckdiv = 0x00010000; // AI clock: 100 MHz div 2\n')
-                memfile.write('  MXC_GCR->perckcn0 &= ~0x2000000; // Enable AI clock\n')
+                memfile.write('  MXC_GCR->perckcn0 &= ~0x2000000; // Enable AI clock\n\n')
+
+                memfile.write('  // Enable GPIO\n')
+                memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_GPIO0);\n')
+                memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_GPIO1);\n')
         else:
             memfile.write('  icache_enable();\n\n')
             if device == 84:
@@ -247,7 +251,7 @@ def main(
         if riscv is not None:
             if riscv_cache:
                 if embedded_code or embedded_arm:
-                    memfile.write('  MXC_FCR->urvbootaddr = (uint32_t) &_rvflash; '
+                    memfile.write('\n  MXC_FCR->urvbootaddr = (uint32_t) &_rvflash; '
                                   '// Set RISC-V boot address\n')
                 else:
                     memfile.write(f'  MXC_NBBFC->reg4 = 0x{rv.RISCV_CODE_ORIGIN:08x}; '
@@ -271,7 +275,7 @@ def main(
             memfile.write('  icache1_enable();\n')
             memfile.write('  invalidate_icache1();\n\n')
         else:
-            memfile.write('  MXC_ICC_RevA_Enable(MXC_ICC1);\n')
+            memfile.write('  MXC_ICC_RevA_Enable(MXC_ICC1); // Enable cache\n\n')
 
     if camera:
         memfile.write('  enable_pcif_clock(); // Enable camera clock\n')
