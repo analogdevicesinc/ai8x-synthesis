@@ -401,6 +401,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 device=device,
                 master=False,
                 riscv=False,
+                riscv_flash=riscv_flash,
                 riscv_cache=riscv_cache,
                 riscv_exclusive=riscv_exclusive,
                 sleep=sleep,
@@ -2285,6 +2286,10 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
             eprint(f'Output dimension {output_dim[ll]} exceeds system maximum of '
                    f'{tc.dev.MAX_ROW_COL} in layer {ll}.')
             sys.exit(1)
+
+    if args.riscv and not args.riscv_cache and args.embedded_code:
+        eprint("Embedded code on RISC-V requires --riscv-cache.")
+        sys.exit(1)
 
     if not args.cmsis_software_nn:
         tn = create_net(
