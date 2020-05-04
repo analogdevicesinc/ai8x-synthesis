@@ -102,7 +102,7 @@ PROJ_CFLAGS+=-Wall
 MXC_OPTIMIZE_CFLAGS=-O1
 
 # Point this variable to a linker file to override the default file
-LINKERFILE=$(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/GCC/$(TARGET_UC)_arm.ld
+LINKERFILE=$(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/GCC/$(TARGET_LC)_arm.ld
 
 ################################################################################
 # Include external library makefiles here
