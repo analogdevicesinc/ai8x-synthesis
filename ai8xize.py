@@ -117,6 +117,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         riscv_exclusive=False,
         riscv_flash=False,
         riscv_cache=False,
+        riscv_debug=False,
         override_start=None,
         increase_start=0,
         override_rollover=None,
@@ -161,6 +162,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     pool_stride_str = [None] * layers
     stride_str = [None] * layers
 
+    if riscv_debug:
+        riscv = True
     if riscv_cache:
         riscv = True
         riscv_flash = True
@@ -445,6 +448,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             riscv=True if riscv else None,
             riscv_flash=riscv_flash,
             riscv_cache=riscv_cache,
+            riscv_debug=riscv_debug,
             fast_fifo=fast_fifo,
             input_csv=input_csv,
             input_csv_format=input_csv_format,
@@ -2369,6 +2373,7 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
             args.riscv_exclusive,
             args.riscv_flash,
             args.riscv_cache,
+            args.riscv_debug,
             args.override_start,
             args.increase_start,
             args.override_rollover,

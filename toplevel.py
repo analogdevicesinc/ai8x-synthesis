@@ -146,6 +146,7 @@ def main(
         riscv_exclusive=False,
         riscv_flash=False,  # pylint: disable=unused-argument
         riscv_cache=False,
+        riscv_debug=False,
         camera=False,
         camera_format=None,
         device=84,
@@ -266,12 +267,15 @@ def main(
                 memfile.write('  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_CPU1; '
                               '// Enable RISC-V clock\n')
         memfile.write('\n')
-    elif riscv and riscv_cache:
-        if not embedded_code:
-            memfile.write('  icache1_enable();\n')
-            memfile.write('  invalidate_icache1();\n\n')
-        else:
-            memfile.write('  MXC_ICC_RevA_Enable(MXC_ICC1); // Enable cache\n\n')
+    elif riscv:
+        if riscv_debug and embedded_code:
+            memfile.write('  Debug_Init(); // Set up RISCV JTAG\n')
+        if riscv_cache:
+            if not embedded_code:
+                memfile.write('  icache1_enable();\n')
+                memfile.write('  invalidate_icache1();\n\n')
+            else:
+                memfile.write('  MXC_ICC_RevA_Enable(MXC_ICC1); // Enable cache\n\n')
 
     if camera:
         memfile.write('  enable_pcif_clock(); // Enable camera clock\n')
@@ -348,7 +352,10 @@ def main(
     if riscv is not None and not riscv:
         if sleep:
             memfile.write('  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=1\n')
-        memfile.write('  asm volatile("wfi"); // Let RISC-V run\n')
+        if embedded_arm:
+            memfile.write('  __WFI(); // Let RISC-V run\n')
+        else:
+            memfile.write('  asm volatile("wfi"); // Let RISC-V run\n')
 
     if not embedded_code and not embedded_arm:
         memfile.write('  pass();\n')

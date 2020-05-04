@@ -103,6 +103,8 @@ def get_parser():
     group.add_argument('--riscv-cache', action='store_true', default=False,
                        help="enable RISC-V cache (implies --riscv and --riscv-flash; "
                             "default: false)")
+    group.add_argument('--riscv-debug', action='store_true', default=False,
+                       help="enable RISC-V debug interface (implies --riscv; default: false)")
     group.add_argument('--riscv-exclusive', action='store_true', default=False,
                        help="exclusive SRAM access for RISC-V (implies --riscv; default: false)")
 
