@@ -1,7 +1,7 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_May 3, 2020_
+_May 4, 2020_
 
 _Open the `.md` version of this file in a markdown enabled viewer, for example Typora (http://typora.io).
 See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A PDF copy of this file is available in the repository._
@@ -1025,6 +1025,7 @@ The following table describes the most important command line arguments for `ai8
 | `--fast-fifo-quad`       | Use fast FIFO in quad fanout mode (implies --fast-fifo)      |                                 |
 | *RISC-V*                 |                                                              |                                 |
 | `--riscv`                | Use RISC-V processor                                         |                                 |
+| `--riscv-debug`          | Use RISC-V processor and enable the RISC-V JTAG              |                                 |
 | `--riscv-flash`          | Move kernel/input to Flash (implies --riscv)                 |                                 |
 | `--riscv-cache`          | Enable RISC-V cache (implies --riscv and --riscv-flash)      |                                 |
 | `--riscv-exclusive`      | Use exclusive SRAM access for RISC-V (implies --riscv)       |                                 |
@@ -1558,6 +1559,26 @@ The AI85 SDK is a git submodule of ai8x-synthesis. It is checked out automatical
 The Arm embedded compiler can be downloaded from https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads.
 
 The RISC-V embedded compiler can be downloaded from https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack/releases/.
+
+Add the following to your `~/.profile`, adjusting for the actual `PATH` to the compilers:
+
+```shell
+echo $PATH | grep -q -s "/usr/local/gcc-arm-none-eabi-7-2017-q4-major/bin"
+if [ $? -eq 1 ] ; then
+    PATH=$PATH:/usr/local/gcc-arm-none-eabi-9-2019-q4-major/bin
+    export PATH
+    ARMGCC_DIR=/usr/local/gcc-arm-none-eabi-9-2019-q4-major
+    export ARMGCC_DIR
+fi
+
+echo $PATH | grep -q -s "/usr/local/riscv-none-embed-gcc/8.3.0-1.1/bin"
+if [ $? -eq 1 ] ; then
+    PATH=$PATH:/usr/local/riscv-none-embed-gcc/8.3.0-1.1/bin
+    export PATH
+    RISCVGCC_DIR=/usr/local/riscv-none-embed-gcc/8.3.0-1.1
+    export RISCVGCC_DIR
+fi
+```
 
 In order for the debugger to work, the OpenOCD `max32xxx` branch from https://github.com/MaximIntegratedMicros/openocd.git must be installed (see above for more instructions). Working configuration files are and a `run-openocd-ai85` script are contained in the `hardware` folder of the `ai8x-synthesis` project.
 
