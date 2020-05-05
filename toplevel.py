@@ -109,7 +109,7 @@ def header(
     memfile.write('\n')
 
     if embedded_arm:
-        memfile.write('extern void *_rvflash;\n\n')
+        memfile.write('extern volatile void const *__FlashStart_; // Defined in linker file\n\n')
 
     if not cmsis_nn and (riscv is None or riscv):
         if embedded_code:
@@ -279,7 +279,7 @@ def main(
         if riscv is not None:
             if riscv_cache:
                 if embedded_code or embedded_arm:
-                    memfile.write('\n  MXC_FCR->urvbootaddr = (uint32_t) &_rvflash; '
+                    memfile.write('\n  MXC_FCR->urvbootaddr = (uint32_t) &__FlashStart_;'
                                   '// Set RISC-V boot address\n')
                 else:
                     memfile.write(f'  MXC_NBBFC->reg4 = 0x{rv.RISCV_CODE_ORIGIN:08x}; '
