@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2018-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -15,10 +15,39 @@ from armx4weights import convert_to_x4_q7_weights
 from eprint import eprint
 
 COPYRIGHT = \
-    '// ---------------------------------------------------------------------------\n' \
-    '// Copyright (C) 2019-2020 Maxim Integrated Products, Inc.\n' \
-    '// All rights reserved. Product of the U.S.A.\n' \
-    '// ---------------------------------------------------------------------------\n\n'
+    '/*******************************************************************************\n' \
+    '* Copyright (C) Maxim Integrated Products, Inc., All rights Reserved.\n' \
+    '*\n' \
+    '* This software is protected by copyright laws of the United States and\n' \
+    '* of foreign countries. This material may also be protected by patent laws\n' \
+    '* and technology transfer regulations of the United States and of foreign\n' \
+    '* countries. This software is furnished under a license agreement and/or a\n' \
+    '* nondisclosure agreement and may only be used or reproduced in accordance\n' \
+    '* with the terms of those agreements. Dissemination of this information to\n' \
+    '* any party or parties not specified in the license agreement and/or\n' \
+    '* nondisclosure agreement is expressly prohibited.\n' \
+    '*\n' \
+    '* The above copyright notice and this permission notice shall be included\n' \
+    '* in all copies or substantial portions of the Software.\n' \
+    '*\n' \
+    '* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS\n' \
+    '* OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF\n' \
+    '* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.\n' \
+    '* IN NO EVENT SHALL MAXIM INTEGRATED BE LIABLE FOR ANY CLAIM, DAMAGES\n' \
+    '* OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,\n' \
+    '* ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR\n' \
+    '* OTHER DEALINGS IN THE SOFTWARE.\n' \
+    '*\n' \
+    '* Except as contained in this notice, the name of Maxim Integrated\n' \
+    '* Products, Inc. shall not be used except as stated in the Maxim Integrated\n' \
+    '* Products, Inc. Branding Policy.\n' \
+    '*\n' \
+    '* The mere transfer of this software does not imply any licenses\n' \
+    '* of trade secrets, proprietary technology, copyrights, patents,\n' \
+    '* trademarks, maskwork rights, or any other form of intellectual\n' \
+    '* property whatsoever. Maxim Integrated Products, Inc. retains all\n' \
+    '* ownership rights.\n' \
+    '*******************************************************************************/\n\n'
 
 
 def copyright_header(
