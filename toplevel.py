@@ -202,6 +202,8 @@ def main(
         memfile.write('  uint32_t trim;\n')
     if embedded_code and (classification_layer or softmax) or oneshot > 0:
         memfile.write('  int i;\n')
+    if embedded_code and (classification_layer or softmax):
+        memfile.write('  int digs, tens;\n')
     if embedded_code:
         memfile.write('  mxc_tmr_unit_t units;\n\n')
 
@@ -373,9 +375,11 @@ def main(
             if classification_layer or softmax:
                 memfile.write('  printf("Classification results:\\n");\n'
                               '  for (i = 0; i < NUM_OUTPUTS; i++) {\n'
-                              '    printf("[%6d] -> Class %d: %0.1f%%\\n", '
+                              '    digs = (100 * ml_softmax[i]) >> 15;\n'
+                              '    tens = ((1000 * ml_softmax[i] + 0x4000) >> 15) % 10;\n'
+                              '    printf("[%6d] -> Class %d: %d.%d%%\\n", '
                               f'{"fc_output" if classification_layer else "ml_data"}[i], '
-                              'i, (double) (100.0 * ml_softmax[i] / 32768.0));\n'
+                              'i, digs, tens);\n'
                               '  }\n\n')
 
     if riscv is not None and not riscv:
