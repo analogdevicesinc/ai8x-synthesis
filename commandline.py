@@ -105,6 +105,9 @@ def get_parser():
                             "default: false)")
     group.add_argument('--riscv-debug', action='store_true', default=False,
                        help="enable RISC-V debug interface (implies --riscv; default: false)")
+    group.add_argument('--riscv-disable-debugwait', dest='riscv_debugwait',
+                       action='store_false', default=True,
+                       help="disable the for loop before calling WFI() (default: use loop)")
     group.add_argument('--riscv-exclusive', action='store_true', default=False,
                        help="exclusive SRAM access for RISC-V (implies --riscv; default: false)")
 
