@@ -176,6 +176,7 @@ def main(
         riscv_flash=False,  # pylint: disable=unused-argument
         riscv_cache=False,
         riscv_debug=False,
+        riscv_debugwait=True,
         camera=False,
         camera_format=None,
         device=84,
@@ -201,6 +202,8 @@ def main(
     if clock_trim is not None and not riscv:
         memfile.write('  uint32_t trim;\n')
     if embedded_code and (classification_layer or softmax) or oneshot > 0:
+        memfile.write('  int i;\n')
+    if embedded_arm and riscv_debugwait:
         memfile.write('  int i;\n')
     if embedded_code and (classification_layer or softmax):
         memfile.write('  int digs, tens;\n')
@@ -386,6 +389,9 @@ def main(
         if sleep:
             memfile.write('  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=1\n')
         if embedded_arm:
+            if riscv_debugwait:
+                memfile.write('  for (i = 0; i < (1 << 27); i++); '
+                              '// Let debugger interrupt if needed\n')
             memfile.write('  __WFI(); // Let RISC-V run\n')
         else:
             memfile.write('  asm volatile("wfi"); // Let RISC-V run\n')
