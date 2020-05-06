@@ -36,36 +36,35 @@ PROJECT=max78000
 endif
 
 .PHONY: all arm release clean distclean riscv
-all: build/max78000-combined.elf
+all: build/$(PROJECT)-combined.elf
 
-build/max78000-combined.elf: arm riscv
-	arm-none-eabi-objcopy -I elf32-littlearm build/$(PROJECT).elf -O ihex build/$(PROJECT).hex
-	cat build/$(PROJECT).hex | sed '/^:00000001FF/d' > build/$(PROJECT)a.hex
-	riscv-none-embed-objcopy buildrv/$(PROJECT)-riscv.elf -O ihex buildrv/$(PROJECT)-riscv.hex
-	cat build/$(PROJECT)a.hex buildrv/$(PROJECT)-riscv.hex > build/$(PROJECT)-combined.hex
-	arm-none-eabi-objcopy -I ihex build/$(PROJECT)-combined.hex -O elf32-littlearm build/$(PROJECT)-combined.elf
+build/$(PROJECT)-combined.elf: build/$(PROJECT).elf buildrv/$(PROJECT)-riscv.elf arm riscv
+	@arm-none-eabi-objcopy -I elf32-littlearm build/$(PROJECT).elf -O ihex build/$(PROJECT).hex
+	@cat build/$(PROJECT).hex | sed '/^:00000001FF/d' > build/$(PROJECT)a.hex
+	@riscv-none-embed-objcopy buildrv/$(PROJECT)-riscv.elf -O ihex buildrv/$(PROJECT)-riscv.hex
+	@cat build/$(PROJECT)a.hex buildrv/$(PROJECT)-riscv.hex > build/$(PROJECT)-combined.hex
+	@arm-none-eabi-objcopy -I ihex build/$(PROJECT)-combined.hex -O elf32-littlearm build/$(PROJECT)-combined.elf
 
 arm:
-	$(MAKE) -f Makefile.ARM
+	@$(MAKE) -f Makefile.ARM
 
-common_riscv.ld: arm
-	grep "__FlashStart_" build/$(PROJECT).map | sed 's/__FlashStart_ = .*$$//' | sed 's/^ */__FlashStart = /' | sed 's/ *$$/;/' > common_riscv.ld
-	echo "__FlashLength = (0x10080000 - __FlashStart);" >> common_riscv.ld
+build/$(PROJECT).elf: arm
 
-riscv: common_riscv.ld
-	$(MAKE) -f Makefile.RISCV
+buildrv/common_riscv.ld: build/$(PROJECT).elf arm
+	@mkdir -p buildrv
+	@grep "__FlashStart_" build/$(PROJECT).map | sed 's/__FlashStart_ = .*$$//' | sed 's/^ */__FlashStart = /' | sed 's/ *$$/;/' > $@
+	@echo "__FlashLength = (0x10080000 - __FlashStart);" >> $@
 
-clean:
-	$(MAKE) -f Makefile.ARM clean
-	$(MAKE) -f Makefile.RISCV clean
-	@rm -f common_riscv.ld
+riscv: buildrv/common_riscv.ld arm build/$(PROJECT).elf
+	@$(MAKE) -f Makefile.RISCV
 
-distclean:
-	$(MAKE) -f Makefile.ARM distclean
-	$(MAKE) -f Makefile.RISCV distclean
-	@rm -f common_riscv.ld
+buildrv/$(PROJECT)-riscv.elf: riscv arm build/$(PROJECT).elf buildrv/common_riscv.ld
+
+clean distclean:
+	@$(MAKE) -f Makefile.ARM $@
+	@$(MAKE) -f Makefile.RISCV $@
 
 release: all
-	$(MAKE) -f Makefile.ARM release
-	$(MAKE) -f Makefile.RISCV release
-	arm-none-eabi-objcopy -I elf32-littlearm build/$(PROJECT)-combined.elf -O binary build/$(PROJECT)-combined.bin
+	@$(MAKE) -f Makefile.ARM $@
+	@$(MAKE) -f Makefile.RISCV $@
+	@arm-none-eabi-objcopy -I elf32-littlearm build/$(PROJECT)-combined.elf -O binary build/$(PROJECT)-combined.bin
