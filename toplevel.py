@@ -253,12 +253,16 @@ def main(
                 memfile.write('  MXC_BBFC->reg2 = 0x0; // Iso\n')
                 memfile.write('  MXC_BBFC->reg3 = 0x0; // Reset\n\n')
 
-                memfile.write('  MXC_GCR->pckdiv = 0x00010000; // AI clock: 100 MHz div 2\n')
-                memfile.write('  MXC_GCR->perckcn0 &= ~0x2000000; // Enable AI clock\n')
+                memfile.write('  MXC_GCR->pckdiv &= ~(MXC_F_GCR_PCKDIV_CNNCLKDIV | '
+                              'MXC_F_GCR_PCKDIV_CNNCLKSEL);\n'
+                              '  MXC_GCR->pckdiv |= MXC_S_GCR_PCKDIV_CNNCLKDIV_DIV1; '
+                              '// CNN clock: 100 MHz div 2\n')
+                memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CNN); '
+                              '// Enable CNN clock\n')
         else:
             memfile.write('  icache_enable();\n\n')
             if device == 84:
-                memfile.write('  MXC_GCR->perckcn1 &= ~0x20; // Enable AI clock\n')
+                memfile.write('  MXC_GCR->perckcn1 &= ~0x20; // Enable CNN clock\n')
             else:
                 memfile.write('  *((volatile uint32_t *) 0x40000c00) = 0x00000001; // Set TME\n')
                 memfile.write('  *((volatile uint32_t *) 0x40006c04) = 0x000001a0; // 96M trim\n')
@@ -276,8 +280,8 @@ def main(
                 memfile.write('  MXC_BBFC->reg2 = 0x0; // Iso\n')
                 memfile.write('  MXC_BBFC->reg3 = 0x0; // Reset\n\n')
 
-                memfile.write('  MXC_GCR->pckdiv = 0x00010000; // AI clock 96M div 2\n')
-                memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable AI clock\n')
+                memfile.write('  MXC_GCR->pckdiv = 0x00010000; // CNN clock 96M div 2\n')
+                memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable CNN clock\n')
 
         if riscv is not None:
             if riscv_cache:
