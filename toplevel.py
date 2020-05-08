@@ -371,7 +371,7 @@ def main(
                               '  for (i = 0; i < NUM_OUTPUTS; i++) {\n'
                               '    digs = (100 * ml_softmax[i]) >> 15;\n'
                               '    tens = ((1000 * ml_softmax[i] + 0x4000) >> 15) % 10;\n'
-                              '    printf("[%6d] -> Class %d: %d.%d%%\\n", '
+                              '    printf("[%7d] -> Class %d: %d.%d%%\\n", '
                               f'{"fc_output" if classification_layer else "ml_data"}[i], '
                               'i, digs, tens);\n'
                               '  }\n\n')
