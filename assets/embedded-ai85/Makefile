@@ -51,8 +51,8 @@ COMPILER=GCC
 
 # Specify the board used
 ifeq "$(BOARD)" ""
-BOARD=BCB
-#BOARD=EvKit_V1
+#BOARD=BCB
+BOARD=EvKit_V1
 #BOARD=Emulator
 endif
 
