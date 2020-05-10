@@ -287,19 +287,19 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
             if operator[sequence] == op.CONV2D:
                 if device == 84 and val not in ['3x3'] \
                         or device != 84 and val not in ['1x1', '3x3']:
-                    error_exit('Unsupported value for `kernel_size`', sequence)
+                    error_exit(f'Unsupported value `{val}` for `kernel_size`', sequence)
                 kernel_size[sequence] = [int(val[0]), int(val[2])]
             elif operator[sequence] == op.CONVTRANSPOSE2D:
                 if val not in ['3x3']:
-                    error_exit('Unsupported value for `kernel_size`', sequence)
+                    error_exit(f'Unsupported value `{val}` for `kernel_size`', sequence)
                 kernel_size[sequence] = [int(val[0]), int(val[2])]
             else:
                 try:
                     val = int(val)
                 except ValueError:
-                    error_exit('Unsupported value for `kernel_size`', sequence)
+                    error_exit(f'Unsupported value `{val}` for `kernel_size`', sequence)
                 if device == 84 and val != 9 or val < 1 or val > 9:
-                    error_exit('Unsupported value for `kernel_size`', sequence)
+                    error_exit(f'Unsupported value `{val}` for `kernel_size`', sequence)
                 kernel_size[sequence] = [val, 1]
         elif operator[sequence] == op.CONV1D:  # Set default for 1D convolution
             kernel_size[sequence] = DEFAULT_1D_KERNEL
