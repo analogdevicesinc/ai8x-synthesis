@@ -1,7 +1,7 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_May 11, 2020_
+_May 12, 2020_
 
 _Open the `.md` version of this file in a markdown enabled viewer, for example Typora (http://typora.io).
 See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A PDF copy of this file is available in the repository._
@@ -1563,7 +1563,7 @@ The RISC-V embedded compiler can be downloaded from [https://github.com/xpack-de
 Add the following to your `~/.profile`, adjusting for the actual `PATH` to the compilers:
 
 ```shell
-echo $PATH | grep -q -s "/usr/local/gcc-arm-none-eabi-7-2017-q4-major/bin"
+echo $PATH | grep -q -s "/usr/local/gcc-arm-none-eabi-9-2019-q4-major/bin"
 if [ $? -eq 1 ] ; then
     PATH=$PATH:/usr/local/gcc-arm-none-eabi-9-2019-q4-major/bin
     export PATH
