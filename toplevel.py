@@ -196,7 +196,7 @@ def main(
 
     if unload:
         memfile.write(f'#define NUM_OUTPUTS {num_classes}\n')
-        memfile.write(f'static uint{output_width}_t ml_data[NUM_OUTPUTS];\n\n')
+        memfile.write(f'static int{output_width}_t ml_data[NUM_OUTPUTS];\n\n')
 
     memfile.write('int main(void)\n{\n')
     if clock_trim is not None and not riscv:
@@ -359,7 +359,7 @@ def main(
         if classification_layer or softmax:
             memfile.write(f'  if (!{"softmax" if softmax else "fc"}_layer()) fail();\n')
         elif unload:
-            memfile.write('  cnn_unload(ml_data);\n')
+            memfile.write(f'  cnn_unload((uint{output_width}_t *) ml_data);\n')
         if classification_layer:
             memfile.write('  if (!fc_verify()) fail();\n')
 
@@ -441,7 +441,7 @@ def fc_layer(
         memfile.write('static const q7_t fc_weights[] = FC_WEIGHTS;\n\n')
 
     if not cmsis_nn:
-        memfile.write(f'static uint{output_width}_t ml_data[NUM_OUTPUTS];\n')
+        memfile.write(f'static int{output_width}_t ml_data[NUM_OUTPUTS];\n')
     if not softmax_only:
         memfile.write('static q15_t fc_buffer[FC_IN];\n')
         memfile.write('static q15_t fc_output[NUM_OUTPUTS];\n')
@@ -453,7 +453,7 @@ def fc_layer(
 
     if not cmsis_nn:
         memfile.write(f'int {"softmax" if softmax_only else "fc"}_layer(void)\n'
-                      '{\n  cnn_unload(ml_data);\n')
+                      f'{{\n  cnn_unload((uint{output_width}_t *) ml_data);\n')
     else:
         memfile.write('int fc_layer(q7_t *ml_data)\n'
                       '{\n')
