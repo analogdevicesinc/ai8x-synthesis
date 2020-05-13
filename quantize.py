@@ -23,6 +23,9 @@ CONV_SCALE_BITS = 8
 FC_SCALE_BITS = 8
 FC_CLAMP_BITS = 8
 
+DEFAULT_SCALE = .85
+DEFAULT_STDDEV = 2.0
+
 
 def convert_checkpoint(dev, input_file, output_file, arguments):
     """
@@ -78,14 +81,20 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
 
     # Scale to our fixed point representation using any of four methods
     # The 'magic constant' seems to work best!?? FIXME
-    if arguments.clip_mode == 'STD':
+    if arguments.clip_mode == 'STDDEV':
         sat_fn = partial(mean_n_stds_max_abs, n_stds=arguments.stddev)
+        checkpoint['extras']['clipping_method'] = 'STDDEV'
+        checkpoint['extras']['clipping_nstds'] = arguments.stddev
     elif arguments.clip_mode == 'MAX':
         sat_fn = max_max
+        checkpoint['extras']['clipping_method'] = 'MAX'
     elif arguments.clip_mode == 'AVGMAX':
         sat_fn = avg_max
+        checkpoint['extras']['clipping_method'] = 'AVGMAX'
     else:
         sat_fn = get_const
+        checkpoint['extras']['clipping_method'] = 'SCALE'
+        checkpoint['extras']['clipping_scale'] = arguments.scale
     fc_sat_fn = get_const
 
     first = True
@@ -214,18 +223,28 @@ if __name__ == '__main__':
                         help='work on quantized checkpoint')
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
                         help='verbose mode')
-    parser.add_argument('--clip-mode', default='SCALE',
-                        choices=['AVGMAX', 'MAX', 'STD', 'SCALE'],
-                        help='saturation clipping for conv2d (default: magic scale)')
-    parser.add_argument('--scale', type=float, default=0.85,
-                        help='set the scale value for the SCALE mode (default: magic 0.85)')
-    parser.add_argument('--stddev', type=float, default=2.0,
-                        help='set the number of standard deviations for the STD mode (default: 2)')
+    parser.add_argument('--clip-method', default='SCALE', dest='clip_mode',
+                        choices=['AVGMAX', 'MAX', 'STDDEV', 'SCALE'],
+                        help='saturation clipping method (default: SCALE)')
+    parser.add_argument('--scale', type=float,
+                        help='set the scale value for the SCALE method (default: magic '
+                             f'{DEFAULT_SCALE:.2f})')
+    parser.add_argument('--stddev', type=float,
+                        help='set the number of standard deviations for the STDDEV method '
+                             f'(default: {DEFAULT_STDDEV:.2f})')
     args = parser.parse_args()
 
     # Configure device
     if not args.device:
         args.device = 84
+    if args.clip_mode == 'SCALE' and not args.scale:
+        print('WARNING: Using the default scale factor of '
+              f'{DEFAULT_SCALE:.2f}.\n')
+        args.scale = DEFAULT_SCALE
+    if args.clip_mode == 'STDDEV' and not args.stddev:
+        print('WARNING: Using the default number of standard deviations of '
+              f'{DEFAULT_STDDEV:.2f}.\n')
+        args.stddev = DEFAULT_STDDEV
     tc.dev = tc.get_device(args.device)
 
     convert_checkpoint(args.device, args.input, args.output, args)
