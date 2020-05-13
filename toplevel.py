@@ -251,9 +251,9 @@ def main(
                 memfile.write('  MXC_BBFC->reg2 = 0x0; // Iso\n')
                 memfile.write('  MXC_BBFC->reg3 = 0x0; // Reset\n\n')
 
-                memfile.write('  MXC_GCR->pckdiv &= ~(MXC_F_GCR_PCKDIV_CNNCLKDIV | '
-                              'MXC_F_GCR_PCKDIV_CNNCLKSEL);\n'
-                              '  MXC_GCR->pckdiv |= MXC_S_GCR_PCKDIV_CNNCLKDIV_DIV1; '
+                memfile.write('  MXC_GCR->pclkdiv &= ~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | '
+                              'MXC_F_GCR_PCLKDIV_CNNCLKSEL);\n'
+                              '  MXC_GCR->pclkdiv |= MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1; '
                               '// CNN clock: 100 MHz div 2\n')
                 memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CNN); '
                               '// Enable CNN clock\n')
@@ -297,7 +297,7 @@ def main(
                     memfile.write('  *((volatile uint32_t *) 0x40000814) |= 0x00000001; '
                                   '// Exclusive SRAM access for RISC-V (MXC_NBBFC->reg5)\n')
             if embedded_code or embedded_arm:
-                memfile.write('  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_CPU1D; '
+                memfile.write('  MXC_GCR->pclkdis1 &= ~MXC_F_GCR_PCLKDIS1_CPU1; '
                               '// Enable RISC-V clock\n')
             else:
                 memfile.write('  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_CPU1; '
