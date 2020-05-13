@@ -146,9 +146,9 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
             val = ll['output_shift']
             val += 3 - ffs(quantization[sequence])
             output_shift[sequence] = val
-            min_range = -19 + ffs(quantization[sequence])
-            max_range = 13 + ffs(quantization[sequence])
-            if val < -2**3 or val > 2**3:
+            min_range = -18 + ffs(quantization[sequence])
+            max_range = 12 + ffs(quantization[sequence])
+            if val < -15 or val > 15:
                 error_exit(f'`output_shift` for quantization `{quantization[sequence]} `must be '
                            f'in range [{min_range}, {max_range}]', sequence)
 
