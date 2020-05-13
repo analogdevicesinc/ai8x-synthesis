@@ -171,6 +171,8 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
                 activation[sequence] = op.ACT_RELU
             elif ll[key].lower() == 'abs':
                 activation[sequence] = op.ACT_ABS
+            elif ll[key].lower() == 'none':
+                activation[sequence] = None
             else:
                 error_exit(f'Unknown value "{ll[key]}" for `{key}`', sequence)
                 sys.exit(1)
