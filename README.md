@@ -1251,7 +1251,7 @@ Example:
 
 ##### `activate` (Optional)
 
-This key describes whether to activate the layer output (the default is to not activate). When specified, this key must be `ReLU` or `Abs`. AI84 supports `ReLU` only.
+This key describes whether to activate the layer output (the default is to not activate). When specified, this key must be `ReLU`, `Abs` or `None` (the default). AI84 supports `ReLU` (and `None`) only.
 
 Note that the output values are clipped (saturated) to $[0, +127]$. Because of this, `ReLU` behaves more similar to PyTorch’s `nn.Hardtanh(min_value=0, max_value=127)` than to PyTorch’s `nn.ReLU()`.
 
@@ -1273,14 +1273,14 @@ Example:
 
 On AI85, when `output_width` is 8, the 32-bit intermediate result can be shifted left or right before reduction to 8-bit. The value specified here is cumulative with the value generated from `quantization`.
 
-The 32-bit intermediate result is multiplied by $2^{totalshift}$ , where the total shift count must be within the range $[-8, +8]$, resulting in a factor of $[2^{-8}, 2^8]$ or $[0.00390625$ to $256]$.
+The 32-bit intermediate result is multiplied by $2^{totalshift}$ , where the total shift count must be within the range $[-15, +15]$, resulting in a factor of $[2^{–15}, 2^{15}]$ or $[0.0000305176$ to $32768]$.
 
 | quantization | implicit shift | range for `output_shift` |
 | ------------ | -------------- | ------------------------ |
-| 8-bit        | 0              | $[-8, +8]$               |
-| 4-bit        | 1              | $[-9,+7]$                |
-| 2-bit        | 2              | $[-10,+6]$               |
-| 1-bit        | 4              | $[-11,+5]$               |
+| 8-bit        | 0              | $[-15, +15]$             |
+| 4-bit        | 1              | $[-16, +14]$             |
+| 2-bit        | 2              | $[-17, +13]$             |
+| 1-bit        | 3              | $[-18, +12]$             |
 
 Using `output_shift` can help normalize data, particularly when using small weights.
 
