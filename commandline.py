@@ -136,8 +136,10 @@ def get_parser():
                        help="stop and then restart the accelerator (default: false)")
     group.add_argument('--one-shot', action='store_true', default=False,
                        help="use layer-by-layer one-shot mechanism (default: false)")
+    group.add_argument('--repeat-layers', type=int, metavar='N', default=1,
+                       help="repeat layers N times (default: once)")
     group.add_argument('--clock-trim', metavar='LIST', default=None,
-                       help="comma-separated hexadecimal clock trim for HIRC8M,HIRC,HIRC96M; use"
+                       help="comma-separated hexadecimal clock trim for IBRO,ISO,IPO; use"
                             "0 to ignore a particular trim")
 
     # RTL sim
