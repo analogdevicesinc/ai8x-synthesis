@@ -17,6 +17,11 @@ import numpy as np
 d = np.random.randint(-128, 127, (3, 11, 11), dtype=np.int64)
 np.save('sample_test_layers', d, allow_pickle=False, fix_imports=False)
 
+# Use fixed alternating values
+# d = np.full((64, 8, 8), -86, dtype=np.int64)
+# d[:,:,::2] = 0x55
+# np.save('sample_test_burnin_64x8x8', d, allow_pickle=False, fix_imports=False)
+
 # Sample for 7x12x12 element-wise operations (double the channels for two operators)
 # d = np.random.randint(-128, 127, (14, 12, 12), dtype=np.int64)
 # np.save('sample_test_eltwise7', d, allow_pickle=False, fix_imports=False)

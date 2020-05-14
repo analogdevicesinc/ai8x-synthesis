@@ -146,6 +146,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         unload=False,
         clock_trim=None,
         repeat_layers=1,
+        fixed_input=False,
+        max_count=None,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -524,6 +526,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 csv_file=csv,
                 camera_format=input_csv_format,
                 camera_retrace=input_csv_retrace,
+                fixed_input=fixed_input,
                 debug=debug,
             )
         if not block_mode and (embedded_code or mexpress or compact_weights):
@@ -1866,6 +1869,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 overwrite_ok or streaming[ll],
                 no_error_stop,
                 mlator=mlator if ll == layers-1 else False,
+                max_count=max_count,
             )
             apb.verify_footer()
         finally:
@@ -2171,6 +2175,8 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
     else:
         sampledata_file = args.sample_input
     data = sampledata.get(sampledata_file)
+    if np.max(data) > 127 or np.min(data) < -128:
+        raise ValueError(f'Input data {sampledata_file} contains values that exceed 8-bit!')
     # Work with 1D input data
     if len(data.shape) < 3:
         data = np.expand_dims(data, axis=2)
@@ -2426,6 +2432,8 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
             args.unload,
             args.clock_trim,
             args.repeat_layers,
+            args.fixed_input,
+            args.max_count,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

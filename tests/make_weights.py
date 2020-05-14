@@ -18,6 +18,14 @@ import numpy as np
 d = np.random.randint(-128, 127, (1, 2, 5, 1, 1), dtype=np.int64)
 np.save('weights_test_conv2Dk1x1', d, allow_pickle=False, fix_imports=False)
 
+# Fixed alternating values (single layer)
+# d = np.full((1, 64, 64, 3, 3), -86, dtype=np.int64)
+# d[:, ::2, :, ::2, ::2] = 0x55
+# d[:, ::2, :, 1::2, 1::2] = 0x55
+# d[:, 1::2, :, ::2, 1::2] = 0x55
+# d[:, 1::2, :, 1::2, ::2] = 0x55
+# np.save('weights_test_burnin_64-64', d, allow_pickle=False, fix_imports=False)
+
 # Same for element-wise (ChIn == ChOut)
 # d = np.zeros((1, 7, 7, 1, 1), dtype=np.int64)
 # np.save('weights_test_eltwise7', d, allow_pickle=False, fix_imports=False)

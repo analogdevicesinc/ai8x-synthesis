@@ -82,6 +82,8 @@ def load(
     for ll in range(layers):
         # Re-quantize if needed (these random sample weights, so no need to round etc.)
         current_quant = max(fls(int(w[ll].max())), fls(int(w[ll].min() + 1))) + 2
+        if current_quant > 8:  # Either way, more than 8 bits is an error
+            raise ValueError('ERROR: Weight file includes values larger than 8 bit!')
         if current_quant > quantization[ll]:
             w[ll] >>= current_quant - quantization[ll]
 

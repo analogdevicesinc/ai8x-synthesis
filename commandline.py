@@ -141,6 +141,10 @@ def get_parser():
     group.add_argument('--clock-trim', metavar='LIST', default=None,
                        help="comma-separated hexadecimal clock trim for IBRO,ISO,IPO; use"
                             "0 to ignore a particular trim")
+    group.add_argument('--fixed-input', action='store_true', default=False,
+                       help="use fixed 0xaa/0x55 alternating input (default: false)")
+    group.add_argument('--max-checklines', type=int, metavar='N', default=None, dest='max_count',
+                       help="output only N output check lines (default: all)")
 
     # RTL sim
     group = parser.add_argument_group('RTL simulation')
