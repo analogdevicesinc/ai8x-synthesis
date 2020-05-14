@@ -547,7 +547,8 @@ class APB():
             overwrite_ok=False,
             no_error_stop=False,
             mlator=False,
-    ):  # pylint: disable=unused-argument
+            max_count=None,
+    ):
         """
         Write a verification function. The layer to unload has the shape `input_shape`,
         and the optional `output_offset` argument can shift the output.
@@ -572,6 +573,7 @@ class APB():
             mlator=mlator,
             apb_base=self.apb_base,
             stream=self.memfile,
+            max_count=max_count,
         )
 
     def output_define(  # pylint: disable=no-self-use

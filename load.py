@@ -40,6 +40,7 @@ def load(
         csv_file=None,
         camera_format=888,
         camera_retrace=0,
+        fixed_input=False,
         debug=False,
 ):
     """
@@ -160,10 +161,12 @@ def load(
                     code_buffer[offs] = val
                     offs += 1
 
-                apb.output_define(code_buffer, f'INPUT_{ch}', '0x%08x', 8, weights=False)
+                if not fixed_input:
+                    apb.output_define(code_buffer, f'INPUT_{ch}', '0x%08x', 8, weights=False)
                 if riscv_flash:
                     apb.output(rv.RISCV_FLASH)
-                apb.output(f'static const uint32_t input_{ch}[] = INPUT_{ch};\n\n')
+                if not fixed_input:
+                    apb.output(f'static const uint32_t input_{ch}[] = INPUT_{ch};\n\n')
                 input_list.append((addr, ch, offs))
 
                 apb.data_offs = data_offs  # For mixed HWC/CHW operation
@@ -269,10 +272,12 @@ def load(
                                    f'channels {e[2]} to {e[3]}\n')
                         buf[i::in_expand] = e[0]
 
-                    apb.output_define(buf, f'INPUT_{proc}', '0x%08x', 8, weights=False)
+                    if not fixed_input:
+                        apb.output_define(buf, f'INPUT_{proc}', '0x%08x', 8, weights=False)
                     if riscv_flash:
                         apb.output(rv.RISCV_FLASH)
-                    apb.output(f'static const uint32_t input_{proc}[] = INPUT_{proc};\n\n')
+                    if not fixed_input:
+                        apb.output(f'static const uint32_t input_{proc}[] = INPUT_{proc};\n\n')
 
                     # Append information using first address, processor number, and total length
                     input_list.append((buffer_list[proc][0][1], proc, offs * in_expand))
@@ -286,10 +291,24 @@ def load(
 
     if embedded_code:
         if input_list:
+            if fixed_input:
+                apb.output('\nvoid memcpy32_const(uint32_t *dst, int n)\n'
+                           '{\n'
+                           '  while (n > 0) {\n'
+                           '    *dst++ = 0x55555555;\n'
+                           '    *dst++ = 0xaaaaaaaa;\n'
+                           '    n -= 2;\n'
+                           '  }\n'
+                           '}\n\n')
+
             apb.output('void load_input(void)\n{\n')
             for _, (addr, ch, offs) in enumerate(input_list):
-                apb.output(f'  memcpy32((uint32_t *) 0x{apb.apb_base + addr:08x}, input_{ch}, '
-                           f'{offs});\n')
+                if not fixed_input:
+                    apb.output(f'  memcpy32((uint32_t *) 0x{apb.apb_base + addr:08x}, input_{ch}, '
+                               f'{offs});\n')
+                else:
+                    apb.output(f'  memcpy32_const((uint32_t *) 0x{apb.apb_base + addr:08x}, '
+                               f'{offs});\n')
         apb.output('}\n\n')
     else:
         apb.output(f'  // End of data input\n\n')

@@ -230,6 +230,7 @@ def verify(
         mlator=False,
         apb_base=0,
         stream=None,
+        max_count=None,
 ):
     """
     Verify HWC memory from AI84, writing C or mem code using the `verify_fn` function.
@@ -242,6 +243,8 @@ def verify(
     When `mlator` is set, use the hardware mechanism to rearrange 4-channel data into single
     channels.
     """
+    count = 0
+
     def check_overwrite(
             p,
             target_offs,
@@ -343,14 +346,15 @@ def verify(
                         )
                         if out_map is not None:
                             out_map[offs >> 2] = (this_c, row, col, val)
-                        verify_fn(
-                            offs,
-                            val,
-                            rv=False,
-                            comment=f' // {row},{col},{this_c}-{this_c+num_bytes-1}',
-                            num_bytes=num_bytes,
-                            first_proc=ffs(next_layer_map >> proc) % 4,
-                        )
+                        if max_count is None or count < max_count:
+                            verify_fn(
+                                offs,
+                                val,
+                                rv=False,
+                                comment=f' // {row},{col},{this_c}-{this_c+num_bytes-1}',
+                                num_bytes=num_bytes,
+                                first_proc=ffs(next_layer_map >> proc) % 4,
+                            )
                     else:
                         for i in range(min(num_bytes, out_size)):
                             check_overwrite(
@@ -364,13 +368,17 @@ def verify(
                             )
                             if out_map is not None:
                                 out_map[offs >> 2] = (this_c, row, col, val[i])
-                            verify_fn(
-                                offs,
-                                val[i],
-                                rv=False,
-                                comment=f' // {row},{col},{this_c+i}',
-                            )
+                            if max_count is None or count < max_count:
+                                verify_fn(
+                                    offs,
+                                    val[i],
+                                    rv=False,
+                                    comment=f' // {row},{col},{this_c+i}',
+                                )
                             offs += out_size
+                    count += 1
+                    if count == max_count:
+                        stream.write('  // Truncated further checks...\n')
 
                 coffs += 4
                 poffs += 4

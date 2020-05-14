@@ -372,3 +372,4 @@
 ./ai8xize.py --verbose --autogen rtlsim-ai85 --top-level cnn -L --test-dir rtlsim-ai85 --prefix ai85-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --ai85 --stop-after 1
 ./ai8xize.py --verbose --autogen rtlsim-ai85 --top-level cnn -L --test-dir rtlsim-ai85 --prefix ai85-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --ai85 --mexpress --stop-after 5
 ./ai8xize.py --verbose --autogen rtlsim-ai85 --top-level cnn -L --test-dir rtlsim-ai85 --prefix ai85-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --ai85 --mexpress
+
