@@ -369,8 +369,9 @@ def main(
             if classification_layer or softmax:
                 memfile.write('  printf("Classification results:\\n");\n'
                               '  for (i = 0; i < NUM_OUTPUTS; i++) {\n'
-                              '    digs = (100 * ml_softmax[i]) >> 15;\n'
-                              '    tens = ((1000 * ml_softmax[i] + 0x4000) >> 15) % 10;\n'
+                              '    digs = (1000 * ml_softmax[i] + 0x4000) >> 15;\n'
+                              '    tens = digs % 10;\n'
+                              '    digs = digs / 10;\n'
                               '    printf("[%7d] -> Class %d: %d.%d%%\\n", '
                               f'{"fc_output" if classification_layer else "ml_data"}[i], '
                               'i, digs, tens);\n'
