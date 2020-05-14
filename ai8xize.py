@@ -2043,6 +2043,7 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
                 params['quantization'],
                 params['bias_quantization'],
                 len(cfg['layers']),
+                cfg['weights'] if 'weights' in cfg else None,
                 cfg['bias'] if 'bias' in cfg else None,
                 args.no_bias,
             )

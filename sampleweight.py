@@ -1,6 +1,6 @@
 ###################################################################################################
 #
-# Copyright (C) 2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -22,7 +22,8 @@ def load(
         quantization,
         bias_quantization,  # pylint: disable=unused-argument
         cfg_layers,
-        cfg_bias,
+        cfg_weights=None,
+        cfg_bias=None,
         no_bias=None,
 ):
     """
@@ -44,7 +45,10 @@ def load(
 
     w = []
     layers = 0
-    fname = os.path.join('tests', f'weights_{dataset}.npy')
+    if cfg_weights is None:
+        fname = os.path.join('tests', f'weights_{dataset}.npy')
+    else:
+        fname = os.path.join('tests', f'{cfg_weights}.npy')
     with open(fname, mode='rb') as file:
         print(f'Reading weights from {fname}...')
         try:
