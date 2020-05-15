@@ -1,7 +1,7 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_May 13, 2020_
+_May 15, 2020_
 
 _Open the `.md` version of this file in a markdown enabled viewer, for example Typora (http://typora.io).
 See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A PDF copy of this file is available in the repository._
@@ -1017,6 +1017,7 @@ The following table describes the most important command line arguments for `ai8
 | `--mlator`               | Use hardware to swap output bytes (useful for large multi-channel outputs) |                                 |
 | `--unload`               | Add cnn_unload() function to generated code                  |                                 |
 | `--softmax`              | Add cnn_unload() and Softmax functions to generated code     |                                 |
+| `--boost`                | Turn on a port pin to boost the CNN supply                   | `--boost 2.5`                   |
 | *File names*             |                                                              |                                 |
 | `--c-filename`           | C file name base (default: main.c)                           | `--c-filename cnn.c`            |
 | `--weight-filename`      | Weight header file name (default: weights.h)                 | `--weight-filename wt.h`        |

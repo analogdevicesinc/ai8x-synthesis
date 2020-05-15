@@ -148,6 +148,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         repeat_layers=1,
         fixed_input=False,
         max_count=None,
+        boost=None,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -427,6 +428,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 clock_trim=clock_trim,
                 embedded_arm=embedded_code,
                 groups=list(set().union(groups_used)),
+                boost=boost,
             )
 
     if input_csv is not None:
@@ -1943,6 +1945,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 output_width=output_width[-1],
                 clock_trim=clock_trim,
                 groups=list(set().union(groups_used)),
+                boost=boost,
             )
 
     # Close header files
@@ -2436,6 +2439,7 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
             args.repeat_layers,
             args.fixed_input,
             args.max_count,
+            args.boost,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

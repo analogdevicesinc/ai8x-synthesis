@@ -68,6 +68,9 @@ def get_parser():
                         help="add a 'cnn_unload()' function (default: false)")
     mgroup.add_argument('--softmax', action='store_true', default=False,
                         help="add unload and software softmax functions (default: false)")
+    group.add_argument('--boost', metavar='S', default=None,
+                       help="dot-separated port and pin that is turned on during CNN run to "
+                            "boost the power supply, e.g. --boost 2.5 (default: None)")
 
     # File names
     group = parser.add_argument_group('File names')
@@ -282,5 +285,16 @@ def get_parser():
         if clock_trim_error:
             raise ValueError('ERROR: Argument --clock-trim must be a comma-separated '
                              'list of three hexadecimal values (use 0 to ignore a value)')
+
+    if args.boost is not None:
+        boost_error = False
+        try:
+            args.boost = [int(s, 0) for s in args.boost.split('.')]
+            if len(args.boost) != 2:
+                boost_error = True
+        except ValueError:
+            boost_error = True
+        if boost_error:
+            raise ValueError('ERROR: Argument --boost must be a port.pin')
 
     return args
