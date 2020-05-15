@@ -90,8 +90,6 @@ def header(
             memfile.write('#include "bbfc_regs.h"\n')
             memfile.write('#include "fcr_regs.h"\n')
             memfile.write('#include "icc.h"\n')
-            if riscv:
-                memfile.write('#include "icc_reva.h"\n')
             memfile.write('#include "led.h"\n')
             memfile.write('#include "tmr.h"\n')
         else:
@@ -221,7 +219,7 @@ def main(
                 memfile.write('  icache_enable();\n\n')
                 memfile.write('  SYS_ClockEnable(SYS_PERIPH_CLOCK_AI);\n')
             else:
-                memfile.write('\n  MXC_ICC_Enable(); // Enable cache\n\n')
+                memfile.write('\n  MXC_ICC_Enable(MXC_ICC0); // Enable cache\n\n')
                 if clock_trim is not None:
                     memfile.write('  // Manual clock trim override:\n')
                     memfile.write('  *((volatile uint32_t *) 0x40000c00) = 1; '
@@ -318,7 +316,7 @@ def main(
                 memfile.write('  icache1_enable();\n')
                 memfile.write('  invalidate_icache1();\n\n')
             else:
-                memfile.write('  MXC_ICC_RevA_Enable(MXC_ICC1); // Enable cache\n\n')
+                memfile.write('  MXC_ICC_Enable(MXC_ICC1); // Enable cache\n\n')
 
     if camera:
         memfile.write('  enable_pcif_clock(); // Enable camera clock\n')
