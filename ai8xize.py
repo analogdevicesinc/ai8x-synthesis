@@ -426,6 +426,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             apb.main(
                 clock_trim=clock_trim,
                 embedded_arm=embedded_code,
+                groups=list(set().union(groups_used)),
             )
 
     if input_csv is not None:
@@ -1941,6 +1942,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 num_classes=output_chan[-1],
                 output_width=output_width[-1],
                 clock_trim=clock_trim,
+                groups=list(set().union(groups_used)),
             )
 
     # Close header files
