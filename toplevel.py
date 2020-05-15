@@ -185,6 +185,7 @@ def main(
         clock_trim=None,
         embedded_arm=False,
         groups=None,
+        boost=None,
 ):
     """
     Write the main function (including an optional call to the fully connected layer if
@@ -262,6 +263,17 @@ def main(
                               '// CNN clock: 100 MHz div 2\n')
                 memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CNN); '
                               '// Enable CNN clock\n')
+
+                if boost is not None:
+                    memfile.write(f'\n  // Configure P{boost[0]}.{boost[1]}, '
+                                  'turn on the CNN Boost\n')
+                    memfile.write('  mxc_gpio_cfg_t gpio_out;\n')
+                    memfile.write(f'  gpio_out.port = MXC_GPIO{boost[0]};\n')
+                    memfile.write(f'  gpio_out.mask = MXC_GPIO_PIN_{boost[1]};\n')
+                    memfile.write('  gpio_out.pad = MXC_GPIO_PAD_NONE;\n')
+                    memfile.write('  gpio_out.func = MXC_GPIO_FUNC_OUT;\n')
+                    memfile.write('  MXC_GPIO_Config(&gpio_out);\n')
+                    memfile.write('  MXC_GPIO_OutSet(gpio_out.port, gpio_out.mask);\n')
         else:
             memfile.write('  icache_enable();\n\n')
             if device == 84:
@@ -360,6 +372,11 @@ def main(
             memfile.write('    cnn_restart();\n')
             memfile.write('    cnn_wait();\n')
             memfile.write('  }\n\n')
+
+        if boost is not None:
+            memfile.write('  // Turn off the CNN Boost\n')
+            memfile.write('  MXC_GPIO_OutClr(gpio_out.port, gpio_out.mask);\n\n')
+
         memfile.write('  if (!cnn_check()) fail();\n')
         if classification_layer or softmax:
             memfile.write(f'  if (!{"softmax" if softmax else "fc"}_layer()) fail();\n')
