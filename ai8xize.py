@@ -2486,7 +2486,7 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
         )
 
     print("SUMMARY OF OPS")
-    stats.print_summary(args.debug)
+    stats.print_summary(factor=args.repeat_layers, debug=args.debug)
 
 
 def signal_handler(
