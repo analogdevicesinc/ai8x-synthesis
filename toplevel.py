@@ -186,11 +186,18 @@ def main(
         num_classes=None,
         clock_trim=None,
         embedded_arm=False,
+        groups=None,
 ):
     """
     Write the main function (including an optional call to the fully connected layer if
     `classification_layer` is `True`) to `memfile`.
     """
+    assert groups is not None
+    mask = 0
+    for _, group in enumerate(groups):
+        mask |= 1 << group
+    unmask = ~mask & ((1 << tc.dev.P_NUMGROUPS) - 1)
+
     if softmax and output_width == 8:
         eprint('--softmax should only be used with `output_width: 32`', error=False)
 
@@ -245,10 +252,10 @@ def main(
                 memfile.write('  SystemCoreClockUpdate();\n')
 
                 memfile.write('\n  // Reset all domains, restore power to CNN\n')
-                memfile.write('  MXC_BBFC->reg3 = 0xf; // Reset\n')
-                memfile.write('  MXC_BBFC->reg1 = 0xf; // Mask\n')
-                memfile.write('  MXC_BBFC->reg0 = 0xf; // Power\n')
-                memfile.write('  MXC_BBFC->reg2 = 0x0; // Iso\n')
+                memfile.write(f'  MXC_BBFC->reg3 = 0x{mask:01x}; // Reset\n')
+                memfile.write(f'  MXC_BBFC->reg1 = 0x{mask:01x}; // Mask\n')
+                memfile.write(f'  MXC_BBFC->reg0 = 0x{mask:01x}; // Power\n')
+                memfile.write(f'  MXC_BBFC->reg2 = 0x{unmask:01x}; // Iso\n')
                 memfile.write('  MXC_BBFC->reg3 = 0x0; // Reset\n\n')
 
                 memfile.write('  MXC_GCR->pclkdiv &= ~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | '
@@ -272,10 +279,10 @@ def main(
                 memfile.write('  MXC_GCR->clkcn |= MXC_S_GCR_CLKCN_CLKSEL_HIRC96; // Select 96M\n')
 
                 memfile.write('\n  // Reset all domains, restore power to CNN\n')
-                memfile.write('  MXC_BBFC->reg3 = 0xf; // Reset\n')
-                memfile.write('  MXC_BBFC->reg1 = 0xf; // Mask\n')
-                memfile.write('  MXC_BBFC->reg0 = 0xf; // Power\n')
-                memfile.write('  MXC_BBFC->reg2 = 0x0; // Iso\n')
+                memfile.write(f'  MXC_BBFC->reg3 = 0x{mask:01x}; // Reset\n')
+                memfile.write(f'  MXC_BBFC->reg1 = 0x{mask:01x}; // Mask\n')
+                memfile.write(f'  MXC_BBFC->reg0 = 0x{mask:01x}; // Power\n')
+                memfile.write(f'  MXC_BBFC->reg2 = 0x{unmask:01x}; // Iso\n')
                 memfile.write('  MXC_BBFC->reg3 = 0x0; // Reset\n\n')
 
                 memfile.write('  MXC_GCR->pckdiv = 0x00010000; // CNN clock 96M div 2\n')
