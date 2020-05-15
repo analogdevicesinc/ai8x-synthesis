@@ -60,7 +60,7 @@ endif
 ifeq "$(MAXIM_PATH)" ""
 LIBS_DIR=../../../../Libraries
 else
-LIBS_DIR=/$(subst \,/,$(subst :,,$(MAXIM_PATH))/Firmware/$(TARGET_UC)/Libraries)
+LIBS_DIR=/$(subst \,/,$(subst :,,$(MAXIM_PATH))/Libraries)
 endif
 CMSIS_ROOT=$(LIBS_DIR)/CMSIS
 
