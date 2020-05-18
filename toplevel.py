@@ -187,6 +187,8 @@ def main(
         groups=None,
         boost=None,
         forever=False,
+        fifo=False,
+        mexpress=False,
 ):
     """
     Write the main function (including an optional call to the fully connected layer if
@@ -412,29 +414,39 @@ def main(
         else:
             memfile.write('  printf("Starting endless loop...\\n");\n\n')
 
-            memfile.write('  while(1) {\n'
-                          '    *((volatile uint32_t *) 0x50100000) = 0x00100008; // Stop SM\n')
-            if 1 in groups:
-                memfile.write('    *((volatile uint32_t *) 0x50500000) = 0x00100008; // Stop SM\n')
-            if 2 in groups:
-                memfile.write('    *((volatile uint32_t *) 0x50900000) = 0x00100008; // Stop SM\n')
-            if 3 in groups:
-                memfile.write('    *((volatile uint32_t *) 0x50d00000) = 0x00100008; // Stop SM\n')
-            memfile.write('    *((volatile uint32_t *) 0x50100000) = 0x00100808; '
-                          '// Enable group 0\n')
-            if 1 in groups:
-                memfile.write('    *((volatile uint32_t *) 0x50500000) = 0x00100809; '
-                              '// Enable group 1\n')
-            if 2 in groups:
-                memfile.write('    *((volatile uint32_t *) 0x50900000) = 0x00100809; '
-                              '// Enable group 2\n')
-            if 3 in groups:
-                memfile.write('    *((volatile uint32_t *) 0x50d00000) = 0x00100809; '
-                              '// Enable group 3\n')
-            memfile.write('    *((volatile uint32_t *) 0x50100000) = 0x00100009; '
+            memfile.write('  while(1) {\n')
+
+            gval = tc.dev.READY_SEL << 1
+            if fifo:
+                gval |= 1 << 15
+            if device != 84:
+                gval |= 1 << 3  # Enable clocks
+            if mexpress:
+                gval |= 1 << 20
+
+            for _, group in enumerate(groups):
+                addr = tc.dev.APB_BASE + tc.dev.C_GROUP_OFFS*group + tc.dev.C_CNN_BASE \
+                    + tc.dev.REG_CTL*4
+                memfile.write(f'    *((volatile uint32_t *) 0x{addr:08x}) = 0x{gval:08x}; '
+                              '// Stop SM\n')
+            for _, group in enumerate(groups):
+                val = gval | 0x800
+                if group > 0:
+                    val |= 0x01
+                addr = tc.dev.APB_BASE + tc.dev.C_GROUP_OFFS*group + tc.dev.C_CNN_BASE \
+                    + tc.dev.REG_CTL*4
+                memfile.write(f'    *((volatile uint32_t *) 0x{addr:08x}) = 0x{val:08x}; '
+                              f'// Enable group {group}\n')
+
+            addr = tc.dev.APB_BASE + tc.dev.C_CNN_BASE \
+                + tc.dev.REG_CTL*4
+            memfile.write(f'    *((volatile uint32_t *) 0x{addr:08x}) = 0x{gval | 0x01:08x}; '
                           '// Master enable group 0\n')
-            memfile.write('    while ((*((volatile uint32_t *) 0x50100000) & '
-                          '(1<<12)) != 1<<12) ;\n')
+
+            memfile.write(f'    while ((*((volatile uint32_t *) '
+                          f'0x{tc.dev.APB_BASE + tc.dev.C_CNN_BASE:08x}) '
+                          '& (1<<12)) != 1<<12) ;\n')
+
             memfile.write('  }\n')
 
     if riscv is not None and not riscv:
