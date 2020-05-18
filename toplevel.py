@@ -186,6 +186,7 @@ def main(
         embedded_arm=False,
         groups=None,
         boost=None,
+        forever=False,
 ):
     """
     Write the main function (including an optional call to the fully connected layer if
@@ -251,8 +252,8 @@ def main(
                 memfile.write('  SystemCoreClockUpdate();\n')
 
                 memfile.write('\n  // Reset all domains, restore power to CNN\n')
-                memfile.write(f'  MXC_BBFC->reg3 = 0x{mask:01x}; // Reset\n')
-                memfile.write(f'  MXC_BBFC->reg1 = 0x{mask:01x}; // Mask\n')
+                memfile.write('  MXC_BBFC->reg3 = 0xf; // Reset\n')
+                memfile.write(f'  MXC_BBFC->reg1 = 0x{mask:01x}; // Mask memory\n')
                 memfile.write(f'  MXC_BBFC->reg0 = 0x{mask:01x}; // Power\n')
                 memfile.write(f'  MXC_BBFC->reg2 = 0x{unmask:01x}; // Iso\n')
                 memfile.write('  MXC_BBFC->reg3 = 0x0; // Reset\n\n')
@@ -289,8 +290,8 @@ def main(
                 memfile.write('  MXC_GCR->clkcn |= MXC_S_GCR_CLKCN_CLKSEL_HIRC96; // Select 96M\n')
 
                 memfile.write('\n  // Reset all domains, restore power to CNN\n')
-                memfile.write(f'  MXC_BBFC->reg3 = 0x{mask:01x}; // Reset\n')
-                memfile.write(f'  MXC_BBFC->reg1 = 0x{mask:01x}; // Mask\n')
+                memfile.write('  MXC_BBFC->reg3 = 0xf; // Reset\n')
+                memfile.write(f'  MXC_BBFC->reg1 = 0x{mask:01x}; // Mask memory\n')
                 memfile.write(f'  MXC_BBFC->reg0 = 0x{mask:01x}; // Power\n')
                 memfile.write(f'  MXC_BBFC->reg2 = 0x{unmask:01x}; // Iso\n')
                 memfile.write('  MXC_BBFC->reg3 = 0x0; // Reset\n\n')
@@ -373,7 +374,7 @@ def main(
             memfile.write('    cnn_wait();\n')
             memfile.write('  }\n\n')
 
-        if boost is not None:
+        if not forever and boost is not None:
             memfile.write('  // Turn off the CNN Boost\n')
             memfile.write('  MXC_GPIO_OutClr(gpio_out.port, gpio_out.mask);\n\n')
 
@@ -388,6 +389,16 @@ def main(
         if embedded_code:
             memfile.write('\n  printf("\\n*** PASS ***\\n\\n");\n\n')
             memfile.write('  printf("Time for CNN: %d us\\n\\n", cnn_time);\n\n')
+
+        if not forever:
+            memfile.write('  // Disable power to CNN\n')
+            memfile.write('  MXC_BBFC->reg3 = 0xf; // Reset\n')
+            memfile.write('  MXC_BBFC->reg1 = 0x0; // Mask memory\n')
+            memfile.write('  MXC_BBFC->reg0 = 0x0; // Power\n')
+            memfile.write('  MXC_BBFC->reg2 = 0xf; // Iso\n')
+            memfile.write('  MXC_BBFC->reg3 = 0x0; // Reset\n\n')
+
+        if not forever:
             if classification_layer or softmax:
                 memfile.write('  printf("Classification results:\\n");\n'
                               '  for (i = 0; i < NUM_OUTPUTS; i++) {\n'
@@ -398,6 +409,33 @@ def main(
                               f'{"fc_output" if classification_layer else "ml_data"}[i], '
                               'i, digs, tens);\n'
                               '  }\n\n')
+        else:
+            memfile.write('  printf("Starting endless loop...\\n");\n\n')
+
+            memfile.write('  while(1) {\n'
+                          '    *((volatile uint32_t *) 0x50100000) = 0x00100008; // Stop SM\n')
+            if 1 in groups:
+                memfile.write('    *((volatile uint32_t *) 0x50500000) = 0x00100008; // Stop SM\n')
+            if 2 in groups:
+                memfile.write('    *((volatile uint32_t *) 0x50900000) = 0x00100008; // Stop SM\n')
+            if 3 in groups:
+                memfile.write('    *((volatile uint32_t *) 0x50d00000) = 0x00100008; // Stop SM\n')
+            memfile.write('    *((volatile uint32_t *) 0x50100000) = 0x00100808; '
+                          '// Enable group 0\n')
+            if 1 in groups:
+                memfile.write('    *((volatile uint32_t *) 0x50500000) = 0x00100809; '
+                              '// Enable group 1\n')
+            if 2 in groups:
+                memfile.write('    *((volatile uint32_t *) 0x50900000) = 0x00100809; '
+                              '// Enable group 2\n')
+            if 3 in groups:
+                memfile.write('    *((volatile uint32_t *) 0x50d00000) = 0x00100809; '
+                              '// Enable group 3\n')
+            memfile.write('    *((volatile uint32_t *) 0x50100000) = 0x00100009; '
+                          '// Master enable group 0\n')
+            memfile.write('    while ((*((volatile uint32_t *) 0x50100000) & '
+                          '(1<<12)) != 1<<12) ;\n')
+            memfile.write('  }\n')
 
     if riscv is not None and not riscv:
         if sleep:
