@@ -431,6 +431,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 groups=list(set().union(groups_used)),
                 boost=boost,
                 forever=forever,
+                mexpress=mexpress,
+                fifo=fifo,
             )
 
     if input_csv is not None:
@@ -1949,6 +1951,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 groups=list(set().union(groups_used)),
                 boost=boost,
                 forever=forever,
+                mexpress=mexpress,
+                fifo=fifo,
             )
 
     # Close header files
