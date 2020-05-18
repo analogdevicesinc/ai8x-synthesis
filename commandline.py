@@ -148,6 +148,8 @@ def get_parser():
                        help="use fixed 0xaa/0x55 alternating input (default: false)")
     group.add_argument('--max-checklines', type=int, metavar='N', default=None, dest='max_count',
                        help="output only N output check lines (default: all)")
+    group.add_argument('--forever', action='store_true', default=False,
+                       help="after initial run, repeat CNN forever (default: false)")
 
     # RTL sim
     group = parser.add_argument_group('RTL simulation')
