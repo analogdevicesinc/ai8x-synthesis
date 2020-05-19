@@ -1,10 +1,10 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_May 15, 2020_
+_May 19, 2020_
 
 _Open the `.md` version of this file in a markdown enabled viewer, for example Typora (http://typora.io).
-See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A PDF copy of this file is available in the repository._
+See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A PDF copy of this file is available in the repository. The GitHub rendering of this document does not show the math formulas._
 
 This software consists of two related projects:
 1. AI8X Model Training and Quantization
@@ -24,25 +24,25 @@ The following graphic shows an overview of the development flow:
 
 ### File System Layout
 
-Including the SDK from SVN, the expected file system layout will be:
+Including the SDK, the expected file system layout will be:
 
     ..../ai8x-training/
     ..../ai8x-synthesis/
+    ..../ai8x-synthesis/sdk/
     ..../manifold/
-    ..../AI84SDK/
 
 where “....” is the project root.
 
 ### Upstream Code
 
-Change to the project root (denoted as `....` above) and run the following commands (substituting your single sign-on name for “first.last”):
+Change to the project root (denoted as `....` above) and run the following commands. Use your GitHub credentials when prompted.
 
 ```shell
-$ git clone https://first.last@gerrit.maxim-ic.com:8443/ai8x-training
-$ git clone https://first.last@gerrit.maxim-ic.com:8443/ai8x-synthesis
+$ git clone https://github.com/MaximIntegratedAI/ai8x-training.git
+$ git clone https://github.com/MaximIntegratedAI/ai8x-synthesis.git
 ```
 
-If the local git environment has not been previously configured, add the following commands to configure e-mail and name. The e-mail must match Gerrit (including upper/lower case):
+If the local git environment has not been previously configured, add the following commands to configure e-mail and name. The e-mail must match GitHub (including upper/lower case):
 
 ```shell
 $ git config --global user.email "first.last@maximintegrated.com"
@@ -1825,46 +1825,6 @@ Code should not generate any warnings in any of the tools (some of the component
 
 ### Submitting Changes
 
-Do not try to push any changes into the master branch. Instead, create a local “feature” branch. The easiest way to do this is using a graphical client such as [Fork](#Recommended-Software). The command line equivalent is:
-
-```shell
-$ git checkout -b my-new-feature
-$ git status
-On branch my-new-feature
-...
-```
-
-Commit changes and create a description of the changes:
-
-```shell
-$ git commit
-```
-
-Check the address for the Maxim server:
-
-```shell
-$ git remote -v
-origin	https://first.last@gerrit.maxim-ic.com:8443/ai8x-synthesis (fetch)
-origin	https://first.last@gerrit.maxim-ic.com:8443/ai8x-synthesis (push)
-```
-
-Install a commit hook:
-
-```shell
-$ GITDIR=$(git rev-parse --git-dir)
-$ scp -p -P 29418 first.last@gerrit.maxim-ic.com:hooks/commit-msg ${GITDIR}/hooks/
-```
-
-And push the changes to Maxim’s Gerrit server (do not change “master” to anything else even though the local branch is called “my-new-feature”):
-
-```shell
-$ git push https://first.last@gerrit.maxim-ic.com:8443/ai8x-synthesis HEAD:refs/for/master
-...
-remote:
-To URL
-* [new branch] my-new-feature -> refs/for/master
-```
-
-Open the URL in a web browser and request a review for the change list.
+Do not try to push any changes into the master branch. Instead, create a fork on submit a pull request. The easiest way to do this is using a graphical client such as [Fork](#Recommended-Software).
 
 ---
