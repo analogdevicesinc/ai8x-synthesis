@@ -6,5 +6,4 @@
 	url = https://github.com/NervanaSystems/distiller.git
 [submodule "sdk"]
 	path = sdk
-	url = https://gerrit.maxim-ic.com:8443/MnS/MSDK/msdk.git
-	branch = ai85_add
+	url = https://github.com/MaximIntegratedAI/MAX78000_SDK.git
