@@ -4,6 +4,7 @@ CLOCK_TRIM=""
 SDK_TARGET="sdk/Examples/MAX78000/CNN"
 
 # Update common code and header files
+mkdir -p $SDK_TARGET/Common/
 cp device-ai85/softmax.c $SDK_TARGET/Common/
 cp device-ai85/*.h $SDK_TARGET/Common/
 
