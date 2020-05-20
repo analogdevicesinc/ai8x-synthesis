@@ -1,0 +1,12 @@
+
+arch: test
+dataset: test_widein
+bias: eight
+
+layers:
+- pad: 0
+  out_offset: 0x2000
+  processors: 0x000000ffffffffff
+  data_format: HWC
+  quantization: 1
+  op: conv2d

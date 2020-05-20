@@ -1,0 +1,31 @@
+arch: test
+dataset: test_fifostream-expandcontract
+
+layers:
+- pad: 1
+  out_offset: 0x1000
+  processors: 0x0000000000000007
+  streaming: true
+  op: conv2d
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  out_offset: 0x3000
+  processors: 0xffffffffffffffff
+  streaming: true
+  output_shift: -5
+  op: conv2d
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  out_offset: 0x4000
+  processors: 0x00000000000000ff
+  streaming: true
+  output_shift: -2
+  op: conv2d
+- pad: 1
+  out_offset: 0x5000
+  processors: 0xffffffffffffffff
+  streaming: true
+  output_shift: -2
+  op: conv2d

@@ -1,0 +1,23 @@
+# Wide network test / CHW (big data) configuration for MNIST
+
+arch: ai85net80expansion
+dataset: MNIST
+
+# Define layer parameters in order of the layer sequence
+layers:
+- pad: 1
+  activate: ReLU
+  out_offset: 0x0
+  processors: 0x0000000000000001
+  data_format: CHW
+  quantization: 4
+  op: conv2d
+- max_pool: 2
+  pool_stride: 2
+  pad: 2
+  out_offset: 0x0
+  processors: 0x00000000000ffff0
+  quantization: 4
+  output_processors: 0x0ffffffffff00000
+  output_width: 32
+  op: conv2d

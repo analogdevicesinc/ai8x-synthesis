@@ -1,0 +1,24 @@
+# Energy consumption test network - maximize usage of everything
+
+arch: test
+dataset: test_energy
+
+# Define layer parameters in order of the layer sequence
+layers:
+- pad: 1
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0xffffffffffffffff
+  data_format: HWC
+  op: conv2d
+- pad: 1
+  activate: ReLU
+  out_offset: 0
+  processors: 0xffffffffffffffff
+  op: conv2d
+- pad: 1
+  out_offset: 0x2000
+  processors: 0xffffffffffffffff
+  quantization: 2
+  output_shift: -4
+  op: conv2d

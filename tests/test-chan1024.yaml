@@ -1,0 +1,11 @@
+
+arch: test
+dataset: test_chan1024
+output_map: 0x7
+
+layers:
+- pad: 1
+  out_offset: 0x2000
+  processors: 0xffffffffffffffff
+  op: conv2d
+

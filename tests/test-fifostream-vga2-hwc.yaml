@@ -1,0 +1,29 @@
+# 640x480 FIFO
+
+arch: test
+dataset: test_fifostream-vga
+
+layers:
+- pad: 1
+  out_offset: 0x0010
+  processors: 0x0000000000000007
+  data_format: HWC
+  streaming: true
+  output_shift: -2
+  op: conv2d
+- max_pool: 4
+  pool_stride: 4
+  pad: 1
+  out_offset: 0x58c0
+  processors: 0xffffffffffffffff
+  streaming: true
+  output_shift: -6
+  op: conv2d
+- max_pool: 4
+  pool_stride: 4
+  pad: 1
+  out_offset: 0x6d40
+  processors: 0x00000000ffffffff
+  streaming: true
+  output_shift: -2
+  op: conv2d

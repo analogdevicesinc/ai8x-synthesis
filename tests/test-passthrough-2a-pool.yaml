@@ -1,0 +1,14 @@
+# Passthrough test
+
+arch: test
+dataset: test_5x17x23
+
+layers:
+- pad: 0
+  out_offset: 0x2000
+  processors: 0x0000000000011111
+  output_processors: 0x0000000000011111
+  data_format: HWC
+  operation: none
+  pool_stride: 2
+  max_pool: 2

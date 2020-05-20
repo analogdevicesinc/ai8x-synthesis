@@ -1,0 +1,20 @@
+[MESSAGES CONTROL]
+disable=invalid-name
+[TYPECHECK]
+ignored-modules = numpy, matplotlib.cm, torch, distiller
+ignored-classes = ModelProto
+[FORMAT]
+max-line-length = 99
+[DESIGN]
+max-locals=100
+max-statements=1000
+min-public-methods=1
+max-branches=70
+max-module-lines=5000
+max-nested-blocks=10
+max-args=35
+max-attributes=35
+max-public-methods=35
+max-bool-expr=8
+[MASTER]
+ignore=CMSIS_5,distiller

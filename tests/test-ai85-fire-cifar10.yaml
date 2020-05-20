@@ -1,0 +1,67 @@
+# CIFAR-10 with fire layer AI85
+
+arch: ai85firetestnet
+dataset: CIFAR-10
+
+layers:
+# Fire
+- avg_pool: 2
+  pool_stride: 2
+  pad: 0
+  out_offset: 0x1000
+  processors: 0x0000000000000007
+  operation: None
+  data_format: HWC
+  in_channels: 3
+  op: conv2d
+- out_offset: 0x0000
+  processors: 0x0000000000000007
+  operation: conv2d
+  kernel_size: 1x1
+  pad: 0
+  op: conv2d
+  activate: ReLU
+- in_offset: 0x0000
+  out_offset: 0x1000
+  processors: 0x0000000000000030
+  output_processors: 0x0000000000000f00
+  in_dim: [16, 16]
+  in_channels: 2
+  operation: conv2d
+  kernel_size: 1x1
+  pad: 0
+  op: conv2d
+  activate: ReLU
+- in_offset: 0x0000
+  out_offset: 0x1000
+  processors: 0x0000000000000030
+  output_processors: 0x000000000000f000
+  in_dim: [16, 16]
+  in_channels: 2
+  operation: conv2d
+  kernel_size: 3x3
+  op: conv2d
+  activate: ReLU
+  in_sequences: 1
+- max_pool: 2
+  pool_stride: 2
+  in_offset: 0x1000
+  out_offset: 0x0000
+  processors: 0x000000000000ff00
+  operation: None
+  in_channels: 8
+  in_sequences: [2, 3]
+  op: conv2d
+# Additional layers
+- max_pool: 2
+  pool_stride: 2
+  out_offset: 0x1000
+  processors: 0x000000000000ff00
+  in_channels: 8
+  operation: None
+- flatten: true
+  out_offset: 0x0000
+  op: mlp
+  processors: 0x000000000000ff00
+  output_width: 32
+
