@@ -1,7 +1,7 @@
 # AI8X Model Training and Quantization
 # AI8X Network Loader and RTL Simulation Generator
 
-_May 21, 2020_
+_May 29, 2020_
 
 _Open the `.md` version of this file in a markdown enabled viewer, for example Typora (http://typora.io).
 See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A [PDF copy of this file](README.pdf) is available in this repository. The GitHub rendering of this document does not show the formulas or the clickable table of contents._
@@ -241,7 +241,13 @@ $ yarn
 
 For `ai8x-synthesis`, some of the installation steps can be simplified. Specifically, CUDA is not necessary.
 
-Start by creating a second virtual environment:
+Start by deactivating the `ai8x-training` environment if it is active.
+
+```shell
+(ai8x-training) $ deactivate
+```
+
+Then, create a second virtual environment:
 
 ```shell
 $ cd PROJECT_ROOT
@@ -646,11 +652,11 @@ The example shows a fractionally-strided convolution with a stride of 2, pad of 
 
 ## Model Training and Quantization
 
-The main training software is `train.py`. It drives the training aspects including model creation, checkpointing, model save, and status display (see `--help` for the many supported options, and the `go_*.sh` scripts for example usage).
+The main training software is `train.py`. It drives the training aspects including model creation, checkpointing, model save, and status display (see `--help` for the many supported options, and the `train_*.sh` scripts for example usage).
 
 The `ai84net.py` and `ai85net.py` files contain models that fit into AI84’s weight memory. These models rely on the AI8X hardware operators that are defined in `ai8x.py`.
 
-To train the FP32 model for MNIST on AI85, run `go_mnist.sh` in the `ai8x-training` project. This script will place checkpoint files into the log directory. Training makes use of the Distiller framework, but the `train.py` software has been modified slightly to improve it and add some AI8X specifics.
+To train the FP32 model for MNIST on AI85, run `train_mnist.sh` in the `ai8x-training` project. This script will place checkpoint files into the log directory. Training makes use of the Distiller framework, but the `train.py` software has been modified slightly to improve it and add some AI8X specifics.
 
 ### Command Line Arguments
 
@@ -938,7 +944,7 @@ The training/verification data is located (by default) in `data/DataSetName`, fo
 
 #### Training Process
 
-Train the new network/new dataset. See `go_mnist.sh` for a command line example.
+Train the new network/new dataset. See `train_mnist.sh` for a command line example.
 
 #### Netron - Network Visualization
 
