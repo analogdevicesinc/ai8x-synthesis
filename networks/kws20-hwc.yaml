@@ -1,11 +1,11 @@
-# HWC (big data) configuration for SpeechComFolded1D
+# HWC (big data) configuration for KWS20
 
-arch: ai85audionet
-dataset: SpeechComFolded1D_20
+arch: ai85kws20net
+dataset: KWS_20
 
 # Define layer parameters in order of the layer sequence
 layers:
-# Conv 1D - 6 layers
+# Conv 1D - 4 layers
 - pad: 0
   activate: ReLU
   out_offset: 0x2000
@@ -22,7 +22,7 @@ layers:
 - pad: 0
   activate: ReLU
   out_offset: 0x2000
-  processors: 0x0003ffffffffffff
+  processors: 0x000fffffffffffff
   operation: Conv1d
   kernel_size: 1
 - pad: 0
@@ -31,19 +31,7 @@ layers:
   processors: 0x0003ffffffffffff
   operation: Conv1d
   kernel_size: 1
-- pad: 0
-  activate: ReLU
-  out_offset: 0x2000
-  processors: 0x0003ffffffffffff
-  operation: Conv1d
-  kernel_size: 1
-- pad: 0
-  activate: ReLU
-  out_offset: 0x0000
-  processors: 0x0003ffffffffffff
-  operation: Conv1d
-  kernel_size: 1
-# Conv 2D - 6 layers
+# Conv 2D - 5 layers
 - pad: 1
   in_dim: [16, 8]
   activate: ReLU
@@ -53,22 +41,17 @@ layers:
 - pad: 1
   activate: ReLU
   out_offset: 0x0000
-  processors: 0x000000000007fff0
+  processors: 0x0000000ffffffff0
   operation: Conv2d
 - pad: 1
   activate: ReLU
   out_offset: 0x2000
-  processors: 0x0003fffffff00000
+  processors: 0xffffffffffffffff
   operation: Conv2d
 - pad: 1
   activate: ReLU
   out_offset: 0x0000
-  processors: 0xfffffffffffffff0
-  operation: Conv2d
-- pad: 1
-  activate: ReLU
-  out_offset: 0x2000
-  processors: 0x00000003fffffff0
+  processors: 0xffffffffffffffff
   operation: Conv2d
 - pad: 1
   activate: ReLU
