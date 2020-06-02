@@ -33,6 +33,7 @@ import sampleweight
 import stats
 import tornadocnn as tc
 import yamlcfg
+import onnxcp as onnx 
 from eprint import eprint
 from simulate import conv1d_layer, conv2d_layer, convtranspose2d_layer, \
     linear_layer, passthrough_layer, eltwise_layer, \
@@ -2040,18 +2041,35 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
         if not args.checkpoint_file:
             eprint("--checkpoint-file is a required argument.")
             sys.exit(1)
-        layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
-            checkpoint.load(
-                args.checkpoint_file,
-                cfg['arch'],
-                args.fc_layer,
-                params['quantization'],
-                params['bias_quantization'],
-                params['kernel_size'],
-                params['operator'],
-                args.display_checkpoint,
-                args.no_bias,
-            )
+        fname, fext =  args.checkpoint_file.rsplit(sep='.', maxsplit=1)
+        if fext in [ 'onnx' ]:
+          print("onnx file selected")
+          layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
+              onnx.load(
+                  args.checkpoint_file,
+                  cfg['arch'],
+                  args.fc_layer,
+                  params['quantization'],
+                  params['bias_quantization'],
+                  params['kernel_size'],
+                  params['operator'],
+                  args.display_checkpoint,
+                  args.no_bias,
+              )
+        else:
+          print("checkpoint file selected")
+          layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
+              checkpoint.load(
+                  args.checkpoint_file,
+                  cfg['arch'],
+                  args.fc_layer,
+                  params['quantization'],
+                  params['bias_quantization'],
+                  params['kernel_size'],
+                  params['operator'],
+                  args.display_checkpoint,
+                  args.no_bias,
+              )
     else:  # Get some hard-coded sample weights
         layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
             sampleweight.load(
