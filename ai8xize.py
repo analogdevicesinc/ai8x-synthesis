@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 ###################################################################################################
-# Copyright (C) 2018-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -26,6 +26,7 @@ import compute
 import kbias
 import kernels
 import load
+import onnxcp
 import op
 import rtlsim
 import sampledata
@@ -1999,7 +2000,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     return test_name
 
 
-def main():  # pylint: disable=too-many-branches,too-many-statements
+def main():
     """
     Command line wrapper
     """
@@ -2040,18 +2041,35 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
         if not args.checkpoint_file:
             eprint("--checkpoint-file is a required argument.")
             sys.exit(1)
-        layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
-            checkpoint.load(
-                args.checkpoint_file,
-                cfg['arch'],
-                args.fc_layer,
-                params['quantization'],
-                params['bias_quantization'],
-                params['kernel_size'],
-                params['operator'],
-                args.display_checkpoint,
-                args.no_bias,
-            )
+        fext = args.checkpoint_file.rsplit(sep='.', maxsplit=1)[1].lower()
+        if fext == 'onnx':
+            # ONNX file selected
+            layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
+                onnxcp.load(
+                    args.checkpoint_file,
+                    cfg['arch'],
+                    args.fc_layer,
+                    params['quantization'],
+                    params['bias_quantization'],
+                    params['kernel_size'],
+                    params['operator'],
+                    args.display_checkpoint,
+                    args.no_bias,
+                )
+        else:
+            # PyTorch checkpoint file selected
+            layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
+                checkpoint.load(
+                    args.checkpoint_file,
+                    cfg['arch'],
+                    args.fc_layer,
+                    params['quantization'],
+                    params['bias_quantization'],
+                    params['kernel_size'],
+                    params['operator'],
+                    args.display_checkpoint,
+                    args.no_bias,
+                )
     else:  # Get some hard-coded sample weights
         layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
             sampleweight.load(
