@@ -1,11 +1,20 @@
+###################################################################################################
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
+#
+# Maxim Integrated Products, Inc. Default Copyright Notice:
+# https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
+#
+###################################################################################################
 """
 ONNX File Routines
 """
 import sys
+
+import numpy as np
 import onnx
 import onnx.shape_inference
-import numpy as np
 from onnx import numpy_helper
+
 import op as opn
 import tornadocnn
 from eprint import eprint
@@ -161,7 +170,7 @@ def load(
                         weight_min.append(w_min)
                         weight_max.append(w_max)
 
-                        # TODO double check if we need to check conv2d if opn is known
+                        # TODO: Double check if we need to check conv2d if opn is known
                         # to be opn.CONVTRANSPOSE2D. We should be able to get this
                         # from the op_type Conv plus shape?
                         if operator[seq] == opn.CONVTRANSPOSE2D:
@@ -235,7 +244,7 @@ def load(
 
             seq += 1
             layers += 1
-        # things to add
+        # TODO: Things to add
         # if attribute.name == 'pads':
         # if attribute.name == 'strides':
 
@@ -262,20 +271,22 @@ def load(
     if error_exit:
         sys.exit(1)
 
-    np.set_printoptions(threshold=np.inf, linewidth=80)
-    print("SUMMARY")
-    print("Layers")
-    print(layers)
-    print("weights")
-    print(weights)
-    print("bias")
-    print(bias)
-    print("fc_weights")
-    print(fc_weights)
-    print("fc_bias")
-    print(fc_bias)
-    print("input_channels")
-    print(input_channels)
-    print("output_channels")
-    print(output_channels)
+    if verbose:
+        with np.printoptions(threshold=np.inf, linewidth=80):
+            print("\nSUMMARY\n=======")
+            print(layers, "layers\n")
+            print("weights:")
+            print(weights)
+            print("bias:")
+            print(bias)
+            print("fc_weights:")
+            print(fc_weights)
+            print("fc_bias:")
+            print(fc_bias)
+            print("input_channels:")
+            print(input_channels)
+            print("output_channels:")
+            print(output_channels)
+            print("")
+
     return layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels
