@@ -1,7 +1,10 @@
+
+
 # MAX78000 Model Training and Quantization
+
 # MAX78000 Network Loader and RTL Simulation Generator
 
-_June 2, 2020_
+_June 3, 2020_
 
 _Open the `.md` version of this file in a markdown enabled viewer, for example Typora (http://typora.io).
 See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A [PDF copy of this file](README.pdf) is available in this repository. The GitHub rendering of this document does not show the formulas or the clickable table of contents._
@@ -43,23 +46,7 @@ Including the SDK, the expected/resulting file system layout will be:
     ..../ai8x-synthesis/sdk/
     ..../manifold/
 
-where “....” is the project root.
-
-### Upstream Code
-
-If the local git environment has not been previously configured, add the following commands to configure e-mail and name. The e-mail must match GitHub (including upper/lower case):
-
-```shell
-$ git config --global user.email "first.last@maximintegrated.com"
-$ git config --global user.name "First Last"
-```
-
-Change to the project root (denoted as `....` above) and run the following commands. Use your GitHub credentials when prompted.
-
-```shell
-$ git clone https://github.com/MaximIntegratedAI/ai8x-training.git
-$ git clone https://github.com/MaximIntegratedAI/ai8x-synthesis.git
-```
+where “....” is the project root, for example `~/Documents/Source/AI`.
 
 ### Prerequisites
 
@@ -136,36 +123,24 @@ Next, close the Terminal and install Python 3.6.9:
 $ pyenv install 3.6.9
 ```
 
-#### Windows Systems
+#### git Environment
 
-Windows is not supported for training networks at this time.
-
-#### Creating the Virtual Environment
-
-To create the virtual environment and install basic wheels:
+If the local git environment has not been previously configured, add the following commands to configure e-mail and name. The e-mail must match GitHub (including upper/lower case):
 
 ```shell
-$ cd ai8x-training
-$ git submodule update --init
-$ pyenv local 3.6.9
-$ python3 -m venv .
-$ source bin/activate
-(ai8x-training) $ pip3 install -U pip setuptools
+$ git config --global user.email "first.last@maximintegrated.com"
+$ git config --global user.name "First Last"
 ```
 
-The next step differs depending on whether the system is Linux with CUDA, or not.
+#### Project Root
 
-For CUDA 10.1 on Linux:
+For convenience, define a shell variable named `AI_PROJECT_ROOT`:
 
 ```shell
-(ai8x-training) $ pip3 install -r requirements-cu101.txt
+$ export AI_PROJECT_ROOT="$HOME/Documents/Source/AI"
 ```
 
-For all other systems, including CUDA 10.2 on Linux:
-
-```shell
-(ai8x-training) $ pip3 install -r requirements.txt
-```
+Add this line to `~/.profile`.
 
 #### Nervana Distiller
 
@@ -190,7 +165,7 @@ brew install yarn npm
 On Ubuntu 18.04 LTS,
 
 ```shell
-$ cd PROJECT_ROOT
+$ cd $AI_PROJECT_ROOT
 $ curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
 $ echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
 $ curl -sL https://deb.nodesource.com/setup_13.x | sudo -E bash -
@@ -210,9 +185,63 @@ $ yarn
 # ignore warnings
 ```
 
+#### Windows Systems
+
+Windows is not supported for training networks at this time.
+
+### Upstream Code
+
+Change to the project root and run the following commands. Use your GitHub credentials when prompted.
+
+```shell
+$ cd $AI_PROJECT_ROOT
+$ git clone https://github.com/MaximIntegratedAI/ai8x-training.git
+$ git clone https://github.com/MaximIntegratedAI/ai8x-synthesis.git
+```
+
+#### Creating the Virtual Environment
+
+To create the virtual environment and install basic wheels:
+
+```shell
+$ cd ai8x-training
+$ git submodule update --init
+$ pyenv local 3.6.9
+$ python3 -m venv .
+$ source bin/activate
+(ai8x-training) $ pip3 install -U pip setuptools
+```
+
+The next step differs depending on whether the system uses Linux with CUDA 10.1, or any other setup.
+
+For CUDA 10.1 on Linux:
+
+```shell
+(ai8x-training) $ pip3 install -r requirements-cu101.txt
+```
+
+For all other systems, including CUDA 10.2 on Linux:
+
+```shell
+(ai8x-training) $ pip3 install -r requirements.txt
+```
+
+##### Updating the Project
+
+Major upgrades (such as updating from PyTorch 1.3.1 to PyTorch 1.5) are best done by removing all installed wheels. This can be achieved most easily by creating a new folder and starting from scratch at [Upstream Code](#Upstream Code). 
+
+For minor updates, pull the latest code and install the updated wheels:
+
+```shell
+(ai8x-training) $ git pull
+(ai8x-training) $ git submodule update --init
+(ai8x-training) $ pip3 install -U pip setuptools
+(ai8x-training) $ pip3 install -U -r requirements.txt # or requirements-cu101.txt when in ai8x-training with CUDA 10.1
+```
+
 #### Synthesis Project
 
-For `ai8x-synthesis`, some of the installation steps can be simplified. Specifically, CUDA is not necessary.
+The `ai8x-synthesis` does not require CUDA.
 
 Start by deactivating the `ai8x-training` environment if it is active.
 
@@ -223,7 +252,7 @@ Start by deactivating the `ai8x-training` environment if it is active.
 Then, create a second virtual environment:
 
 ```shell
-$ cd PROJECT_ROOT
+$ cd $AI_PROJECT_ROOT
 $ cd ai8x-synthesis
 $ git submodule update --init
 $ pyenv local 3.6.9
@@ -231,6 +260,19 @@ $ python3 -m venv .
 $ source bin/activate
 (ai8x-synthesis) $ pip3 install -U pip setuptools
 (ai8x-synthesis) $ pip3 install -r requirements.txt
+```
+
+##### Updating the Project
+
+Major upgrades (such as updating from PyTorch 1.3.1 to PyTorch 1.5) are best done by removing all installed wheels. This can be achieved most easily by creating a new folder and starting from scratch at [Upstream Code](#Upstream Code). 
+
+To pull the latest code and install the updated wheels, use:
+
+```shell
+(ai8x-synthesis) $ git pull
+(ai8x-synthesis) $ git submodule update --init
+(ai8x-synthesis) $ pip3 install -U pip setuptools
+(ai8x-synthesis) $ pip3 install -U -r requirements.txt
 ```
 
 ---
@@ -1682,25 +1724,6 @@ Total: 2 KiB (4 instances of 128 × 32)
 | 3         | 0x50D08000 - 0x50D09FFF |
 
 ---
-
-## Updating the Project
-
-The following instructions are required for both projects, `ai8x-training` and `ai8x-synthesis`.
-
-Major upgrades (such as updating from PyTorch 1.3.1 to PyTorch 1.5) are best done by removing all installed wheels:
-
-```shell
-$ pip3 uninstall -r requirements.txt -y # or requirements-cu101.txt when in ai8x-training with CUDA 10.1
-```
-
-To pull the latest code and install the updated wheels, use:
-
-```shell
-$ git pull
-$ git submodule update --init
-$ pip3 install -U pip setuptools
-$ pip3 install -U -r requirements.txt # or requirements-cu101.txt when in ai8x-training with CUDA 10.1
-```
 
 ## Contributing Code
 
