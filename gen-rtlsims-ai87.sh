@@ -1,28 +1,28 @@
 #!/bin/sh
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fmnist --checkpoint-file trained/ai87-fashionmnist.pth.tar --config-file networks/fashionmnist-chw.yaml --stop-after 0 --ai87 --verify-writes
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fmnist --checkpoint-file tests/test-fashionmnist.pth.tar --config-file tests/test-fashionmnist-chw.yaml --stop-after 0 --ai87 --verify-writes
 
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar-bias --checkpoint-file trained/ai87-cifar10-bias.pth.tar --config-file networks/cifar10-hwc.yaml --stop-after 0 --ai87
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar-bias --checkpoint-file trained/ai87-cifar10-bias.pth.tar --config-file networks/cifar10-hwc.yaml --ai87
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-q4-cifar-bias --checkpoint-file trained/ai87-cifar10-bias-quant4.pth.tar --config-file tests/test-ai87-cifar10-hwc-quant4.yaml --stop-after 0 --ai87
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-q4-cifar-bias --checkpoint-file trained/ai87-cifar10-bias-quant4.pth.tar --config-file tests/test-ai87-cifar10-hwc-quant4.yaml --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar-bias --checkpoint-file tests/test-cifar10-bias.pth.tar --config-file tests/test-cifar10-hwc.yaml --stop-after 0 --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar-bias --checkpoint-file tests/test-cifar10-bias.pth.tar --config-file tests/test-cifar10-hwc.yaml --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-q4-cifar-bias --checkpoint-file tests/test-cifar10-bias-quant4.pth.tar --config-file tests/test-ai85-cifar10-hwc-quant4.yaml --stop-after 0 --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-q4-cifar-bias --checkpoint-file tests/test-cifar10-bias-quant4.pth.tar --config-file tests/test-ai85-cifar10-hwc-quant4.yaml --ai87
 
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mnist-extrasmall --checkpoint-file trained/ai84-mnist-extrasmallnet.pth.tar --config-file networks/mnist-chw-extrasmallnet.yaml --stop-after 0 --ai87
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mnist-extrasmall --checkpoint-file trained/ai84-mnist-extrasmallnet.pth.tar --config-file networks/mnist-chw-extrasmallnet.yaml --stop-after 1 --ai87
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mnist-extrasmall --checkpoint-file trained/ai84-mnist-extrasmallnet.pth.tar --config-file networks/mnist-chw-extrasmallnet.yaml --stop-after 2 --ai87
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-q4-16x16avgpool --checkpoint-file trained/ai87-cifar10-bias-quant4.pth.tar --config-file tests/test-ai87-cifar10-hwc-16x16avgpool.yaml --stop-after 0 --ai87
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-3x3s2p2avgpool --checkpoint-file trained/ai87-cifar10-bias.pth.tar --config-file tests/test-ai87-cifar10-hwc-3x3s2p2avgpool.yaml --stop-after 0 --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mnist-extrasmall --checkpoint-file tests/test-mnist-extrasmallnet.pth.tar --config-file tests/test-mnist-chw-extrasmallnet.yaml --stop-after 0 --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mnist-extrasmall --checkpoint-file tests/test-mnist-extrasmallnet.pth.tar --config-file tests/test-mnist-chw-extrasmallnet.yaml --stop-after 1 --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mnist-extrasmall --checkpoint-file tests/test-mnist-extrasmallnet.pth.tar --config-file tests/test-mnist-chw-extrasmallnet.yaml --stop-after 2 --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-q4-16x16avgpool --checkpoint-file tests/test-cifar10-bias-quant4.pth.tar --config-file tests/test-ai85-cifar10-hwc-16x16avgpool.yaml --stop-after 0 --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-3x3s2p2avgpool --checkpoint-file tests/test-cifar10-bias.pth.tar --config-file tests/test-ai85-cifar10-hwc-3x3s2p2avgpool.yaml --stop-after 0 --ai87
 
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-3x3s1avgpool --checkpoint-file trained/ai84-mnist-extrasmallnet.pth.tar --config-file tests/test-pooling3x3s1.yaml --stop-after 0 --ai87
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-4x4s2avgpool --checkpoint-file trained/ai84-mnist-extrasmallnet.pth.tar --config-file tests/test-pooling4x4s2.yaml --stop-after 0 --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-3x3s1avgpool --checkpoint-file tests/test-mnist-extrasmallnet.pth.tar --config-file tests/test-pooling3x3s1.yaml --stop-after 0 --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-4x4s2avgpool --checkpoint-file tests/test-mnist-extrasmallnet.pth.tar --config-file tests/test-pooling4x4s2.yaml --stop-after 0 --ai87
 
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-wideout --checkpoint-file trained/ai87-mnist-wide.pth.tar --config-file tests/test-ai87-mnistwide.yaml --stop-after 0 --ai87 --timeout 16
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-80wideout --checkpoint-file trained/ai87-mnist-80wide.pth.tar --config-file tests/test-ai87-mnist80wide.yaml --stop-after 0 --ai87
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-80wideout-q4 --checkpoint-file trained/ai87-mnist-80wide-q4.pth.tar --config-file tests/test-ai87-mnist80wide-q4.yaml --stop-after 0 --ai87
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-80wideout --checkpoint-file trained/ai87-mnist-80wide.pth.tar --config-file tests/test-ai87-mnist80wide.yaml --stop-after 1 --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-wideout --checkpoint-file tests/test-mnist-wide.pth.tar --config-file tests/test-ai85-mnistwide.yaml --stop-after 0 --ai87 --timeout 16
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-80wideout --checkpoint-file tests/test-mnist-80wide.pth.tar --config-file tests/test-ai85-mnist80wide.yaml --stop-after 0 --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-80wideout-q4 --checkpoint-file tests/test-mnist-80wide-q4.pth.tar --config-file tests/test-ai85-mnist80wide-q4.yaml --stop-after 0 --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-80wideout --checkpoint-file tests/test-mnist-80wide.pth.tar --config-file tests/test-ai85-mnist80wide.yaml --stop-after 1 --ai87
 
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-80wideout-q4-32bit --checkpoint-file trained/ai87-mnist-80expansion-q4.pth.tar --config-file tests/test-ai87-80expansion-q4-32bitout.yaml --stop-after 1 --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-80wideout-q4-32bit --checkpoint-file tests/test-mnist-80expansion-q4.pth.tar --config-file tests/test-ai85-80expansion-q4-32bitout.yaml --stop-after 1 --ai87
 
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-conv1d --config-file tests/test-ai87-conv1d.yaml --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-conv1d --config-file tests/test-ai85-conv1d.yaml --ai87
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-conv1d-1 --config-file tests/test-conv1d-1.yaml --ai87
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-conv1d-2 --config-file tests/test-conv1d-2.yaml --ai87
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-conv1d-3 --config-file tests/test-conv1d-3.yaml --ai87
@@ -33,7 +33,7 @@
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-conv1d-8 --config-file tests/test-conv1d-8.yaml --ai87
 # ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-conv1d-9 --config-file tests/test-conv1d-9.yaml --ai87
 
-# ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-conv1dII --config-file tests/test-ai87-conv1dII.yaml --ai87
+# ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-conv1dII --config-file tests/test-ai85-conv1dII.yaml --ai87
 # ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-conv1d-3II --config-file tests/test-conv1d-3II.yaml --ai87
 # ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-conv1d-4II --config-file tests/test-conv1d-4II.yaml --ai87
 # ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-conv1d-5II --config-file tests/test-conv1d-5II.yaml --ai87
@@ -86,20 +86,20 @@
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-conv1d-pool-9-wide --config-file tests/test-conv1d-pool-9-wide.yaml --ai87
 
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-conv1x1 --config-file tests/test-conv1x1.yaml --ai87
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar-conv1x1 --checkpoint-file trained/ai87-cifar10-1x1.pth.tar --config-file tests/test-ai87-cifar10-hwc-1x1.yaml --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar-conv1x1 --checkpoint-file tests/test-cifar10-1x1.pth.tar --config-file tests/test-ai85-cifar10-hwc-1x1.yaml --ai87
 
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-nonsquare --config-file tests/test-nonsquare.yaml --ai87
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-nonsquare-pool --config-file tests/test-nonsquare-pool.yaml --ai87
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-nonsquare-nonsquarepool --config-file tests/test-nonsquare-nonsquarepool.yaml --ai87
 
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mnist --checkpoint-file trained/ai84-mnist.pth.tar --config-file networks/mnist-chw.yaml --ai87
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-speechcom --checkpoint-file trained/ai84-speechcom-net7.pth.tar --config-file networks/speechcom-chw.yaml --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mnist --checkpoint-file tests/test-mnist.pth.tar --config-file tests/test-mnist-chw.yaml --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-speechcom --checkpoint-file tests/test-speechcom-net7.pth.tar --config-file tests/test-speechcom-chw.yaml --ai87
 
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar --checkpoint-file trained/ai84-cifar10.pth.tar --config-file networks/cifar10-hwc.yaml --stop-after 0 --ai87
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar --checkpoint-file trained/ai84-cifar10.pth.tar --config-file networks/cifar10-hwc.yaml --ai87
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-cifar10-chw.yaml --stop-after 0 --ai87
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-cifar10-chw.yaml --stop-after 1 --ai87
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-cifar10-chw.yaml --stop-after 2 --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-cifar10-hwc.yaml --stop-after 0 --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-cifar10-hwc.yaml --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-cifar10-chw.yaml --stop-after 0 --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-cifar10-chw.yaml --stop-after 1 --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-cifar10-chw.yaml --stop-after 2 --ai87
 
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-energy --config-file tests/test-energy.yaml --ai87 --timeout 40 --mexpress --compact-data
 
@@ -168,13 +168,13 @@
 
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-wide3to508to3 --config-file tests/test-wide3to508to3.yaml --ai87
 
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-stream-cifar --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar.yaml --ai87 --stop-after 1 --overwrite-ok
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-stream-cifar2 --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar.yaml --ai87 --stop-after 2 --overwrite-ok
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-stream-cifar2 --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar.yaml --ai87 --overwrite-ok
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-stream-cifar-hwc --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar-hwc.yaml --ai87 --stop-after 1 --overwrite-ok
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-stream-cifar2-hwc --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar-hwc.yaml --ai87 --stop-after 2 --overwrite-ok
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-stream-cifar2-hwc --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar-hwc.yaml --ai87 --overwrite-ok
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-stream-transition --config-file tests/test-stream-transition.yaml --ai87 --overwrite-ok
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-stream-cifar --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-stream-cifar.yaml --ai87 --stop-after 1 --overwrite-ok --allow-streaming
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-stream-cifar2 --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-stream-cifar.yaml --ai87 --stop-after 2 --overwrite-ok --allow-streaming
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-stream-cifar2 --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-stream-cifar.yaml --ai87 --overwrite-ok --allow-streaming
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-stream-cifar-hwc --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-stream-cifar-hwc.yaml --ai87 --stop-after 1 --overwrite-ok --allow-streaming
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-stream-cifar2-hwc --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-stream-cifar-hwc.yaml --ai87 --stop-after 2 --overwrite-ok --allow-streaming
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-stream-cifar2-hwc --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-stream-cifar-hwc.yaml --ai87 --overwrite-ok --allow-streaming
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-stream-transition --config-file tests/test-stream-transition.yaml --ai87 --overwrite-ok --allow-streaming
 
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-eltwise-add --config-file tests/test-eltwiseadd.yaml --ai87 --legacy-test
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-eltwise-sub --config-file tests/test-eltwisesub.yaml --ai87 --legacy-test
@@ -197,27 +197,27 @@
 
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-eltwise-pool-avg --config-file tests/test-eltwiseadd-pool-avg.yaml --ai87 --legacy-test
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-eltwise-poolafter-avg --config-file tests/test-eltwiseadd-poolafter-avg.yaml --ai87 --legacy-test
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-q4-16x16avgpool-round --checkpoint-file trained/ai87-cifar10-bias-quant4.pth.tar --config-file tests/test-ai87-cifar10-hwc-16x16avgpool.yaml --stop-after 0 --ai87 --avg-pool-rounding
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-q4-16x16avgpool-round --checkpoint-file tests/test-cifar10-bias-quant4.pth.tar --config-file tests/test-ai85-cifar10-hwc-16x16avgpool.yaml --stop-after 0 --ai87 --avg-pool-rounding
 
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-cifar2 --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-fifostream-cifar.yaml --ai87 --fifo
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-cifar2 --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-fifostream-cifar.yaml --ai87 --fifo --stop-after 0
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-cifar2 --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-fifostream-cifar.yaml --ai87 --fifo --stop-after 1
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-cifar2 --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-fifostream-cifar.yaml --ai87 --fifo --stop-after 2
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-cifar2-hwc --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-fifostream-cifar-hwc.yaml --ai87 --fifo
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-cifar2-hwc --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-fifostream-cifar-hwc.yaml --ai87 --fifo --stop-after 0
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-cifar2-hwc --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-fifostream-cifar-hwc.yaml --ai87 --fifo --stop-after 1
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-cifar2-hwc --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-fifostream-cifar-hwc.yaml --ai87 --fifo --stop-after 2
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar-mlp --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-cifar10-chw-mlp.yaml --ai87
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-stream-cifar-transition --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar-transition.yaml --ai87 --overwrite-ok
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-stream-cifar-transition-zeroize --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-stream-cifar-transition.yaml --ai87 --zero-sram --overwrite-ok
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-cifar2 --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-fifostream-cifar.yaml --ai87 --fifo
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-cifar2 --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-fifostream-cifar.yaml --ai87 --fifo --stop-after 0
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-cifar2 --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-fifostream-cifar.yaml --ai87 --fifo --stop-after 1
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-cifar2 --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-fifostream-cifar.yaml --ai87 --fifo --stop-after 2
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-cifar2-hwc --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-fifostream-cifar-hwc.yaml --ai87 --fifo
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-cifar2-hwc --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-fifostream-cifar-hwc.yaml --ai87 --fifo --stop-after 0
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-cifar2-hwc --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-fifostream-cifar-hwc.yaml --ai87 --fifo --stop-after 1
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-cifar2-hwc --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-fifostream-cifar-hwc.yaml --ai87 --fifo --stop-after 2
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar-mlp --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-cifar10-chw-mlp.yaml --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-stream-cifar-transition --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-stream-cifar-transition.yaml --ai87 --overwrite-ok --allow-streaming
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-stream-cifar-transition-zeroize --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-stream-cifar-transition.yaml --ai87 --zero-sram --overwrite-ok --allow-streaming
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-transition-early --config-file tests/test-fifostream-transition-early.yaml --ai87 --fifo --stop-after 5
 
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlator --checkpoint-file trained/ai87-cifar10-bias.pth.tar --config-file networks/cifar10-hwc.yaml --stop-after 0 --ai87 --mlator --mexpress --mlator-noverify --compact-data
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlator --checkpoint-file trained/ai87-cifar10-bias.pth.tar --config-file networks/cifar10-hwc.yaml --stop-after 1 --ai87 --mlator --mexpress --mlator-noverify --compact-data
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlator --checkpoint-file trained/ai87-cifar10-bias.pth.tar --config-file networks/cifar10-hwc.yaml --stop-after 2 --ai87 --mlator
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlator --checkpoint-file tests/test-cifar10-bias.pth.tar --config-file tests/test-cifar10-hwc.yaml --stop-after 0 --ai87 --mlator --mexpress --mlator-noverify --compact-data
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlator --checkpoint-file tests/test-cifar10-bias.pth.tar --config-file tests/test-cifar10-hwc.yaml --stop-after 1 --ai87 --mlator --mexpress --mlator-noverify --compact-data
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlator --checkpoint-file tests/test-cifar10-bias.pth.tar --config-file tests/test-cifar10-hwc.yaml --stop-after 2 --ai87 --mlator
 
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-conv1d-abs --config-file tests/test-conv1d-abs.yaml --ai87
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar-abs --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-cifar10-abs.yaml --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar-abs --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-cifar10-abs.yaml --ai87
 
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlpflatten12to17 --config-file tests/test-mlpflatten12to17.yaml --ai87 --debug-computation --debug
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlpflatten12to17big --config-file tests/test-mlpflatten12to17-big.yaml --ai87 --debug-computation --debug
@@ -231,13 +231,13 @@
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlpflatten768to100 --config-file tests/test-mlpflatten768to100.yaml --ai87
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlpflatten768to100big --config-file tests/test-mlpflatten768to100-big.yaml --ai87
 
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mnist-extrasmall-oneshot --checkpoint-file trained/ai84-mnist-extrasmallnet.pth.tar --config-file networks/mnist-chw-extrasmallnet.yaml --stop-after 2 --ai87 --one-shot
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mnist-extrasmall-stopstart --checkpoint-file trained/ai84-mnist-extrasmallnet.pth.tar --config-file networks/mnist-chw-extrasmallnet.yaml --stop-after 2 --ai87 --stop-start
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mnist-extrasmall-oneshot --checkpoint-file tests/test-mnist-extrasmallnet.pth.tar --config-file tests/test-mnist-chw-extrasmallnet.yaml --stop-after 2 --ai87 --one-shot
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mnist-extrasmall-stopstart --checkpoint-file tests/test-mnist-extrasmallnet.pth.tar --config-file tests/test-mnist-chw-extrasmallnet.yaml --stop-after 2 --ai87 --stop-start
 
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mnist-extrasmall-cweight --checkpoint-file trained/ai84-mnist-extrasmallnet.pth.tar --config-file networks/mnist-chw-extrasmallnet.yaml --stop-after 0 --ai87 --compact-weights --verify-kernels
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mnist-extrasmall-mexpress --checkpoint-file trained/ai84-mnist-extrasmallnet.pth.tar --config-file networks/mnist-chw-extrasmallnet.yaml --stop-after 0 --ai87 --mexpress --verify-kernels
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar-bias-mexpress --checkpoint-file trained/ai87-cifar10-bias.pth.tar --config-file networks/cifar10-hwc.yaml --stop-after 0 --ai87 --mexpress --verify-kernels
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-q4-cifar-bias-mexpress --checkpoint-file trained/ai87-cifar10-bias-quant4.pth.tar --config-file tests/test-ai87-cifar10-hwc-quant4.yaml --stop-after 0 --ai87 --mexpress --verify-kernels
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mnist-extrasmall-cweight --checkpoint-file tests/test-mnist-extrasmallnet.pth.tar --config-file tests/test-mnist-chw-extrasmallnet.yaml --stop-after 0 --ai87 --compact-weights --verify-kernels
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mnist-extrasmall-mexpress --checkpoint-file tests/test-mnist-extrasmallnet.pth.tar --config-file tests/test-mnist-chw-extrasmallnet.yaml --stop-after 0 --ai87 --mexpress --verify-kernels
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-cifar-bias-mexpress --checkpoint-file tests/test-cifar10-bias.pth.tar --config-file tests/test-cifar10-hwc.yaml --stop-after 0 --ai87 --mexpress --verify-kernels
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-q4-cifar-bias-mexpress --checkpoint-file tests/test-cifar10-bias-quant4.pth.tar --config-file tests/test-ai85-cifar10-hwc-quant4.yaml --stop-after 0 --ai87 --mexpress --verify-kernels
 
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlpflatten768to100big-q4 --config-file tests/test-mlpflatten768to100-big-q4.yaml --ai87
 
@@ -316,9 +316,9 @@
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-eltwise --config-file tests/test-fifostream-eltwise.yaml --ai87 --fifo --increase-start 1
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-multilayer-eltwise --config-file tests/test-multilayer-eltwise.yaml --ai87
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-riscv-csv-qfastfifostream-32-hwc --config-file tests/test-fifostream-32-hwc.yaml --ai87 --fifo --riscv --riscv-flash --fast-fifo-quad --input-csv input.csv --riscv-cache --input-fifo
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-riscv-csv-fastfifostream-cifar2-hwc --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-fifostream-cifar-hwc.yaml --ai87 --fifo --stop-after 2 --fast-fifo --riscv --riscv-cache --input-csv input.csv --input-csv-period 180 --timeout 40 --input-fifo --mexpress
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-riscv-csv-qfastfifostream-cifar2-hwc --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-fifostream-cifar-hwc.yaml --ai87 --fifo --stop-after 2 --fast-fifo-quad --riscv --riscv-cache --input-csv input.csv --input-csv-period 180 --timeout 40 --input-fifo --mexpress
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-riscv-csv-qfastfifostream-cifar2-hwc --checkpoint-file trained/ai84-cifar10.pth.tar --config-file tests/test-fifostream-cifar-hwc.yaml --ai87 --fifo --stop-after 2 --fast-fifo-quad --riscv --riscv-cache --input-csv input.csv --input-csv-period 180 --timeout 40 --input-fifo --mexpress --stop-after 0
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-riscv-csv-fastfifostream-cifar2-hwc --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-fifostream-cifar-hwc.yaml --ai87 --fifo --stop-after 2 --fast-fifo --riscv --riscv-cache --input-csv input.csv --input-csv-period 180 --timeout 40 --input-fifo --mexpress
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-riscv-csv-qfastfifostream-cifar2-hwc --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-fifostream-cifar-hwc.yaml --ai87 --fifo --stop-after 2 --fast-fifo-quad --riscv --riscv-cache --input-csv input.csv --input-csv-period 180 --timeout 40 --input-fifo --mexpress
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-riscv-csv-qfastfifostream-cifar2-hwc --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-fifostream-cifar-hwc.yaml --ai87 --fifo --stop-after 2 --fast-fifo-quad --riscv --riscv-cache --input-csv input.csv --input-csv-period 180 --timeout 40 --input-fifo --mexpress --stop-after 0
 
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-chan1024 --config-file tests/test-chan1024.yaml --ai87
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-chan1024chan1024 --config-file tests/test-chan1024-1024.yaml --ai87
@@ -344,7 +344,7 @@
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-deepsleep-riscv-fastfifo-hwc-nonsquare --config-file tests/test-fifo-hwc-nonsquare.yaml --ai87 --fifo --riscv --riscv-flash --fast-fifo --deepsleep --autogen None
 
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-verify-layers --config-file tests/test-layers.yaml --ai87 --verify-writes --write-zero-registers
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-verify-cifar-bias --checkpoint-file trained/ai87-cifar10-bias.pth.tar --config-file networks/cifar10-hwc.yaml --ai87 --verify-writes --compact-data --mexpress
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-verify-cifar-bias --checkpoint-file tests/test-cifar10-bias.pth.tar --config-file tests/test-cifar10-hwc.yaml --ai87 --verify-writes --compact-data --mexpress
 
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-exclusivesram-riscv-csv-fastfifostream-notvga-hwc --config-file tests/test-fifostream-notvga40x30-hwc.yaml --ai87 --fifo --mexpress --riscv --riscv-flash --fast-fifo --input-csv input.csv --riscv-cache --timeout 2500 --input-csv-period 180 --riscv-exclusive
 
@@ -356,10 +356,10 @@
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-noretrace-riscv-csv-fastfifostream-notvga-hwc --config-file tests/test-fifostream-notvga40x30-hwc.yaml --ai87 --fifo --mexpress --riscv --riscv-flash --fast-fifo --input-csv input.csv --riscv-cache --timeout 2500 --input-csv-period 180 --input-csv-retrace 0
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-powerdown-group0-pool4 --config-file tests/test-group0-pool4.yaml --ai87 --fifo --powerdown
 
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fire --config-file tests/test-ai87-fire-cifar10.yaml --ai87 --checkpoint-file trained/ai87-firetestnet-cifar10.pth.tar
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fire --config-file tests/test-ai87-fire-cifar10.yaml --ai87 --checkpoint-file trained/ai87-firetestnet-cifar10.pth.tar --stop-after 4
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fire2 --config-file tests/test-ai87-fire2-cifar10.yaml --ai87 --checkpoint-file trained/ai87-firetestnet-cifar10.pth.tar
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fire2 --config-file tests/test-ai87-fire2-cifar10.yaml --ai87 --checkpoint-file trained/ai87-firetestnet-cifar10.pth.tar --stop-after 4
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fire --config-file tests/test-ai85-fire-cifar10.yaml --ai87 --checkpoint-file tests/test-firetestnet-cifar10.pth.tar
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fire --config-file tests/test-ai85-fire-cifar10.yaml --ai87 --checkpoint-file tests/test-firetestnet-cifar10.pth.tar --stop-after 4
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fire2 --config-file tests/test-ai85-fire2-cifar10.yaml --ai87 --checkpoint-file tests/test-firetestnet-cifar10.pth.tar
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fire2 --config-file tests/test-ai85-fire2-cifar10.yaml --ai87 --checkpoint-file tests/test-firetestnet-cifar10.pth.tar --stop-after 4
 
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-kmax_bmax_dmax --config-file tests/test-max.yaml --ai87
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-riscv-fastfifo-simple --config-file tests/test-fifo-hwc.yaml --ai87 --fifo --riscv --riscv-flash --fast-fifo
@@ -368,8 +368,8 @@
 
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-nonsquare-mexpress-mlator --config-file tests/test-nonsquare.yaml --ai87 --mexpress --mlator
 
-./ai8xize.py --verbose --autogen rtlsim-ai85 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --ai87 --stop-after 0
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --ai87 --stop-after 0
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --ai87 --stop-after 1
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --ai87 --mexpress --stop-after 5
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --ai87 --mexpress
 
-./ai8xize.py --verbose --autogen rtlsim-ai85 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --ai87 --stop-after 1
-./ai8xize.py --verbose --autogen rtlsim-ai85 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --ai87 --mexpress --stop-after 5
-./ai8xize.py --verbose --autogen rtlsim-ai85 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --ai87 --mexpress
