@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2018-2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -11,6 +11,7 @@ Copy assets
 """
 import os
 import shutil
+import tornadocnn as tc
 
 
 def copy(
@@ -33,12 +34,17 @@ def eclipse_template(
         source,
         target,
         test_name,
+        riscv=False,
 ):
     """
     Copy all files `base`/`source` to `target`/`test_name`, with file name and
     content substitution.
     """
     template = 'template'
+    if riscv:
+        elf_file = f'max{tc.dev.part_no}-combined.elf'
+    else:
+        elf_file = f'max{tc.dev.part_no}.elf'
 
     for _, _, files in sorted(os.walk(os.path.join(base, source))):
         for name in sorted(files):
@@ -50,6 +56,9 @@ def eclipse_template(
                 )
                 with open(os.path.join(base, source, name)) as infile, open(dst, 'w+') as outfile:
                     for line in infile:
-                        outfile.write(line.replace('##__PROJ_NAME__##', test_name))
+                        outfile.write(
+                            line.replace('##__PROJ_NAME__##', test_name).
+                            replace('##__ELF_FILE__##', elf_file)
+                        )
             else:
                 shutil.copy(os.path.join(base, source, name), os.path.join(target, test_name))

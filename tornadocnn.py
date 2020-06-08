@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -23,8 +23,8 @@ class Dev:
     """
     FIX_STREAM_BIAS = False
 
-    def __str__(self):
-        return self.__class__.__name__
+    def __init__(self, part_no):
+        self.part_no = part_no
 
 
 class DevAI84(Dev):
@@ -91,9 +91,6 @@ class DevAI84(Dev):
     FRAME_SIZE_MAX = 2**14  # x * y * multipass
 
     BIAS_DIV = 1
-
-    def __str__(self):
-        return self.__class__.__name__
 
 
 class DevAI85(Dev):
@@ -190,9 +187,6 @@ class DevAI85(Dev):
 
     FIX_STREAM_BIAS = True
 
-    def __str__(self):
-        return self.__class__.__name__
-
 
 def get_device(
         device,
@@ -204,11 +198,11 @@ def get_device(
     print(f'Configuring device: AI{device}.')
 
     if device == 84:
-        d = DevAI84()
+        d = DevAI84('ai84')
     elif device == 85:
-        d = DevAI85()
+        d = DevAI85('78000')
     elif device == 87:
-        d = DevAI85()  # For now, no differences from AI85
+        d = DevAI85('78002')  # For now, no differences from AI85
     else:
         eprint(f'Unknown device code `{device}`')
         sys.exit(1)
