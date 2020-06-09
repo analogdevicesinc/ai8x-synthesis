@@ -1996,6 +1996,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             assets.copy('assets', 'embedded-riscv-ai' + str(device), base_directory, test_name)
         else:
             assets.copy('assets', 'embedded-ai' + str(device), base_directory, test_name)
+        assets.eclipse_template('assets', 'eclipse', base_directory, test_name, riscv=riscv)
 
     return test_name
 
