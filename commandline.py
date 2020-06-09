@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2018-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -242,7 +242,7 @@ def get_parser():
     group.add_argument('--zero-unused', action='store_true', default=False,
                        help="zero unused registers (default: do not touch)")
     group.add_argument('--apb-base', type=lambda x: int(x, 0), metavar='N',
-                       help=f"APB base address (default: device specific)")
+                       help="APB base address (default: device specific)")
     group.add_argument('--ready-sel', type=int, metavar='N',
                        help="specify memory waitstates")
     group.add_argument('--ready-sel-fifo', type=int, metavar='N',
