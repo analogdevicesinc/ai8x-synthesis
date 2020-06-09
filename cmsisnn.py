@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -96,7 +96,7 @@ def create_net(
                 c_file.write(f'{pool[ll][0]}x{pool[ll][1]} {"avg" if pool_average[ll] else "max"} '
                              f'pool with stride {pool_stride[ll]}')
             else:
-                c_file.write(f'no pooling')
+                c_file.write('no pooling')
             c_file.write(f', {kernel_size[ll][0]}x{kernel_size[ll][1]} convolution '
                          f'with stride {stride[ll]} '
                          f'pad {padding[ll]}, '
@@ -384,13 +384,13 @@ def create_net(
                      f'  cnn_run(input_data, {input_size}, &output, &output_size);\n\n')
 
         toplevel.c_define(sampledata_header, data_cmsis, 'OUTPUT_DATA', '%d', 16)
-        c_file.write(f'  if (memcmp(output_data, output, output_size) == 0)\n'
+        c_file.write('  if (memcmp(output_data, output, output_size) == 0)\n'
                      '    printf("*** PASS ***\\n\\n");\n'
                      '  else\n'
                      '    printf("!!! FAIL !!!\\n\\n");\n\n')
 
         if fc_weights:
-            c_file.write(f'  fc_layer(output);\n\n')
+            c_file.write('  fc_layer(output);\n\n')
             c_file.write('  printf("Classification results:\\n");\n'
                          '  for (i = 0; i < NUM_CLASSES; i++) {\n'
                          '    printf("[%6d] -> Class %d: %0.1f%%\\n", fc_output[i], i, '

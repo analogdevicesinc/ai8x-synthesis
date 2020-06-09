@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -156,7 +156,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
             input_chan[sequence] = ll['in_channels']
         if 'in_dim' in ll:
             if isinstance(ll['in_dim'], list) and len(ll['in_dim']) > 2:
-                error_exit(f'`in_dim` must not exceed two dimensions', sequence)
+                error_exit('`in_dim` must not exceed two dimensions', sequence)
             input_dim[sequence] = ll['in_dim']
         if 'in_offset' in ll:
             input_offset[sequence] = ll['in_offset']

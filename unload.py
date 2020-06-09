@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -98,7 +98,7 @@ def unload(
                     memfile.write('  addr = (volatile uint32_t *) '
                                   f'0x{apb_base + tc.dev.C_SRAM_BASE + offs:08x};\n')
                 if out_size != 4:
-                    memfile.write(f'  val = *addr++;\n')
+                    memfile.write('  val = *addr++;\n')
                     read_addr = offs + 4
                 else:
                     read_addr = offs
@@ -111,7 +111,7 @@ def unload(
                         if addr != write_addr:
                             memfile.write(f'  offs = 0x{addr:04x};\n')
                         else:
-                            memfile.write(f'  offs++;\n')
+                            memfile.write('  offs++;\n')
                         write_addr = addr + 1
                     if this_map & 1:
                         if out_size != 4:
@@ -131,7 +131,7 @@ def unload(
                             else:
                                 memfile.write(';\n')
                         else:  # out_size == 4
-                            memfile.write(f'  *out_buf++ = *addr++;\n')
+                            memfile.write('  *out_buf++ = *addr++;\n')
                             write_addr = addr + 4
                             read_addr += 4
 
