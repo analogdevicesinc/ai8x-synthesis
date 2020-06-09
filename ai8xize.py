@@ -490,7 +490,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     apb.output(f'{pool_str[ll]} {"avg" if pool_average[ll] else "max"} '
                                f'pool with stride {pool_stride_str[ll]}')
                 else:
-                    apb.output(f'no pooling')
+                    apb.output('no pooling')
                 if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
                     conv_str = f', {op.string(operator[ll])} with kernel size ' \
                                f'{kernel_size_str[ll]}, '
@@ -589,7 +589,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         # Reset
         if device != 84:
             apb.write_fifo_ctl(tc.dev.AON_CTL, tc.dev.AON_READY_SEL,
-                               verbose, comment=f' // AON control', force_write=True)
+                               verbose, comment=' // AON control', force_write=True)
 
         # Disable completely unused groups
         for group in range(tc.dev.P_NUMGROUPS):
@@ -754,7 +754,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             if device != 84:
                 print(f'Input expansion     = {in_expand}')
                 print(f'Expansion threshold = {in_expand_thresh}')
-                print(f'Element-wise op     = [',
+                print('Element-wise op     = [',
                       ', '.join(op.string(k, elt=True) for k in eltwise), ']', sep='',)
                 print(f'Operand expansion   = {operands}')
 
@@ -780,7 +780,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 print(f'Kernel dimensions   = {kernel_size}')
                 print(f'Kernel size         = {quantization}')
                 print(f'Output shift        = {output_shift}')
-            print(f'Operator            = [',
+            print('Operator            = [',
                   ', '.join(op.string(k) for k in operator), ']', sep='',)
             print(f'Stride              = {stride}')
 
@@ -1423,13 +1423,13 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     if processor_map_0 & 1 << (i % tc.dev.P_NUMGROUPS) * tc.dev.P_NUMPRO != 0:
                         val |= 1 << i % tc.dev.P_NUMGROUPS + 12
                 apb.write_fifo_ctl(tc.dev.FIFO_CTL, val,
-                                   verbose, comment=f' // FIFO control')
+                                   verbose, comment=' // FIFO control')
             else:
                 apb.write_fast_fifo_ctl(tc.dev.FAST_FIFO_IE, 0,
-                                        verbose, comment=f' // Fast FIFO interrupt enable')
+                                        verbose, comment=' // Fast FIFO interrupt enable')
                 val = 10 << 4  # Async, threshold 10
                 apb.write_fast_fifo_ctl(tc.dev.FAST_FIFO_CR, val,
-                                        verbose, comment=f' // Fast FIFO control')
+                                        verbose, comment=' // Fast FIFO control')
 
         # [0]     enable
         # [2:1]   rdy_sel  (wait states - set to max)
@@ -1503,7 +1503,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             for _, group in enumerate(unused_groups):
                 val2 |= 1 << 12 + group
             apb.write_fifo_ctl(tc.dev.AON_CTL, val2 | tc.dev.AON_READY_SEL,
-                               verbose, comment=f' // AON control')
+                               verbose, comment=' // AON control')
 
         if embedded_code:
             apb.output('\n  CNN_START; // Allow capture of processing time\n')

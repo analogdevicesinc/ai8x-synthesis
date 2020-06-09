@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 ###################################################################################################
-# Copyright (C) 2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -109,7 +109,7 @@ def main(files):
     max_stream = read_access[-1][0]
 
     filtered = [e for e in read_access if e[0] == 1]
-    with open(f'input_0.mem', mode='w') as f:
+    with open('input_0.mem', mode='w') as f:
         for _, e in enumerate(filtered):
             f.write(f'{e[3]:08x}\n')
 
