@@ -1,5 +1,4 @@
 ###################################################################################################
-#
 # Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
@@ -41,7 +40,7 @@ def load(
 
     # Load weights saved using:
     #    w = np.random.randint(-128, 127, (2, 64, 64, 3, 3), dtype=np.int8)
-    #    np.save(f'tests/{dataset}', w, allow_pickle=False, fix_imports=False)
+    #    np.save(f'tests/{dataset}', w)
 
     w = []
     layers = 0
@@ -53,7 +52,7 @@ def load(
         print(f'Reading weights from {fname}...')
         try:
             while True:
-                w.append(np.load(file, allow_pickle=False, fix_imports=False))
+                w.append(np.load(file))
                 layers += 1
         except ValueError:
             pass
@@ -74,7 +73,7 @@ def load(
             try:
                 while ll < layers:
                     if ll not in no_bias:
-                        bias[ll] = np.load(file, allow_pickle=False, fix_imports=False)
+                        bias[ll] = np.load(file)
                     ll += 1
             except ValueError:
                 pass
