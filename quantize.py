@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 ###################################################################################################
-#
-# Copyright (C) 2019-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Maxim Confidential
 #
 ###################################################################################################
 """
@@ -15,9 +12,10 @@ Load contents of a checkpoint files and save them in a format usable for AI84/AI
 import argparse
 from functools import partial
 import torch
-from distiller.apputils.checkpoint import get_contents_table  # pylint: disable=no-name-in-module
 import tornadocnn as tc
 import yamlcfg
+from devices import device
+from distiller.apputils.checkpoint import get_contents_table  # pylint: disable=no-name-in-module
 
 CONV_SCALE_BITS = 8
 FC_SCALE_BITS = 8
@@ -214,7 +212,7 @@ if __name__ == '__main__':
                        help="enable AI85 features (default: AI84)")
     group.add_argument('--ai87', action='store_const', const=87, dest='device',
                        help="enable AI87 features (default: AI84)")
-    group.add_argument('--device', type=int, metavar='N',
+    group.add_argument('--device', type=device, metavar='N',
                        help="set device (default: 84)")
     parser.add_argument('-f', '--fc', type=int, default=FC_CLAMP_BITS, metavar='N',
                         help=f'set number of bits for the fully connnected layers '
