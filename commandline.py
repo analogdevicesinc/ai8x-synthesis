@@ -11,6 +11,7 @@ Command line parser for Tornado CNN
 """
 import argparse
 import camera
+from devices import device
 
 
 def get_parser():
@@ -27,7 +28,7 @@ def get_parser():
                         help="enable AI85 features (default: AI84)")
     mgroup.add_argument('--ai87', action='store_const', const=87, dest='device',
                         help="enable AI87 features (default: AI84)")
-    mgroup.add_argument('--device', type=int, metavar='N',
+    mgroup.add_argument('--device', type=device, metavar='N',
                         help="set device (default: 84)")
 
     # Hardware features

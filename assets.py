@@ -4,7 +4,6 @@
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
 #
-# Written by RM
 ###################################################################################################
 """
 Copy assets
@@ -42,9 +41,9 @@ def eclipse_template(
     """
     template = 'template'
     if riscv:
-        elf_file = f'max{tc.dev.part_no}-combined.elf'
+        elf_file = f'{tc.dev.part_no.lower()}-combined.elf'
     else:
-        elf_file = f'max{tc.dev.part_no}.elf'
+        elf_file = f'{tc.dev.part_no.lower()}.elf'
 
     for _, _, files in sorted(os.walk(os.path.join(base, source))):
         for name in sorted(files):
