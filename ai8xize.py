@@ -425,6 +425,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
             apb.header(
                 embedded_arm=embedded_code,
+                fail_indicator=forever,
             )
             apb.main(
                 clock_trim=clock_trim,
@@ -502,7 +503,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                            f'{output_chan[ll]}x{output_dim_str[ll]} output\n')
 
         apb.output('\n')
-        apb.header()
+        apb.header(fail_indicator=forever)
 
         if embedded_code or compact_data or mexpress:
             apb.output('void memcpy32(uint32_t *dst, const uint32_t *src, int n)\n{\n')
