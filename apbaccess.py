@@ -436,6 +436,7 @@ class APB():
     def header(  # pylint: disable=no-self-use
             self,
             embedded_arm=False,  # pylint: disable=unused-argument
+            fail_indicator=False,  # pylint: disable=unused-argument
     ):
         """
         Write file headers.
@@ -885,6 +886,7 @@ class APBTopLevel(APB):
     def header(
             self,
             embedded_arm=False,
+            fail_indicator=False,
     ):
         """
         Write include files and forward definitions to .c file.
@@ -902,6 +904,7 @@ class APBTopLevel(APB):
             riscv=self.riscv,
             camera=self.input_csv is not None,
             embedded_arm=embedded_arm,
+            fail_indicator=fail_indicator,
         )
 
     def verify_header(
