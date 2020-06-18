@@ -373,3 +373,4 @@
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --ai87 --mexpress --stop-after 5
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --ai87 --mexpress
 
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-resnet --checkpoint-file tests/test-resnet.pth.tar --config-file tests/test-resnet-4l.yaml --device 87 --compact-data --mexpress --overwrite-ok

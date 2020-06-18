@@ -1,0 +1,59 @@
+# HWC (little data) configuration for CIFAR-100
+# Simple Model
+
+arch: ai85ressimplenet
+dataset: CIFAR100
+
+layers:
+# Layer 0
+- in_offset: 0x0000
+  out_offset: 0x2000 
+  processors: 0x0000000000000007
+  operation: conv2d
+  kernel_size: 3x3
+  pad: 1
+  activate: ReLU
+  data_format: HWC
+
+# Layer 1
+- in_offset: 0x2000
+  out_offset: 0x3000
+  processors: 0x000000000000ffff
+  output_processors: 0x000000fffff00000
+  operation: conv2d
+  kernel_size: 3x3
+  pad: 1
+  activate: ReLU
+
+# Layer 2
+- in_offset: 0x3000
+  out_offset: 0x0000
+  processors: 0x000000fffff00000
+  output_processors: 0x000000fffff00000
+  operation: passthrough
+  write_gap: 1
+
+# Layer 3
+- out_offset: 0x0004
+  in_offset: 0x3000
+  processors: 0x000000fffff00000
+  output_processors: 0x000000fffff00000
+  operation: conv2d
+  kernel_size: 3x3
+  pad: 1
+  activate: ReLU
+  write_gap: 1
+
+# Layer 4 (Residual-1)
+- pad: 0
+  in_sequences: [2, 3]
+  in_offset: 0x0000
+  out_offset: 0x2000
+  processors: 0x000000fffff00000
+  output_processors: 0x000000fffff00000
+  eltwise: add
+#  operation: conv2d #4
+  operation: passthrough
+#  kernel_size: 3x3
+#  pad: 1
+#  activate: ReLU

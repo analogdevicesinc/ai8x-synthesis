@@ -1,0 +1,197 @@
+# HWC (little data) configuration for CIFAR-100
+# Simple Model
+
+arch: ai85ressimplenet
+dataset: CIFAR100
+
+layers:
+# Layer 0
+- out_offset: 0x2000
+  processors: 0x7000000000000000
+  operation: conv2d
+  kernel_size: 3x3
+  pad: 1
+  activate: ReLU
+  data_format: HWC
+
+# Layer 1 (input offset 0x2000)
+- in_offset: 0x2000
+  out_offset: 0x0000
+  processors: 0x0ffff00000000000
+  output_processors: 0x00000000000fffff
+  operation: conv2d
+  kernel_size: 3x3
+  pad: 1
+  activate: ReLU
+
+# Layer 2 (input offset 0x0000) - re-form data with gap
+- in_offset: 0x0000
+  out_offset: 0x2000
+  processors: 0x00000000000fffff
+  output_processors: 0x00000000000fffff
+  operation: passthrough
+  write_gap: 1
+
+# Layer 3 (input offset 0x0000)
+- in_offset: 0x0000
+  out_offset: 0x2004
+  processors: 0x00000000000fffff
+  output_processors: 0x00000000000fffff
+  operation: conv2d
+  kernel_size: 3x3
+  pad: 1
+  activate: ReLU
+  write_gap: 1
+
+# Layer 4 - Residual-1 (input offset 0x2000)
+- in_sequences: [2, 3]
+  in_offset: 0x2000
+  out_offset: 0x0000
+  processors: 0x00000000000fffff
+  output_processors: 0x00000000000fffff
+  eltwise: add
+  operation: passthrough
+
+# Layer 5 (input offset 0x0000)
+- in_offset: 0x0000
+  out_offset: 0x2000
+  processors: 0x00000000000fffff
+  operation: conv2d
+  kernel_size: 3x3
+  pad: 1
+  activate: ReLU
+
+# Layer 6 (input offset 0x2000)
+- in_offset: 0x2000
+  out_offset: 0x0000
+  processors: 0xfffff00000000000
+  output_processors: 0x000000fffff00000
+  max_pool: 2
+  pool_stride: 2
+  pad: 1
+  operation: conv2d
+  kernel_size: 3x3
+  activate: ReLU
+
+# Layer 7 (input offset 0x0000) - re-form data with gap
+- in_offset: 0x0000
+  out_offset: 0x2000
+  processors: 0x000000fffff00000
+  output_processors: 0x000000fffff00000
+  op: passthrough
+  write_gap: 1
+
+# Layer 8 (input offset 0x0000)
+- in_offset: 0x0000
+  out_offset: 0x2004
+  processors: 0x000000fffff00000
+  output_processors: 0x000000fffff00000
+  operation: conv2d
+  kernel_size: 3x3
+  pad: 1
+  activate: ReLU
+  write_gap: 1
+
+# Layer 9 - Residual-2 (input offset 0x2000)
+- in_sequences: [7, 8]
+  in_offset: 0x2000
+  out_offset: 0x0000
+  processors: 0x000000fffff00000
+  output_processors: 0x000000fffff00000
+  eltwise: add
+  op: passthrough
+
+# Layer 10 (input offset 0x0000)
+- in_offset: 0x0000
+  out_offset: 0x2000
+  processors: 0x000000fffff00000
+  operation: conv2d
+  kernel_size: 3x3
+  pad: 1
+  activate: ReLU
+
+# Layer 11 (input offset 0x2000)
+- in_offset: 0x2000
+  out_offset: 0x0000
+  processors: 0x00000fffffffffff
+  max_pool: 2
+  pool_stride: 2
+  pad: 1
+  operation: conv2d
+  kernel_size: 3x3
+  activate: ReLU
+
+# Layer 12 (input offset 0x0000) - re-form data with gap
+- in_offset: 0x0000
+  out_offset: 0x2000
+  processors: 0x0000ffffffffffff
+  output_processors: 0x0000ffffffffffff
+  op: passthrough
+  write_gap: 1
+
+# Layer 13 (input offset 0x0000)
+- in_offset: 0x0000
+  out_offset: 0x2004
+  processors: 0x0000ffffffffffff
+  output_processors: 0x0000ffffffffffff
+  operation: conv2d
+  kernel_size: 3x3
+  pad: 1
+  activate: ReLU
+  write_gap: 1
+
+# Layer 14 - Residual-3 (input offset 0x2000)
+- in_sequences: [12, 13]
+  in_offset: 0x2000
+  out_offset: 0x0000
+  processors: 0x0000ffffffffffff
+  eltwise: add
+  op: passthrough
+
+# Layer 15 (input offset 0x0000)
+- in_offset: 0x0000
+  out_offset: 0x2000
+  processors: 0x0000ffffffffffff
+  max_pool: 2
+  pool_stride: 2
+  pad: 1
+  operation: conv2d
+  kernel_size: 3x3
+  activate: ReLU
+
+# Layer 16 (input offset 0x2000)
+- out_offset: 0x0000
+  processors: 0x0000ffffffffffff
+  max_pool: 2
+  pool_stride: 2
+  pad: 0
+  operation: conv2d
+  kernel_size: 1x1
+  activate: ReLU
+
+# Layer 17 (input offset 0x0000)
+- out_offset: 0x2000
+  processors: 0xffffffffffffffff
+  operation: conv2d
+  kernel_size: 1x1
+  pad: 0
+  activate: ReLU
+
+# Layer 18 (input offset 0x2000)
+- out_offset: 0x0000
+  processors: 0xffffffffffffffff
+  max_pool: 2
+  pool_stride: 2
+  pad: 1
+  operation: conv2d
+  kernel_size: 3x3
+  activate: ReLU
+  out_offset: 0x0000
+
+# Layer 19 (input offset 0x0000)
+- out_offset: 0x2000
+  processors: 0xffffffffffffffff
+  operation: conv2d
+  kernel_size: 1x1
+  pad: 0
+  output_width: 32

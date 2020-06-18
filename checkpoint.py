@@ -91,7 +91,7 @@ def load(
             module, op = k.split(sep='.', maxsplit=1)
             op = op.rsplit(sep='.', maxsplit=1)[0]
             if module != 'fc' or module == 'fc' and not fc_layer:
-                if layers >= num_conv_layers:
+                if layers >= num_conv_layers or seq >= num_conv_layers:
                     continue
                 quant.append(quantization[seq])
 

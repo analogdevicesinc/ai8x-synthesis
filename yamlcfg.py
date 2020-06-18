@@ -83,6 +83,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
     eltwise = [op.NONE] * tc.dev.MAX_LAYERS
     pool_first = [True] * tc.dev.MAX_LAYERS
     in_sequences = [None] * tc.dev.MAX_LAYERS
+    write_gap = [0] * tc.dev.MAX_LAYERS
 
     sequence = 0
     for ll in cfg['layers']:
@@ -93,7 +94,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
                                'op', 'operands', 'operation', 'operator',
                                'output_processors', 'output_width', 'output_shift',
                                'pool_first', 'processors', 'pad', 'quantization',
-                               'sequence', 'streaming', 'stride'])):
+                               'sequence', 'streaming', 'stride', 'write_gap'])):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
             sys.exit(1)
 
@@ -106,11 +107,18 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
             processor_map[sequence] = ll['processors']
         if not processor_map[sequence]:
             error_exit('`processors` must not be zero or missing', sequence)
+        if not isinstance(processor_map[sequence], int) \
+           or processor_map[sequence] >= 2**tc.dev.MAX_PROC:
+            error_exit(f'`processors` must be an int from 0 to 2**{tc.dev.MAX_PROC}-1', sequence)
 
         if 'output_processors' in ll:
             output_map[sequence] = ll['output_processors']
             if not output_map[sequence]:
                 error_exit('output_processors` cannot be zero', sequence)
+            if not isinstance(output_map[sequence], int) \
+               or output_map[sequence] >= 2**tc.dev.MAX_PROC:
+                    error_exit('`output_processors` must be an int from 0 to '
+                               f'2**{tc.dev.MAX_PROC}-1', sequence)
 
         if 'max_pool' in ll:
             val = ll['max_pool']
@@ -346,6 +354,9 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
         if 'conv_groups' in ll:
             conv_groups[sequence] = ll['conv_groups']
 
+        if 'write_gap' in ll:
+            write_gap[sequence] = ll['write_gap']
+
         # Fix up values for 1D convolution or no convolution
         if operator[sequence] == op.CONV1D:
             padding[sequence][1] = 0
@@ -389,6 +400,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
             del operands[ll]
             del eltwise[ll]
             del conv_groups[ll]
+            del write_gap[ll]
 
     # Check all but last layer
     for ll in range(len(output_map) - 1):
@@ -469,5 +481,6 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
     settings['pool_first'] = pool_first
     settings['in_sequences'] = in_sequences
     settings['conv_groups'] = conv_groups
+    settings['write_gap'] = write_gap
 
     return cfg, settings
