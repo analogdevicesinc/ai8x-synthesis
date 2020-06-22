@@ -1630,13 +1630,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         if operands[ll] > 1:
             if ll == 0 and legacy_test:
                 data = np.array(np.split(data, operands[ll], axis=0))
+            elif legacy_test:
+                d = np.empty((operands[ll],
+                              data.shape[0], data.shape[1], data.shape[2] // operands[ll]),
+                             dtype=np.int64)
+                for i in range(operands[ll]):
+                    d[i, :, :, :] = data[:, :, i::operands[ll]]
+                data = d
             else:
-                # d = np.empty((operands[ll],
-                #               data.shape[0] // operands[ll], data.shape[1], data.shape[2]),
-                #              dtype=np.int64)
-                # for i in range(operands[ll]):
-                #     d[i, :, :, :] = data[i::operands[ll], :, :, :]
-                # data = d
                 data = np.array(np.split(data, operands[ll], axis=0))
         else:
             data = np.expand_dims(data, 0)
