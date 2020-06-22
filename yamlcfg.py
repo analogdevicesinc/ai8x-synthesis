@@ -3,8 +3,6 @@
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
 YAML Configuration Routines
@@ -117,8 +115,8 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
                 error_exit('output_processors` cannot be zero', sequence)
             if not isinstance(output_map[sequence], int) \
                or output_map[sequence] >= 2**tc.dev.MAX_PROC:
-                    error_exit('`output_processors` must be an int from 0 to '
-                               f'2**{tc.dev.MAX_PROC}-1', sequence)
+                error_exit('`output_processors` must be an int from 0 to '
+                           f'2**{tc.dev.MAX_PROC}-1', sequence)
 
         if 'max_pool' in ll:
             val = ll['max_pool']
