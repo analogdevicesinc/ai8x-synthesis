@@ -20,6 +20,39 @@ DEFAULT_1D_KERNEL = [9, 1]
 FC_KERNEL = [1, 1]
 
 
+class UniqueKeyLoader(yaml.Loader):
+    """
+    Throw an error when encountering duplicate YAML keys.
+    """
+    def construct_mapping(self, node, deep=False):
+        if not isinstance(node, yaml.MappingNode):
+            raise yaml.constructor.ConstructorError(
+                None, None,
+                "Expected a mapping node, but found %s" % node.id,
+                node.start_mark
+            )
+
+        mapping = {}
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            try:
+                hash(key)
+            except TypeError as exc:
+                eprint(f'Found unacceptable key {exc} {key_node.start_mark} '
+                       f'while constructing a mapping {node.start_mark}')
+                sys.exit(1)
+
+            # check for duplicate keys
+            if key in mapping:
+                eprint(f'Found duplicate key {key} '
+                       f'while constructing a mapping{node.start_mark}')
+                sys.exit(1)
+            value = self.construct_object(value_node, deep=deep)
+            mapping[key] = value
+
+        return mapping
+
+
 def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-branches
     """
     Configure network parameters from the YAML configuration file `config_file`.
@@ -37,7 +70,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
     # Load configuration file
     with open(config_file) as cfg_file:
         print(f'Reading {config_file} to configure network...')
-        cfg = yaml.load(cfg_file, Loader=yaml.SafeLoader)
+        cfg = yaml.load(cfg_file, Loader=UniqueKeyLoader)
 
     if bool(set(cfg) - set(['bias', 'dataset', 'layers', 'output_map', 'arch', 'weights'])):
         eprint(f'Configuration file {config_file} contains unknown key(s).')
