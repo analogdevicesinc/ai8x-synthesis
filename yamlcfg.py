@@ -53,7 +53,7 @@ class UniqueKeyLoader(yaml.Loader):
         return mapping
 
 
-def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-branches
+def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argument
     """
     Configure network parameters from the YAML configuration file `config_file`.
     The function returns both the YAML dictionary as well as a settings dictionary.
@@ -399,6 +399,15 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
         elif operator[sequence] == op.CONVTRANSPOSE2D:
             stride[sequence] = [2, 2]
 
+        # Check for early exit
+        if max_conv is not None:
+            if max_conv == 0:
+                if output_map[sequence] is None and (len(cfg['layers']) > sequence + 1):
+                    if 'processors' in cfg['layers'][sequence+1]:
+                        output_map[sequence] = cfg['layers'][sequence+1]['processors']
+                break
+            max_conv -= 1
+
         sequence += 1
 
     # Sequence specification may have holes. Contract to the used layers.
@@ -514,4 +523,4 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
     settings['conv_groups'] = conv_groups
     settings['write_gap'] = write_gap
 
-    return cfg, settings
+    return cfg, len(processor_map), settings

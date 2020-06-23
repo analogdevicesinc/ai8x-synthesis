@@ -2058,7 +2058,7 @@ def main():
         tc.dev.AON_READY_SEL = args.ready_sel_aon
 
     # Load configuration file
-    cfg, params = yamlcfg.parse(args.config_file, args.device)
+    cfg, cfg_layers, params = yamlcfg.parse(args.config_file, args.stop_after, args.device)
 
     # If not using test data, load weights and biases
     # This also configures the network's output channels
@@ -2101,13 +2101,12 @@ def main():
                 cfg['dataset'],
                 params['quantization'],
                 params['bias_quantization'],
-                len(cfg['layers']),
+                cfg_layers,
                 cfg['weights'] if 'weights' in cfg else None,
                 cfg['bias'] if 'bias' in cfg else None,
                 args.no_bias,
             )
 
-    cfg_layers = len(cfg['layers'])
     if cfg_layers > layers:
         # Add empty weights/biases and channel counts for layers not in checkpoint file.
         # The checkpoint file does not contain weights for non-convolution operations.
@@ -2150,9 +2149,6 @@ def main():
     if any(q != 8 for q in params['bias_quantization']):
         eprint('All bias quantization configuration values must be 8.')
         sys.exit(1)
-
-    if args.stop_after is not None:
-        layers = args.stop_after + 1
 
     in_sequences = params['in_sequences'][:layers]
 
