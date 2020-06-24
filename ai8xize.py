@@ -4,8 +4,6 @@
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
 Embedded network and simulation test generator program for Tornado CNN
@@ -395,6 +393,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             if (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO:
                 this_map.append(group)
         group_map.append(this_map)
+
+        # Ensure input and output map are the same for passthrough layers
+        if operator[ll] == op.NONE and processor_map[ll] != output_processor_map[ll]:
+            eprint(f'Layer {ll} is a pass-through layer. Input and output processors must be '
+                   f'identical. Configured are: input {processor_map[ll]:08x}, '
+                   f'output {output_processor_map[ll]:08x}.')
 
     groups_used = []
     for group in range(tc.dev.P_NUMGROUPS):
