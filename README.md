@@ -4,7 +4,7 @@
 
 # MAX78000 Network Loader and RTL Simulation Generator
 
-_June 16, 2020_
+_June 24, 2020_
 
 _Open the `.md` version of this file in a markdown enabled viewer, for example Typora (http://typora.io).
 See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A [PDF copy of this file](README.pdf) is available in this repository. The GitHub rendering of this document does not show the formulas or the clickable table of contents._
@@ -1290,7 +1290,7 @@ When this key is not specified, a warning is displayed and `Conv2d` is selected.
 | `Conv1d`                  | 1D convolution over an input composed of several input planes |
 | `Conv2d`                  | 2D convolution over an input composed of several input planes |
 | `ConvTranspose2d`         | 2D transposed convolution (upsampling) over an input composed of several input planes |
-| `None` or `Passthrough`   | No operation                                                 |
+| `None` or `Passthrough`   | No operation *(note: input and output processors must be the same)* |
 | `Linear` or `FC` or `MLP` | Linear transformation to the incoming data                   |
 | `Add`                     | Element-wise addition                                        |
 | `Sub`                     | Element-wise subtraction                                     |
@@ -1456,6 +1456,13 @@ Example:
 Example:
 	`flatten: true`
 
+##### `write_gap` (Optional)
+
+`write_gap` specifies the number of words that should be skipped during write operations (i.e., write every *n*th word). This creates the interleaved output needed for element-wise operations.
+
+Example:
+	`write_gap: 1`
+
 #### Example
 
 The following shows an example for a single “Fire” operation, the MAX78000/MAX78002 hardware layer numbers and its YAML description.
@@ -1519,6 +1526,54 @@ layers:
   output_width: 32
 ```
 
+#### Residual Connections
+
+Many networks use residual connections. In the following example, the convolution on the right works on the output data of the first convolution. However, that same output data also “bypasses” the second convolution and is added to the output.
+
+<img src="docs/residual-basic.png" alt="residual-basic" style="zoom:33%;" />
+
+On MAX78000/MAX78002, the element-wise addition works on “interleaved data”, i.e., each machine fetch gathers one operand.
+
+In order to achieve this, a layer must be inserted that does nothing else but reformat the data into interleaved format using the `write_gap` keyword (this operation happens in parallel and is fast).
+
+```yaml
+# Layer 1
+- out_offset: 0x0000
+  processors: 0x0ffff00000000000
+  operation: conv2d
+  kernel_size: 3x3
+  pad: 1
+  activate: ReLU
+
+# Layer 2 - re-format data with gap
+- out_offset: 0x2000
+  processors: 0x00000000000fffff
+  output_processors: 0x00000000000fffff
+  operation: passthrough
+  write_gap: 1
+
+# Layer 3
+- in_offset: 0x0000
+  out_offset: 0x2004
+  processors: 0x00000000000fffff
+  operation: conv2d
+  kernel_size: 3x3
+  pad: 1
+  activate: ReLU
+  write_gap: 1
+
+# Layer 4 - Residual
+- in_sequences: [2, 3]
+  in_offset: 0x2000
+  out_offset: 0x0000
+  processors: 0x00000000000fffff
+  eltwise: add
+  ...
+```
+
+The same network can also be viewed graphically:
+
+<img src="docs/residual.png" alt="residual" style="zoom:38%;" />
 
 ### Adding New Models and New Datasets to the Network Loader
 
