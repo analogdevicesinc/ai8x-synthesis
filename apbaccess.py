@@ -523,6 +523,7 @@ class APB():
             pool=None,
             pool_stride=1,
             mlator=False,
+            write_gap=0,
     ):  # pylint: disable=unused-argument
         """
         Write the unload function. The layer to unload has the shape `input_shape`,
@@ -549,6 +550,7 @@ class APB():
             no_error_stop=False,
             mlator=False,
             max_count=None,
+            write_gap=0,
     ):
         """
         Write a verification function. The layer to unload has the shape `input_shape`,
@@ -575,6 +577,7 @@ class APB():
             apb_base=self.apb_base,
             stream=self.memfile,
             max_count=max_count,
+            write_gap=write_gap,
         )
 
     def output_define(  # pylint: disable=no-self-use
@@ -1004,6 +1007,7 @@ class APBTopLevel(APB):
             pool=None,
             pool_stride=1,
             mlator=False,
+            write_gap=0,
     ):
         """
         Write the unload function. The layer to unload has the shape `input_shape`,

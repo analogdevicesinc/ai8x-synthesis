@@ -1838,6 +1838,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     overwrite_ok or streaming[ll],
                     no_error_stop,
                     mlator=False,
+                    write_gap=write_gap[ll],
                 )
             if log_intermediate:
                 filename2 = f'{output_filename}-{ll}.mem'  # Intermediate output
@@ -1884,6 +1885,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     overwrite_ok or streaming[ll],
                     no_error_stop,
                     mlator=mlator if ll == layers-1 else False,
+                    write_gap=write_gap[ll],
                 )
             apb.verify_unload(
                 ll,
@@ -1902,6 +1904,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 no_error_stop,
                 mlator=mlator if ll == layers-1 else False,
                 max_count=max_count,
+                write_gap=write_gap[ll],
             )
             apb.verify_footer()
         finally:
@@ -1936,6 +1939,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     pool[-1],
                     pool_stride[-1],
                     mlator=mlator,
+                    write_gap=write_gap[ll],
                 )
 
             if fc_weights:
