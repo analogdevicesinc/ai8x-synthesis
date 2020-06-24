@@ -2223,6 +2223,10 @@ def main():
         streaming = [False] * layers
     else:
         streaming = params['streaming'][:layers]
+    if args.streaming_layers is not None:
+        # Additional (or only) streaming layers from command line
+        for _, e in enumerate(args.streaming_layers):
+            streaming[e] = True
     flatten = params['flatten'][:layers]
     operands = params['operands'][:layers]
     eltwise = params['eltwise'][:layers]

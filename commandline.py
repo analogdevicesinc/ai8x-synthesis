@@ -214,6 +214,9 @@ def get_parser():
     group.add_argument('--no-bias', metavar='LIST', default=None,
                        help="comma-separated list of layers where bias values will be ignored "
                             "(default: None)")
+    group.add_argument('--streaming-layers', metavar='LIST', default=None,
+                       help="comma-separated list of additional streaming layers "
+                            "(default: None)")
 
     # Power
     group = parser.add_argument_group('Power saving')
@@ -299,5 +302,12 @@ def get_parser():
             boost_error = True
         if boost_error:
             raise ValueError('ERROR: Argument --boost must be a port.pin')
+
+    if args.streaming_layers is not None:
+        try:
+            args.streaming_layers = [int(s, 0) for s in args.streaming_layers.split(',')]
+        except ValueError:
+            raise ValueError('ERROR: Argument --streaming-layers must be a comma-separated '
+                             'list of integers only')
 
     return args
