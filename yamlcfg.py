@@ -203,6 +203,9 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
             output_chan[sequence] = ll['out_channels']
         if 'out_offset' in ll:
             output_offset[sequence] = ll['out_offset']
+        else:
+            print('WARNING: Defaulting to `out_offset = 0` for '
+                  f'layer sequence {sequence} in YAML configuration.')
 
         if 'activate' in ll or 'activation' in ll:
             key = 'activate' if 'activate' in ll else 'activation'
