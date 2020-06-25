@@ -3,8 +3,6 @@
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
 Command line parser for Tornado CNN
