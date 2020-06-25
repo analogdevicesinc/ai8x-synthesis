@@ -3,8 +3,6 @@
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
 Unload AI8X HWC memory into standard representation.
@@ -231,9 +229,10 @@ def verify(
         apb_base=0,
         stream=None,
         max_count=None,
+        write_gap=0,
 ):
     """
-    Verify HWC memory from AI84, writing C or mem code using the `verify_fn` function.
+    Verify HWC memory from AI8X, writing C or mem code using the `verify_fn` function.
     The generated code is specific to the network configuration passed in in `processor_map`,
     and `input_shape`. Additionally, the generated addresses are offset by
     `out_offset`. The function takes a pointer to a memory array, and the depth of
@@ -256,19 +255,21 @@ def verify(
     ):
         # If using single layer, make sure we're not overwriting the input
         if (not overwrite_ok) and in_map[target_offs >> 2] is not None:
+            old_ll, old_c, old_row, old_col, _ = in_map[target_offs >> 2]
             eprint(f'Processor {p}: '
                    f'Layer {ll} output for CHW={c},{row},{col} is overwriting '
-                   f'input at offset 0x{target_offs:08x}.',
+                   f'input at offset 0x{target_offs:08x} that was created by '
+                   f'layer {old_ll}, CHW={old_c},{old_row},{old_col}.',
                    error=not no_error_stop)
             if not no_error_stop:
                 sys.exit(1)
         # Check we're not overflowing the data memory
         if (not overwrite_ok) and out_map is not None and out_map[target_offs >> 2] is not None:
-            old_c, old_row, old_col, old_val = out_map[target_offs >> 2]
+            old_ll, old_c, old_row, old_col, old_val = out_map[target_offs >> 2]
             eprint(f'Processor {p}: '
                    f'Layer {ll} output for CHW={c},{row},{col} is overwriting '
-                   f'itself at offset 0x{target_offs:08x}. Previous write by '
-                   f'CHW={old_c},{old_row},{old_col} with value 0x{old_val:08x}.',
+                   f'offset 0x{target_offs:08x}. Previous write by '
+                   f'layer {old_ll},CHW={old_c},{old_row},{old_col} with value 0x{old_val:08x}.',
                    error=not no_error_stop)
             if not no_error_stop:
                 sys.exit(1)
@@ -323,10 +324,10 @@ def verify(
                         this_map >>= 1
 
                 # Get the offset of the first output byte/word of 4
-                offs = tc.dev.C_SRAM_BASE + out_offset + \
+                offs = tc.dev.C_SRAM_BASE + out_offset - (write_gap << 2) + \
                     (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
                       (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
-                     doffs * width + expand * out_size) * 4
+                     (doffs * (write_gap + 1)) * width + expand * out_size) * 4
 
                 # Special adjustment for AI84 quirk
                 if device == 84 and pool and pool[0] == 4 and pool_stride[0] == 4:
@@ -345,7 +346,7 @@ def verify(
                             col,
                         )
                         if out_map is not None:
-                            out_map[offs >> 2] = (this_c, row, col, val)
+                            out_map[offs >> 2] = (ll, this_c, row, col, val)
                         if max_count is None or count < max_count:
                             verify_fn(
                                 offs,
@@ -367,7 +368,7 @@ def verify(
                                 col,
                             )
                             if out_map is not None:
-                                out_map[offs >> 2] = (this_c, row, col, val[i])
+                                out_map[offs >> 2] = (ll, this_c, row, col, val[i])
                             if max_count is None or count < max_count:
                                 verify_fn(
                                     offs,
@@ -458,7 +459,7 @@ def verify(
                             col,
                         )
                         if out_map is not None:
-                            out_map[source >> 2] = (c, row, col, val)
+                            out_map[source >> 2] = (ll, c, row, col, val)
                         verify_fn(
                             mlat,
                             val,

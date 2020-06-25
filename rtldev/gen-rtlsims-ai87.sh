@@ -313,8 +313,8 @@
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-group0-pool4 --config-file tests/test-group0-pool4.yaml --ai87 --fifo
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-group0-pool4 --config-file tests/test-streaming-group0-pool4.yaml --ai87 --fifo
 
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-eltwise --config-file tests/test-fifostream-eltwise.yaml --ai87 --fifo --increase-start 1
-./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-multilayer-eltwise --config-file tests/test-multilayer-eltwise.yaml --ai87
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-fifostream-eltwise --config-file tests/test-fifostream-eltwise.yaml --ai87 --fifo --increase-start 1 --legacy-test
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-multilayer-eltwise --config-file tests/test-multilayer-eltwise.yaml --ai87 --legacy-test
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-riscv-csv-qfastfifostream-32-hwc --config-file tests/test-fifostream-32-hwc.yaml --ai87 --fifo --riscv --riscv-flash --fast-fifo-quad --input-csv input.csv --riscv-cache --input-fifo
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-riscv-csv-fastfifostream-cifar2-hwc --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-fifostream-cifar-hwc.yaml --ai87 --fifo --stop-after 2 --fast-fifo --riscv --riscv-cache --input-csv input.csv --input-csv-period 180 --timeout 40 --input-fifo --mexpress
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-riscv-csv-qfastfifostream-cifar2-hwc --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-fifostream-cifar-hwc.yaml --ai87 --fifo --stop-after 2 --fast-fifo-quad --riscv --riscv-cache --input-csv input.csv --input-csv-period 180 --timeout 40 --input-fifo --mexpress
@@ -373,3 +373,5 @@
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --ai87 --mexpress --stop-after 5
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --ai87 --mexpress
 
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-resnet --checkpoint-file tests/test-resnet.pth.tar --config-file tests/test-resnet-4l.yaml --device 87 --compact-data --mexpress
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-resnet --checkpoint-file tests/test-resnet.pth.tar --config-file tests/test-resnet.yaml --device 87 --compact-data --mexpress

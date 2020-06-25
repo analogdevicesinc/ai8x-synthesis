@@ -1,10 +1,8 @@
 ###################################################################################################
-# Copyright (C) 2019-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
 Checkpoint File Routines
@@ -91,7 +89,7 @@ def load(
             module, op = k.split(sep='.', maxsplit=1)
             op = op.rsplit(sep='.', maxsplit=1)[0]
             if module != 'fc' or module == 'fc' and not fc_layer:
-                if layers >= num_conv_layers:
+                if layers >= num_conv_layers or seq >= num_conv_layers:
                     continue
                 quant.append(quantization[seq])
 
