@@ -4,7 +4,7 @@
 
 # MAX78000 Network Loader and RTL Simulation Generator
 
-_June 24, 2020_
+_June 25, 2020_
 
 _Open the `.md` version of this file in a markdown enabled viewer, for example Typora (http://typora.io).
 See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A [PDF copy of this file](README.pdf) is available in this repository. The GitHub rendering of this document does not show the formulas or the clickable table of contents._
@@ -1458,7 +1458,7 @@ Example:
 
 ##### `write_gap` (Optional)
 
-`write_gap` specifies the number of words that should be skipped during write operations (i.e., write every *n*th word). This creates the interleaved output needed for element-wise operations.
+`write_gap` specifies the number of words that should be skipped during write operations (i.e., write every *n*th word). This creates an interleaved output that can be used as the input for subsequent layers that use element-wise operations.
 
 Example:
 	`write_gap: 1`
