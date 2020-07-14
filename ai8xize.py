@@ -745,6 +745,21 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             print('---------------------')
             print(f'Used processors     = 0x{processors_used:016x}')
             print(f'Used groups         = {groups_used}')
+            lat = stats.calc_latency(
+                streaming,
+                layers,
+                eltwise,
+                pool,
+                pooled_dim,
+                in_expand,
+                output_chan,
+                input_dim,
+                padding,
+                kernel_size,
+            )
+            if lat <= 0:
+                lat = 'N/A'
+            # print(f'Estimated latency   = {lat} cycles')
 
             print('\nPer-group configuration:')
             print('-----------------------')
@@ -800,7 +815,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             print(f'Pooling stride      = {pool_stride}')
             print(f'Pooled dimensions   = {pooled_dim}')
             print(f'Streaming           = {streaming}')
-            print('')
 
         if verbose:
             print('Layer register configuration:')

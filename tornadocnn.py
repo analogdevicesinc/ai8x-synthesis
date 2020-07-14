@@ -95,6 +95,10 @@ class DevAI84(Dev):
 
     BIAS_DIV = 1
 
+    # Cycles
+    C_START = 4
+    C_POOL = 3
+
     def __str__(self):
         return self.__class__.__name__
 
@@ -192,6 +196,10 @@ class DevAI85(Dev):
     FAST_FIFO_DMA = 5  # DMA register (reserved function, not yet supported)
 
     FIX_STREAM_BIAS = True
+
+    # Cycles
+    C_START = 4
+    C_POOL = 3
 
     def __str__(self):
         return self.__class__.__name__
