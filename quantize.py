@@ -76,29 +76,45 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
     def get_const(_):
         return arguments.scale
 
+    def get_max_bit_shift(t, return_bit_shift=False):
+        float_scale = 1.0 / max_max(t)
+        bit_shift = torch.ceil(torch.log2(float_scale))
+        if return_bit_shift:
+            return bit_shift
+        else:
+            return torch.pow(2., bit_shift)
+
     # Scale to our fixed point representation using any of four methods
     # The 'magic constant' seems to work best!?? FIXME
-    if arguments.clip_mode == 'STDDEV':
-        sat_fn = partial(mean_n_stds_max_abs, n_stds=arguments.stddev)
-        checkpoint['extras']['clipping_method'] = 'STDDEV'
-        checkpoint['extras']['clipping_nstds'] = arguments.stddev
-    elif arguments.clip_mode == 'MAX':
-        sat_fn = max_max
-        checkpoint['extras']['clipping_method'] = 'MAX'
-    elif arguments.clip_mode == 'AVGMAX':
-        sat_fn = avg_max
-        checkpoint['extras']['clipping_method'] = 'AVGMAX'
+    if not arguments.qat_model:
+        if arguments.clip_mode == 'STDDEV':
+            sat_fn = partial(mean_n_stds_max_abs, n_stds=arguments.stddev)
+            checkpoint['extras']['clipping_method'] = 'STDDEV'
+            checkpoint['extras']['clipping_nstds'] = arguments.stddev
+        elif arguments.clip_mode == 'MAX':
+            sat_fn = max_max
+            checkpoint['extras']['clipping_method'] = 'MAX'
+        elif arguments.clip_mode == 'AVGMAX':
+            sat_fn = avg_max
+            checkpoint['extras']['clipping_method'] = 'AVGMAX'
+        else:
+            sat_fn = get_const
+            checkpoint['extras']['clipping_method'] = 'SCALE'
+            checkpoint['extras']['clipping_scale'] = arguments.scale
     else:
-        sat_fn = get_const
-        checkpoint['extras']['clipping_method'] = 'SCALE'
-        checkpoint['extras']['clipping_scale'] = arguments.scale
+        sat_fn = get_max_bit_shift
+        checkpoint['extras']['clipping_method'] = 'MAX_BIT_SHIFT'
     fc_sat_fn = get_const
 
     first = True
     layers = 0
     num_layers = len(params['quantization']) if params else None
     for _, k in enumerate(checkpoint_state.keys()):
-        operation, parameter = k.rsplit(sep='.', maxsplit=1)
+        param_levels = k.rsplit(sep='.', maxsplit=2)
+        if len(param_levels) == 3:
+            layer, operation, parameter = param_levels[0], param_levels[1], param_levels[2]
+        else:
+            continue
         if parameter in ['w_zero_point', 'b_zero_point']:
             if checkpoint_state[k].nonzero().numel() != 0:
                 raise RuntimeError(f"\nParameter {k} is not zero.")
@@ -111,14 +127,18 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                     if num_layers and layers >= num_layers:
                         continue
                     if not params:
-                        clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Default to 8 bits
+                        if not arguments.qat_model:
+                            clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Default to 8 bits
+                        else:
+                            clamp_bits = arguments.qat_weight_bits
                     else:
                         clamp_bits = params['quantization'][layers]
                     factor = 2**(clamp_bits-1) * sat_fn(checkpoint_state[k])
                     lower_bound = 0
-                    if first:
-                        factor /= 2.  # The input layer is [-0.5, +0.5] -- compensate
-                        first = False
+                    if not arguments.qat_model:
+                        if first:
+                            factor /= 2.  # The input layer is [-0.5, +0.5] -- compensate
+                            first = False
                 else:
                     clamp_bits = arguments.fc
                     lower_bound = 1  # Accomodate ARM q15_t data type when clamping
@@ -139,8 +159,16 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                 # Store modified weight/bias back into model
                 new_checkpoint_state[k] = weights
 
+                # Set output shift
+                out_shift_name = '.'.join([layer, 'output_shift'])
+                out_shift = torch.Tensor([-1 * get_max_bit_shift(checkpoint_state[k], True)])
+                new_checkpoint_state[out_shift_name] = out_shift
+                if first:
+                    new_checkpoint_state[out_shift_name] -= 1
+                    first = False
+
                 # Is there a bias for this layer? Use the same factor as for weights.
-                bias_name = operation + '.bias'
+                bias_name = '.'.join([layer, operation, 'bias'])
                 if bias_name in checkpoint_state:
                     if arguments.verbose:
                         print(' -', bias_name)
@@ -218,6 +246,10 @@ if __name__ == '__main__':
                              f'(default: {FC_CLAMP_BITS})')
     parser.add_argument('-q', '--quantized', action='store_true', default=False,
                         help='work on quantized checkpoint')
+    parser.add_argument('--qat_model', action='store_true', default=False,
+                        help='work on quantized aware trained model checkpoint')
+    parser.add_argument('--qat_weight_bits', default=8, type=int,
+                        help='number of weight bits used in quantized aware training')
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
                         help='verbose mode')
     parser.add_argument('--clip-method', default='SCALE', dest='clip_mode',
