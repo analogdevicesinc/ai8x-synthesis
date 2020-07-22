@@ -1,2 +1,2 @@
 #!/bin/sh
-openocd -f interface/cmsis-dap.cfg -f ai85.cfg -f maxdap-pico.cfg -f max32xxx.cfg
+openocd -f interface/cmsis-dap.cfg -f max78000.cfg -f maxdap-pico.cfg
