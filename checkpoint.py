@@ -15,6 +15,7 @@ import torch
 import op as opn
 import tornadocnn
 from eprint import eprint
+from utils import fls
 
 
 def load(
@@ -23,6 +24,7 @@ def load(
         fc_layer,
         quantization,
         bias_quantization,
+        output_shift,
         kernel_size,
         operator,
         verbose=False,
@@ -91,13 +93,26 @@ def load(
             if module != 'fc' or module == 'fc' and not fc_layer:
                 if layers >= num_conv_layers or seq >= num_conv_layers:
                     continue
-                quant.append(quantization[seq])
 
                 w = checkpoint_state[k].numpy().astype(np.int64)
                 w_min, w_max = w.min(), w.max()
 
-                assert w_min >= -(2**(quantization[seq]-1))
-                assert w_max < 2**(quantization[seq]-1)
+                # Determine quantization or make sure that what was given fits
+                if quantization[seq] is not None:
+                    assert w_min >= -(2**(quantization[seq]-1))
+                    assert w_max < 2**(quantization[seq]-1)
+                else:
+                    if w_max > 0:
+                        w_max_m = int(w_max)
+                    else:
+                        w_max_m = int(abs(w_max)) - 1
+                    if w_min > 0:
+                        w_min_m = int(w_min)
+                    else:
+                        w_min_m = int(abs(w_min)) - 1
+                    quantization[seq] = 1 << (fls(max(fls(w_max_m), fls(w_min_m)) + 1) + 1)
+                    assert quantization[seq] <= 8
+                quant.append(quantization[seq])
 
                 weight_min.append(w_min)
                 weight_max.append(w_max)
@@ -142,6 +157,7 @@ def load(
 
                 weights.append(w)
                 weight_keys.append(k)
+
                 # Is there a bias for this layer?
                 bias_name = operation + '.bias'
 
@@ -173,6 +189,24 @@ def load(
                     bias_keys.append('N/A')
                     bias_quant.append(0)
                     bias_size.append(0)
+
+                # Not overriding output_shift?
+                if output_shift[seq] is None:
+                    output_shift_name = operation.rsplit(sep='.', maxsplit=1)[0] + '.output_shift'
+                    # Is there an output_shift for this layer?
+                    if output_shift_name in checkpoint_state:
+                        w = checkpoint_state[output_shift_name].numpy().astype(np.int64)
+
+                        assert len(w) == 1
+                        output_shift[seq] = w[0]
+                    else:
+                        output_shift[seq] = 0
+                else:
+                    output_shift[seq] = 0
+
+                # Add implicit shift based on quantization
+                output_shift[seq] += 8 - quantization[seq]
+
                 layers += 1
                 seq += 1
             elif have_fc_layer:
@@ -197,7 +231,7 @@ def load(
     if verbose:
         print(f'Checkpoint for epoch {checkpoint["epoch"]}, model {checkpoint["arch"]} - '
               'weight and bias data:')
-        print('Layer  InCh OutCh  Weights         Quant  Min Max   Size '
+        print('Layer  InCh OutCh  Weights         Quant Shift  Min Max   Size '
               'Key                                 Bias       Quant  Min Max Size Key')
         for ll in range(layers):
             if ll < len(weights) and weights[ll] is not None:
@@ -206,10 +240,15 @@ def load(
                     bias_shape = str(bias[ll].shape)
                 else:
                     bias_shape = 'N/A'
+                if output_shift[ll] is not None:
+                    output_shift_shape = output_shift[ll]
+                else:
+                    output_shift_shape = 'N/A'
                 print(f'{ll:4}: '
                       f'{input_channels[ll]:5} {output_channels[ll]:5}  '
                       f'{weight_shape:15} '
-                      f'{quant[ll]:5} {weight_min[ll]:4} {weight_max[ll]:3} {weight_size[ll]:6} '
+                      f'{quant[ll]:5} {output_shift_shape:5} '
+                      f'{weight_min[ll]:4} {weight_max[ll]:3} {weight_size[ll]:6} '
                       f'{weight_keys[ll]:35} '
                       f'{bias_shape:10} '
                       f'{bias_quant[ll]:5} {bias_min[ll]:4} {bias_max[ll]:3} {bias_size[ll]:4} '
@@ -219,4 +258,5 @@ def load(
     if error_exit:
         sys.exit(1)
 
-    return layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels
+    return layers, weights, bias, output_shift, \
+        fc_weights, fc_bias, input_channels, output_channels

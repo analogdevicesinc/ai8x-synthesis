@@ -18,6 +18,7 @@ from onnx import numpy_helper
 import op as opn
 import tornadocnn
 from eprint import eprint
+from utils import fls
 
 
 def get_attribute(attr):
@@ -83,6 +84,7 @@ def load(
         fc_layer,
         quantization,
         bias_quantization,
+        output_shift,
         kernel_size,  # this information available in onnx model
         operator,
         verbose=False,
@@ -164,11 +166,31 @@ def load(
                         quant.append(quantization[seq])
 
                         w_min, w_max = w.min(), w.max()
-                        assert w_min >= -(2**(quantization[seq]-1)), print(w_min)
-                        assert w_max < 2**(quantization[seq]-1), print(w_max)
+
+                        # Determine quantization or make sure that what was given fits
+                        if quantization[seq] is not None:
+                            assert w_min >= -(2**(quantization[seq]-1)), print(w_min)
+                            assert w_max < 2**(quantization[seq]-1), print(w_max)
+                        else:
+                            if w_max > 0:
+                                w_max_m = int(w_max)
+                            else:
+                                w_max_m = int(abs(w_max)) - 1
+                            if w_min > 0:
+                                w_min_m = int(w_min)
+                            else:
+                                w_min_m = int(abs(w_min)) - 1
+                            quantization[seq] = 1 << (fls(max(fls(w_max_m), fls(w_min_m)) + 1) + 1)
+                            assert quantization[seq] <= 8
 
                         weight_min.append(w_min)
                         weight_max.append(w_max)
+
+                        # Not overriding output_shift?
+                        if output_shift[seq] is None:
+                            output_shift[seq] = 0
+                        # Add based on quantization
+                        output_shift[seq] += 8 - quantization[seq]
 
                         # TODO: Double check if we need to check conv2d if opn is known
                         # to be opn.CONVTRANSPOSE2D. We should be able to get this
@@ -289,4 +311,5 @@ def load(
             print(output_channels)
             print("")
 
-    return layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels
+    return layers, weights, bias, output_shift, \
+        fc_weights, fc_bias, input_channels, output_channels
