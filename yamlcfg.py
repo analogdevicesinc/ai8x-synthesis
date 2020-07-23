@@ -11,7 +11,6 @@ import sys
 import yaml
 import op
 import tornadocnn as tc
-from utils import ffs
 from eprint import eprint
 
 

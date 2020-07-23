@@ -235,7 +235,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
         if output_shift[ll] < -15 or output_shift[ll] > 15:
             eprint(f"Layer {ll} uses output_shift of {output_shift[ll]} which exceeds the system "
-                    "limits of [-15, +15].")
+                   "limits of [-15, +15].")
             sys.exit(1)
 
         if big_data[ll]:
