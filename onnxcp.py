@@ -225,7 +225,7 @@ def load(
 
                         w_count = np.prod(w.shape)
                         param_count += w_count
-                        w_size = (w_count * 8 + (quantization[seq]-1)) // quantization[seq]
+                        w_size = (w_count * quantization[seq] + 7) // 8
                         weight_size.append(w_size)
                         param_size += w_size
 
