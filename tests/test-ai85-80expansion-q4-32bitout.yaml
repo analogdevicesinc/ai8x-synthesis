@@ -11,6 +11,7 @@ layers:
   processors: 0x0000000000000001
   data_format: CHW
   quantization: 4
+  output_shift: -3
   op: conv2d
 - max_pool: 2
   pool_stride: 2
@@ -18,6 +19,7 @@ layers:
   out_offset: 0x0
   processors: 0x00000000000ffff0
   quantization: 4
+  output_shift: -3
   output_processors: 0x0ffffffffff00000
   output_width: 32
   op: conv2d

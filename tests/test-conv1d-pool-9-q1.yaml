@@ -11,4 +11,5 @@ layers:
   stride: 1
   pad: 2
   quantization: 1
+  output_shift: -4
 

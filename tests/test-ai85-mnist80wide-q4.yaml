@@ -20,6 +20,7 @@ layers:
   out_offset: 0
   processors: 0x0000ffffffffff00
   quantization: 4
+  output_shift: -3
   op: conv2d
 - max_pool: 2
   pool_stride: 2
@@ -28,6 +29,7 @@ layers:
   out_offset: 0x2000
   processors: 0xffffffffffffffff
   quantization: 4
+  output_shift: -3
   op: conv2d
 - avg_pool: 2
   pool_stride: 2
@@ -36,5 +38,6 @@ layers:
   out_offset: 0
   processors: 0x0fffffffffffffff
   quantization: 4
+  output_shift: -3
   op: conv2d
 

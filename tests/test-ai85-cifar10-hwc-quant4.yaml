@@ -12,6 +12,7 @@ layers:
   processors: 0x0000000000000007
   data_format: HWC
   quantization: 4
+  output_shift: -3
   op: conv2d
 - max_pool: 2
   pool_stride: 2
@@ -20,6 +21,7 @@ layers:
   out_offset: 0
   processors: 0xfffffffffffffff0
   quantization: 4
+  output_shift: -3
   op: conv2d
 - max_pool: 2
   pool_stride: 2
@@ -28,6 +30,7 @@ layers:
   out_offset: 0x2000
   processors: 0xfffffffffffffff0
   quantization: 4
+  output_shift: -3
   op: conv2d
 - avg_pool: 2
   pool_stride: 2
@@ -36,5 +39,6 @@ layers:
   out_offset: 0
   processors: 0x0ffffffffffffff0
   quantization: 4
+  output_shift: -3
   op: conv2d
 
