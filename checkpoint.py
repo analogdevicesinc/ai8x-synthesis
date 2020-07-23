@@ -201,8 +201,6 @@ def load(
                         output_shift[seq] = w[0]
                     else:
                         output_shift[seq] = 0
-                else:
-                    output_shift[seq] = 0
 
                 # Add implicit shift based on quantization
                 output_shift[seq] += 8 - quantization[seq]
