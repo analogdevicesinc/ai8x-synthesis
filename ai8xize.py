@@ -234,8 +234,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             output_shift[ll] = 0  # Set default
 
         if output_shift[ll] < -15 or output_shift[ll] > 15:
-            eprint(f"Layer {ll} uses output_shift of {output_shift[ll]} which exceeds the system "
-                   "limits of [-15, +15].")
+            implicit_shift = 8 - quantization[ll]
+            eprint(f"Layer {ll} with {quantization[ll]}-bit weight quantization supports an "
+                   f"output_shift range of [{-15 - implicit_shift}, +{15 - implicit_shift}]. "
+                   f"The specified value of output_shift is {output_shift[ll] - implicit_shift} "
+                   "which exceeds the system limits.")
             sys.exit(1)
 
         if big_data[ll]:
