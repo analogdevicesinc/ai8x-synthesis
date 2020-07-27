@@ -12,4 +12,5 @@ layers:
   pool_stride: 2
   pad: 0
   quantization: 1
+  output_shift: -7
 

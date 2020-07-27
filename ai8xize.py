@@ -228,6 +228,19 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     # Check that input channels are in separate memory instances if CHW (big) data format is used,
     # and calculate input and output expansion
     for ll in range(layers):
+        if quantization[ll] is None:
+            quantization[ll] = 8  # Set default
+        if output_shift[ll] is None:
+            output_shift[ll] = 0  # Set default
+
+        if output_shift[ll] < -15 or output_shift[ll] > 15:
+            implicit_shift = 8 - quantization[ll]
+            eprint(f"Layer {ll} with {quantization[ll]}-bit weight quantization supports an "
+                   f"output_shift range of [{-15 - implicit_shift}, +{15 - implicit_shift}]. "
+                   f"The specified value of output_shift is {output_shift[ll] - implicit_shift} "
+                   "which exceeds the system limits.")
+            sys.exit(1)
+
         if big_data[ll]:
             p = processor_map[ll] >> (ffs(processor_map[ll]) & ~(tc.dev.P_SHARED-1))
             while p:
@@ -2077,13 +2090,15 @@ def main():
         fext = args.checkpoint_file.rsplit(sep='.', maxsplit=1)[1].lower()
         if fext == 'onnx':
             # ONNX file selected
-            layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
+            layers, weights, bias, output_shift, fc_weights, \
+                fc_bias, input_channels, output_channels = \
                 onnxcp.load(
                     args.checkpoint_file,
                     cfg['arch'],
                     args.fc_layer,
                     params['quantization'],
                     params['bias_quantization'],
+                    params['output_shift'],
                     params['kernel_size'],
                     params['operator'],
                     args.display_checkpoint,
@@ -2091,24 +2106,28 @@ def main():
                 )
         else:
             # PyTorch checkpoint file selected
-            layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
+            layers, weights, bias, output_shift, fc_weights, \
+                fc_bias, input_channels, output_channels = \
                 checkpoint.load(
                     args.checkpoint_file,
                     cfg['arch'],
                     args.fc_layer,
                     params['quantization'],
                     params['bias_quantization'],
+                    params['output_shift'],
                     params['kernel_size'],
                     params['operator'],
                     args.display_checkpoint,
                     args.no_bias,
                 )
     else:  # Get some hard-coded sample weights
-        layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
+        layers, weights, bias, output_shift, fc_weights, \
+            fc_bias, input_channels, output_channels = \
             sampleweight.load(
                 cfg['dataset'],
                 params['quantization'],
                 params['bias_quantization'],
+                params['output_shift'],
                 cfg_layers,
                 cfg['weights'] if 'weights' in cfg else None,
                 cfg['bias'] if 'bias' in cfg else None,
@@ -2210,7 +2229,7 @@ def main():
     input_offset = params['input_offset'][:layers]
     kernel_size = params['kernel_size'][:layers]
     quantization = params['quantization'][:layers]
-    output_shift = params['output_shift'][:layers]
+    output_shift = output_shift[:layers]
     pool = params['pool'][:layers]
     pool_stride = params['pool_stride'][:layers]
     padding = params['padding'][:layers]

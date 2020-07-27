@@ -10,4 +10,5 @@ layers:
   flatten: true
   output_width: 32
   quantization: 4
+  output_shift: -3
 
