@@ -4,7 +4,7 @@
 
 # MAX78000 Network Loader and RTL Simulation Generator
 
-_July 22, 2020_
+_July 27, 2020_
 
 _Open the `.md` version of this file in a markdown enabled viewer, for example Typora (http://typora.io).
 See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A [PDF copy of this file](README.pdf) is available in this repository. The GitHub rendering of this document does not show the formulas or the clickable table of contents._
@@ -319,7 +319,7 @@ if [ $? -eq 1 ] ; then
 fi
 ```
 
-In order for the debugger to work, the OpenOCD `max32xxx` branch from [https://github.com/MaximIntegratedMicros/openocd.git](https://github.com/MaximIntegratedMicros/openocd.git) must be installed (see above for more instructions). Working configuration files are and a `run-openocd-maxdap` script are contained in the `hardware` folder of the `ai8x-synthesis` project.
+In order for the debugger to work, the OpenOCD fork from [https://github.com/MaximIntegratedMicros/openocd.git](https://github.com/MaximIntegratedMicros/openocd.git) must be installed. *Note: A copy of the configuration files and a `run-openocd-maxdap` script are contained in the `hardware` folder of the `ai8x-synthesis` project.*
 
 `gen-demos-max78000.sh` will create code that is compatible with the SDK and copy it into the SDK’s Example directories.
 
