@@ -4,7 +4,6 @@
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
 ###################################################################################################
 """
 Load contents of a checkpoint files and save them in a format usable for AI84/AI85
@@ -31,7 +30,7 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
     """
     # Load configuration file
     if arguments.config_file:
-        _, params = yamlcfg.parse(arguments.config_file, device=dev)
+        _, _, params = yamlcfg.parse(arguments.config_file, device=dev)
     else:
         params = None
 

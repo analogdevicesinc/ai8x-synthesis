@@ -55,8 +55,10 @@ class UniqueKeyLoader(yaml.Loader):
 def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argument
     """
     Configure network parameters from the YAML configuration file `config_file`.
-    The function returns both the YAML dictionary as well as a settings dictionary.
+    `max_conv` can be set to force an early termination of the parser.
     `device` is `84`, `85`, etc.
+    The function returns both YAML dictionary, the length of the processor map,
+    as well as a settings dictionary.
     """
 
     def error_exit(message, sequence):
