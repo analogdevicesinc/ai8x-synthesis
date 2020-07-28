@@ -24,6 +24,13 @@ DEFAULT_SCALE = .85
 DEFAULT_STDDEV = 2.0
 
 
+def unwrap(x):
+    """
+    If `x` is a tensor, return the underlying numpy data, else return `x`.
+    """
+    return x.numpy() if isinstance(x, torch.Tensor) else x
+
+
 def convert_checkpoint(dev, input_file, output_file, arguments):
     """
     Convert checkpoint file or dump parameters for C code
@@ -126,13 +133,14 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                 if dev != 84 or module != 'fc':
                     if num_layers and layers >= num_layers:
                         continue
-                    if not params:
-                        if not arguments.qat_model:
-                            clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Default to 8 bits
-                        else:
-                            clamp_bits = arguments.qat_weight_bits
-                    else:
+                    clamp_bits = None
+                    if params is not None and 'quantization' in params:
                         clamp_bits = params['quantization'][layers]
+                    elif arguments.qat_model:
+                        clamp_bits = arguments.qat_weight_bits
+                    if clamp_bits is None:
+                        clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Default to 8 bits
+
                     factor = 2**(clamp_bits-1) * sat_fn(checkpoint_state[k])
                     lower_bound = 0
                     if not arguments.qat_model:
@@ -145,10 +153,10 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                     factor = 2**(clamp_bits-1) * fc_sat_fn(checkpoint_state[k])
 
                 if arguments.verbose:
-                    print(k, 'avg_max:', avg_max(checkpoint_state[k]),
-                          'max:', max_max(checkpoint_state[k]),
-                          'mean:', checkpoint_state[k].mean(),
-                          'factor:', factor,
+                    print(k, 'avg_max:', unwrap(avg_max(checkpoint_state[k])),
+                          'max:', unwrap(max_max(checkpoint_state[k])),
+                          'mean:', unwrap(checkpoint_state[k].mean()),
+                          'factor:', unwrap(factor),
                           'bits:', clamp_bits)
                 weights = factor * checkpoint_state[k]
 
@@ -246,10 +254,10 @@ if __name__ == '__main__':
                              f'(default: {FC_CLAMP_BITS})')
     parser.add_argument('-q', '--quantized', action='store_true', default=False,
                         help='work on quantized checkpoint')
-    parser.add_argument('--qat_model', action='store_true', default=False,
-                        help='work on quantized aware trained model checkpoint')
+    parser.add_argument('--qat', '--qat_model', dest='qat_model', action='store_true',
+                        default=False, help='work on quantization aware trained model checkpoint')
     parser.add_argument('--qat_weight_bits', default=8, type=int,
-                        help='number of weight bits used in quantized aware training')
+                        help='number of weight bits used in QAT')
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
                         help='verbose mode')
     parser.add_argument('--clip-method', default='SCALE', dest='clip_mode',
