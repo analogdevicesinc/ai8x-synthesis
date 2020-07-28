@@ -81,8 +81,8 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
         bit_shift = torch.ceil(torch.log2(float_scale))
         if return_bit_shift:
             return bit_shift
-        else:
-            return torch.pow(2., bit_shift)
+        # else:
+        return torch.pow(2., bit_shift)
 
     # Scale to our fixed point representation using any of four methods
     # The 'magic constant' seems to work best!?? FIXME
