@@ -4,7 +4,7 @@
 
 # MAX78000 Network Loader and RTL Simulation Generator
 
-_July 27, 2020_
+_July 29, 2020_
 
 _Open the `.md` version of this file in a markdown enabled viewer, for example Typora (http://typora.io).
 See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A [PDF copy of this file](README.pdf) is available in this repository. The GitHub rendering of this document does not show the formulas or the clickable table of contents._
@@ -741,6 +741,8 @@ The following table describes the most important command line arguments for `tra
 | `--lr`, `--learning-rate` | Set initial learning rate                                    | `--lr 0.001`                    |
 | `--deterministic`         | Seed random number generators with fixed values              |                                 |
 | `--resume-from`           | Resume from previous checkpoint                              | `--resume-from chk.pth.tar`     |
+| `--qat`                   | Enable Quantization Aware Training (“QAT”)                   |                                 |
+| `--qat-start-epoch`       | Begin learning QAT parameters at this epoch (default: 10)    | `--qat-start-epoch 2`           |
 | *Display and statistics*  |                                                              |                                 |
 | `--confusion`             | Display the confusion matrix                                 |                                 |
 | `--param-hist`            | Collect parameter statistics                                 |                                 |
@@ -850,7 +852,17 @@ When reshaping data, `in_dim:` must be specified in the model description file.
 
 #### Support for Quantization
 
+##### Data
+
 When using the `-8` command line switch, all module outputs are quantized to 8-bit in the range  [-128...+127] to simulate hardware behavior. The last layer can optionally use 32-bit output for increased precision. This is simulated by adding the parameter `wide=True` to the module function call.
+
+##### Weights: Quantization Aware Training
+
+After `--qat-start-epoch` epochs (10 by default), training will learn an additional parameter that corresponds to a shift of the final sum of products.
+
+By default, weights are quantized to 8-bits. The custom modules in `ai8x.py` have an optional `weight_bits=` parameter that can be used to reduce the number of bits available for weights on a per-layer basis.
+
+*Note: This feature can be disabled using the `--disable-qat` command line argument.* 
 
 #### Batch Normalization
 
@@ -951,13 +963,21 @@ The following table describes the command line arguments for `batchnormfuser.py`
 
 ### Quantization
 
-There are two main approaches to quantization — quantization-aware training and post-training quantization.
+There are two main approaches to quantization — quantization-aware training and post-training quantization. The MAX78000/MAX78002 support both approaches.
 
-Since performance for 8-bit weights is decent enough, *”naive” post-training quantization* is used in the `quantize.py` software. While several approaches for clipping are implemented, clipping with a simple fixed scale factor is used by default based on experimental results. The approach requires the clamping operators implemented in `ai8x.py`.
+The `quantize.py` software quantizes an existing PyTorch checkpoint file and writes out a new PyTorch checkpoint file that can then be used to evaluate the quality of the quantized network, using the same PyTorch framework used for training. The same new checkpoint file will also be used to feed the [Network Loader](#Network-Loader).
+
+#### Quantization-Aware Training (QAT)
+
+Quantization-aware training is the better performing approach. It is enabled by default. QAT learns additional parameters during training that help with quantization. No additional arguments are needed for `quantize.py`.
+
+#### Post-Training Quantization
+
+This approach is also called *”naive quantization”*. It should be used when  `--disable-qat` is specified for training. 
+
+While several approaches for clipping are implemented in `quantize.py`, clipping with a simple fixed scale factor performs best, based on experimental results. The approach requires the clamping operators implemented in `ai8x.py`.
 
 Note that the “optimum” scale factor for simple clipping is highly dependent on the model and weight data. For the MNIST example, a `--scale 0.85` works well. For the CIFAR-100 example on the other hand, Top-1 performance is 30 points better with `--scale 1.0`.
-
-The software quantizes an existing PyTorch checkpoint file and writes out a new PyTorch checkpoint file that can then be used to evaluate the quality of the quantized network, using the same PyTorch framework used for training. The same new checkpoint file will also be used to feed the [Network Loader](#Network-Loader).
 
 #### Command Line Arguments
 
@@ -971,8 +991,9 @@ The `quantize.py` software has the following important command line arguments:
 | *Debug*               |                                                              |                 |
 | `-v`                  | Verbose output                                               |                 |
 | *Weight quantization* |                                                              |                 |
-| `-c`, `--config-file` | YAML file with weight quantization information<br />(default: 8-bit for all layers) | `-c mnist.yaml` |
-| `--clip-method`       | Clipping method — either STDDEV, AVG, AVGMAX or SCALE (default) |                 |
+| `-c`, `--config-file` | YAML file with weight quantization information<br />(default: from checkpoint file, or 8-bit for all layers) | `-c mnist.yaml` |
+| `--clip-method`       | Non-QAT clipping method — either STDDEV, AVG, AVGMAX or SCALE | `--clip-method SCALE` |
+| `--scale` | Sets scale for the SCALE clipping method | `--scale 0.85` |
 
 *Note: The syntax for the optional YAML file is described below. The same file can be used for both `quantize.py` and `ai8xize.py`.*
 
@@ -994,17 +1015,13 @@ To evaluate the quantized network for MAX78000 (run from the training project):
 
 #### Alternative Quantization Approaches
 
-Post-training quantization can be improved using more sophisticated methods. For example, see
+If Quantization-aware training is not desired, post-training quantization can be improved using more sophisticated methods. For example, see
 https://github.com/pytorch/glow/blob/master/docs/Quantization.md,
 https://github.com/ARM-software/ML-examples/tree/master/cmsisnn-cifar10,
 https://github.com/ARM-software/ML-KWS-for-MCU/blob/master/Deployment/Quant_guide.md,
 or Distiller’s approach (installed with this software).
 
 Further, a quantized network can be refined using post-quantization training (see Distiller).
-
-The software also includes an `AI84RangeLinear.py` training quantizer that plugs into the Distiller framework for quantization-aware training. However, it needs work as its performance is not good enough yet and the Distiller source needs to be patched to enable it (add `from range_linear_ai84 import QuantAwareTrainRangeLinearQuantizerAI84` to `distiller/config.py` and remove `False and` from `if False and args.ai84` in `train.py`).
-
-Note that MAX78000/MAX78002 does have a configurable per-layer output shift. The addition of this shift value allows easier quantization, since fractional bits can be used if weights do not span the full 8-bit range (many quantization approaches require a weight scale or output shift).
 
 In all cases, ensure that the quantizer writes out a checkpoint file that the Network Loader can read.
 
