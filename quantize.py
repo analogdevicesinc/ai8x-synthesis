@@ -133,13 +133,26 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                 if dev != 84 or module != 'fc':
                     if num_layers and layers >= num_layers:
                         continue
+
+                    # Determine how many bits we have for the weights in this layer
                     clamp_bits = None
+
+                    # First priority: Override via YAML specification
                     if params is not None and 'quantization' in params:
                         clamp_bits = params['quantization'][layers]
-                    elif arguments.qat_model:
-                        clamp_bits = arguments.qat_weight_bits
+
+                    # Second priority: Saved in checkpoint file
                     if clamp_bits is None:
-                        clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Default to 8 bits
+                        weight_bits_name = '.'.join([layer, 'weight_bits'])
+                        if weight_bits_name in checkpoint_state:
+                            clamp_bits = int(unwrap(checkpoint_state[weight_bits_name]))
+
+                    # Third priority: --qat-weight-bits or default
+                    if clamp_bits is None:
+                        if arguments.qat_model:
+                            clamp_bits = arguments.qat_weight_bits
+                        else:
+                            clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Default to 8 bits
 
                     factor = 2**(clamp_bits-1) * sat_fn(checkpoint_state[k])
                     lower_bound = 0
@@ -178,6 +191,7 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                 # Is there a bias for this layer? Use the same factor as for weights.
                 bias_name = '.'.join([layer, operation, 'bias'])
                 if bias_name in checkpoint_state:
+                    clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Always 8 bits
                     if arguments.verbose:
                         print(' -', bias_name)
                     weights = factor * checkpoint_state[bias_name]
@@ -254,15 +268,16 @@ if __name__ == '__main__':
                              f'(default: {FC_CLAMP_BITS})')
     parser.add_argument('-q', '--quantized', action='store_true', default=False,
                         help='work on quantized checkpoint')
-    parser.add_argument('--qat', '--qat_model', dest='qat_model', action='store_true',
-                        default=False, help='work on quantization aware trained model checkpoint')
-    parser.add_argument('--qat_weight_bits', default=8, type=int,
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--qat', dest='qat_model', action='store_true',
+                       default=False, help='work on quantization aware trained model checkpoint')
+    group.add_argument('--clip-method', default='SCALE', dest='clip_mode',
+                       choices=['AVGMAX', 'MAX', 'STDDEV', 'SCALE'],
+                       help='saturation clipping method (default: SCALE)')
+    parser.add_argument('--qat-weight-bits', default=8, type=int,
                         help='number of weight bits used in QAT')
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
                         help='verbose mode')
-    parser.add_argument('--clip-method', default='SCALE', dest='clip_mode',
-                        choices=['AVGMAX', 'MAX', 'STDDEV', 'SCALE'],
-                        help='saturation clipping method (default: SCALE)')
     parser.add_argument('--scale', type=float,
                         help='set the scale value for the SCALE method (default: magic '
                              f'{DEFAULT_SCALE:.2f})')
