@@ -91,9 +91,10 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
         # else:
         return torch.pow(2., bit_shift)
 
-    # Scale to our fixed point representation using any of four methods
-    # The 'magic constant' seems to work best!?? FIXME
-    if not arguments.qat_model:
+    # If not using quantization-aware training (QAT),
+    # scale to our fixed point representation using any of four methods
+    # The 'magic constant' seems to work best for SCALE
+    if arguments.clip_mode is not None:
         if arguments.clip_mode == 'STDDEV':
             sat_fn = partial(mean_n_stds_max_abs, n_stds=arguments.stddev)
             checkpoint['extras']['clipping_method'] = 'STDDEV'
@@ -149,17 +150,16 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
 
                     # Third priority: --qat-weight-bits or default
                     if clamp_bits is None:
-                        if arguments.qat_model:
+                        if arguments.qat_weight_bits is not None:
                             clamp_bits = arguments.qat_weight_bits
                         else:
                             clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Default to 8 bits
 
                     factor = 2**(clamp_bits-1) * sat_fn(checkpoint_state[k])
                     lower_bound = 0
-                    if not arguments.qat_model:
-                        if first:
-                            factor /= 2.  # The input layer is [-0.5, +0.5] -- compensate
-                            first = False
+                    if first and arguments.clip_mode is not None:
+                        factor /= 2.  # The input layer is [-0.5, +0.5] -- compensate
+                        first = False
                 else:
                     clamp_bits = arguments.fc
                     lower_bound = 1  # Accomodate ARM q15_t data type when clamping
@@ -267,15 +267,13 @@ if __name__ == '__main__':
                         help=f'set number of bits for the fully connnected layers '
                              f'(default: {FC_CLAMP_BITS})')
     parser.add_argument('-q', '--quantized', action='store_true', default=False,
-                        help='work on quantized checkpoint')
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument('--qat', dest='qat_model', action='store_true',
-                       default=False, help='work on quantization aware trained model checkpoint')
-    group.add_argument('--clip-method', default='SCALE', dest='clip_mode',
-                       choices=['AVGMAX', 'MAX', 'STDDEV', 'SCALE'],
-                       help='saturation clipping method (default: SCALE)')
-    parser.add_argument('--qat-weight-bits', default=8, type=int,
-                        help='number of weight bits used in QAT')
+                        help='work on quantized checkpoint (deprecated)')
+    parser.add_argument('--clip-method', default=None, dest='clip_mode',
+                        choices=['AVGMAX', 'MAX', 'STDDEV', 'SCALE'],
+                        help='disable quantization-aware training (QAT) information and choose '
+                             'saturation clipping method')
+    parser.add_argument('--qat-weight-bits', type=int,
+                        help='override number of weight bits used in QAT')
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
                         help='verbose mode')
     parser.add_argument('--scale', type=float,
