@@ -1,16 +1,15 @@
 ###################################################################################################
-# Copyright (C) 2018-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
 Command line parser for Tornado CNN
 """
 import argparse
 import camera
+from devices import device
 
 
 def get_parser():
@@ -27,7 +26,7 @@ def get_parser():
                         help="enable AI85 features (default: AI84)")
     mgroup.add_argument('--ai87', action='store_const', const=87, dest='device',
                         help="enable AI87 features (default: AI84)")
-    mgroup.add_argument('--device', type=int, metavar='N',
+    mgroup.add_argument('--device', type=device, metavar='N',
                         help="set device (default: 84)")
 
     # Hardware features
@@ -213,6 +212,9 @@ def get_parser():
     group.add_argument('--no-bias', metavar='LIST', default=None,
                        help="comma-separated list of layers where bias values will be ignored "
                             "(default: None)")
+    group.add_argument('--streaming-layers', metavar='LIST', default=None,
+                       help="comma-separated list of additional streaming layers "
+                            "(default: None)")
 
     # Power
     group = parser.add_argument_group('Power saving')
@@ -242,7 +244,7 @@ def get_parser():
     group.add_argument('--zero-unused', action='store_true', default=False,
                        help="zero unused registers (default: do not touch)")
     group.add_argument('--apb-base', type=lambda x: int(x, 0), metavar='N',
-                       help=f"APB base address (default: device specific)")
+                       help="APB base address (default: device specific)")
     group.add_argument('--ready-sel', type=int, metavar='N',
                        help="specify memory waitstates")
     group.add_argument('--ready-sel-fifo', type=int, metavar='N',
@@ -298,5 +300,12 @@ def get_parser():
             boost_error = True
         if boost_error:
             raise ValueError('ERROR: Argument --boost must be a port.pin')
+
+    if args.streaming_layers is not None:
+        try:
+            args.streaming_layers = [int(s, 0) for s in args.streaming_layers.split(',')]
+        except ValueError:
+            raise ValueError('ERROR: Argument --streaming-layers must be a comma-separated '
+                             'list of integers only')
 
     return args

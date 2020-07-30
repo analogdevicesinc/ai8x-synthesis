@@ -70,7 +70,7 @@ def unload(apb_base, processor_map, input_shape,
 
             if offs != read_addr:
                 print(f'  addr = (uint32_t *) 0x{apb_base + tc.dev.C_SRAM_BASE + offs:08x};')
-            print(f'  val = *addr++;')
+            print('  val = *addr++;')
             read_addr = offs + 4
 
             # Singulate bytes, ignoring unused processors
@@ -80,7 +80,7 @@ def unload(apb_base, processor_map, input_shape,
                     if addr != write_addr:
                         print(f'  offs = 0x{addr:04x};')
                     else:
-                        print(f'  offs++;')
+                        print('  offs++;')
                     write_addr = addr + 1
                 if this_map & 1:
                     if not flatten:

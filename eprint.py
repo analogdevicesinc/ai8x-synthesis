@@ -1,10 +1,8 @@
 ###################################################################################################
-# Copyright (C) 2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
 Print error message to stderr, and stdout as well if needed
@@ -35,4 +33,4 @@ def eprint_noprefix(*args, **kwargs):
     """
     Print message to stderr, and stdout as well IF stdout was overridden.
     """
-    eprint(*args, **kwargs)
+    eprint(*args, prefix=False, **kwargs)

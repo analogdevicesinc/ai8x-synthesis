@@ -1,6 +1,5 @@
 ###################################################################################################
-#
-# Copyright (C) 2019-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -24,4 +23,4 @@ def get(
     # np.save(os.path.join('tests', f'sample_{dataset}'), data,
     #         allow_pickle=False, fix_imports=False)
 
-    return np.load(filename, allow_pickle=False, fix_imports=False)
+    return np.load(filename)

@@ -1,16 +1,16 @@
 ###################################################################################################
-# Copyright (C) 2019-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
 #
-# Written by RM
 ###################################################################################################
 """
 Tornado CNN hardware constants - AI84, AI85
 """
 import sys
 
+import devices
 from eprint import eprint
 
 
@@ -22,6 +22,9 @@ class Dev:
     Metaclass for all hardware devices
     """
     FIX_STREAM_BIAS = False
+
+    def __init__(self, part_no):
+        self.part_no = part_no
 
     def __str__(self):
         return self.__class__.__name__
@@ -198,17 +201,18 @@ def get_device(
         device,
 ):
     """
-    Change implementation configuration to match the AI84 or AI85, depending on the `device`
+    Change implementation configuration to match, depending on the `device`
     integer input value.
     """
-    print(f'Configuring device: AI{device}.')
+    part = devices.partnum(device)
+    print('Configuring device:', part)
 
     if device == 84:
-        d = DevAI84()
+        d = DevAI84(part)
     elif device == 85:
-        d = DevAI85()
+        d = DevAI85(part)
     elif device == 87:
-        d = DevAI85()  # For now, no differences from AI85
+        d = DevAI85(part)  # For now, no differences from AI85
     else:
         eprint(f'Unknown device code `{device}`')
         sys.exit(1)

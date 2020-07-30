@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2018-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -311,7 +311,7 @@ def load(
                                f'{offs});\n')
         apb.output('}\n\n')
     else:
-        apb.output(f'  // End of data input\n\n')
+        apb.output('  // End of data input\n\n')
 
     return None
 
@@ -423,7 +423,7 @@ def loadfifo(
         apb.output('\nvoid load_input(void)\n{\n')
         apb.output('  int i;\n')
         if synthesize is not None:
-            apb.output(f'  uint32_t add = 0;\n')
+            apb.output('  uint32_t add = 0;\n')
         max_len = 0
         const_len = True
         for c in range(fifos):
@@ -450,7 +450,7 @@ def loadfifo(
         apb.output('  }\n')
         apb.output('}\n\n')
     else:
-        apb.output(f'  // End of data input\n\n')
+        apb.output('  // End of data input\n\n')
 
 
 def loadcsv(

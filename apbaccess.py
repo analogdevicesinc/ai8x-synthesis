@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2018-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -288,7 +288,7 @@ class APB():
         Write bias value `bias` to offset `offs` in bias memory #`group`.
         """
         addr = tc.dev.C_GROUP_OFFS*group + tc.dev.C_BRAM_BASE + offs * 4
-        self.write(addr, bias & 0xff, f' // Bias')
+        self.write(addr, bias & 0xff, ' // Bias')
 
     def write_tram(
             self,
@@ -436,6 +436,7 @@ class APB():
     def header(  # pylint: disable=no-self-use
             self,
             embedded_arm=False,  # pylint: disable=unused-argument
+            fail_indicator=False,  # pylint: disable=unused-argument
     ):
         """
         Write file headers.
@@ -522,6 +523,7 @@ class APB():
             pool=None,
             pool_stride=1,
             mlator=False,
+            write_gap=0,
     ):  # pylint: disable=unused-argument
         """
         Write the unload function. The layer to unload has the shape `input_shape`,
@@ -548,6 +550,7 @@ class APB():
             no_error_stop=False,
             mlator=False,
             max_count=None,
+            write_gap=0,
     ):
         """
         Write a verification function. The layer to unload has the shape `input_shape`,
@@ -574,6 +577,7 @@ class APB():
             apb_base=self.apb_base,
             stream=self.memfile,
             max_count=max_count,
+            write_gap=write_gap,
         )
 
     def output_define(  # pylint: disable=no-self-use
@@ -885,6 +889,7 @@ class APBTopLevel(APB):
     def header(
             self,
             embedded_arm=False,
+            fail_indicator=False,
     ):
         """
         Write include files and forward definitions to .c file.
@@ -902,6 +907,7 @@ class APBTopLevel(APB):
             riscv=self.riscv,
             camera=self.input_csv is not None,
             embedded_arm=embedded_arm,
+            fail_indicator=fail_indicator,
         )
 
     def verify_header(
@@ -1001,6 +1007,7 @@ class APBTopLevel(APB):
             pool=None,
             pool_stride=1,
             mlator=False,
+            write_gap=0,
     ):
         """
         Write the unload function. The layer to unload has the shape `input_shape`,

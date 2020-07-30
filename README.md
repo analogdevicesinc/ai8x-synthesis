@@ -4,7 +4,7 @@
 
 # MAX78000 Network Loader and RTL Simulation Generator
 
-_June 3, 2020_
+_July 27, 2020_
 
 _Open the `.md` version of this file in a markdown enabled viewer, for example Typora (http://typora.io).
 See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A [PDF copy of this file](README.pdf) is available in this repository. The GitHub rendering of this document does not show the formulas or the clickable table of contents._
@@ -48,7 +48,7 @@ where “....” is the project root, for example `~/Documents/Source/AI`.
 
 ### Prerequisites
 
-This software currently supports Ubuntu 18.04 LTS (Ubuntu 20.04 LTS is not yet supported by CUDA). The server version is sufficient, see https://ubuntu.com/download/server.
+This software currently supports Ubuntu 18.04 LTS (Ubuntu 20.04 LTS is not yet supported by CUDA). The server version is sufficient, see https://ubuntu.com/download/server. *Note: The Windows Subsystem for Linux (WSL) currently does <u>not</u> support CUDA.*
 
 When going beyond simple tests, model training requires CUDA hardware acceleration (the network loader does not require CUDA).
 
@@ -108,7 +108,7 @@ $ sudo apt-get install -y make build-essential libssl-dev zlib1g-dev \
 $ curl -L https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash
 ```
 
-Then, add to ~/.bash_profile or ~/.profile (as shown by the terminal output of the previous step):
+Then, add to either `~/.bash_profile`, `~/.bashrc` or `~/.profile` (as shown by the terminal output of the previous step):
 
 ```shell
 eval "$(pyenv init -)"
@@ -185,7 +185,7 @@ $ yarn
 
 #### Windows Systems
 
-Windows/MS-DOS is not supported for training networks at this time.
+Windows/MS-DOS is not supported for training networks at this time. *This includes the Windows Subsystem for Linux (WSL) since it currently lacks CUDA support.*
 
 ### Upstream Code
 
@@ -224,6 +224,14 @@ For all other systems, including CUDA 10.2 on Linux:
 (ai8x-training) $ pip3 install -r requirements.txt
 ```
 
+##### Repository Branches
+
+By default, the `master` branch is checked out. This branch has been tested more rigorously than the `develop` branch. `develop`, on the other hand, contains the latest improvements to the project. To switch to `develop`, use the following command:
+
+```shell
+(ai8x-training) $ git checkout develop
+```
+
 ##### Updating the Project
 
 Major upgrades (such as updating from PyTorch 1.3.1 to PyTorch 1.5) are best done by removing all installed wheels. This can be achieved most easily by creating a new folder and starting from scratch at [Upstream Code](#Upstream Code). 
@@ -260,6 +268,14 @@ $ source bin/activate
 (ai8x-synthesis) $ pip3 install -r requirements.txt
 ```
 
+##### Repository Branches
+
+By default, the `master` branch is checked out. This branch has been tested more rigorously than the `develop` branch. `develop`, on the other hand, contains the latest improvements to the project. To switch to `develop`, use the following command:
+
+```shell
+(ai8x-synthesis) $ git checkout develop
+```
+
 ##### Updating the Project
 
 Major upgrades (such as updating from PyTorch 1.3.1 to PyTorch 1.5) are best done by removing all installed wheels. This can be achieved most easily by creating a new folder and starting from scratch at [Upstream Code](#Upstream Code). 
@@ -277,7 +293,7 @@ To pull the latest code and install the updated wheels, use:
 
 The MAX78000 SDK is a git submodule of ai8x-synthesis. It is checked out automatically to a version compatible with the project into the folder `sdk`.
 
-*If the embedded C compiler is run on Windows instead of Linux, ignore this section and install the Maxim SDK executable, see https://github.com/MaximIntegratedAI/MaximAI_Documentation.*
+***If the embedded C compiler is run on Windows instead of Linux, ignore this section*** *and install the Maxim SDK executable, see https://github.com/MaximIntegratedAI/MaximAI_Documentation.*
 
 The Arm embedded compiler can be downloaded from [https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads](https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads).
 
@@ -303,9 +319,9 @@ if [ $? -eq 1 ] ; then
 fi
 ```
 
-In order for the debugger to work, the OpenOCD `max32xxx` branch from [https://github.com/MaximIntegratedMicros/openocd.git](https://github.com/MaximIntegratedMicros/openocd.git) must be installed (see above for more instructions). Working configuration files are and a `run-openocd-maxdap` script are contained in the `hardware` folder of the `ai8x-synthesis` project.
+The debugger requires OpenOCD. On Windows, an OpenOCD executable is installed with the SDK. On macOS and Linux, the OpenOCD fork from [https://github.com/MaximIntegratedMicros/openocd.git](https://github.com/MaximIntegratedMicros/openocd.git) must be used. An Ubuntu 18.04 LTS binary is available at https://github.com/MaximIntegratedAI/MAX78000_SDK/blob/master/Tools/OpenOCD/openocd. *Note: A copy of the configuration files and a `run-openocd-maxdap` script are contained in the `hardware` folder of the `ai8x-synthesis` project.*
 
-`gen-demos-ai85.sh` will create code that is compatible with the SDK and copy it into the SDK’s Example directories.
+`gen-demos-max78000.sh` will create code that is compatible with the SDK and copy it into the SDK’s Example directories.
 
 ---
 
@@ -617,7 +633,7 @@ The following picture shows an example of a `Conv2d` with 1×1 kernels, 5 input 
 ### Limitations of MAX78000 Networks
 
 The MAX78000 hardware does not support arbitrary network parameters. Specifically,
-* Dilation, groups, depth-wise convolutions, and batch normalization are not supported. *Note: Batch normalization should be folded into the weights.*
+* Dilation, groups, depth-wise convolutions, and hardware batch normalization are not supported. *Note: Batch normalization should be folded into the weights, see [Batch Normalization](#Batch-Normalization).*
 
 * `Conv2d`:
   
@@ -713,7 +729,7 @@ The following table describes the most important command line arguments for `tra
 | ------------------------- | ------------------------------------------------------------ | ------------------------------- |
 | `--help`                  | Complete list of arguments                                   |                                 |
 | *Device selection*        |                                                              |                                 |
-| `--device`                | Set device (default: 84)                                     | `--device 85`                   |
+| `--device`                | Set device (default: AI84)                                   | `--device MAX78000`             |
 | *Model and dataset*       |                                                              |                                 |
 | `-a`, `--arch`            | Set model (collected from models folder)                     | `--model ai85net5`              |
 | `--dataset`               | Set dataset (collected from datasets folder)                 | `--dataset MNIST`               |
@@ -836,6 +852,12 @@ When reshaping data, `in_dim:` must be specified in the model description file.
 
 When using the `-8` command line switch, all module outputs are quantized to 8-bit in the range  [-128...+127] to simulate hardware behavior. The last layer can optionally use 32-bit output for increased precision. This is simulated by adding the parameter `wide=True` to the module function call.
 
+#### Batch Normalization
+
+Batch normalization after `Conv2d` layers is supported using “fusing”. The fusing operation merges the effect of batch normalization layers into the parameters of the preceding convolutional layer. For detailed information about batch normalization fusing/folding, see Section 3.2 of the following paper: https://arxiv.org/pdf/1712.05877.pdf.
+
+After fusing/folding, the network will not contain any batchnorm layers. The effects of batch normalization will instead be expressed by modified weights and biases of the preceding convolutional layer. If the trained network contains batchnorm layers, the `batchnormfuser.py` script (see [BatchNorm Fusing](#BatchNorm-Fusing)) should be called before `quantize.py` to fuse the batchnorm layers. To be able perform folding/fusing by running `batchnormfuser.py`, a second model architecture should be defined without batchnorm layers. This architecture should be exactly the same as the input model architecture, except for the removal of all batchnorm layers.
+
 ### Model Comparison and Feature Attribution
 
 Both TensorBoard and Manifold can be used for model comparison and feature attribution.
@@ -876,7 +898,7 @@ The quickest way to integrate manifold is by creating CSV files from the trainin
 The `train.py` program can create CSV files using the `--save-csv` command line argument in combination with `--evaluate`:
 
 ```shell
-./train.py --model ai85net5 --dataset MNIST --confusion --evaluate --save-csv mnist --device 85 --exp-load-weights-from ../ai8x-synthesis/trained/ai85-mnist.pth.tar -8
+./train.py --model ai85net5 --dataset MNIST --confusion --evaluate --save-csv mnist --device MAX78000 --exp-load-weights-from ../ai8x-synthesis/trained/ai85-mnist.pth.tar -8
 ```
 
 To run the manifold example application:
@@ -905,12 +927,27 @@ The training software integrates code to generate SHAP plots (see https://github
 The train.py program can create plots using the `--shap` command line argument in combination with `--evaluate`:
 
 ```shell
-./train.py --model ai85net5 --dataset CIFAR10 --confusion --evaluate --device 85 --exp-load-weights-from logs/CIFAR-new/best.pth.tar --shap 3
+./train.py --model ai85net5 --dataset CIFAR10 --confusion --evaluate --device MAX78000 --exp-load-weights-from logs/CIFAR-new/best.pth.tar --shap 3
 ```
 
 This will create a plot with a random selection of 3 test images. The plot shows ten outputs (the ten classes) for the three different input images on the left. Red pixels increase the model’s output while blue pixels decrease the output. The sum of the SHAP values equals the difference between the expected model output (averaged over the background dataset) and the current model output.
 
 <img src="docs/shap.png" alt="shap"  />
+
+### BatchNorm Fusing
+
+If batchnorm fusing is needed (see [Batch Normalization](#Batch-Normalization)), the `batchnormfuser.py` tool must be run.
+
+#### Command Line Arguments
+
+The following table describes the command line arguments for `batchnormfuser.py`:
+
+| Argument            | Description                                                  | Example                                  |
+| ------------------- | ------------------------------------------------------------ | ---------------------------------------- |
+| `-i`, `--inp_path`  | Set input checkpoint path                                    | `-i logs/2020.06.05-235316/best.pth.tar` |
+| `-o`, `--out_path`  | Set output checkpoint path for saving fused model            | `-o best_without_bn.pth.tar`             |
+| `-oa`, `--out_arch` | Set output architecture name (architecture without batchnorm layers) | `-oa ai85simplenet`                      |
+
 
 ### Quantization
 
@@ -930,7 +967,7 @@ The `quantize.py` software has the following important command line arguments:
 | --------------------- | ------------------------------------------------------------ | --------------- |
 | `--help`              | Complete list of options                                     |                 |
 | *Device selection*    |                                                              |                 |
-| `--device`            | Set device (default: 84)                                     | `--device 85`   |
+| `--device`            | Set device (default: AI84)                                     | `--device MAX78000`   |
 | *Debug*               |                                                              |                 |
 | `-v`                  | Verbose output                                               |                 |
 | *Weight quantization* |                                                              |                 |
@@ -1012,7 +1049,7 @@ Train the new network/new dataset. See `train_mnist.sh` for a command line examp
 The Netron tool (https://github.com/lutzroeder/Netron) can visualize networks, similar to what is available within Tensorboard. To use Netron, use `train.py` to export the trained network to ONNX, and upload the ONNX file.
 
 ```shell
-(ai8x-training) $ ./train.py --model ai85net5 --dataset MNIST --evaluate --exp-load-weights-from checkpoint.pth.tar --device 85 --summary onnx
+(ai8x-training) $ ./train.py --model ai85net5 --dataset MNIST --evaluate --exp-load-weights-from checkpoint.pth.tar --device MAX78000 --summary onnx
 ```
 
 
@@ -1037,7 +1074,7 @@ The following table describes the most important command line arguments for `ai8
 | ------------------------ | ------------------------------------------------------------ | ------------------------------- |
 | `--help`                 | Complete list of arguments                                   |                                 |
 | *Device selection*       |                                                              |                                 |
-| `--device`               | Set device (default: 84)                                     | `--device 85`                   |
+| `--device`               | Set device (default: AI84)                                     | `--device MAX78000`                   |
 | *Hardware features*      |                                                              |                                 |
 | `--avg-pool-rounding`    | Round average pooling results                                |                                 |
 | `--simple1b`             | Use simple XOR instead of 1-bit multiplication               |                                 |
@@ -1153,7 +1190,7 @@ layers:
 To generate an embedded MAX78000 demo in the `demos/ai85-mnist/` folder, use the following command line:
 
 ```shell
-(ai8x-synthesize) $ ./ai8xize.py --verbose -L --top-level cnn --test-dir demos --prefix ai85-mnist --checkpoint-file trained/ai85-mnist.pth.tar --config-file networks/mnist-chw-ai85.yaml --device 85 --compact-data --mexpress --softmax --embedded-code
+(ai8x-synthesize) $ ./ai8xize.py --verbose -L --top-level cnn --test-dir demos --prefix ai85-mnist --checkpoint-file trained/ai85-mnist.pth.tar --config-file networks/mnist-chw-ai85.yaml --device MAX78000 --compact-data --mexpress --softmax --embedded-code
 ```
 
 Running this command will combine the network described above with a fully connected software classification layer. The generated code will include all loading, unloading, and configuration steps.
@@ -1161,7 +1198,7 @@ Running this command will combine the network described above with a fully conne
 To generate an RTL simulation for the same network and sample data in the directory `tests/ai85-mnist-....` (where .... is an autogenerated string based on the network topology), use:
 
 ```shell
-(ai8x-synthesize) $ ./ai8xize.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mnist --checkpoint-file trained/ai85-mnist.pth.tar --config-file networks/mnist-chw-ai85.yaml --device 85
+(ai8x-synthesize) $ ./ai8xize.py --verbose --autogen rtlsim --top-level cnn -L --test-dir rtlsim --prefix ai85-mnist --checkpoint-file trained/ai85-mnist.pth.tar --config-file networks/mnist-chw-ai85.yaml --device MAX78000
 ```
 
 ### Network Loader Configuration Language
@@ -1253,7 +1290,7 @@ When this key is not specified, a warning is displayed and `Conv2d` is selected.
 | `Conv1d`                  | 1D convolution over an input composed of several input planes |
 | `Conv2d`                  | 2D convolution over an input composed of several input planes |
 | `ConvTranspose2d`         | 2D transposed convolution (upsampling) over an input composed of several input planes |
-| `None` or `Passthrough`   | No operation                                                 |
+| `None` or `Passthrough`   | No operation *(note: input and output processors must be the same)* |
 | `Linear` or `FC` or `MLP` | Linear transformation to the incoming data                   |
 | `Add`                     | Element-wise addition                                        |
 | `Sub`                     | Element-wise subtraction                                     |
@@ -1298,7 +1335,7 @@ Note that `output_shift` can be used for (limited) “linear” activation.
 
 ##### `quantization` (Optional)
 
-This key describes the width of the weight memory in bits and can be `1`, `2`, `4`, or `8` (`8` is the default).
+This key describes the width of the weight memory in bits and can be `1`, `2`, `4`, or `8` (the default is based on the range of the layer’s weights). Specifying a `quantization` that is smaller than what the weights require results in an error message.
 
 Example:
 	`quantization: 4`
@@ -1312,11 +1349,11 @@ The 32-bit intermediate result is multiplied by $2^{totalshift}$, where the tota
 | quantization | implicit shift | range for `output_shift` |
 | ------------ | -------------- | ------------------------ |
 | 8-bit        | 0              | $[-15, +15]$             |
-| 4-bit        | 1              | $[-16, +14]$             |
-| 2-bit        | 2              | $[-17, +13]$             |
-| 1-bit        | 3              | $[-18, +12]$             |
+| 4-bit        | 4              | $[-19, +11]$             |
+| 2-bit        | 6              | $[-21, +9]$              |
+| 1-bit        | 7              | $[-22, +8]$              |
 
-Using `output_shift` can help normalize data, particularly when using small weights.
+Using `output_shift` can help normalize data, particularly when using small weights. By default, `output_shift` is generated by the training software.
 
 Example:
 	`output_shift: 2`
@@ -1419,6 +1456,13 @@ Example:
 Example:
 	`flatten: true`
 
+##### `write_gap` (Optional)
+
+`write_gap` specifies the number of words that should be skipped during write operations (i.e., write every *n*th word). This creates an interleaved output that can be used as the input for subsequent layers that use element-wise operations.
+
+Example:
+	`write_gap: 1`
+
 #### Example
 
 The following shows an example for a single “Fire” operation, the MAX78000/MAX78002 hardware layer numbers and its YAML description.
@@ -1482,6 +1526,54 @@ layers:
   output_width: 32
 ```
 
+#### Residual Connections
+
+Many networks use residual connections. In the following example, the convolution on the right works on the output data of the first convolution. However, that same output data also “bypasses” the second convolution and is added to the output.
+
+<img src="docs/residual-basic.png" alt="residual-basic" style="zoom:33%;" />
+
+On MAX78000/MAX78002, the element-wise addition works on “interleaved data”, i.e., each machine fetch gathers one operand.
+
+In order to achieve this, a layer must be inserted that does nothing else but reformat the data into interleaved format using the `write_gap` keyword (this operation happens in parallel and is fast).
+
+```yaml
+# Layer 1
+- out_offset: 0x0000
+  processors: 0x0ffff00000000000
+  operation: conv2d
+  kernel_size: 3x3
+  pad: 1
+  activate: ReLU
+
+# Layer 2 - re-format data with gap
+- out_offset: 0x2000
+  processors: 0x00000000000fffff
+  output_processors: 0x00000000000fffff
+  operation: passthrough
+  write_gap: 1
+
+# Layer 3
+- in_offset: 0x0000
+  out_offset: 0x2004
+  processors: 0x00000000000fffff
+  operation: conv2d
+  kernel_size: 3x3
+  pad: 1
+  activate: ReLU
+  write_gap: 1
+
+# Layer 4 - Residual
+- in_sequences: [2, 3]
+  in_offset: 0x2000
+  out_offset: 0x0000
+  processors: 0x00000000000fffff
+  eltwise: add
+  ...
+```
+
+The same network can also be viewed graphically:
+
+<img src="docs/residual.png" alt="residual" style="zoom:38%;" />
 
 ### Adding New Models and New Datasets to the Network Loader
 
@@ -1625,7 +1717,7 @@ np.save(os.path.join('tests', 'sample_mnist'), a, allow_pickle=False, fix_import
 
 ### Generating C Code
 
-Run `ai8xize.py` with the new network and the new sample data to generate embedded C code that can be compiled with the Arm and RISC-V compilers. See `gen-demos-ai85.sh` for examples.
+Run `ai8xize.py` with the new network and the new sample data to generate embedded C code that can be compiled with the Arm and RISC-V compilers. See `gen-demos-max78000.sh` for examples.
 
 #### Starting an Inference, Waiting for Completion, Multiple Inferences in Sequence
 

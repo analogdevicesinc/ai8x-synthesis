@@ -1,10 +1,8 @@
 ###################################################################################################
-# Copyright (C) 2019-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
 YAML Configuration Routines
@@ -13,7 +11,6 @@ import sys
 import yaml
 import op
 import tornadocnn as tc
-from utils import ffs
 from eprint import eprint
 
 
@@ -22,11 +19,46 @@ DEFAULT_1D_KERNEL = [9, 1]
 FC_KERNEL = [1, 1]
 
 
-def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-branches
+class UniqueKeyLoader(yaml.Loader):
+    """
+    Throw an error when encountering duplicate YAML keys.
+    """
+    def construct_mapping(self, node, deep=False):
+        if not isinstance(node, yaml.MappingNode):
+            raise yaml.constructor.ConstructorError(
+                None, None,
+                "Expected a mapping node, but found %s" % node.id,
+                node.start_mark
+            )
+
+        mapping = {}
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            try:
+                hash(key)
+            except TypeError as exc:
+                eprint(f'Found unacceptable key {exc} {key_node.start_mark} '
+                       f'while constructing a mapping {node.start_mark}')
+                sys.exit(1)
+
+            # check for duplicate keys
+            if key in mapping:
+                eprint(f'Found duplicate key {key} '
+                       f'while constructing a mapping{node.start_mark}')
+                sys.exit(1)
+            value = self.construct_object(value_node, deep=deep)
+            mapping[key] = value
+
+        return mapping
+
+
+def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argument
     """
     Configure network parameters from the YAML configuration file `config_file`.
-    The function returns both the YAML dictionary as well as a settings dictionary.
+    `max_conv` can be set to force an early termination of the parser.
     `device` is `84`, `85`, etc.
+    The function returns both YAML dictionary, the length of the processor map,
+    as well as a settings dictionary.
     """
 
     def error_exit(message, sequence):
@@ -39,7 +71,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
     # Load configuration file
     with open(config_file) as cfg_file:
         print(f'Reading {config_file} to configure network...')
-        cfg = yaml.load(cfg_file, Loader=yaml.SafeLoader)
+        cfg = yaml.load(cfg_file, Loader=UniqueKeyLoader)
 
     if bool(set(cfg) - set(['bias', 'dataset', 'layers', 'output_map', 'arch', 'weights'])):
         eprint(f'Configuration file {config_file} contains unknown key(s).')
@@ -64,9 +96,9 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
     pooling_enabled = [False] * tc.dev.MAX_LAYERS
     average = [0] * tc.dev.MAX_LAYERS
     pool_stride = [[1, 1]] * tc.dev.MAX_LAYERS
-    quantization = [8] * tc.dev.MAX_LAYERS
+    quantization = [None] * tc.dev.MAX_LAYERS
     bias_quantization = [8] * tc.dev.MAX_LAYERS
-    output_shift = [0] * tc.dev.MAX_LAYERS
+    output_shift = [None] * tc.dev.MAX_LAYERS
     output_offset = [0] * tc.dev.MAX_LAYERS
     activation = [None] * tc.dev.MAX_LAYERS
     big_data = [False] * tc.dev.MAX_LAYERS
@@ -83,6 +115,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
     eltwise = [op.NONE] * tc.dev.MAX_LAYERS
     pool_first = [True] * tc.dev.MAX_LAYERS
     in_sequences = [None] * tc.dev.MAX_LAYERS
+    write_gap = [0] * tc.dev.MAX_LAYERS
 
     sequence = 0
     for ll in cfg['layers']:
@@ -93,7 +126,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
                                'op', 'operands', 'operation', 'operator',
                                'output_processors', 'output_width', 'output_shift',
                                'pool_first', 'processors', 'pad', 'quantization',
-                               'sequence', 'streaming', 'stride'])):
+                               'sequence', 'streaming', 'stride', 'write_gap'])):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
             sys.exit(1)
 
@@ -106,11 +139,18 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
             processor_map[sequence] = ll['processors']
         if not processor_map[sequence]:
             error_exit('`processors` must not be zero or missing', sequence)
+        if not isinstance(processor_map[sequence], int) \
+           or processor_map[sequence] >= 2**tc.dev.MAX_PROC:
+            error_exit(f'`processors` must be an int from 0 to 2**{tc.dev.MAX_PROC}-1', sequence)
 
         if 'output_processors' in ll:
             output_map[sequence] = ll['output_processors']
             if not output_map[sequence]:
                 error_exit('output_processors` cannot be zero', sequence)
+            if not isinstance(output_map[sequence], int) \
+               or output_map[sequence] >= 2**tc.dev.MAX_PROC:
+                error_exit('`output_processors` must be an int from 0 to '
+                           f'2**{tc.dev.MAX_PROC}-1', sequence)
 
         if 'max_pool' in ll:
             val = ll['max_pool']
@@ -140,23 +180,17 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
             if val not in [1, 2, 4, 8]:
                 error_exit('`quantization` must be 1, 2, 4, or 8', sequence)
             quantization[sequence] = val
-            output_shift[sequence] = 3 - ffs(val)
 
         if 'output_shift' in ll:
             val = ll['output_shift']
-            val += 3 - ffs(quantization[sequence])
             output_shift[sequence] = val
-            min_range = -18 + ffs(quantization[sequence])
-            max_range = 12 + ffs(quantization[sequence])
-            if val < -15 or val > 15:
-                error_exit(f'`output_shift` for quantization `{quantization[sequence]} `must be '
-                           f'in range [{min_range}, {max_range}]', sequence)
+            # The implicit shift for quantization is added later
 
         if 'in_channels' in ll:
             input_chan[sequence] = ll['in_channels']
         if 'in_dim' in ll:
             if isinstance(ll['in_dim'], list) and len(ll['in_dim']) > 2:
-                error_exit(f'`in_dim` must not exceed two dimensions', sequence)
+                error_exit('`in_dim` must not exceed two dimensions', sequence)
             input_dim[sequence] = ll['in_dim']
         if 'in_offset' in ll:
             input_offset[sequence] = ll['in_offset']
@@ -164,6 +198,9 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
             output_chan[sequence] = ll['out_channels']
         if 'out_offset' in ll:
             output_offset[sequence] = ll['out_offset']
+        else:
+            print('WARNING: Defaulting to `out_offset = 0` for '
+                  f'layer sequence {sequence} in YAML configuration.')
 
         if 'activate' in ll or 'activation' in ll:
             key = 'activate' if 'activate' in ll else 'activation'
@@ -346,6 +383,9 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
         if 'conv_groups' in ll:
             conv_groups[sequence] = ll['conv_groups']
 
+        if 'write_gap' in ll:
+            write_gap[sequence] = ll['write_gap']
+
         # Fix up values for 1D convolution or no convolution
         if operator[sequence] == op.CONV1D:
             padding[sequence][1] = 0
@@ -356,6 +396,15 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
             kernel_size[sequence] = [1, 1]
         elif operator[sequence] == op.CONVTRANSPOSE2D:
             stride[sequence] = [2, 2]
+
+        # Check for early exit
+        if max_conv is not None:
+            if max_conv == 0:
+                if output_map[sequence] is None and (len(cfg['layers']) > sequence + 1):
+                    if 'processors' in cfg['layers'][sequence+1]:
+                        output_map[sequence] = cfg['layers'][sequence+1]['processors']
+                break
+            max_conv -= 1
 
         sequence += 1
 
@@ -389,6 +438,7 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
             del operands[ll]
             del eltwise[ll]
             del conv_groups[ll]
+            del write_gap[ll]
 
     # Check all but last layer
     for ll in range(len(output_map) - 1):
@@ -469,5 +519,6 @@ def parse(config_file, device=84):  # pylint: disable=unused-argument,too-many-b
     settings['pool_first'] = pool_first
     settings['in_sequences'] = in_sequences
     settings['conv_groups'] = conv_groups
+    settings['write_gap'] = write_gap
 
-    return cfg, settings
+    return cfg, len(processor_map), settings

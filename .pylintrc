@@ -16,5 +16,6 @@ max-args=35
 max-attributes=35
 max-public-methods=35
 max-bool-expr=8
+max-parents=15
 [MASTER]
 ignore=CMSIS_5,distiller

@@ -3,8 +3,6 @@
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
 Toplevel C file structure generation
@@ -73,6 +71,7 @@ def header(
         riscv=False,
         camera=False,
         embedded_arm=False,
+        fail_indicator=False,
 ):
     """
     Write include files and forward definitions to .c file handle `memfile`.
@@ -114,6 +113,16 @@ def header(
             memfile.write('uint32_t cnn_time; // Stopwatch\n\n')
 
             memfile.write('void fail(void)\n{\n')
+
+            if fail_indicator:
+                memfile.write('  mxc_gpio_cfg_t gpio_out;\n')
+                memfile.write('  gpio_out.port = MXC_GPIO2;\n')
+                memfile.write('  gpio_out.mask = MXC_GPIO_PIN_4;\n')
+                memfile.write('  gpio_out.pad = MXC_GPIO_PAD_NONE;\n')
+                memfile.write('  gpio_out.func = MXC_GPIO_FUNC_OUT;\n')
+                memfile.write('  MXC_GPIO_Config(&gpio_out);\n')
+                memfile.write('  MXC_GPIO_OutSet(gpio_out.port, gpio_out.mask);\n\n')
+
             memfile.write('  printf("\\n*** FAIL ***\\n\\n");\n')
             memfile.write('  while (1);\n}\n\n')
 
@@ -412,7 +421,7 @@ def main(
                               'i, digs, tens);\n'
                               '  }\n\n')
         else:
-            memfile.write('  printf("Starting endless loop...\\n");\n\n')
+            memfile.write('  printf("Starting endless loop...\\n");\n\n  LED_On(1);\n\n')
 
             memfile.write('  while(1) {\n')
 
