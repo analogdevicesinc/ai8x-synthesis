@@ -56,11 +56,16 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
         raise RuntimeError("\nNo state_dict in checkpoint file.")
 
     checkpoint_state = checkpoint['state_dict']
+    compression_sched = checkpoint['compression_sched'] \
+        if 'compression_sched' in checkpoint else None
 
     if arguments.verbose:
         print("\nModel keys (state_dict):\n{}".format(", ".join(list(checkpoint_state.keys()))))
 
     new_checkpoint_state = checkpoint_state.copy()
+    new_compression_sched = compression_sched.copy() if compression_sched is not None else dict()
+    new_masks_dict = new_compression_sched['masks_dict'] \
+        if 'masks_dict' in new_compression_sched else None
 
     def avg_max(t):
         dim = 0
@@ -184,6 +189,8 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                 out_shift_name = '.'.join([layer, 'output_shift'])
                 out_shift = torch.Tensor([-1 * get_max_bit_shift(checkpoint_state[k], True)])
                 new_checkpoint_state[out_shift_name] = out_shift
+                if new_masks_dict is not None:
+                    new_masks_dict[out_shift_name] = out_shift
                 if first:
                     new_checkpoint_state[out_shift_name] -= 1
                     first = False
@@ -247,6 +254,9 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
             del new_checkpoint_state[k]
 
     checkpoint['state_dict'] = new_checkpoint_state
+    if compression_sched is not None and new_masks_dict is not None:
+        new_compression_sched['masks_dict'] = new_masks_dict
+        checkpoint['compression_sched'] = new_compression_sched
     torch.save(checkpoint, output_file)
 
 
