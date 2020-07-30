@@ -63,7 +63,7 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
         print("\nModel keys (state_dict):\n{}".format(", ".join(list(checkpoint_state.keys()))))
 
     new_checkpoint_state = checkpoint_state.copy()
-    new_compression_sched = compression_sched.copy() if compression_sched is not None else dict()
+    new_compression_sched = compression_sched.copy() if compression_sched is not None else {}
     new_masks_dict = new_compression_sched['masks_dict'] \
         if 'masks_dict' in new_compression_sched else None
 
@@ -188,12 +188,12 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                 # Set output shift
                 out_shift_name = '.'.join([layer, 'output_shift'])
                 out_shift = torch.Tensor([-1 * get_max_bit_shift(checkpoint_state[k], True)])
+                if first:
+                    out_shift -= 1
+                    first = False
                 new_checkpoint_state[out_shift_name] = out_shift
                 if new_masks_dict is not None:
                     new_masks_dict[out_shift_name] = out_shift
-                if first:
-                    new_checkpoint_state[out_shift_name] -= 1
-                    first = False
 
                 # Is there a bias for this layer? Use the same factor as for weights.
                 bias_name = '.'.join([layer, operation, 'bias'])
