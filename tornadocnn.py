@@ -36,6 +36,8 @@ class DevAI84(Dev):
     """
     APB_BASE = 0x50100000
     MAX_LAYERS = 32
+    MAX_STREAM_LAYERS = None
+    MAX_START_LAYER = 0
     C_CNN = 4
     C_CNN_BASE = 0
 
@@ -60,6 +62,9 @@ class DevAI84(Dev):
     LREG_TPTR = 11
     LREG_ENA = 12
     MAX_LREG = LREG_ENA
+
+    MAX_PTR_BITS = 17
+    MAX_TPTR_BITS = 12
 
     # Global registers
     REG_CTL = 0
@@ -86,7 +91,7 @@ class DevAI84(Dev):
 
     C_GROUP_OFFS = 0x100000
 
-    INSTANCE_SIZE = 1024  # x32
+    INSTANCE_SIZE = INSTANCE_WIDTH = 1024  # x32
     INSTANCE_SHIFT = 12
     MEM_SIZE = INSTANCE_SIZE * P_NUMPRO * P_NUMGROUPS // P_SHARED  # x32
     MAX_CHANNELS = MAX_PROC
@@ -105,6 +110,8 @@ class DevAI85(Dev):
     """
     APB_BASE = 0x50000000
     MAX_LAYERS = 32
+    MAX_STREAM_LAYERS = 8
+    MAX_START_LAYER = 0
     C_CNN = 4
     C_FIFO_BASE = 0
     C_CNN_BASE = 0x100000
@@ -138,6 +145,14 @@ class DevAI85(Dev):
     LREG_LCTL2 = 20
     MAX_LREG = LREG_LCTL2
     LREG_RFU = None
+
+    PAD_CNT_OFFS = 16
+    MAX_CNT_BITS = 10
+    MAX_PTR_BITS = 17
+    MAX_TPTR_BITS = 12
+    MAX_ISVAL_BITS = 14
+    MAX_DSVAL2_BITS = 12
+    MAXM_FBUF_BITS = 17
 
     # Global registers
     REG_CTL = 0
@@ -174,9 +189,124 @@ class DevAI85(Dev):
 
     C_GROUP_OFFS = 0x400000
 
-    INSTANCE_SIZE = 2048  # x32
+    INSTANCE_SIZE = INSTANCE_WIDTH = 2048  # x32
     INSTANCE_SHIFT = 13
     MEM_SIZE = INSTANCE_SIZE * P_NUMPRO * P_NUMGROUPS // P_SHARED  # x32
+    MAX_CHANNELS = 16 * MAX_PROC  # 16 x expansion
+
+    FRAME_SIZE_MAX = 2**21  # x * y * multipass, from cnn_ctl.sv P_FRMABITS
+
+    BIAS_DIV = 128
+
+    FAST_FIFO_BASE = 0x400c0400
+    FAST_FIFO_CR = 0  # Control register
+    FAST_FIFO_SR = 1  # Status register
+    FAST_FIFO_IE = 2  # Interrupt enable register
+    FAST_FIFO_IS = 3  # Interrupt status (flag) register
+    FAST_FIFO_DR = 4  # Data register
+    FAST_FIFO_DMA = 5  # DMA register (reserved function, not yet supported)
+
+    FIX_STREAM_BIAS = True
+
+    def __str__(self):
+        return self.__class__.__name__
+
+
+class DevAI87(Dev):
+    """
+    AI85 hardware constants
+    """
+    APB_BASE = 0x50000000
+    MAX_LAYERS = 128
+    MAX_STREAM_LAYERS = 8
+    MAX_START_LAYER = MAX_LAYERS - 1
+    C_CNN = 0x40000
+    C_FIFO_BASE = 0
+    C_CNN_BASE = 0x1000000
+    P_NUMGROUPS = 4
+    P_NUMPRO = 16  # Processors per group
+    P_SHARED = 4  # Processors sharing a data memory
+    MAX_PROC = P_NUMPRO * P_NUMGROUPS
+    MAX_ROW_COL = 2048
+
+    # Per-layer registers
+    LREG_OFFS = 0x100
+
+    LREG_NXTLYR = 0
+    LREG_RCNT = 1
+    LREG_CCNT = 2
+    LREG_ONED = 3
+    LREG_PRCNT = 4
+    LREG_PCCNT = 5
+    LREG_STRIDE = 6
+    LREG_WPTR_BASE = 7
+    LREG_WPTR_TOFFS = 8
+    LREG_WPTR_MOFFS = 9
+    LREG_WPTR_CHOFFS = 10
+    LREG_RPTR_BASE = 11
+    LREG_LCTL = 12
+    LREG_LCTL2 = 13
+    LREG_MCNT = 14
+    LREG_TPTR = 15
+    LREG_ENA = 16
+    LREG_POST = 17
+    LREG_RFU = None
+    MAX_LREG = LREG_POST
+    LREG_STREAM1 = 0x2000
+    MIN_STREAM_LREG = LREG_STREAM1
+    LREG_STREAM2 = 0x2008
+    LREG_FMAX = 0x2010
+    MAX_STREAM_LREG = LREG_FMAX
+
+    PAD_CNT_OFFS = 14
+    CNT_DIFF_OFFS = 16
+    MAX_CNT_BITS = 11
+    CNT_INC_OFFS = 4
+    MAX_PTR_BITS = 19
+    MAX_TPTR_BITS = 14
+    MAX_ISVAL_BITS = 15
+    MAX_DSVAL2_BITS = 13
+    MAXM_FBUF_BITS = 18
+
+    # Global registers
+    REG_CTL = 0
+    REG_SRAM = 1
+    REG_LCNT_MAX = 2
+    REG_SRAM_TEST = 3
+    REG_IFRM = 0x2018
+    REG_MLAT = 0x4000
+
+    FIFO_CTL = 0
+    FIFO_STAT = 1
+    FIFO_REG = 2
+
+    AON_CTL = 1024
+
+    READY_SEL = 0
+    FIFO_READY_SEL = 0
+    AON_READY_SEL = 0
+
+    DEFAULT_WEIGHT_BITS = 8
+    ACTIVATION_BITS = 8
+    TRAM_SIZE = 12288
+    TRAM_OFFS = 16384
+    BIAS_SIZE = 512
+    MASK_WIDTH = 4096
+    MASK_OFFS = 8192
+    MCNT_SAD_OFFS = 16
+    MCNT_MAX_OFFS = 0
+
+    C_BRAM_BASE = C_CNN_BASE + 0x180000
+    C_TRAM_BASE = C_CNN_BASE + 0x200000
+    C_MRAM_BASE = C_CNN_BASE + 0x400000
+    C_SRAM_BASE = C_CNN_BASE + 0x800000
+
+    C_GROUP_OFFS = 0x1000000
+
+    INSTANCE_SIZE = 8192  # x32 (includes empty space)
+    INSTANCE_WIDTH = 6144  # x32 (true memory size)
+    INSTANCE_SHIFT = 15
+    MEM_SIZE = INSTANCE_WIDTH * P_NUMPRO * P_NUMGROUPS // P_SHARED  # x32
     MAX_CHANNELS = 16 * MAX_PROC  # 16 x expansion
 
     FRAME_SIZE_MAX = 2**21  # x * y * multipass, from cnn_ctl.sv P_FRMABITS
@@ -212,7 +342,7 @@ def get_device(
     elif device == 85:
         d = DevAI85(part)
     elif device == 87:
-        d = DevAI85(part)  # For now, no differences from AI85
+        d = DevAI87(part)
     else:
         eprint(f'Unknown device code `{device}`')
         sys.exit(1)

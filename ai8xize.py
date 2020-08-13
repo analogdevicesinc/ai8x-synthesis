@@ -150,6 +150,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         boost=None,
         forever=False,
         write_gap=None,
+        start_layer=0,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -167,6 +168,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     padding_str = [None] * layers
     pool_stride_str = [None] * layers
     stride_str = [None] * layers
+
+    if start_layer > tc.dev.MAX_START_LAYER:
+        eprint(f"--start-layer is set to {start_layer}, but the device only supports "
+               f"a maximum of {tc.dev.MAX_START_LAYER}.")
+        sys.exit(1)
 
     if riscv_debug:
         riscv = True
@@ -649,8 +655,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             # SRAM Control - does not need to be changed
             apb.write_ctl(group, tc.dev.REG_SRAM, 0x40e,
                           verbose, comment=' // SRAM control')
-            # Number of layers
-            apb.write_ctl(group, tc.dev.REG_LCNT_MAX, repeat_layers * layers - 1,
+            # Number of layers and start layer
+            val = (repeat_layers * layers - 1) | (start_layer << 8)
+            apb.write_ctl(group, tc.dev.REG_LCNT_MAX, val,
                           verbose, comment=' // Layer count')
             apb.output('\n')
 
@@ -758,6 +765,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             print('---------------------')
             print(f'Used processors     = 0x{processors_used:016x}')
             print(f'Used groups         = {groups_used}')
+            if start_layer > 0:
+                print(f'Starting layer      = {start_layer}')
 
             print('\nPer-group configuration:')
             print('-----------------------')
@@ -866,6 +875,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 for _, group in enumerate(groups_used):
                     apb.output(f'\n  // Layer {r * layers + ll} group {group}\n')
 
+                    if hasattr(tc.dev, 'LREG_NXTLYR'):
+                        val = 0
+                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_NXTLYR, val,
+                                       verbose, comment=' // Next Layer')
+
                     if device == 84 and operator[ll] == op.CONV1D:
                         # For 1D convolutions on AI84, the column count is always 3, and the
                         # row count is divided by 3. Padding is divided by 3.
@@ -887,9 +901,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             else:
                                 val = input_dim[ll][0] - 1
                         assert padding[ll][0] < 2**2
-                        assert val + 2*padding[ll][0] < 2**10
+                        assert val + 2*padding[ll][0] < 2**tc.dev.MAX_CNT_BITS
+                        if hasattr(tc.dev, 'CNT_DIFF_OFFS'):
+                            delta = ((val + 1) % pool[ll][0] + pool[ll][0]) \
+                                * in_expand[ll] * operands[ll]
+                            val |= delta << tc.dev.CNT_DIFF_OFFS
+                        val += 2*padding[ll][0]
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_RCNT,
-                                       padding[ll][0] << 16 | val + 2*padding[ll][0],
+                                       padding[ll][0] << tc.dev.PAD_CNT_OFFS | val,
                                        verbose, comment=' // Rows')
 
                         # Configure column count (evaluates to 0 for 1D convolutions)
@@ -903,9 +922,15 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             else:
                                 val = input_dim[ll][1] - 1
                         assert padding[ll][1] < 2**2
-                        assert val + 2*padding[ll][1] < 2**10
+                        assert val + 2 * padding[ll][1] < 2**tc.dev.MAX_CNT_BITS
+                        if hasattr(tc.dev, 'CNT_DIFF_OFFS'):
+                            # Calculate last pooling fetch before advancing to next row
+                            delta = ((val + 1) % pool[ll][1] + pool[ll][1]) \
+                                * in_expand[ll] * operands[ll]
+                            val |= delta << tc.dev.CNT_DIFF_OFFS
+                        val += + 2 * padding[ll][1]
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_CCNT,
-                                       padding[ll][1] << 16 | val + 2 * padding[ll][1],
+                                       padding[ll][1] << tc.dev.PAD_CNT_OFFS | val,
                                        verbose, comment=' // Columns')
 
                     # Configure pooling row count
@@ -915,6 +940,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     else:
                         val = pool[ll][0]-1
                         assert val < 2**4
+                    if hasattr(tc.dev, 'CNT_INC_OFFS'):
+                        val |= 0 << tc.dev.CNT_INC_OFFS
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PRCNT, val,
                                    verbose, comment=' // Pooling rows')
 
@@ -924,6 +951,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     else:
                         val = pool[ll][1]-1
                         assert val < 2**4
+                    if hasattr(tc.dev, 'CNT_INC_OFFS'):
+                        val |= 0 << tc.dev.CNT_INC_OFFS
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PCCNT, val,
                                    verbose, comment=' // Pooling columns')
 
@@ -962,7 +991,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         instance = ffs(output_processor_map[ll] >> group * tc.dev.P_SHARED) \
                                & ~(tc.dev.P_SHARED-1)
                         val |= (instance + group * tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE
-                    assert val < 2**17
+                    assert val < 2**tc.dev.MAX_PTR_BITS
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_BASE, val,
                                    verbose, comment=' // SRAM write ptr')
 
@@ -993,7 +1022,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 val = tc.dev.INSTANCE_SIZE
                         else:
                             val = 0
-                        assert val < 2**17
+                        assert val < 2**tc.dev.MAX_PTR_BITS
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_TOFFS, val,
                                        verbose, comment=' // Write ptr time slot offs')
 
@@ -1186,7 +1215,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         assert val < 2**16
                         if ll > 0 and streaming[ll]:
                             prev_max = np.multiply(tram_max[:ll], in_expand[:ll]).sum()
-                            assert prev_max < 2**12
+                            assert prev_max < 2**tc.dev.MAX_TPTR_BITS
                             val += prev_max
                             assert val < 2**16
                             val |= prev_max << 16
@@ -1308,7 +1337,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         stream_start = (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
                             * (kernel_size[ll-1][0] - 1 + pool[ll][0] - 1) \
                             + kernel_size[ll-1][1] - 1 + pool[ll][1] + increase_start
-                        assert stream_start < 2**14
+                        assert stream_start < 2**tc.dev.MAX_ISVAL_BITS
 
                         # Delta 1: This layer's pooling stride
                         delta1 = pool_stride[ll][1] * operands[ll] + increase_delta1
@@ -1318,7 +1347,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         delta2 = (pool_stride[ll][0] - 1) \
                             * (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
                             + pool[ll][1] * operands[ll] + increase_delta2
-                        assert delta2 < 2**12
+                        assert delta2 < 2**tc.dev.MAX_DSVAL2_BITS
 
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM1, stream_start,
                                        verbose, comment=' // Stream processing start')
@@ -1344,7 +1373,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             rem = val % in_expand[ll]
                             if rem > 0:
                                 val = val + in_expand[ll] - rem
-                        assert val < 2**17
+                        assert val < 2**tc.dev.MAX_FBUF_BITS
 
                         # Check rollover vs available data memory
                         if in_offset[ll] < out_offset[ll]:
@@ -1396,6 +1425,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             apb.write_lreg(group, r * layers + ll, reg, 0,
                                            verbose, force_write=True,
                                            comment=f' // Zero unused layer {ll} registers')
+                if hasattr(tc.dev, 'MIN_STREAM_LREG'):
+                    for ll in range(layers, tc.dev.MAX_STREAM_LAYERS):
+                        for _, group in enumerate(groups_used):
+                            for reg in range(tc.dev.MIN_STREAM_LREG, tc.dev.MAX_STREAM_LREG+1,
+                                             tc.dev.MAX_STREAM_LAYERS):
+                                apb.write_lreg(group, r * layers + ll, reg, 0,
+                                               verbose, force_write=True,
+                                               comment=f' // Zero unused layer {ll} registers')
 
         if not fifo:
             # Load data memory
@@ -2060,9 +2097,6 @@ def main():
     # Configure device
     tc.dev = tc.get_device(args.device)
 
-    if args.device == 87:
-        args.device = 85  # For now, there are no differences between AI85 and AI87
-
     if args.apb_base:
         apb_base = args.apb_base
     else:
@@ -2529,6 +2563,7 @@ def main():
             args.boost,
             args.forever,
             write_gap,
+            args.start_layer,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(
