@@ -152,7 +152,7 @@ class DevAI85(Dev):
     MAX_TPTR_BITS = 12
     MAX_ISVAL_BITS = 14
     MAX_DSVAL2_BITS = 12
-    MAXM_FBUF_BITS = 17
+    MAX_FBUF_BITS = 17
 
     # Global registers
     REG_CTL = 0
@@ -266,7 +266,7 @@ class DevAI87(Dev):
     MAX_TPTR_BITS = 14
     MAX_ISVAL_BITS = 15
     MAX_DSVAL2_BITS = 13
-    MAXM_FBUF_BITS = 18
+    MAX_FBUF_BITS = 18
 
     # Global registers
     REG_CTL = 0

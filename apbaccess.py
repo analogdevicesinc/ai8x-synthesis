@@ -271,12 +271,12 @@ class APB():
             comment = f' // reg {reg}'
         if val == 0 and not force_write:
             comment += ' *'
-        if self.device < 87:
-            addr = tc.dev.C_GROUP_OFFS*group + tc.dev.C_CNN_BASE \
-                + tc.dev.C_CNN*4 + reg*4 * tc.dev.MAX_LAYERS + layer*4
-        else:
+        if hasattr(tc.dev, 'LREG_OFFS'):
             addr = tc.dev.C_GROUP_OFFS*group + tc.dev.C_CNN_BASE \
                 + tc.dev.C_CNN*4 + reg*4 + layer*tc.dev.LREG_OFFS
+        else:
+            addr = tc.dev.C_GROUP_OFFS*group + tc.dev.C_CNN_BASE \
+                + tc.dev.C_CNN*4 + reg*4 * tc.dev.MAX_LAYERS + layer*4
         if force_write or val != 0 or self.write_zero_regs:
             self.write(addr, val, comment)
         if debug:
