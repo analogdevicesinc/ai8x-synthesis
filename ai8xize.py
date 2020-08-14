@@ -408,10 +408,19 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         group_map.append(this_map)
 
         # Ensure input and output map are the same for passthrough layers
-        if operator[ll] == op.NONE and processor_map[ll] != output_processor_map[ll]:
-            eprint(f'Layer {ll} is a pass-through layer. Input and output processors must be '
-                   f'identical. Configured are: input {processor_map[ll]:08x}, '
-                   f'output {output_processor_map[ll]:08x}.')
+        if operator[ll] == op.NONE:
+            for group in range(tc.dev.P_NUMGROUPS):
+                in_pro = 2**popcount(
+                    (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO
+                ) - 1
+                out_pro = (output_processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO
+                if out_pro != 0:
+                    out_pro >>= ffs(out_pro)
+                if out_pro != in_pro:
+                    eprint(f'Layer {ll} is a pass-through layer. The output processors must be a '
+                           'packed version of the input processors for each x16. Configured are: '
+                           f'input {processor_map[ll]:08x}, output '
+                           f'{output_processor_map[ll]:08x}.')
 
     groups_used = []
     for group in range(tc.dev.P_NUMGROUPS):
