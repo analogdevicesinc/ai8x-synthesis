@@ -912,7 +912,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         assert padding[ll][0] < 2**2
                         assert val + 2*padding[ll][0] < 2**tc.dev.MAX_CNT_BITS
                         if hasattr(tc.dev, 'CNT_DIFF_OFFS'):
-                            delta = ((val + 1) % pool[ll][0] + pool[ll][0]) \
+                            delta = ((val + 1) - (((val + 1) - pool[ll][0])
+                                                  // pool_stride[ll][0]) * pool_stride[ll][0]) \
                                 * in_expand[ll] * operands[ll]
                             val |= delta << tc.dev.CNT_DIFF_OFFS
                         val += 2*padding[ll][0]
@@ -934,10 +935,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         assert val + 2 * padding[ll][1] < 2**tc.dev.MAX_CNT_BITS
                         if hasattr(tc.dev, 'CNT_DIFF_OFFS'):
                             # Calculate last pooling fetch before advancing to next row
-                            delta = ((val + 1) % pool[ll][1] + pool[ll][1]) \
+                            delta = ((val + 1) - (((val + 1) - pool[ll][1])
+                                                  // pool_stride[ll][1]) * pool_stride[ll][1]) \
                                 * in_expand[ll] * operands[ll]
                             val |= delta << tc.dev.CNT_DIFF_OFFS
-                        val += + 2 * padding[ll][1]
+                        val += 2 * padding[ll][1]
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_CCNT,
                                        padding[ll][1] << tc.dev.PAD_CNT_OFFS | val,
                                        verbose, comment=' // Columns')
