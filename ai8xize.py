@@ -770,6 +770,24 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 apb.output('  load_bias();\n')
 
         if verbose:
+            print('\nEstimated latency:')
+            print('------------------')
+            lat = stats.calc_latency(
+                streaming,
+                layers,
+                eltwise,
+                pool,
+                pooled_dim,
+                in_expand,
+                output_chan,
+                input_dim,
+                padding,
+                kernel_size,
+            )
+            if lat <= 0:
+                lat = 'N/A'
+            print(f'{lat} cycles')
+
             print('\nGlobal configuration:')
             print('---------------------')
             print(f'Used processors     = 0x{processors_used:016x}')
