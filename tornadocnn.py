@@ -153,6 +153,7 @@ class DevAI85(Dev):
     MAX_ISVAL_BITS = 14
     MAX_DSVAL2_BITS = 12
     MAX_FBUF_BITS = 17
+    MAX_IFRM_BITS = 20
 
     # Global registers
     REG_CTL = 0
@@ -258,15 +259,17 @@ class DevAI87(Dev):
     LREG_FMAX = 0x2010
     MAX_STREAM_LREG = LREG_FMAX
 
-    PAD_CNT_OFFS = 14
+    PAD_CNT_OFFS = 13
+    PAD_ENA_OFFS = 15
     CNT_DIFF_OFFS = 16
     MAX_CNT_BITS = 11
     CNT_INC_OFFS = 4
-    MAX_PTR_BITS = 19
+    MAX_PTR_BITS = 21
     MAX_TPTR_BITS = 14
     MAX_ISVAL_BITS = 15
     MAX_DSVAL2_BITS = 13
     MAX_FBUF_BITS = 18
+    MAX_IFRM_BITS = 22
 
     # Global registers
     REG_CTL = 0
@@ -305,7 +308,7 @@ class DevAI87(Dev):
 
     INSTANCE_SIZE = 8192  # x32 (includes empty space)
     INSTANCE_WIDTH = 6144  # x32 (true memory size)
-    INSTANCE_SHIFT = 15
+    INSTANCE_SHIFT = 17
     MEM_SIZE = INSTANCE_WIDTH * P_NUMPRO * P_NUMGROUPS // P_SHARED  # x32
     MAX_CHANNELS = 16 * MAX_PROC  # 16 x expansion
 

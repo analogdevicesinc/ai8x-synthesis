@@ -909,16 +909,23 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 val = stride[ll][1]*input_dim[ll][0] - 1
                             else:
                                 val = input_dim[ll][0] - 1
-                        assert padding[ll][0] < 2**2
-                        assert val + 2*padding[ll][0] < 2**tc.dev.MAX_CNT_BITS
                         if hasattr(tc.dev, 'CNT_DIFF_OFFS'):
-                            delta = ((val + 1) - (((val + 1) - pool[ll][0])
-                                                  // pool_stride[ll][0]) * pool_stride[ll][0]) \
-                                * in_expand[ll] * operands[ll]
-                            val |= delta << tc.dev.CNT_DIFF_OFFS
-                        val += 2*padding[ll][0]
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_RCNT,
-                                       padding[ll][0] << tc.dev.PAD_CNT_OFFS | val,
+                            diff = ((val + 1) - (((val + 1) - pool[ll][0])
+                                                 // pool_stride[ll][0]) * pool_stride[ll][0])
+                            val -= diff - 1
+                            assert val < 2**tc.dev.MAX_CNT_BITS
+                            diff *= in_expand[ll] * operands[ll]
+                            val |= diff << tc.dev.CNT_DIFF_OFFS
+                            if padding[ll][0] > 0:
+                                assert padding[ll][0] - 1 < 2**2
+                                val |= 1 << tc.dev.PAD_ENA_OFFS
+                                val |= padding[ll][0] - 1 << tc.dev.PAD_CNT_OFFS
+                        else:
+                            assert padding[ll][0] < 2**2
+                            assert val + 2*padding[ll][0] < 2**tc.dev.MAX_CNT_BITS
+                            val |= padding[ll][0] << tc.dev.PAD_CNT_OFFS
+                            val += 2*padding[ll][0]
+                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_RCNT, val,
                                        verbose, comment=' // Rows')
 
                         # Configure column count (evaluates to 0 for 1D convolutions)
@@ -931,17 +938,24 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 val = stride[ll][1]*input_dim[ll][1] - 1
                             else:
                                 val = input_dim[ll][1] - 1
-                        assert padding[ll][1] < 2**2
-                        assert val + 2 * padding[ll][1] < 2**tc.dev.MAX_CNT_BITS
                         if hasattr(tc.dev, 'CNT_DIFF_OFFS'):
                             # Calculate last pooling fetch before advancing to next row
-                            delta = ((val + 1) - (((val + 1) - pool[ll][1])
-                                                  // pool_stride[ll][1]) * pool_stride[ll][1]) \
-                                * in_expand[ll] * operands[ll]
-                            val |= delta << tc.dev.CNT_DIFF_OFFS
-                        val += 2 * padding[ll][1]
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_CCNT,
-                                       padding[ll][1] << tc.dev.PAD_CNT_OFFS | val,
+                            diff = ((val + 1) - (((val + 1) - pool[ll][1])
+                                                 // pool_stride[ll][1]) * pool_stride[ll][1])
+                            val -= diff - 1
+                            assert val < 2**tc.dev.MAX_CNT_BITS
+                            diff *= in_expand[ll] * operands[ll]
+                            val |= diff << tc.dev.CNT_DIFF_OFFS
+                            if padding[ll][1] > 0:
+                                assert padding[ll][1] - 1 < 2**2
+                                val |= 1 << tc.dev.PAD_ENA_OFFS
+                                val |= padding[ll][1] - 1 << tc.dev.PAD_CNT_OFFS
+                        else:
+                            assert padding[ll][1] < 2**2
+                            assert val + 2 * padding[ll][1] < 2**tc.dev.MAX_CNT_BITS
+                            val |= padding[ll][1] << tc.dev.PAD_CNT_OFFS
+                            val += 2 * padding[ll][1]
+                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_CCNT, val,
                                        verbose, comment=' // Columns')
 
                     # Configure pooling row count
@@ -1422,7 +1436,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         val = input_dim[0][0] * input_dim[0][1]
                         if big_data[0]:
                             val = (val + 3) // 4
-                        assert val < 2**20
+                        assert val < 2**tc.dev.MAX_IFRM_BITS
                         apb.write_ctl(group, tc.dev.REG_IFRM, val, verbose,
                                       comment=' // Input frame size')
 
