@@ -132,6 +132,8 @@ def get_parser():
                        help="debug mode (default: false)")
     group.add_argument('--debug-computation', action='store_true', default=False,
                        help="debug computation -- SLOW (default: false)")
+    group.add_argument('--debug-latency', action='store_true', default=False,
+                       help="debug latency calculations (default: false)")
     group.add_argument('--no-error-stop', action='store_true', default=False,
                        help="do not stop on errors (default: stop)")
     group.add_argument('--stop-after', type=int, metavar='N',

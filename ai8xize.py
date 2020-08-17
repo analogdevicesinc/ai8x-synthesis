@@ -44,6 +44,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         verbose,
         debug,
         debug_computation,
+        debug_latency,
         no_error_stop,
         overwrite_ok,
         log,
@@ -783,10 +784,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 input_dim,
                 padding,
                 kernel_size,
+                debug=debug_latency,
             )
             if lat <= 0:
                 lat = 'N/A'
-            print(f'{lat} cycles')
+            print(f'{lat:,} cycles')
 
             print('\nGlobal configuration:')
             print('---------------------')
@@ -2500,6 +2502,7 @@ def main():
             args.verbose,
             args.debug,
             args.debug_computation,
+            args.debug_latency,
             args.no_error_stop,
             args.overwrite_ok,
             args.log,

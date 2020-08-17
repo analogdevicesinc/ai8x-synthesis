@@ -79,29 +79,29 @@ def calc_latency(
 
     lat = tc.dev.C_START
     if debug:
-        print(f'---> lat = {lat}')
+        print(f'---> start lat = {lat}')
 
     for k in range(layers):
         if debug:
-            print(f'{k}: (eltwise {eltwise[k] + 1} * pool {pool[k][0]}x{pool[k][1]}='
+            print(f'Layer {k}: (eltwise {eltwise[k] + 1} * pool {pool[k][0]}x{pool[k][1]}='
                   f'{pool[k][0] * pool[k][1]} * '
                   f'in_expand {in_expand[k]} + in_expand {in_expand[k]} + '
                   f'output_chan {output_chan[k]}) * input_dim {input_dim[k][0]}x{input_dim[k][1]}'
                   f'={input_dim[k][0] * input_dim[k][1]}')
-        lat += ((eltwise[k] + 1) * pool[k][0] * pool[k][1] * in_expand[k]
-                + in_expand[k] + output_chan[k]) * input_dim[k][0] * input_dim[k][1]
+        lk = ((eltwise[k] + 1) * pool[k][0] * pool[k][1] * in_expand[k]
+              + in_expand[k] + output_chan[k]) * input_dim[k][0] * input_dim[k][1]
+        lat += lk
         if debug:
-            print(f'---> lat = {lat}')
+            print(f'---> layer {k} convolution lat: {lk:,}, subtotal: {lat:,}')
         if padding[k][0] > 0 or padding[k][1] > 0:
             if debug:
-                print(f'  padding {padding[k][0]}x{padding[k][1]}, '
+                print(f'Layer {k}: padding {padding[k][0]}x{padding[k][1]}, '
                       f'pooled_dim {pooled_dim[k][0]}x{pooled_dim[k][1]}='
                       f'{pooled_dim[k][0]*pooled_dim[k][1]}')
-            lat += 2 * padding[k][0] * (pooled_dim[k][1] + 2 * padding[k][1]) * tc.dev.C_POOL + \
+            lk = 2 * padding[k][0] * (pooled_dim[k][1] + 2 * padding[k][1]) * tc.dev.C_POOL + \
                 2 * padding[k][1] * pooled_dim[k][0] * tc.dev.C_POOL
+            lat += lk
             if debug:
-                print(f'     ---> lat = {lat}')
-    if debug:
-        print(f'total: {lat} cycles')
+                print(f'---> layer {k} pad/pool lat: {lk:,}, subtotal: {lat:,}')
 
     return lat
