@@ -64,44 +64,41 @@ def calc_latency(
         pooled_dim,
         in_expand,
         output_chan,
-        input_dim,
+        input_dim,  # pylint: disable=unused-argument
         padding,
         kernel_size,  # pylint: disable=unused-argument
-        debug=False,
+        debug=False,  # pylint: disable=unused-argument
 ):
     """
-    Return latency in cycles for a given network setup.
+    Returns estimated latencies (in cycles) for startup, each layer, and total for a
+    given network setup.
+    The return value is a list of tuples (cycles [integer], detailed description [string])
     """
 
     # No support for estimating streaming latency yet
     if any(streaming):
-        return -1
+        return None
 
-    lat = tc.dev.C_START
-    if debug:
-        print(f'---> start lat = {lat}')
+    lat = [(tc.dev.C_START, '')]
+    total = tc.dev.C_START
 
     for k in range(layers):
-        if debug:
-            print(f'Layer {k}: (eltwise {eltwise[k] + 1} * pool {pool[k][0]}x{pool[k][1]}='
-                  f'{pool[k][0] * pool[k][1]} * '
-                  f'in_expand {in_expand[k]} + in_expand {in_expand[k]} + '
-                  f'output_chan {output_chan[k]}) * input_dim {input_dim[k][0]}x{input_dim[k][1]}'
-                  f'={input_dim[k][0] * input_dim[k][1]}')
+        s = f'conv: (eltwise {eltwise[k] + 1} * pool {pool[k][0]}x{pool[k][1]}=' \
+            f'{pool[k][0] * pool[k][1]} * ' \
+            f'in_expand {in_expand[k]} + in_expand {in_expand[k]} + ' \
+            f'output_chan {output_chan[k]}) * ' \
+            f'pooled_dim {pooled_dim[k][0]}x{pooled_dim[k][1]}' \
+            f'={pooled_dim[k][0] * pooled_dim[k][1]}'
         lk = ((eltwise[k] + 1) * pool[k][0] * pool[k][1] * in_expand[k]
-              + in_expand[k] + output_chan[k]) * input_dim[k][0] * input_dim[k][1]
-        lat += lk
-        if debug:
-            print(f'---> layer {k} convolution lat: {lk:,}, subtotal: {lat:,}')
+              + in_expand[k] + output_chan[k]) * pooled_dim[k][0] * pooled_dim[k][1]
         if padding[k][0] > 0 or padding[k][1] > 0:
-            if debug:
-                print(f'Layer {k}: padding {padding[k][0]}x{padding[k][1]}, '
-                      f'pooled_dim {pooled_dim[k][0]}x{pooled_dim[k][1]}='
-                      f'{pooled_dim[k][0]*pooled_dim[k][1]}')
-            lk = 2 * padding[k][0] * (pooled_dim[k][1] + 2 * padding[k][1]) * tc.dev.C_POOL + \
-                2 * padding[k][1] * pooled_dim[k][0] * tc.dev.C_POOL
-            lat += lk
-            if debug:
-                print(f'---> layer {k} pad/pool lat: {lk:,}, subtotal: {lat:,}')
+            s += f' + pad: padding {padding[k][0]}x{padding[k][1]}, ' \
+                 f'pooled_dim {pooled_dim[k][0]}x{pooled_dim[k][1]}=' \
+                 f'{pooled_dim[k][0]*pooled_dim[k][1]}'
+            lk += tc.dev.C_POOL * (2 * padding[k][0] * (pooled_dim[k][1] + 2 * padding[k][1])
+                                   + 2 * padding[k][1] * pooled_dim[k][0])
+        lat.append((lk, s))
+        total += lk
 
+    lat.append((total, ''))
     return lat

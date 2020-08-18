@@ -771,8 +771,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 apb.output('  load_bias();\n')
 
         if verbose:
-            print('\nEstimated latency:')
-            print('------------------')
             lat = stats.calc_latency(
                 streaming,
                 layers,
@@ -784,11 +782,21 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 input_dim,
                 padding,
                 kernel_size,
-                debug=debug_latency,
             )
-            if lat <= 0:
-                lat = 'N/A'
-            print(f'{lat:,} cycles')
+            print('\nEstimated latency:')
+            print('------------------')
+            if lat is None:
+                print('N/A')
+            else:
+                print(f'Startup{lat[0][0]:14,}')
+                for k in range(len(lat)-2):
+                    print(f'Layer {k:<3}{lat[k+1][0]:12,}', end='')
+                    if debug_latency:
+                        print('', lat[k+1][1])
+                    else:
+                        print('')
+                print('           ==========')
+                print(f'Total{lat[-1][0]:16,} cycles')
 
             print('\nGlobal configuration:')
             print('---------------------')
