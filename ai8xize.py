@@ -1968,10 +1968,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     sleep=False,
                     debug_mem=True,
                 )
+                out_map2 = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
                 apb2.verify_unload(
                     ll,
                     in_map,
-                    out_map,
+                    out_map2,
                     out_buf,
                     output_processor_map[ll],
                     out_size,
