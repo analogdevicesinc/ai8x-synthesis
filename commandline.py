@@ -120,7 +120,7 @@ def get_parser():
     group.add_argument('-L', '--log', action='store_true', default=False,
                        help="redirect stdout to log file (default: false)")
     group.add_argument('--log-intermediate', action='store_true', default=False,
-                       help="log data between layers (default: false)")
+                       help="log data between layers to .mem files (default: false)")
     group.add_argument('--log-pooling', action='store_true', default=False,
                        help="log unpooled and pooled data between layers in CSV format "
                             "(default: false)")
