@@ -1,0 +1,53 @@
+# CHW (big data) configuration for Cats and Dogs image classification
+
+arch: ai85cdnet
+dataset: cats_vs_dogs
+
+# Define layer parameters in order of the layer sequence
+layers:
+- pad: 1
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0x0000000100010001
+  data_format: CHW
+  operation: Conv2d
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0x0007fff000000000
+  operation: Conv2d
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0x00000003fffffff0
+  operation: Conv2d
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0xfffffffffffffff0
+  operation: Conv2d
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0x00000003fffffff0
+  operation: Conv2d
+- pad: 1
+  activate: ReLU
+  out_offset: 0x2000
+  #output_width: 32
+  processors: 0xfffffffc00000000
+  operation: Conv2d
+- op: mlp
+  flatten: true
+  out_offset: 0x1000
+  output_width: 32
+  processors: 0x000000003fffffff
+
