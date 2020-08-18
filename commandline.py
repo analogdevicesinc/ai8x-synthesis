@@ -70,6 +70,11 @@ def get_parser():
     group.add_argument('--boost', metavar='S', default=None,
                        help="dot-separated port and pin that is turned on during CNN run to "
                             "boost the power supply, e.g. --boost 2.5 (default: None)")
+    group.add_argument('--scale', metavar='S', required=None,
+                       help="scale factor for quantizing onnx weights, not required"
+                            "Typical values: PyTorch - 0.8; TensorFlow - 2.0; Default: no scaling")
+    group.add_argument('--input-type-tensorflow', action='store_true', default=False,
+                       help="use TensorFlow input data format (default: false)") ## need to transpose(1,2,0) in loader?
 
     # File names
     group = parser.add_argument_group('File names')

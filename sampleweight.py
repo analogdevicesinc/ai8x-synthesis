@@ -3,6 +3,8 @@
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
+#
+# Written by RM
 ###################################################################################################
 """
 Load hard-coded sample weights from .npy files.
@@ -18,7 +20,6 @@ def load(
         dataset,
         quantization,
         bias_quantization,  # pylint: disable=unused-argument
-        output_shift,
         cfg_layers,
         cfg_weights=None,
         cfg_bias=None,
@@ -78,10 +79,6 @@ def load(
                 pass
 
     for ll in range(layers):
-        # Set to default?
-        if quantization[ll] is None:
-            quantization[ll] = 8
-
         # Re-quantize if needed (these random sample weights, so no need to round etc.)
         max_w = int(w[ll].max())
         if max_w < 0:
@@ -95,12 +92,6 @@ def load(
         if current_quant > quantization[ll]:
             w[ll] >>= current_quant - quantization[ll]
 
-        # Specified output_shift?
-        if output_shift[ll] is None:
-            output_shift[ll] = 0
-        # Add based on quantization
-        output_shift[ll] += 8 - quantization[ll]
-
         output_channels.append(w[ll].shape[0])  # Output channels
         input_channels.append(w[ll].shape[1])  # Input channels
         if len(w[ll].shape) == 4:
@@ -108,5 +99,4 @@ def load(
         else:
             weights.append(w[ll].reshape(-1, w[ll].shape[-1]))
 
-    return layers, weights, bias, output_shift, \
-        fc_weights, fc_bias, input_channels, output_channels
+    return layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels
