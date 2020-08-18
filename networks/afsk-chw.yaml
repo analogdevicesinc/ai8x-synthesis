@@ -1,0 +1,32 @@
+# CHW configuration for AFSK
+
+arch: ai85afsknet
+dataset: AFSK
+
+# Define layer parameters in order of the layer sequence
+layers:
+- processors: 0x0000000000000001
+  kernel_size: 5
+  pad: 2
+  stride: 1
+  out_offset: 0x2000
+  op: Conv1d
+  activate: ReLU
+- processors: 0xFFFFFFFFFFFFFFFF
+  kernel_size: 5
+  pad: 2
+  stride: 1
+  out_offset: 0x4000
+  op: Conv1d
+  activate: ReLU
+- processors: 0x00000000FFFFFFFF
+  kernel_size: 5
+  pad: 2
+  stride: 1
+  out_offset: 0x2000
+  op: Conv1d
+  activate: ReLU
+- processors: 0x000000000000FFFF
+  flatten: true
+  out_offset: 0x0000
+  op: Linear
