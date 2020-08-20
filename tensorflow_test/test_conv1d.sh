@@ -1,0 +1,2 @@
+#!/bin/sh
+./ai8xize.py --verbose -L --top-level cnn --test-dir tensorflow_test --prefix conv1d --checkpoint-file ../ai8x-training/TensorFlow/test/FusedConv1D/saved_model/saved_model.onnx --config-file ./tensorflow_test/simple-conv1d.yaml --sample-input ../ai8x-training/TensorFlow/test/FusedConv1D/saved_model/input_sample_1x5.npy --device 85 --compact-data --mexpress --unload --embedded-code --keep-first --scale 1.0 $@
