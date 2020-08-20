@@ -2100,6 +2100,7 @@ def main():
                     args.display_checkpoint,
                     args.no_bias,
                     args.scale,
+                    args.keep_first,
                 )
         else:
             # PyTorch checkpoint file selected

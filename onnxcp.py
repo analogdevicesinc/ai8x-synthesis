@@ -210,6 +210,7 @@ def load(
         verbose=False,
         no_bias=None,
         scale=None,
+        keep_first=False, 
 ):
     """
     Load weights and biases from `checkpoint_file`. If `arch` is not None and does not match
@@ -233,9 +234,12 @@ def load(
     if scale is not None:
         do_quantize = True
         scale_factor = float(scale)
-
-    first = True
-    first_bias = True
+    if keep_first is True:
+        first = False
+        first_bias = False
+    else:
+        first = True
+        first_bias = True
 
     model = onnx.load(checkpoint_file)
     print(f'Reading {checkpoint_file} to configure network weights...')
