@@ -942,7 +942,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                                  // pool_stride[ll][0]) * pool_stride[ll][0])
                             val -= diff - 1
                             assert val < 2**tc.dev.MAX_CNT_BITS
-                            diff *= in_expand[ll] * operands[ll]
+                            diff = input_dim[ll][1] * (pool_stride[ll][1] - 1) \
+                                * in_expand[ll] * operands[ll]
                             val |= diff << tc.dev.CNT_DIFF_OFFS
                             if padding[ll][0] > 0:
                                 assert padding[ll][0] - 1 < 2**2
@@ -1163,6 +1164,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         else:
                             assert write_gap[ll] + 1 <= 2**4  # Cannot have more than 4 bits (+1)
                             val |= write_gap[ll] << 4
+                        if hasattr(tc.dev, 'OCHAN_CNT_OFFS'):
+                            val |= (output_chan[ll] - 1) << tc.dev.OCHAN_CNT_OFFS
 
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_LCTL2, val,
                                        verbose, comment=' // Layer control 2')
