@@ -779,6 +779,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 pooled_dim,
                 in_expand,
                 output_chan,
+                output_dim,
                 input_dim,
                 padding,
                 kernel_size,

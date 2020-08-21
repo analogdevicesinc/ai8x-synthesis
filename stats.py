@@ -64,6 +64,7 @@ def calc_latency(
         pooled_dim,
         in_expand,
         output_chan,
+        output_dim,
         input_dim,  # pylint: disable=unused-argument
         padding,
         kernel_size,  # pylint: disable=unused-argument
@@ -82,21 +83,27 @@ def calc_latency(
     lat = [(tc.dev.C_START, '')]
     total = tc.dev.C_START
 
-    for k in range(layers):
-        s = f'conv: (eltwise {eltwise[k] + 1} * pool {pool[k][0]}x{pool[k][1]}=' \
-            f'{pool[k][0] * pool[k][1]} * ' \
-            f'in_expand {in_expand[k]} + in_expand {in_expand[k]} + ' \
-            f'output_chan {output_chan[k]}) * ' \
-            f'pooled_dim {pooled_dim[k][0]}x{pooled_dim[k][1]}' \
-            f'={pooled_dim[k][0] * pooled_dim[k][1]}'
-        lk = ((eltwise[k] + 1) * pool[k][0] * pool[k][1] * in_expand[k]
-              + in_expand[k] + output_chan[k]) * pooled_dim[k][0] * pooled_dim[k][1]
-        if padding[k][0] > 0 or padding[k][1] > 0:
-            s += f' + pad: padding {padding[k][0]}x{padding[k][1]}, ' \
-                 f'pooled_dim {pooled_dim[k][0]}x{pooled_dim[k][1]}=' \
-                 f'{pooled_dim[k][0]*pooled_dim[k][1]}'
-            lk += tc.dev.C_POOL * (2 * padding[k][0] * (pooled_dim[k][1] + 2 * padding[k][1])
-                                   + 2 * padding[k][1] * pooled_dim[k][0])
+    for ll in range(layers):
+        s = f'Input: eltwise {eltwise[ll] + 1} * in_expand {in_expand[ll]} ' \
+            f'* (pool {pool[ll][0]}x{pool[ll][1]}={pool[ll][0] * pool[ll][1]} * ' \
+            f'pooled_dim {pooled_dim[ll][0]}x{pooled_dim[ll][1]}' \
+            f'={pooled_dim[ll][0] * pooled_dim[ll][1]} + Pad: {tc.dev.C_PAD} * 2 *' \
+            f'({padding[ll][0]}x(2*{padding[ll][1]}+{pooled_dim[ll][1]})=' \
+            f'{padding[ll][0] * (2 * padding[ll][1] + pooled_dim[ll][1])} + ' \
+            f'{padding[ll][1]}x{pooled_dim[ll][0]}={padding[ll][1] * pooled_dim[ll][0]})) ' \
+            f'+ TRAM shift: {output_dim[ll][0]}x{output_dim[ll][1]}=' \
+            f'{output_dim[ll][0] * output_dim[ll][1]} + ' \
+            f'Output: {output_dim[ll][0]}x{output_dim[ll][1]}x{output_chan[ll]}=' \
+            f'{output_dim[ll][0] * output_dim[ll][1] * output_chan[ll]}'
+
+        lk = (eltwise[ll] + 1) * in_expand[ll] * (
+            pool[ll][0] * pool[ll][1] * pooled_dim[ll][0] * pooled_dim[ll][1]
+            + tc.dev.C_PAD * 2 * (  # Pad cycles * (top + left) * 2 (for bottom + right)
+                padding[ll][0] * (2 * padding[ll][1] + pooled_dim[ll][1])
+                + padding[ll][1] * pooled_dim[ll][0]
+            )
+        ) + output_dim[ll][0] * output_dim[ll][1] * (output_chan[ll] + 1)
+
         lat.append((lk, s))
         total += lk
 

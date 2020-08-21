@@ -216,6 +216,7 @@ class DevAI85(Dev):
     # Cycles
     C_START = 4
     C_POOL = 3
+    C_PAD = 3
 
     def __str__(self):
         return self.__class__.__name__
@@ -338,6 +339,7 @@ class DevAI87(Dev):
     # Cycles
     C_START = 4
     C_POOL = 3
+    C_PAD = 3
 
     def __str__(self):
         return self.__class__.__name__
