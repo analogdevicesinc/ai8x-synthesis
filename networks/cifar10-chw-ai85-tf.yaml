@@ -9,7 +9,7 @@ layers:
   activate: ReLU
   out_offset: 0x2000
   processors: 0x000000000000000007
-  data_format: HWC
+  data_format: CHW
   op: conv2d
 - max_pool: 2
   pool_stride: 2

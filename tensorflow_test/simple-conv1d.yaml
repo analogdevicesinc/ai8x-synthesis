@@ -1,0 +1,14 @@
+# Benchmark network. Uses all processors.
+
+arch: ai85net5
+dataset: simple-conv1d
+
+# Define layer parameters in order of the layer sequence
+layers:
+- pad: 0
+  processors: 0x000000000000007f
+  out_offset: 0x2000
+  op: conv1d
+  kernel_size: 1
+  stride: 1
+
