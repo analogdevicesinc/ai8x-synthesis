@@ -21,6 +21,7 @@ import checkpoint
 import cmsisnn
 import commandline
 import compute
+import devices
 import kbias
 import kernels
 import load
@@ -347,6 +348,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     # Redirect stdout?
     if log:
         sys.stdout = open(os.path.join(base_directory, test_name, log_filename), 'w')
+        print(f'{" ".join(str(x) for x in sys.argv)}')
+        print(f'{devices.partnum(device)}\n')
         print(f'{test_name}')
 
     if block_mode:
