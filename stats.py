@@ -84,25 +84,25 @@ def calc_latency(
     total = tc.dev.C_START
 
     for ll in range(layers):
+        pad = tc.dev.C_PAD * 2 * (  # Pad cycles * (top + left) * 2 (for bottom + right)
+            padding[ll][0] * (2 * padding[ll][1] + pooled_dim[ll][1])
+            + padding[ll][1] * pooled_dim[ll][0]
+        )
+        lk = (eltwise[ll] + 1) * in_expand[ll] * (
+            pool[ll][0] * pool[ll][1] * pooled_dim[ll][0] * pooled_dim[ll][1] + pad
+        ) + output_dim[ll][0] * output_dim[ll][1] * (output_chan[ll] + tc.dev.C_PAD)
         s = f'Input: eltwise {eltwise[ll] + 1} * in_expand {in_expand[ll]} ' \
             f'* (pool {pool[ll][0]}x{pool[ll][1]}={pool[ll][0] * pool[ll][1]} * ' \
             f'pooled_dim {pooled_dim[ll][0]}x{pooled_dim[ll][1]}' \
-            f'={pooled_dim[ll][0] * pooled_dim[ll][1]} + Pad: {tc.dev.C_PAD} * 2 *' \
-            f'({padding[ll][0]}x(2*{padding[ll][1]}+{pooled_dim[ll][1]})=' \
+            f'={pooled_dim[ll][0] * pooled_dim[ll][1]} + Pad: {tc.dev.C_PAD}*2*' \
+            f'({padding[ll][0]}x({padding[ll][1]}+{padding[ll][1]}+{pooled_dim[ll][1]})=' \
             f'{padding[ll][0] * (2 * padding[ll][1] + pooled_dim[ll][1])} + ' \
-            f'{padding[ll][1]}x{pooled_dim[ll][0]}={padding[ll][1] * pooled_dim[ll][0]})) ' \
-            f'+ TRAM shift: {output_dim[ll][0]}x{output_dim[ll][1]}=' \
-            f'{output_dim[ll][0] * output_dim[ll][1]} + ' \
+            f'{padding[ll][1]}x{pooled_dim[ll][0]}={padding[ll][1] * pooled_dim[ll][0]}))=' \
+            f'{pad} + ' \
+            f'TRAM shift: {tc.dev.C_PAD}x{output_dim[ll][0]}x{output_dim[ll][1]}=' \
+            f'{tc.dev.C_PAD * output_dim[ll][0] * output_dim[ll][1]} + ' \
             f'Output: {output_dim[ll][0]}x{output_dim[ll][1]}x{output_chan[ll]}=' \
             f'{output_dim[ll][0] * output_dim[ll][1] * output_chan[ll]}'
-
-        lk = (eltwise[ll] + 1) * in_expand[ll] * (
-            pool[ll][0] * pool[ll][1] * pooled_dim[ll][0] * pooled_dim[ll][1]
-            + tc.dev.C_PAD * 2 * (  # Pad cycles * (top + left) * 2 (for bottom + right)
-                padding[ll][0] * (2 * padding[ll][1] + pooled_dim[ll][1])
-                + padding[ll][1] * pooled_dim[ll][0]
-            )
-        ) + output_dim[ll][0] * output_dim[ll][1] * (output_chan[ll] + 1)
 
         lat.append((lk, s))
         total += lk

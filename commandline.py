@@ -255,6 +255,8 @@ def get_parser():
                        help="specify FIFO waitstates")
     group.add_argument('--ready-sel-aon', type=int, metavar='N',
                        help="specify AON waitstates")
+    group.add_argument('--disable-pipeline', action='store_false', default=True, dest='pipeline',
+                       help="disable pipeline (default: enabled)")
 
     # Various
     group = parser.add_argument_group('Various')

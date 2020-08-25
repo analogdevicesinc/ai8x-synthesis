@@ -153,6 +153,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         forever=False,
         write_gap=None,
         start_layer=0,
+        pipeline=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -624,6 +625,34 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         # Initialize CNN registers
 
         if verbose:
+            lat = stats.calc_latency(
+                streaming,
+                layers,
+                eltwise,
+                pool,
+                pooled_dim,
+                in_expand,
+                output_chan,
+                output_dim,
+                input_dim,
+                padding,
+                kernel_size,
+            )
+            print('\nEstimated latency:')
+            print('------------------')
+            if lat is None:
+                print('N/A')
+            else:
+                print(f'Startup{lat[0][0]:14,}')
+                for k in range(len(lat)-2):
+                    print(f'Layer {k:<3}{lat[k+1][0]:12,}', end='')
+                    if debug_latency:
+                        print('', lat[k+1][1])
+                    else:
+                        print('')
+                print('           ==========')
+                print(f'Total{lat[-1][0]:16,} cycles')
+
             print('\nGlobal registers:')
             print('-----------------')
 
@@ -774,34 +803,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 apb.output('  load_bias();\n')
 
         if verbose:
-            lat = stats.calc_latency(
-                streaming,
-                layers,
-                eltwise,
-                pool,
-                pooled_dim,
-                in_expand,
-                output_chan,
-                output_dim,
-                input_dim,
-                padding,
-                kernel_size,
-            )
-            print('\nEstimated latency:')
-            print('------------------')
-            if lat is None:
-                print('N/A')
-            else:
-                print(f'Startup{lat[0][0]:14,}')
-                for k in range(len(lat)-2):
-                    print(f'Layer {k:<3}{lat[k+1][0]:12,}', end='')
-                    if debug_latency:
-                        print('', lat[k+1][1])
-                    else:
-                        print('')
-                print('           ==========')
-                print(f'Total{lat[-1][0]:16,} cycles')
-
             print('\nGlobal configuration:')
             print('---------------------')
             print(f'Used processors     = 0x{processors_used:016x}')
@@ -935,25 +936,32 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         # [9:0]   maxcount: lower 8 bits = total of width + pad - 1
                         # [17:16] pad: 2 bits pad
                         if flatten[ll]:
-                            val = 0
+                            in_col = in_row = 1
                         else:
                             if operator[ll] == op.CONVTRANSPOSE2D:
-                                val = stride[ll][1]*input_dim[ll][0] - 1
+                                in_col = stride[ll][1] * input_dim[ll][1]
+                                in_row = stride[ll][0] * input_dim[ll][0]
                             else:
-                                val = input_dim[ll][0] - 1
+                                in_col = input_dim[ll][1]
+                                in_row = input_dim[ll][0]
                         if hasattr(tc.dev, 'CNT_DIFF_OFFS'):
-                            diff = ((val + 1) - (((val + 1) - pool[ll][0])
-                                                 // pool_stride[ll][0]) * pool_stride[ll][0])
-                            val -= diff - 1
+                            diff = (in_row - ((in_row - pool[ll][0])
+                                              // pool_stride[ll][0]) * pool_stride[ll][0])
+                            val = in_row - diff  # Stop column, 0-based
                             assert val < 2**tc.dev.MAX_CNT_BITS
-                            diff = input_dim[ll][1] * (pool_stride[ll][1] - 1) \
-                                * in_expand[ll] * operands[ll]
+
+                            if operator[ll] == op.CONV1D:
+                                diff = 1
+                            diff = (diff + (pool_stride[ll][0] - 1) * in_col) \
+                                * operands[ll] * in_expand[ll]  # Bytes to next starting element
+
                             val |= diff << tc.dev.CNT_DIFF_OFFS
                             if padding[ll][0] > 0:
                                 assert padding[ll][0] - 1 < 2**2
                                 val |= 1 << tc.dev.PAD_ENA_OFFS
                                 val |= padding[ll][0] - 1 << tc.dev.PAD_CNT_OFFS
                         else:
+                            val = in_row - 1
                             assert padding[ll][0] < 2**2
                             assert val + 2*padding[ll][0] < 2**tc.dev.MAX_CNT_BITS
                             val |= padding[ll][0] << tc.dev.PAD_CNT_OFFS
@@ -964,26 +972,19 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         # Configure column count (evaluates to 0 for 1D convolutions)
                         # [9:0]   width including padding - 1
                         # [17:16] pad count (0 = no pad, 1 = half pad, 2 = full pad)
-                        if flatten[ll]:
-                            val = 0
-                        else:
-                            if operator[ll] == op.CONVTRANSPOSE2D:
-                                val = stride[ll][1]*input_dim[ll][1] - 1
-                            else:
-                                val = input_dim[ll][1] - 1
                         if hasattr(tc.dev, 'CNT_DIFF_OFFS'):
                             # Calculate last pooling fetch before advancing to next row
-                            diff = ((val + 1) - (((val + 1) - pool[ll][1])
-                                                 // pool_stride[ll][1]) * pool_stride[ll][1])
-                            val -= diff - 1
+                            diff = (in_col - ((in_col - pool[ll][1])
+                                              // pool_stride[ll][1]) * pool_stride[ll][1])
+                            val = in_col - diff
                             assert val < 2**tc.dev.MAX_CNT_BITS
-                            diff *= in_expand[ll] * operands[ll]
                             val |= diff << tc.dev.CNT_DIFF_OFFS
                             if padding[ll][1] > 0:
                                 assert padding[ll][1] - 1 < 2**2
                                 val |= 1 << tc.dev.PAD_ENA_OFFS
                                 val |= padding[ll][1] - 1 << tc.dev.PAD_CNT_OFFS
                         else:
+                            val = in_col - 1
                             assert padding[ll][1] < 2**2
                             assert val + 2 * padding[ll][1] < 2**tc.dev.MAX_CNT_BITS
                             val |= padding[ll][1] << tc.dev.PAD_CNT_OFFS
@@ -999,7 +1000,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         val = pool[ll][0]-1
                         assert val < 2**4
                     if hasattr(tc.dev, 'CNT_INC_OFFS'):
-                        val |= 0 << tc.dev.CNT_INC_OFFS
+                        val |= 0 << tc.dev.CNT_INC_OFFS  # FIXME
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PRCNT, val,
                                    verbose, comment=' // Pooling rows')
 
@@ -1010,7 +1011,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         val = pool[ll][1]-1
                         assert val < 2**4
                     if hasattr(tc.dev, 'CNT_INC_OFFS'):
-                        val |= 0 << tc.dev.CNT_INC_OFFS
+                        val |= 0 << tc.dev.CNT_INC_OFFS  # FIXME
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PCCNT, val,
                                    verbose, comment=' // Pooling columns')
 
@@ -1024,6 +1025,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     if device == 84 and operator[ll] == op.CONV1D:
                         val //= 3
                     assert val < 2**4
+                    if hasattr(tc.dev, 'MP_STRIDE_OFFS'):  # Multipass stride
+                        val |= pool_stride[ll][0] * operands[ll] * in_expand[ll] \
+                            << tc.dev.MP_STRIDE_OFFS
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STRIDE, val,
                                    verbose, comment=' // Stride')
 
@@ -1085,7 +1089,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                        verbose, comment=' // Write ptr time slot offs')
 
                         # [15:0] Write Pointer Mask Offset Register
-                        val = 1 << tc.dev.INSTANCE_SHIFT
+                        val = 1 << tc.dev.WRITE_PTR_SHIFT
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_MOFFS, val,
                                        verbose, comment=' // Write ptr mask offs')
 
@@ -1138,6 +1142,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             if (processor_map[ll] >> (t * tc.dev.P_NUMPRO)) % 2**tc.dev.P_NUMPRO:
                                 sources |= 1 << t
                         val |= sources << 12
+
+                    if hasattr(tc.dev, 'CPRIME_MAX_OFFS') and operator[ll] != op.NONE:
+                        val |= kernel_size[ll][0] - 1 << tc.dev.RPRIME_MAX_OFFS
+                        val |= kernel_size[ll][1] - 1 << tc.dev.CPRIME_MAX_OFFS
+
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_LCTL, val,
                                    verbose, comment=' // Layer control')
 
@@ -1168,8 +1177,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         else:
                             assert write_gap[ll] + 1 <= 2**4  # Cannot have more than 4 bits (+1)
                             val |= write_gap[ll] << 4
-                        if hasattr(tc.dev, 'OCHAN_CNT_OFFS'):
-                            val |= (output_chan[ll] - 1) << tc.dev.OCHAN_CNT_OFFS
+                        if hasattr(tc.dev, 'OCHAN_CNT_OFFS') and operator[ll] != op.NONE:
+                            val |= (output_chan[ll] * in_expand[ll] - 1) << tc.dev.OCHAN_CNT_OFFS
 
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_LCTL2, val,
                                        verbose, comment=' // Layer control 2')
@@ -1200,10 +1209,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             in_exp = in_expand[ll]
                             if flatten[ll]:
                                 in_exp *= pooled_dim[ll][0] * pooled_dim[ll][1]
-                            kl = (((fls(output_processor_map[ll])
-                                    - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) + 1)
-                                  * quantization[ll]) * out_expand[ll] * in_exp \
-                                - quantization[ll]
+                            if device == 85:
+                                kl = (((fls(output_processor_map[ll])
+                                        - (ffs(output_processor_map[ll])
+                                           & ~(tc.dev.P_SHARED-1))) + 1)
+                                      * quantization[ll]) * out_expand[ll] * in_exp \
+                                     - quantization[ll]
+                            else:
+                                kl = output_chan[ll] * quantization[ll] * in_exp - quantization[ll]
                             if ll == 0 and fast_fifo_quad:
                                 kl = (kl + 3) // 4
                             koffs, oned_sad = divmod(9 * kern_offs[ll],
@@ -1612,6 +1625,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             val |= 1 << 21
         if fast_fifo_quad:
             val |= 1 << 31  # Qupac bit
+        if hasattr(tc.dev, 'CTL_PIPELINE_OFFS') and pipeline:
+            val |= 1 << tc.dev.CTL_PIPELINE_OFFS
 
         # Enable all needed groups except the first one
         for _, group in enumerate(groups_used):
@@ -2626,6 +2641,7 @@ def main():
             args.forever,
             write_gap,
             args.start_layer,
+            args.pipeline,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

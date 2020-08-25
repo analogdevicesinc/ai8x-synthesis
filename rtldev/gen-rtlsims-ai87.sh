@@ -380,3 +380,5 @@
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-burnin_16x64x64 --config-file tests/test-burnin_16x64x64.yaml --device 87 --compact-data --mexpress --fixed-input --max-checklines 4096
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-burnin-rand_64x64x64 --config-file tests/test-burnin-rand_64x64x64.yaml --device 87 --compact-data --mexpress --max-checklines 4096 --timeout 60
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-burnin-rand_16x64x64 --config-file tests/test-burnin-rand_16x64x64.yaml --device 87 --compact-data --mexpress --max-checklines 4096
+
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-conv1d-3-bias --config-file tests/test-conv1d-3-bias.yaml --ai87

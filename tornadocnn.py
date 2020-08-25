@@ -3,7 +3,6 @@
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
 ###################################################################################################
 """
 Tornado CNN hardware constants - AI84, AI85
@@ -93,6 +92,7 @@ class DevAI84(Dev):
 
     INSTANCE_SIZE = INSTANCE_WIDTH = 1024  # x32
     INSTANCE_SHIFT = 12
+    WRITE_PTR_SHIFT = 12
     MEM_SIZE = INSTANCE_SIZE * P_NUMPRO * P_NUMGROUPS // P_SHARED  # x32
     MAX_CHANNELS = MAX_PROC
 
@@ -196,6 +196,7 @@ class DevAI85(Dev):
 
     INSTANCE_SIZE = INSTANCE_WIDTH = 2048  # x32
     INSTANCE_SHIFT = 13
+    WRITE_PTR_SHIFT = 13
     MEM_SIZE = INSTANCE_SIZE * P_NUMPRO * P_NUMGROUPS // P_SHARED  # x32
     MAX_CHANNELS = 16 * MAX_PROC  # 16 x expansion
 
@@ -215,8 +216,7 @@ class DevAI85(Dev):
 
     # Cycles
     C_START = 4
-    C_POOL = 3
-    C_PAD = 3
+    C_PAD = 2
 
     def __str__(self):
         return self.__class__.__name__
@@ -268,11 +268,13 @@ class DevAI87(Dev):
     LREG_FMAX = 0x2010
     MAX_STREAM_LREG = LREG_FMAX
 
+    CTL_PIPELINE_OFFS = 5
     PAD_CNT_OFFS = 13
     PAD_ENA_OFFS = 15
     CNT_DIFF_OFFS = 16
     MAX_CNT_BITS = 11
     CNT_INC_OFFS = 4
+    MP_STRIDE_OFFS = 4
     MAX_PTR_BITS = 21
     MAX_TPTR_BITS = 14
     MAX_ISVAL_BITS = 15
@@ -308,6 +310,8 @@ class DevAI87(Dev):
     MCNT_SAD_OFFS = 16
     MCNT_MAX_OFFS = 0
     OCHAN_CNT_OFFS = 17
+    CPRIME_MAX_OFFS = 18
+    RPRIME_MAX_OFFS = 22
 
     C_BRAM_BASE = C_CNN_BASE + 0x180000
     C_TRAM_BASE = C_CNN_BASE + 0x200000
@@ -319,6 +323,7 @@ class DevAI87(Dev):
     INSTANCE_SIZE = 8192  # x32 (includes empty space)
     INSTANCE_WIDTH = 6144  # x32 (true memory size)
     INSTANCE_SHIFT = 17
+    WRITE_PTR_SHIFT = 15
     MEM_SIZE = INSTANCE_WIDTH * P_NUMPRO * P_NUMGROUPS // P_SHARED  # x32
     MAX_CHANNELS = 16 * MAX_PROC  # 16 x expansion
 
@@ -338,8 +343,7 @@ class DevAI87(Dev):
 
     # Cycles
     C_START = 4
-    C_POOL = 3
-    C_PAD = 3
+    C_PAD = 2
 
     def __str__(self):
         return self.__class__.__name__
