@@ -18,6 +18,7 @@ from onnx import numpy_helper
 import op as opn
 import tornadocnn
 from eprint import eprint
+from test_linear import linear
 
 def get_attribute(attr):
     """
@@ -107,7 +108,6 @@ def basic_quantize(w,first,scale_factor):
     wscale=128*scale_factor
     if first:
         wscale /= 2
-
     w=w*wscale
     w=np.clip(w,-128,127).round() # FIXME - base on quantize bits
     w=w.astype(np.int64)
@@ -199,6 +199,141 @@ def manage_bias(
     bias_size.append(w_size)
     param_size += w_size
 
+def get_data_shape(model):
+    '''
+    Trace data shape through the conv layers
+    '''
+    shape = []
+    data_shape = []
+    input_shape = []
+    reshape_shape = []
+    reshape_out = None
+    perm = []
+    first_node = True
+    kernel_size = 1
+    pad = 1
+    data = []
+    temp = None
+    cur_out = None
+    prev_out = None
+    transpose_layers = []
+    in_transpose = False
+    layer_num = -1
+    shape_list = []
+    perm = []
+    perm_list = []
+
+    for _, _input in enumerate(model.graph.input):
+        if first_node is True:
+            first_node = False
+            dims = _input.type.tensor_type.shape.dim
+            dim_len = len(dims)
+
+            for x in range(dim_len):
+                if dims[x].HasField("dim_param"):
+                    shape.append(-1)
+
+                if dims[x].HasField("dim_value"):
+                    shape.append(dims[x].dim_value)
+
+            input_shape = shape.copy()
+            shape = []
+
+    for _, node in enumerate(model.graph.node):
+        last_out = cur_out
+        cur_out = node.output[0]
+         
+        if node.op_type == 'AveragePool' or  node.op_type == 'MaxPool':
+            for attr in node.attribute:
+                if attr.name == "strides":
+                    stride = attr.ints[0]
+                    #
+                    # TODO - Add support for unequal pool strides
+                    #
+                if attr.name == "kernel_shape":
+                    kernel_size = attr.ints[0]
+            for x in range(len(data_shape)):
+                if x > 1:
+                    data_shape[x] = int((data_shape[x] - kernel_size) / stride + 1)
+
+        if node.op_type == 'MatMul' or node.op_type == 'Gemm':
+            layer_num = layer_num + 1
+            if in_transpose is True:
+                transpose_layers.append(layer_num)
+
+            #shape_list.append(data_shape)
+            
+        if node.op_type == 'Conv':
+            layer_num = layer_num + 1
+
+            if in_transpose is True:
+                transpose_layers.append(layer_num)
+            if node.input[0] == reshape_out:
+                data_shape = reshape_shape.copy()
+            elif len(data_shape) > 0:
+                data_shape = data_shape.copy()
+            else:
+                data_shape = input_shape.copy()
+
+            shape_list.append(data_shape.copy())
+            shape = []
+            input_shape = []
+
+            for _init in model.graph.initializer:
+                if node.input[1] == _init.name:
+                    cweights = numpy_helper.to_array(_init)
+                    data_shape[1] = cweights.shape[0]
+       
+            for attr in node.attribute:
+                if attr.name == "pads":
+                    pad = attr.ints[0]
+                if attr.name == "strides":
+                    stride = attr.ints[0]
+                if attr.name == "kernel_shape":
+                    kernel_size = attr.ints[0]
+
+            for x in range(len(data_shape)):
+                if x > 1:
+                    data_shape[x] = int((data_shape[x] - kernel_size + 2*pad) / stride + 1)
+            conv_shape = data_shape.copy()
+
+        if node.op_type == 'Reshape':
+            for _init in model.graph.initializer:
+                if node.input[1] == _init.name:
+                    shape = numpy_helper.to_array(_init).copy()
+                    temp = len(shape)
+                    test_shape = 0
+                    for x in range(temp):
+                        test_shape |= shape[x]
+                    if test_shape == 1:
+                        shape = data_shape.copy()
+                        continue
+                    reshape_shape = shape.copy()
+                    #data_shape = shape.copy()
+                    reshape_out = node.output[0]
+                    continue
+
+        if node.op_type == 'Transpose':
+            shape = data_shape.copy()
+            for attr in node.attribute:
+                if attr.name == "perm":
+                    perm_len = len(attr.ints)
+                    for x in range(perm_len):
+                        perm.append(attr.ints[x])
+                    for x in range(perm_len):
+                        data_shape[x] = shape[attr.ints[x]]
+    
+    return data_shape, perm
+
+def inv(perm):
+    '''
+    Determine the inverse permutation of the perm parameter
+    '''
+    inverse = [0] * len(perm)
+    for i, p in enumerate(perm):
+        inverse[p] = i
+    return inverse
+
 def load(
         checkpoint_file,
         unused_arch,
@@ -243,9 +378,6 @@ def load(
 
     model = onnx.load(checkpoint_file)
     print(f'Reading {checkpoint_file} to configure network weights...')
-
-    #print(model)
-    #print(onnx.helper.printable_graph(model.graph,prefix=''))
 
     layers = 0
     num_conv_layers = len(quantization)
@@ -294,7 +426,6 @@ def load(
     shape_val = None
     num_layer_ops = 0
     last_output = ''
-    #print(model.graph.initializer)
     initializers = {t.name for t in model.graph.initializer}
     cast_out = None
     mul_out = None
@@ -306,6 +437,10 @@ def load(
     cast_ref_index = 0
     mul_in = None
     add_in = None
+    save_shape = []
+    save_perm = None
+
+    save_shape,save_perm = get_data_shape(model)
 
     # find Cast/Mul/Add sequences with connected in/outs 
     # and integer initializers in Cast node
@@ -343,7 +478,6 @@ def load(
                     cast_w = []
                     mul_in = None
                     add_in = None
-                    #print(cast_w_quant)
         
     for _, node in enumerate(model.graph.node):
         oplist.append(node.op_type)
@@ -358,16 +492,11 @@ def load(
 
         if node.op_type == 'Conv' or node.op_type == 'Gemm' \
            or node.op_type == 'MatMul' or  node.op_type == 'Add':
-            #print("IN_OUT")
-            #print(_inputs)
-            #print(_outputs)
             if node.op_type == 'Conv' or node.op_type == 'Gemm' \
                or node.op_type == 'MatMul':
                 num_layer_ops += 1
                 if node.op_type == 'MatMul':
                     matmul_out = _outputs[0]  # reference to find following Add(matmul_out,bias) 
-                    #print("MMO")
-                    #print(matmul_out)
  
                 for _input in _inputs:
                     if _input in initializers:
@@ -396,9 +525,6 @@ def load(
                 #cast_w = cast_w_quant[cast_ref_index]
                 #cast_ref = cast_out_ref[cast_ref_index]
                 w,internal_quantized=process_channels(model,_input,initializers,do_quantize,first,scale_factor)
-                #eprint("WWWWWWWWW")
-                #eprint(node.op_type)
-                #eprint(w)
                 if internal_quantized == True:
                     if len(w.shape) > 1:
                         first = False
@@ -408,10 +534,8 @@ def load(
                     if _input in cast_out_ref:
                         index = 0
                         for cast_ref in cast_out_ref:
-                            #print(cast_ref)
                             if _input == cast_ref:
                                 w = cast_w_quant[index]
-                                #print("USING_Q_WEIGHT")
                                 break
                             index = index + 1
 
@@ -423,7 +547,6 @@ def load(
                             if fc_layer:
                                 if _input == _inputs[1]:  # weight
                                     assert w.min() >= -128 and w.max() <= 127
-                                    #eprint("FC WEIGHTS")
                                     fc_weights.append(w)
 
                                 if node.op_type == 'Gemm':
@@ -435,18 +558,13 @@ def load(
                                         fc_bias.append(None)    # during weight input processing
 
                         if node.op_type == 'Add':
-                            #eprint("ADD:")
 
                             if _inputs[0] == matmul_out:
-                                #eprint("MATMUL_OUT")
                                 if fc_layer:
                                     if _input == _inputs[1]:  # bias
-                                        #eprint("ADD FC BIAS")
                                         assert w.min() >= -128 and w.max() <= 127
                                         fc_bias.append(w)
                                 else:
-                                    #eprint("ADD NOT FC")
-
                                     if len(bias) == seq:
                                         del bias[seq-1] # remove default matmul bias entries if bias/Add detected
                                         del bias_min[seq-1]
@@ -482,7 +600,12 @@ def load(
                         if len(w.shape) == 2:
                             if w.shape[t0] >  w.shape[t1]:
                                 trans_perm = (t1,t0)
-                                w = np.transpose(w, (trans_perm))
+                                dense_shape = (w.shape[1],w.shape[0])
+                                w = w.T
+                                w = np.reshape(w,save_shape)
+                                w = np.transpose(w,inv(save_perm))
+                                w = np.reshape(w,dense_shape)
+
 
                         input_channels.append(w.shape[t1])  # Input channels
                         output_channels.append(w.shape[t0])  # Output channels
@@ -494,9 +617,6 @@ def load(
                                        f'{kernel_size_onnx[seq][0]}x{kernel_size_onnx[seq][1]}.')
                                 error_exit = True
                         elif len(w.shape) == 3:  # 1D
-                            #eprint(w.shape)
-                            #eprint(kernel_size_onnx[seq])
-                            #eprint(kernel_size)
                             if kernel_size_onnx[seq][0] != w.shape[2] \
                                or kernel_size_onnx[seq][1] != 1:
                                 eprint(f'The `kernel_size` for the 1D layer {seq} should '
@@ -506,7 +626,6 @@ def load(
                         elif len(w.shape) == 4:  # 2D
                             if kernel_size_onnx[seq][0] != w.shape[t2] \
                                or kernel_size_onnx[seq][1] != w.shape[t3]:
-                                #eprint(w.shape)
                                 eprint(f'The `kernel_size` for the 2D layer {seq} should '
                                        f'be set to {w.shape[2]}x{w.shape[3]} instead of '
                                        f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.')
@@ -521,35 +640,21 @@ def load(
                         w_last = w
 
                         if len(w.shape) == 2:  # linear - add dummy 'channel'
-                            #print("Dummy")
                             w = np.expand_dims(w, axis=0)
                         else:  # conv1d, conv2d, ... - combine input and output channels
-                            #print("Slice and dice")
                             if squeeze == True:
                                 w = np.reshape(w, (-1, ) + w.shape[sqz_dim:])
                             else:
                                 w = np.reshape(w, (-1, ) + w.shape[2:])
-                        #eprint("WAPPEND")
-                        #eprint(seq)
                         weights.append(w)
                         weight_keys.append(_input)
-                        #print("SHAPE")
-                        #print(w.shape)
-                    #print("BIAS?")
-                    #print(_input)
-                    #print(cast_ref)
                     #if len(_inputs) > 2:
                         #print(_inputs[2])
 
-                    #print("bias?")
                     if len(_inputs) < 3 or \
                        ((_input == _inputs[2] or cast_ref == _inputs[2]) and seq in no_bias):  # no bias input
-                        #eprint("XXXXXXXXXXXXXXXXXX")
-                        #print(len(_inputs))
-                        if len(_inputs) > 32:
-                            print(_inputs[2])
-                        #print(seq)
-                        #print(no_bias)
+                        #if len(_inputs) > 32:
+                        #    print(_inputs[2])
                         bias.append(None)
                         bias_min.append(0)
                         bias_max.append(0)
@@ -557,11 +662,7 @@ def load(
                         bias_quant.append(0)
                         bias_size.append(0)
                     elif _input == _inputs[2]:  # bias input
-                        #eprint("xxxxXXXXXXXXXXXXXX")
-                        #eprint(seq)
-                        #eprint(w)
                         manage_bias(w,bias,bias_min,bias_max,bias_keys,bias_quant,bias_size,param_size,bias_quantization,seq,_input,param_count,do_quantize,False,scale_factor) #first_bias) #internal_quantized)
-                        #eprint(bias)
                         first_bias = False
 
             if is_not_layer == 0:
@@ -606,8 +707,8 @@ def load(
     if error_exit:
         sys.exit(1)
 
-    if verbose:
     #if not verbose:
+    if verbose:
         with np.printoptions(threshold=np.inf, linewidth=80):
             print("\nSUMMARY\n=======")
             print(layers, "layers\n")
