@@ -43,6 +43,7 @@ from utils import ffs, fls, popcount
 def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches
         prefix,
         verbose,
+        verbose_all,
         debug,
         debug_computation,
         no_error_stop,
@@ -1623,6 +1624,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             eltwise[ll],
             ll,
             verbose,
+            verbose_all or ll == layers-1,
             data[0].shape,
             output_shift[ll],
             data,
@@ -1674,6 +1676,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         show_data(
             ll,
             verbose,
+            verbose_all or ll == layers-1,
             data.shape,
             data,
             debug=debug_computation,
@@ -1700,6 +1703,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         data, out_size = pooling_layer(
             ll,
             verbose,
+            verbose_all or ll == layers-1,
             data[0].shape,
             pool[ll],
             pool_stride[ll],
@@ -1739,6 +1743,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             out_buf, out_size = conv2d_layer(
                 ll,
                 verbose,
+                verbose_all or ll == layers-1,
                 data.shape,
                 kernel_size[ll],
                 output_shift[ll],
@@ -1764,6 +1769,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             out_buf, out_size = convtranspose2d_layer(
                 ll,
                 verbose,
+                verbose_all or ll == layers-1,
                 data.shape,
                 kernel_size[ll],
                 output_shift[ll],
@@ -1790,6 +1796,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             out_buf, out_size = conv1d_layer(
                 ll,
                 verbose,
+                verbose_all or ll == layers-1,
                 data.shape,
                 kernel_size[ll][0],
                 output_shift[ll],
@@ -1814,6 +1821,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             out_buf, out_size = passthrough_layer(
                 ll,
                 verbose,
+                verbose_all or ll == layers-1,
                 data.shape,
                 data,
                 device=device,
@@ -1977,6 +1985,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                 out_buf, out_size = linear_layer(
                     verbose=verbose,
+                    verbose_data=verbose_all or ll == layers-1,
                     activation=None,
                     data=data,
                     weight=fc_weights[0],
@@ -2434,6 +2443,7 @@ def main():
         tn = create_net(
             args.prefix,
             args.verbose,
+            args.verbose_all,
             args.debug,
             args.debug_computation,
             args.no_error_stop,
