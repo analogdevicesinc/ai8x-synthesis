@@ -1,10 +1,8 @@
 ###################################################################################################
-# Copyright (C) 2018-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
 Simulate a single CNN layer
@@ -19,6 +17,7 @@ from compute import conv1d, conv2d, eltwise, linear, pool1d, pool2d
 
 
 def print_data(
+        verbose_data,
         header,
         data,
         input_size,
@@ -31,35 +30,37 @@ def print_data(
     """
     int8_format = '{0:4}' if np.any(data < 0) else '{0:3}'
 
-    print(header)
-
-    with np.printoptions(formatter={'int': int8_format.format}):
-        if input_size[1] == input_size[2] == 1:
-            for i in range(0, input_size[0], expand_thresh):
-                last = min(i + expand_thresh, input_size[0])
-                if last - 1 > i:
-                    print(f'Channels #{i} to #{last-1}', end='')
-                else:
+    print(header, end='')
+    if verbose_data:
+        print(':')
+        with np.printoptions(formatter={'int': int8_format.format}):
+            if input_size[1] == input_size[2] == 1:
+                for i in range(0, input_size[0], expand_thresh):
+                    last = min(i + expand_thresh, input_size[0])
+                    if last - 1 > i:
+                        print(f'Channels #{i} to #{last-1}', end='')
+                    else:
+                        print(f'Channel #{i}', end='')
+                    if expand and expand > 1:
+                        print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
+                    else:
+                        print('')
+                    print(np.squeeze(data[i:last]))
+            else:
+                for i in range(input_size[0]):
                     print(f'Channel #{i}', end='')
-                if expand and expand > 1:
-                    print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
-                else:
-                    print('')
-                print(np.squeeze(data[i:last]))
-        else:
-            for i in range(input_size[0]):
-                print(f'Channel #{i}', end='')
-                if expand and expand > 1:
-                    print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
-                else:
-                    print('')
-                print(data[i])
+                    if expand and expand > 1:
+                        print(f' (expansion: {(i // expand_thresh) + 1} of {expand})')
+                    else:
+                        print('')
+                    print(data[i])
     print('')
 
 
 def conv2d_layer(
         layer,  # pylint: disable=unused-argument
         verbose,
+        verbose_data,
         input_size,
         kernel_size,
         output_shift,
@@ -81,15 +82,21 @@ def conv2d_layer(
     Perform 2D convolution for one layer.
     """
     if verbose:
-        print(f"{kernel_size[0]}x{kernel_size[1]} KERNEL(S):")
-        with np.printoptions(formatter={'int': '{0:4}'.format}):
-            for i in range(output_channels):
-                print(f'Output channel #{i}')
-                if kernel_size[0] == kernel_size[1] == 1:
-                    print(np.squeeze(kernel[i]))
-                else:
-                    print(kernel[i])
-        print(f"BIAS: {bias}\n")
+        print(f"{kernel_size[0]}x{kernel_size[1]} KERNEL(S)", end='')
+        if verbose_data:
+            print(":")
+            with np.printoptions(formatter={'int': '{0:4}'.format}):
+                for i in range(output_channels):
+                    print(f'Output channel #{i}')
+                    if kernel_size[0] == kernel_size[1] == 1:
+                        print(np.squeeze(kernel[i]))
+                    else:
+                        print(kernel[i])
+            print(f"BIAS: {bias}\n")
+        elif bias is not None:
+            print(f"\nBIAS SIZE: {len(bias)}")
+        else:
+            print('')
 
     out_size = [output_channels,
                 (input_size[1] - dilation[0] * (kernel_size[0] - 1) - 1 +
@@ -116,7 +123,7 @@ def conv2d_layer(
         debug=debug,
     )
 
-    if verbose:
+    if verbose and verbose_data:
         print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} FULL-RES OUTPUT:")
         if out_size[1] == out_size[2] == 1:
             print(np.squeeze(out_buf))
@@ -131,7 +138,7 @@ def conv2d_layer(
         out_buf = np.floor(0.5 + out_buf / (128 / 2.0**output_shift)).astype(np.int64). \
             clip(-(2**(bits-1)), 2**(bits-1)-1)
 
-        if verbose:
+        if verbose and verbose_data:
             print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} OUTPUT "
                   f"{'BEFORE ACTIVATION' if activation is not None else '(NO ACTIVATION)'}:")
             if out_size[1] == out_size[2] == 1:
@@ -146,12 +153,9 @@ def conv2d_layer(
         elif activation == op.ACT_ABS:
             out_buf = np.abs(out_buf).clip(0, 2**(bits-1)-1)
 
-        if verbose:
-            print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} ACTIVATED OUTPUT", end='')
-            if activation == op.ACT_RELU:
-                print(" (RELU):")
-            elif activation == op.ACT_ABS:
-                print(" (ABS):")
+        if verbose and verbose_data:
+            print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} ACTIVATED OUTPUT"
+                  f" ({op.act_string(activation).upper()}):")
             if out_size[1] == out_size[2] == 1:
                 print(np.squeeze(out_buf))
             else:
@@ -160,12 +164,17 @@ def conv2d_layer(
 
         stats.comp += out_size[0] * out_size[1] * out_size[2]
 
+    if verbose and not verbose_data:
+        print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} OUTPUT"
+              f" ({op.act_string(activation).upper()})\n")
+
     return out_buf, out_size
 
 
 def convtranspose2d_layer(
         layer,  # pylint: disable=unused-argument
         verbose,
+        verbose_data,
         input_size,
         kernel_size,
         output_shift,
@@ -188,15 +197,21 @@ def convtranspose2d_layer(
     Perform a fractionally strided 2D convolution for one layer.
     """
     if verbose:
-        print(f"{kernel_size[0]}x{kernel_size[1]} KERNEL(S):")
-        with np.printoptions(formatter={'int': '{0:4}'.format}):
-            for i in range(output_channels):
-                print(f'Output channel #{i}')
-                if kernel_size[0] == kernel_size[1] == 1:
-                    print(np.squeeze(kernel[i]))
-                else:
-                    print(kernel[i])
-        print(f"BIAS: {bias}\n")
+        print(f"{kernel_size[0]}x{kernel_size[1]} KERNEL(S)", end='')
+        if verbose_data:
+            print(':')
+            with np.printoptions(formatter={'int': '{0:4}'.format}):
+                for i in range(output_channels):
+                    print(f'Output channel #{i}')
+                    if kernel_size[0] == kernel_size[1] == 1:
+                        print(np.squeeze(kernel[i]))
+                    else:
+                        print(kernel[i])
+            print(f"BIAS: {bias}\n")
+        elif bias is not None:
+            print(f"\nBIAS SIZE: {len(bias)}")
+        else:
+            print('')
 
     out_size = [output_channels,
                 (input_size[1] - 1) * fractional_stride[0] - 2 * padding[0]
@@ -225,7 +240,7 @@ def convtranspose2d_layer(
         debug=debug,
     )
 
-    if verbose:
+    if verbose and verbose_data:
         print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} FULL-RES OUTPUT:")
         if out_size[1] == out_size[2] == 1:
             print(np.squeeze(out_buf))
@@ -240,7 +255,7 @@ def convtranspose2d_layer(
         out_buf = np.floor(0.5 + out_buf / (128 / 2**output_shift)).astype(np.int64). \
             clip(-(2**(bits-1)), 2**(bits-1)-1)
 
-        if verbose:
+        if verbose and verbose_data:
             print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} OUTPUT "
                   f"{'BEFORE ACTIVATION' if activation is not None else '(NO ACTIVATION)'}:")
             if out_size[1] == out_size[2] == 1:
@@ -255,12 +270,9 @@ def convtranspose2d_layer(
         elif activation == op.ACT_ABS:
             out_buf = np.abs(out_buf).clip(0, 2**(bits-1)-1)
 
-        if verbose:
-            print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} ACTIVATED OUTPUT", end='')
-            if activation == op.ACT_RELU:
-                print(" (RELU):")
-            elif activation == op.ACT_ABS:
-                print(" (ABS):")
+        if verbose and verbose_data:
+            print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} ACTIVATED OUTPUT"
+                  f" ({op.act_string(activation).upper()}):")
             if out_size[1] == out_size[2] == 1:
                 print(np.squeeze(out_buf))
             else:
@@ -269,12 +281,17 @@ def convtranspose2d_layer(
 
         stats.comp += out_size[0] * out_size[1] * out_size[2]
 
+    if verbose and not verbose_data:
+        print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} OUTPUT"
+              f" ({op.act_string(activation).upper()})\n")
+
     return out_buf, out_size
 
 
 def conv1d_layer(
         layer,  # pylint: disable=unused-argument
         verbose,
+        verbose_data,
         input_size,
         kernel_size,
         output_shift,
@@ -296,9 +313,15 @@ def conv1d_layer(
     Perform 1D convolution for one layer.
     """
     if verbose:
-        print(f"KERNEL SIZE {kernel_size}:")
-        print(kernel)
-        print(f"BIAS: {bias}\n")
+        print(f"KERNEL SIZE {kernel_size}", end='')
+        if verbose_data:
+            print(':')
+            print(kernel)
+            print(f"BIAS: {bias}\n")
+        elif bias is not None:
+            print(f"\nBIAS SIZE: {len(bias)}")
+        else:
+            print('')
 
     out_size = [output_channels,
                 (input_size[1] - dilation * (kernel_size - 1) - 1 +
@@ -323,7 +346,7 @@ def conv1d_layer(
         debug=debug,
     )
 
-    if verbose:
+    if verbose and verbose_data:
         print(f"{out_size[0]}x{out_size[1]} FULL-RES OUTPUT:")
         print(out_buf.squeeze(axis=-1))
         print('')
@@ -335,7 +358,7 @@ def conv1d_layer(
         out_buf = np.floor(0.5 + out_buf / (128 / 2**output_shift)).astype(np.int64). \
             clip(-(2**(bits-1)), 2**(bits-1)-1)
 
-        if verbose:
+        if verbose and verbose_data:
             print(f"{out_size[0]}x{out_size[1]} OUTPUT "
                   f"{'BEFORE ACTIVATION' if activation is not None else '(NO ACTIVATION)'}:")
             print(out_buf.squeeze(axis=-1))
@@ -347,22 +370,24 @@ def conv1d_layer(
         elif activation == op.ACT_ABS:
             out_buf = np.abs(out_buf).clip(0, 2**(bits-1)-1)
 
-        if verbose:
-            print(f"{out_size[0]}x{out_size[1]} ACTIVATED OUTPUT", end='')
-            if activation == op.ACT_RELU:
-                print(" (RELU):")
-            elif activation == op.ACT_ABS:
-                print(" (ABS):")
+        if verbose and verbose_data:
+            print(f"{out_size[0]}x{out_size[1]} ACTIVATED OUTPUT"
+                  f" ({op.act_string(activation).upper()}):")
             print(out_buf.squeeze(axis=-1))
             print('')
 
         stats.comp += out_size[0] * out_size[1]
+
+    if verbose and not verbose_data:
+        print(f"{out_size[0]}x{out_size[1]} OUTPUT"
+              f" ({op.act_string(activation).upper()})\n")
 
     return out_buf, out_size
 
 
 def linear_layer(
         verbose,
+        verbose_data,
         activation,
         weight,
         bias,
@@ -378,13 +403,21 @@ def linear_layer(
 
     if verbose:
         print("CLASSIFICATION LAYER (LINEAR)...\n")
-        print(f"INPUT DATA (size {in_features}):")
-        print(data)
+        print(f"INPUT DATA (size {in_features})", end='')
+        if verbose_data:
+            print(':')
+            print(data)
         print('')
 
-        print(f"WEIGHTS (size {in_features * out_features}):")
-        print(weight)
-        print(f"BIAS: {bias}\n")
+        print(f"WEIGHTS (size {in_features * out_features})", end='')
+        if verbose_data:
+            print(':')
+            print(weight)
+            print(f"BIAS: {bias}\n")
+        elif bias is not None:
+            print(f"\nBIAS SIZE: {len(bias)}")
+        else:
+            print('')
 
     out_buf = linear(data=data, weight=weight, bias=bias,
                      in_features=in_features, out_features=out_features,
@@ -392,7 +425,7 @@ def linear_layer(
     out_buf = np.floor(0.5 + out_buf / 128).astype(np.int64). \
         clip(-(2**(bits-1)), 2**(bits-1)-1)
 
-    if verbose:
+    if verbose and verbose_data:
         print(f"OUTPUT (size {out_features}):")
         print(out_buf)
         print('')
@@ -405,16 +438,17 @@ def linear_layer(
         elif activation == op.ACT_ABS:
             out_buf = np.abs(out_buf).clip(0, 2**(bits-1)-1)
 
-        if verbose:
-            print(f"ACTIVATED OUTPUT (size {out_features})", end='')
-            if activation == op.ACT_RELU:
-                print(" (RELU):")
-            elif activation == op.ACT_ABS:
-                print(" (ABS):")
+        if verbose and verbose_data:
+            print(f"ACTIVATED OUTPUT (size {out_features})"
+                  f" ({op.act_string(activation).upper()}):")
             print(out_buf)
             print('')
 
         stats.sw_comp += out_features
+
+    if verbose and not verbose_data:
+        print(f"OUTPUT (size {out_features})"
+              f" ({op.act_string(activation).upper()})\n")
 
     return out_buf, out_features
 
@@ -422,6 +456,7 @@ def linear_layer(
 def passthrough_layer(
         layer,  # pylint: disable=unused-argument
         verbose,  # pylint: disable=unused-argument
+        verbose_data,  # pylint: disable=unused-argument
         input_size,
         data,
         device=84,  # pylint: disable=unused-argument
@@ -438,6 +473,7 @@ def eltwise_layer(
         operator,
         layer,  # pylint: disable=unused-argument
         verbose,
+        verbose_data,
         input_size,
         output_shift,
         data,
@@ -462,7 +498,7 @@ def eltwise_layer(
         debug=debug,
     )
 
-    if verbose:
+    if verbose and verbose_data:
         print(f"{input_size[0]}x{input_size[1]}x{input_size[2]} FULL-RES OUTPUT:")
         if input_size[1] == input_size[2] == 1:
             print(np.squeeze(out_buf))
@@ -484,7 +520,7 @@ def eltwise_layer(
         else:
             np.clip(out_buf, -(2**(bits-1)), 2**(bits-1)-1, out_buf)
 
-        if verbose:
+        if verbose and verbose_data:
             print(f"{input_size[0]}x{input_size[1]}x{input_size[2]} OUTPUT:")
             if input_size[1] == input_size[2] == 1:
                 print(np.squeeze(out_buf))
@@ -492,12 +528,16 @@ def eltwise_layer(
                 print(out_buf)
             print('')
 
+    if verbose and not verbose_data:
+        print(f"{input_size[0]}x{input_size[1]}x{input_size[2]} OUTPUT")
+
     return out_buf, input_size
 
 
 def pooling_layer(
         layer,
         verbose,
+        verbose_data,
         input_size,
         pool,
         pool_stride,
@@ -538,10 +578,11 @@ def pooling_layer(
                 )
                 if verbose:
                     print_data(
+                        verbose_data,
                         f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
                         f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]} "
                         f"{input_size} -> {pooled_size}"
-                        + (f", POOLED DATA {i}:" if operands > 1 else ":"),
+                        + (f", POOLED DATA {i}" if operands > 1 else ""),
                         pooled[i],
                         pooled_size,
                         expand,
@@ -573,8 +614,10 @@ def pooling_layer(
             if verbose:
                 print(f"{pool[0]} {'AVERAGE' if pool_average else 'MAX'} "
                       f"POOLING, STRIDE {pool_stride[0]} "
-                      f"{input_size} -> {pooled_size}:")
-                print(pooled)
+                      f"{input_size} -> {pooled_size}", end='')
+                if verbose_data:
+                    print(':')
+                    print(pooled)
                 print('')
 
             if pool_average:
@@ -594,6 +637,7 @@ def pooling_layer(
 def show_data(
         layer,
         verbose,
+        verbose_data,
         input_size,
         data,
         debug=False,  # pylint: disable=unused-argument
@@ -618,20 +662,24 @@ def show_data(
             print(op_string)
 
             if operands == 1:
-                print_data(f"{data.shape[1]}x{data.shape[2]}x{data.shape[3]} INPUT DATA:",
+                print_data(verbose_data,
+                           f"{data.shape[1]}x{data.shape[2]}x{data.shape[3]} INPUT DATA",
                            data[0],
                            [data.shape[1], data.shape[2], data.shape[3]],
                            expand,
                            expand_thresh)
             else:
                 for i in range(operands):
-                    print_data(f"{data.shape[1]}x{data.shape[2]}x{data.shape[3]} INPUT DATA {i}:",
+                    print_data(verbose_data,
+                               f"{data.shape[1]}x{data.shape[2]}x{data.shape[3]} INPUT DATA {i}",
                                data[i],
                                [data.shape[1], data.shape[2], data.shape[3]],
                                expand,
                                expand_thresh)
         else:
             print(f"LAYER {layer} ({op.string(operation).upper()})...\n")
-            print(f"{input_size[1]}x{input_size[2]} INPUT DATA:")
-            print(np.squeeze(data))
+            print(f"{input_size[1]}x{input_size[2]} INPUT DATA", end='')
+            if verbose_data:
+                print(':')
+                print(np.squeeze(data))
             print('')

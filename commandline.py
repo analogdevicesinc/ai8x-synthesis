@@ -122,10 +122,12 @@ def get_parser():
     group.add_argument('-L', '--log', action='store_true', default=False,
                        help="redirect stdout to log file (default: false)")
     group.add_argument('--log-intermediate', action='store_true', default=False,
-                       help="log data between layers to .mem files (default: false)")
+                       help="log weights/data between layers to .mem files (default: false)")
     group.add_argument('--log-pooling', action='store_true', default=False,
                        help="log unpooled and pooled data between layers in CSV format "
                             "(default: false)")
+    group.add_argument('--log-last-only', action='store_false', dest='verbose_all', default=True,
+                       help="log data for last layer only (default: all layers)")
     group.add_argument('--log-filename', default='log.txt', metavar='S',
                        help="log file name (default: 'log.txt')")
     group.add_argument('-D', '--debug', action='store_true', default=False,
