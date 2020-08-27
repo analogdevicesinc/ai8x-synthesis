@@ -334,6 +334,61 @@ def inv(perm):
         inverse[p] = i
     return inverse
 
+def modify_weights(input_file, output_file, scale, first, dequantize):
+    '''
+    pulls weights/biases out of initializers for Conv, Gemm and MatMul
+    and quantizes them using scale factor provided
+    '''
+    w = []
+    last_op_type = None
+    mat_mul_out = None
+    model = onnx.load(input_file)
+    onnx.checker.check_model(model)
+    initializers = {t.name for t in model.graph.initializer}
+
+    for _, node in enumerate(model.graph.node):
+        if node.op_type == 'Conv' or node.op_type == 'Gemm' \
+          or node.op_type == 'MatMul' or node.op_type == 'Add':
+            _input = node.input[1] # weights
+
+            if node.op_type == 'MatMul':
+                mat_mul_out = node.output[0]
+
+            if node.op_type == 'Add':
+                if last_op_type == 'MatMul':
+                    if node.input[0]  == mat_mul_out:
+                        mat_mul_out = None # bias for MatMul
+                    # allow other Add operations... they are probably biases
+                    #else:
+                    #    continue
+
+            if _input in initializers:
+                init_count = 0
+                for _init in model.graph.initializer:
+                    if _input == _init.name:
+                        w = numpy_helper.to_array(_init)
+                        w = basic_quantize(w,first,scale).astype(np.float32)
+                        if dequantize == True:
+                            w = w / 128.0
+                        model.graph.initializer[init_count].raw_data = w.tobytes()
+                        first = False
+
+                    if len(node.input) > 2:
+                        _input_b = node.input[2] # bias for Conv, Gemm
+                        if _input_b == _init.name:
+                            w = numpy_helper.to_array(_init)
+                            w = basic_quantize(w,first,scale).astype(np.float32)
+                            if dequantize == True:
+                                w = w / 128.0
+                            model.graph.initializer[init_count].raw_data = w.tobytes()
+                            first = False
+                    init_count = init_count + 1
+ 
+        last_op_type = node.op_type
+
+    onnx.checker.check_model(model)
+    onnx.save(model,output_file)
+
 def load(
         checkpoint_file,
         unused_arch,
@@ -346,6 +401,7 @@ def load(
         no_bias=None,
         scale=None,
         keep_first=False, 
+        generate_dequantized_onnx_file=False,
 ):
     """
     Load weights and biases from `checkpoint_file`. If `arch` is not None and does not match
@@ -375,6 +431,11 @@ def load(
     else:
         first = True
         first_bias = True
+
+    if generate_dequantized_onnx_file is True:
+        model_path_components = checkpoint_file.rsplit(".", 1)
+        output_file = model_path_components[0] + '_dq.' + model_path_components[1]
+        modify_weights(checkpoint_file, output_file, scale_factor, first, True)
 
     model = onnx.load(checkpoint_file)
     print(f'Reading {checkpoint_file} to configure network weights...')
