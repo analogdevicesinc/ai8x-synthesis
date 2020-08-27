@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 ###################################################################################################
-# Copyright (C) 2019-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
 Test the conv1d operator.
@@ -15,22 +13,25 @@ import torch
 import compute
 
 
-def convolve1d(groups, data, weight, expected):
+def convolve1d(groups, data, weight, bias, expected):
     """Convolve 1d data"""
     print('Input:\n', data)
+
+    if bias is not None:
+        bias = torch.as_tensor(bias, dtype=torch.float)
 
     t = torch.nn.functional.conv1d(
         torch.as_tensor(data, dtype=torch.float).unsqueeze(0),  # Add batch dimension
         torch.as_tensor(weight, dtype=torch.float),
-        bias=None,
+        bias=bias,
         stride=1,
         padding=0,
         groups=groups,
         dilation=1,
     ).int().squeeze().numpy()
 
-    output = compute.conv1d(data, weight, None, data.shape, expected.shape, weight.shape[0],
-                            kernel_size=9, stride=1, pad=0, dilation=1, groups=groups, debug=False)
+    output = compute.conv1d(data, weight, bias, data.shape, expected.shape, weight.shape[0],
+                            kernel_size=9, stride=1, pad=0, dilation=1, groups=groups, debug=True)
 
     print("PYTORCH OK" if np.array_equal(output, t) else "*** FAILURE ***")
     assert np.array_equal(output, t)
@@ -84,7 +85,7 @@ def test_conv1d():
          [-13630, 77478, 3115, -9839, -25421, -89124, -25032, 3245, 69909]],
         dtype=np.int64)
 
-    convolve1d(1, d0, w0, e0)
+    convolve1d(1, d0, w0, None, e0)
 
     d1 = np.array(
         [[-31, 45, 119, 29, 103, 127, -92, -42, 13, 127, 127, 105, -128, 40, -128, 25, -34],
@@ -104,7 +105,22 @@ def test_conv1d():
          [-11951, 23995, -23063, 44075, -1292, 4867, -45440, -45560, 2398]],
         dtype=np.int64)
 
-    convolve1d(3, d1, w1, e1)
+    convolve1d(3, d1, w1, None, e1)
+
+    d2 = d1
+    w2 = w1
+
+    b2 = np.array(
+        [100, -200, 300],
+        dtype=np.int64)
+
+    e2 = np.array(
+        [[26856, 3916, -2061, -28125, 8266, 23486, 55616, -2326, 5699],
+         [20543, 19995, -5707, 9522, -50936, -12622, -15195, 37582, 41503],
+         [-11651, 24295, -22763, 44375, -992, 5167, -45140, -45260, 2698]],
+        dtype=np.int64)
+
+    convolve1d(3, d2, w2, b2, e2)
 
 
 if __name__ == '__main__':
