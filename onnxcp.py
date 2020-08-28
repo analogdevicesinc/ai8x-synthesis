@@ -217,6 +217,7 @@ def get_data_shape(model):
     cur_out = None
     prev_out = None
     transpose_layers = []
+    transpose_info = {}
     in_transpose = False
     layer_num = -1
     shape_list = []
@@ -268,6 +269,7 @@ def get_data_shape(model):
 
             if in_transpose is True:
                 transpose_layers.append(layer_num)
+
             if node.input[0] == reshape_out:
                 data_shape = reshape_shape.copy()
             elif len(data_shape) > 0:
@@ -330,6 +332,9 @@ def get_data_shape(model):
                     for x in range(perm_len):
                         data_shape[x] = shape[attr.ints[x]]
 
+            if len(perm) > 0:
+                transpose_info[layer_num+1] = perm
+
         if node.op_type == 'Unsqueeze':
             #print("Unsqueeze")
             if len(data_shape) > 0:
@@ -359,8 +364,8 @@ def get_data_shape(model):
                     #print("axes")
                     #print(axes)
                 data_shape.pop(axes)
-    
-    return data_shape, perm
+
+    return data_shape, perm, transpose_info
 
 def inv(perm):
     '''
@@ -537,8 +542,9 @@ def load(
     add_in = None
     save_shape = []
     save_perm = None
+    transpose_list = []
 
-    save_shape,save_perm = get_data_shape(model)
+    save_shape,save_perm,transpose_list = get_data_shape(model)
 
     # find Cast/Mul/Add sequences with connected in/outs 
     # and integer initializers in Cast node
@@ -656,8 +662,19 @@ def load(
                                         fc_bias.append(None)    # during weight input processing
 
                         if node.op_type == 'Add':
+                            cst_perm = None
+                            if len(oplist) > 3:                                
+                                if oplist[-4]+oplist[-3]+oplist[-2] == 'ConvSqueezeTranspose':
+                                    cst_perm = transpose_list[seq]
+                                    cst_seq = True
+                                else:
+                                    cst_seq = False
+ 
+                            #if cst_perm is not None:
+                            # TODO: Is a bias ever more than a single dimension that needs to be transposed?
+                                
 
-                            if _inputs[0] == matmul_out:
+                            if _inputs[0] == matmul_out or cst_seq == True:
                                 if fc_layer:
                                     if _input == _inputs[1]:  # bias
                                         assert w.min() >= -128 and w.max() <= 127
