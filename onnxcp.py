@@ -314,14 +314,51 @@ def get_data_shape(model):
                     continue
 
         if node.op_type == 'Transpose':
-            shape = data_shape.copy()
+            if len(data_shape) > 0:
+                shape = data_shape.copy()
+            else:
+                shape = input_shape.copy()
+                data_shape =  input_shape.copy()
+
             for attr in node.attribute:
                 if attr.name == "perm":
                     perm_len = len(attr.ints)
+                    perm = []
                     for x in range(perm_len):
                         perm.append(attr.ints[x])
+                    #eprint("perm,shape",perm,shape,data_shape)
                     for x in range(perm_len):
                         data_shape[x] = shape[attr.ints[x]]
+
+        if node.op_type == 'Unsqueeze':
+            #print("Unsqueeze")
+            if len(data_shape) > 0:
+                shape = data_shape.copy()
+            else:
+                shape = input_shape.copy()
+
+            for attr in node.attribute:
+                if attr.name == "axes":
+                    axes = attr.ints[0]
+                    #print("axes")
+                    #print(axes)
+                data_shape = shape.copy()
+                data_shape.insert(1,axes)
+                #print(data_shape,shape)
+
+        if node.op_type == 'Squeeze':
+            #print("Squeeze")
+            if len(data_shape) > 0:
+                shape = data_shape.copy()
+            else:
+                shape = input_shape.copy()
+
+            for attr in node.attribute:
+                if attr.name == "axes":
+                    axes = attr.ints[0]
+                    #print("axes")
+                    #print(axes)
+                data_shape.pop(axes)
     
     return data_shape, perm
 
