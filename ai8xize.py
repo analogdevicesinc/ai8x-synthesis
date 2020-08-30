@@ -948,11 +948,15 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         if hasattr(tc.dev, 'CNT_DIFF_OFFS'):
                             diff = (in_row - ((in_row - pool[ll][0])
                                               // pool_stride[ll][0]) * pool_stride[ll][0])
-                            val = in_row - diff  # Stop column, 0-based
+                            val = in_row - diff  # Stop row, 0-based
                             assert val < 2**tc.dev.MAX_CNT_BITS
 
+                            # Stop column
                             if operator[ll] == op.CONV1D:
                                 diff = 1
+                            else:
+                                diff = (in_col - ((in_col - pool[ll][1])
+                                                  // pool_stride[ll][1]) * pool_stride[ll][1])
                             diff = (diff + (pool_stride[ll][0] - 1) * in_col) \
                                 * operands[ll] * in_expand[ll]  # Bytes to next starting element
 
@@ -1049,7 +1053,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 instance = 0
 
                         val |= (instance % tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE \
-                            | (instance // tc.dev.P_SHARED) << tc.dev.INSTANCE_SHIFT
+                            | (instance // tc.dev.P_SHARED) << tc.dev.WRITE_PTR_SHIFT
                     else:
                         instance = ffs(output_processor_map[ll] >> group * tc.dev.P_SHARED) \
                                & ~(tc.dev.P_SHARED-1)
@@ -1178,8 +1182,20 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         else:
                             assert write_gap[ll] + 1 <= 2**4  # Cannot have more than 4 bits (+1)
                             val |= write_gap[ll] << 4
-                        if hasattr(tc.dev, 'OCHAN_CNT_OFFS') and operator[ll] != op.NONE:
-                            val |= (output_chan[ll] * in_expand[ll] - 1) << tc.dev.OCHAN_CNT_OFFS
+                        if hasattr(tc.dev, 'OCHAN_CNT_OFFS'):
+                            if operator[ll] != op.NONE:
+                                in_exp = in_expand[ll]
+                                if flatten[ll]:
+                                    in_exp *= pooled_dim[ll][0] * pooled_dim[ll][1]
+                                ochan = ((((fls(output_processor_map[ll])
+                                            - (ffs(output_processor_map[ll])
+                                               & ~(tc.dev.P_SHARED-1))) + 1)
+                                          * quantization[ll]) * out_expand[ll] * in_exp
+                                         - quantization[ll]) // quantization[ll]
+                                if ochan > 0:
+                                    val |= ochan - 1 << tc.dev.OCHAN_CNT_OFFS
+                            elif tscnt_max > 0:
+                                val |= tscnt_max - 1 << tc.dev.OCHAN_CNT_OFFS
 
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_LCTL2, val,
                                        verbose, comment=' // Layer control 2')
@@ -1210,14 +1226,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             in_exp = in_expand[ll]
                             if flatten[ll]:
                                 in_exp *= pooled_dim[ll][0] * pooled_dim[ll][1]
-                            if device == 85:
-                                kl = (((fls(output_processor_map[ll])
-                                        - (ffs(output_processor_map[ll])
-                                           & ~(tc.dev.P_SHARED-1))) + 1)
-                                      * quantization[ll]) * out_expand[ll] * in_exp \
-                                     - quantization[ll]
-                            else:
-                                kl = output_chan[ll] * quantization[ll] * in_exp - quantization[ll]
+                            kl = (((fls(output_processor_map[ll])
+                                    - (ffs(output_processor_map[ll])
+                                       & ~(tc.dev.P_SHARED-1))) + 1)
+                                  * quantization[ll]) * out_expand[ll] * in_exp - quantization[ll]
                             if ll == 0 and fast_fifo_quad:
                                 kl = (kl + 3) // 4
                             koffs, oned_sad = divmod(9 * kern_offs[ll],
