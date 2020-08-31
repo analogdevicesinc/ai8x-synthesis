@@ -11,7 +11,7 @@ layers:
   kernel_size: 3x3
   pad: 1
   activate: ReLU
-  #data_format: CHW
+  data_format: HWC
 - out_offset: 0x0000
   processors: 0x00000000000ffff0 #2
   operation: conv2d
