@@ -2091,7 +2091,8 @@ def main():
             layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
                 onnxcp.load(
                     args.checkpoint_file,
-                    cfg['arch'],
+                    cfg_layers,
+                    cfg,
                     args.fc_layer,
                     params['quantization'],
                     params['bias_quantization'],
