@@ -768,10 +768,10 @@ def load(
                                 trans_perm = (t1,t0)
                                 dense_shape = (w.shape[1],w.shape[0])
                                 w = w.T
-                                w = np.reshape(w,save_shape)
-                                w = np.transpose(w,inv(save_perm))
-                                w = np.reshape(w,dense_shape)
-
+                                if len(save_perm):
+                                    w = np.reshape(w,save_shape)
+                                    w = np.transpose(w,inv(save_perm))
+                                    w = np.reshape(w,dense_shape)
 
                         input_channels.append(w.shape[t1])  # Input channels
                         output_channels.append(w.shape[t0])  # Output channels
