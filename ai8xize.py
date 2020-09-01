@@ -1847,7 +1847,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         # Convolution or passthrough
         if operator[ll] == op.CONV2D:
             if flatten[ll]:
-                in_chan *= input_dim[ll][0] * input_dim[ll][1]
+                in_chan *= pooled_dim[ll][0] * pooled_dim[ll][1]
                 data = data.reshape(in_chan, 1, 1)
                 if verbose:
                     print(f"FLATTEN TO {in_chan}x1x1...\n")
@@ -2503,7 +2503,7 @@ def main():
                 output_dim[ll] = [pooled_size[0], pooled_size[1]]
             if flatten[ll]:
                 output_dim[ll] = [1, 1]
-                input_channels[ll] //= input_dim[ll][0] * input_dim[ll][1]
+                input_channels[ll] //= pooled_dim[ll][0] * pooled_dim[ll][1]
             if padding[ll][0] >= 3:
                 eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
                        f'(currently set to {padding[ll][0]}).')
@@ -2543,6 +2543,8 @@ def main():
             eprint(f'Output dimension {output_dim[ll]} exceeds system maximum of '
                    f'{tc.dev.MAX_ROW_COL} in layer {ll}.')
             sys.exit(1)
+
+        assert input_channels[ll] > 0
 
     if args.riscv and not args.riscv_cache and args.embedded_code:
         eprint("Embedded code on RISC-V requires --riscv-cache.")
