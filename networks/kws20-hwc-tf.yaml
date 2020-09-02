@@ -33,7 +33,8 @@ layers:
   kernel_size: 1
 # Conv 2D - 5 layers
 - pad: 1
-  in_dim: [16, 8]
+  #in_dim: [16, 8]
+  in_dim: [8, 16]
   activate: ReLU
   out_offset: 0x2000
   processors: 0x000000000000ffff

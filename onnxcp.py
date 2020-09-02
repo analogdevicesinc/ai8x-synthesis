@@ -199,13 +199,18 @@ def manage_bias(
     bias_size.append(w_size)
     param_size += w_size
 
-def get_data_shape(model,op_list):
+def track_data_shape(model,op_list,initializers):
     '''
     Trace data shape through the conv layers
     '''
     shape = []
     data_shape = []
     input_shape = []
+    slice_shape = []
+    slice_out = None
+    concat_shape = []
+    concat_out = None
+    cast_out = None
     reshape_shape = []
     reshape_out = None
     perm = []
@@ -225,7 +230,8 @@ def get_data_shape(model,op_list):
     perm_list = []
     shape_track = []
     conv1d = False
-
+    conv2d = False
+    print(model.graph)
     for _, _input in enumerate(model.graph.input):
         if first_node is True:
             first_node = False
@@ -240,18 +246,20 @@ def get_data_shape(model,op_list):
                     shape.append(dims[x].dim_value)
 
             input_shape = shape.copy()
-            #if len(input_shape) == 3:
-            if op_list[0] == 'conv1d':
+            data_shape = shape.copy()
+            if op_list[0].lower() == 'conv1d':
                 shape_track = ['N','L','C']
                 conv1d = True
-            #if len(input_shape) == 4:
-            if op_list[0] == 'conv2d':
+            if op_list[0].lower() == 'conv2d':
                 shape_track = ['B','C','H','W']
-            
+                conv2d = True
+            #eprint(shape_track,input_shape)
+            #eprint(op_list)
             shape = []
     #eprint("input_shape ",input_shape,shape_track)     
 
     for _, node in enumerate(model.graph.node):
+        _inputs, _outputs = get_inouts(node)
         last_out = cur_out
         cur_out = node.output[0]
          
@@ -274,10 +282,24 @@ def get_data_shape(model,op_list):
             if in_transpose is True:
                 transpose_layers.append(layer_num)
 
-        if node.op_type == 'Conv':
+        if node.op_type == 'Conv' or node.op_type == 'ConvTranspose' : #ConvTranspose not implemented yet
             #eprint("Conv")
             #eprint("Data_shape ",data_shape,reshape_shape,input_shape,shape_track)
             layer_num = layer_num + 1
+            #eprint(op_list[layer_num],layer_num)
+            if layer_num > 0: 
+                #eprint("compare ",op_list[layer_num-1].lower() ,op_list[layer_num].lower())
+                #eprint(op_list[layer_num-1].lower() != op_list[layer_num].lower())
+                if op_list[layer_num-1].lower() != op_list[layer_num].lower():
+                    if op_list[layer_num].lower() == 'conv1d':
+                        shape_track = ['N','L','C']
+                        conv1d = True
+                    if op_list[layer_num].lower() == 'conv2d':
+                        conv2d = True
+                        if conv1d == True:  # conv1d followed by conv2d
+                            shape_track = ['B','H','W','C']
+                        else:
+                            shape_track = ['B','C','H','W']
 
             if in_transpose is True:
                 transpose_layers.append(layer_num)
@@ -297,6 +319,7 @@ def get_data_shape(model,op_list):
             for _init in model.graph.initializer:
                 if node.input[1] == _init.name:
                     cweights = numpy_helper.to_array(_init)
+            #eprint("cweights ",cweights.shape[0])
        
             #eprint(node)
             for attr in node.attribute:
@@ -313,20 +336,76 @@ def get_data_shape(model,op_list):
 
             for x, parm in enumerate(shape_track):
                 #eprint(parm,x)
-                if parm is "H" or parm is "W": # TODO fix for unequal kernel and stride
+                if parm is "H": 
                     data_shape[x] = int(((data_shape[x] - kernel_size[0] + 2 * pad[0]) / stride[0]) + 1)
+                if parm is "W": 
+                    data_shape[x] = int(((data_shape[x] - kernel_size[1] + 2 * pad[1]) / stride[1]) + 1)
                 # https://pytorch.org/docs/stable/generated/torch.nn.Conv1d.html
                 if parm is "L":
                     data_shape[x] = int(((data_shape[x] + 2 * pad[0] - dilation[0]*(kernel_size[0] - 1) - 1) // stride[0]) + 1)
                 if parm is "C":
+                    #eprint(data_shape)
                     data_shape[x] = cweights.shape[0]
 
             conv_shape = data_shape.copy()
             #eprint("data_shape ",data_shape)
 
+        if node.op_type == 'Slice' :
+            #eprint("Slice")
+            #eprint("Data_shape ",data_shape,shape_track)
+            #eprint(node)
+            sltemp = []
+            for _input in _inputs:
+                #eprint("_input ",_input)
+                if _input in initializers:
+                    for _init in model.graph.initializer:
+                        if _input == _init.name:
+                            #eprint("_init ",_init.name)
+                            sltemp.append(numpy_helper.to_array(_init)[0].astype(np.int64))
+            slice_shape = data_shape[sltemp[0]:sltemp[1]]
+            #eprint("sltemp ",sltemp,slice_shape,data_shape,_outputs[0])
+            slice_out = _outputs[0]
+
+
+        if node.op_type == 'Concat' :
+            #eprint("Concat")
+            #eprint("Data_shape ",data_shape,shape_track)
+            #eprint(node)
+            #eprint(input)
+            concat_shape = []
+            concat_out = _outputs[0]
+            
+            #eprint("inputs ",_inputs)
+            for _input in _inputs:
+                #eprint("_input ",_input)
+                if _input in initializers:
+                    for _init in model.graph.initializer:
+                        if _input == _init.name:
+                            #eprint("_init ",_init.name)
+                            concat_shape.append(numpy_helper.to_array(_init)[0].astype(np.int64))
+                            #eprint("concat_shape",concat_shape)
+            #eprint("concat_shape",concat_shape,slice_shape,_inputs[0],slice_out)
+            if _inputs[0] == slice_out:
+                concat_shape = np.concatenate((slice_shape,concat_shape)).astype(np.int64)
+                #eprint("concat_shape ", concat_shape)
+                
+        if node.op_type == 'Cast':
+            #eprint("Cast")
+            #eprint(node.input[0],concat_out)
+            if node.input[0] == concat_out:
+                cast_out = _outputs[0]
+            #eprint("cast_out ",cast_out)
+ 
         if node.op_type == 'Reshape':
             #eprint("Reshape")
             #eprint(data_shape,shape_track)
+            #eprint(node)
+            #eprint("Inputs ", node.input[1], cast_out)
+            if node.input[1] == cast_out:
+                data_shape = concat_shape
+                #eprint("data_shape ",data_shape) 
+                continue
+
             for _init in model.graph.initializer:
                 if node.input[1] == _init.name:
                     shape = numpy_helper.to_array(_init).copy()
@@ -384,6 +463,8 @@ def get_data_shape(model,op_list):
                 if conv1d == False:
                     data_shape = shape.copy()
                     data_shape.insert(1,axes)
+                    #eprint(axes)
+                    #eprint(shape_track)
                     shape_track.insert('e',axes)
                     print(data_shape,shape_track)
             #eprint(data_shape)
@@ -406,7 +487,7 @@ def get_data_shape(model,op_list):
                     shape_track.pop(axes)
             #eprint(data_shape)
     #eprint("*** data_shape,perm, transpose_info", data_shape, perm, transpose_info)
-    return data_shape, perm, transpose_info
+    return data_shape, perm, transpose_info, conv1d, conv2d
 
 def inv(perm):
     '''
@@ -430,7 +511,7 @@ def modify_weights(input_file, output_file, scale, first, dequantize):
     initializers = {t.name for t in model.graph.initializer}
 
     for _, node in enumerate(model.graph.node):
-        if node.op_type == 'Conv' or node.op_type == 'Gemm' \
+        if node.op_type == 'Conv' or node.op_type == 'ConvTranspose' or node.op_type == 'Gemm' \
           or node.op_type == 'MatMul' or node.op_type == 'Add':
             _input = node.input[1] # weights
 
@@ -585,6 +666,8 @@ def load(
     save_perm = None
     transpose_list = []
     op_list = []
+    conv1d = False
+    conv2d = False
     
     # looking for conv1d/conv2d indications
     for x in range(cfg_layers):
@@ -595,7 +678,8 @@ def load(
             op = cfg['layers'][x].get('convolution',None)
         op_list.append(op)
     
-    save_shape,save_perm,transpose_list = get_data_shape(model,op_list)
+    save_shape,save_perm,transpose_list,conv1d,conv2d = track_data_shape(model,op_list,initializers)
+    #eprint("track_data_shape ",save_shape,save_perm,transpose_list)
 
     # find Cast/Mul/Add sequences with connected in/outs 
     # and integer initializers in Cast node
@@ -645,9 +729,9 @@ def load(
         if node.op_type == 'Mul':
             continue
 
-        if node.op_type == 'Conv' or node.op_type == 'Gemm' \
+        if node.op_type == 'Conv' or node.op_type == 'ConvTranspose' or node.op_type == 'Gemm' \
            or node.op_type == 'MatMul' or  node.op_type == 'Add':
-            if node.op_type == 'Conv' or node.op_type == 'Gemm' \
+            if node.op_type == 'Conv' or node.op_type == 'ConvTranspose' or node.op_type == 'Gemm' \
                or node.op_type == 'MatMul':
                 num_layer_ops += 1
                 if node.op_type == 'MatMul':
@@ -677,8 +761,6 @@ def load(
                             kernel_size_onnx.append(a.ints)
 
             for _input in _inputs:
-                #cast_w = cast_w_quant[cast_ref_index]
-                #cast_ref = cast_out_ref[cast_ref_index]
                 w,internal_quantized=process_channels(model,_input,initializers,do_quantize,first,scale_factor)
                 if internal_quantized == True:
                     if len(w.shape) > 1:
@@ -723,7 +805,6 @@ def load(
  
                             #if cst_perm is not None:
                             # TODO: Is a bias ever more than a single dimension that needs to be transposed?
-                                
 
                             if _inputs[0] == matmul_out or cst_seq == True:
                                 if fc_layer:
@@ -767,12 +848,20 @@ def load(
                             if w.shape[t0] >  w.shape[t1]:
                                 trans_perm = (t1,t0)
                                 dense_shape = (w.shape[1],w.shape[0])
+                                #eprint("linear ",w.shape,save_shape,save_perm)
+                                
                                 w = w.T
-                                if len(save_perm):
-                                    w = np.reshape(w,save_shape)
-                                    w = np.transpose(w,inv(save_perm))
-                                    w = np.reshape(w,dense_shape)
-
+                                if len(save_perm) > 0:
+                                    #if conv1d is False:
+                                    if conv2d is True:
+                                        #eprint(w.shape)
+                                        w = np.reshape(w,save_shape)
+                                        #eprint(w.shape)
+                                        w = np.transpose(w,inv(save_perm))
+                                        #eprint(w.shape)
+                                        w = np.reshape(w,dense_shape)
+                                        #eprint(w.shape)
+                                
                         input_channels.append(w.shape[t1])  # Input channels
                         output_channels.append(w.shape[t0])  # Output channels
 
