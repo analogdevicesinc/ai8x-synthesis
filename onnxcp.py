@@ -853,7 +853,8 @@ def load(
                                 w = w.T
                                 if len(save_perm) > 0:
                                     #if conv1d is False:
-                                    if conv2d is True:
+                                    #if conv2d is True:
+                                    if True:
                                         #eprint(w.shape)
                                         w = np.reshape(w,save_shape)
                                         #eprint(w.shape)
