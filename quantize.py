@@ -17,6 +17,7 @@ from devices import device
 from distiller.apputils.checkpoint import get_contents_table  # pylint: disable=no-name-in-module
 
 CONV_SCALE_BITS = 8
+CONV_DEFAULT_WEIGHT_BITS = 8
 FC_SCALE_BITS = 8
 FC_CLAMP_BITS = 8
 
@@ -194,6 +195,14 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                 new_checkpoint_state[out_shift_name] = out_shift
                 if new_masks_dict is not None:
                     new_masks_dict[out_shift_name] = out_shift
+
+                # Set weight_bits
+                weight_bits_name = '.'.join([layer, 'weight_bits'])
+                if weight_bits_name not in new_checkpoint_state:
+                    new_checkpoint_state[weight_bits_name] = \
+                        torch.Tensor([CONV_DEFAULT_WEIGHT_BITS])
+                    if new_masks_dict is not None:
+                        new_masks_dict[weight_bits_name] = torch.Tensor([CONV_DEFAULT_WEIGHT_BITS])
 
                 # Is there a bias for this layer? Use the same factor as for weights.
                 bias_name = '.'.join([layer, operation, 'bias'])
