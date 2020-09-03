@@ -135,7 +135,6 @@ def conv2d_layer(
         * out_size[1] * out_size[2]
 
     if output_width != 32:
-        output_shift = output_shift.astype(np.float)
         out_buf = np.floor(0.5 + out_buf / (128 / 2.0**output_shift)).astype(np.int64). \
             clip(-(2**(bits-1)), 2**(bits-1)-1)
 
@@ -253,8 +252,7 @@ def convtranspose2d_layer(
         * out_size[1] * out_size[2]
 
     if output_width != 32:
-        output_shift = output_shift.astype(np.float)
-        out_buf = np.floor(0.5 + out_buf / (128 / 2**output_shift)).astype(np.int64). \
+        out_buf = np.floor(0.5 + out_buf / (128 / 2.0**output_shift)).astype(np.int64). \
             clip(-(2**(bits-1)), 2**(bits-1)-1)
 
         if verbose and verbose_data:
@@ -357,8 +355,7 @@ def conv1d_layer(
         * out_size[1]
 
     if output_width != 32:
-        output_shift = output_shift.astype(np.float)
-        out_buf = np.floor(0.5 + out_buf / (128 / 2**output_shift)).astype(np.int64). \
+        out_buf = np.floor(0.5 + out_buf / (128 / 2.0**output_shift)).astype(np.int64). \
             clip(-(2**(bits-1)), 2**(bits-1)-1)
 
         if verbose and verbose_data:
@@ -518,8 +515,7 @@ def eltwise_layer(
 
     if output_width != 32:
         if operator == op.ELTWISE_MUL:
-            output_shift = output_shift.astype(np.float)
-            out_buf = np.floor(0.5 + out_buf / (128 / 2**output_shift)).astype(np.int64). \
+            out_buf = np.floor(0.5 + out_buf / (128 / 2.0**output_shift)).astype(np.int64). \
                 clip(-(2**(bits-1)), 2**(bits-1)-1)
         else:
             np.clip(out_buf, -(2**(bits-1)), 2**(bits-1)-1, out_buf)
