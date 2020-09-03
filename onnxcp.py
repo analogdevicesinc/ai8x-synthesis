@@ -231,7 +231,7 @@ def track_data_shape(model,op_list,initializers):
     shape_track = []
     conv1d = False
     conv2d = False
-    print(model.graph)
+    #print(model.graph)
     for _, _input in enumerate(model.graph.input):
         if first_node is True:
             first_node = False
