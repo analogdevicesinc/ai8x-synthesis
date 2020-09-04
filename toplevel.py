@@ -135,7 +135,7 @@ def header(
         memfile.write('}\n\n')
 
     if master is not False:
-        addr = apb_base + tc.dev.C_CNN_BASE + tc.dev.C_GROUP_OFFS * master
+        addr = apb_base + tc.ctl_addr(master, tc.dev.REG_CTL)
 
         memfile.write('void cnn_restart(void)\n{\n')
         memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) |= 1; '
@@ -434,21 +434,18 @@ def main(
                 gval |= 1 << 20
 
             for _, group in enumerate(groups):
-                addr = tc.dev.APB_BASE + tc.dev.C_GROUP_OFFS*group + tc.dev.C_CNN_BASE \
-                    + tc.dev.REG_CTL*4
+                addr = tc.dev.APB_BASE + tc.ctl_addr(group, tc.dev.REG_CTL)
                 memfile.write(f'    *((volatile uint32_t *) 0x{addr:08x}) = 0x{gval:08x}; '
                               '// Stop SM\n')
             for _, group in enumerate(groups):
                 val = gval | 0x800
                 if group > 0:
                     val |= 0x01
-                addr = tc.dev.APB_BASE + tc.dev.C_GROUP_OFFS*group + tc.dev.C_CNN_BASE \
-                    + tc.dev.REG_CTL*4
+                addr = tc.dev.APB_BASE + tc.ctl_addr(group, tc.dev.REG_CTL)
                 memfile.write(f'    *((volatile uint32_t *) 0x{addr:08x}) = 0x{val:08x}; '
                               f'// Enable group {group}\n')
 
-            addr = tc.dev.APB_BASE + tc.dev.C_CNN_BASE \
-                + tc.dev.REG_CTL*4
+            addr = tc.dev.APB_BASE + tc.ctl_addr(0, tc.dev.REG_CTL)
             memfile.write(f'    *((volatile uint32_t *) 0x{addr:08x}) = 0x{gval | 0x01:08x}; '
                           '// Master enable group 0\n')
 

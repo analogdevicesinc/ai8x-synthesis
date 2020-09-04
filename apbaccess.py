@@ -216,7 +216,7 @@ class APB():
             comment = f' // global ctl {reg}'
         if val == 0 and not force_write:
             comment += ' *'
-        addr = tc.dev.C_GROUP_OFFS*group + tc.dev.C_CNN_BASE + reg*4
+        addr = tc.ctl_addr(group, reg)
         if force_write or val != 0 or self.write_zero_regs:
             self.write(addr, val, comment)
         if debug:
@@ -235,8 +235,7 @@ class APB():
         Reads from global control register `reg` in group `group` until `mask`ed value is `val`.
         An optional `comment` can be added to the output.
         """
-        addr = tc.dev.C_GROUP_OFFS*group + tc.dev.C_CNN_BASE + reg*4
-        self.wait(addr, mask, val, comment)
+        self.wait(tc.ctl_addr(group, reg), mask, val, comment)
 
     def verify_ctl(
             self,
@@ -250,8 +249,7 @@ class APB():
         Reads from global control register `reg` in group `group`, comparing to value `val`.
         An optional `comment` can be added to the output.
         """
-        addr = tc.dev.C_GROUP_OFFS*group + tc.dev.C_CNN_BASE + reg*4
-        self.verify(addr, val, mask=mask, comment=comment)
+        self.verify(tc.ctl_addr(group, reg), val, mask=mask, comment=comment)
 
     def write_lreg(
             self,
@@ -271,12 +269,7 @@ class APB():
             comment = f' // reg {reg}'
         if val == 0 and not force_write:
             comment += ' *'
-        if hasattr(tc.dev, 'LREG_OFFS'):
-            addr = tc.dev.C_GROUP_OFFS*group + tc.dev.C_CNN_BASE \
-                + tc.dev.C_CNN*4 + reg*4 + layer*tc.dev.LREG_OFFS
-        else:
-            addr = tc.dev.C_GROUP_OFFS*group + tc.dev.C_CNN_BASE \
-                + tc.dev.C_CNN*4 + reg*4 * tc.dev.MAX_LAYERS + layer*4
+        addr = tc.lreg_addr(group, reg, layer)
         if force_write or val != 0 or self.write_zero_regs:
             self.write(addr, val, comment)
         if debug:

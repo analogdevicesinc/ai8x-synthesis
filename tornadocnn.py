@@ -288,7 +288,7 @@ class DevAI87(Dev):
     REG_LCNT_MAX = 2
     REG_SRAM_TEST = 3
     REG_IFRM = 0x2018
-    REG_MLAT = 0x4000
+    REG_MLAT = 0x44000
 
     FIFO_CTL = 0
     FIFO_STAT = 1
@@ -347,6 +347,28 @@ class DevAI87(Dev):
 
     def __str__(self):
         return self.__class__.__name__
+
+
+def lreg_addr(group, reg, layer=0):
+    """
+    Return the address of a layer register given group `group`, register `reg`, and
+    layer `layer`.
+    """
+    if hasattr(dev, 'LREG_OFFS'):
+        addr = dev.C_GROUP_OFFS*group + dev.C_CNN_BASE \
+            + dev.C_CNN*4 + reg*4 + layer*dev.LREG_OFFS
+    else:
+        addr = dev.C_GROUP_OFFS*group + dev.C_CNN_BASE \
+            + dev.C_CNN*4 + reg*4 * dev.MAX_LAYERS + layer*4
+
+    return addr
+
+
+def ctl_addr(group, reg):
+    """
+    Return the address of control register `reg` in group `group`.
+    """
+    return dev.C_GROUP_OFFS*group + dev.C_CNN_BASE + reg*4
 
 
 def get_device(
