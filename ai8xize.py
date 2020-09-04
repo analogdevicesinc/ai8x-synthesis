@@ -937,14 +937,15 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         # [9:0]   maxcount: lower 8 bits = total of width + pad - 1
                         # [17:16] pad: 2 bits pad
                         if flatten[ll]:
-                            in_col = in_row = 1
+                            in_row = pool[ll][0]
+                            in_col = pool[ll][1]
                         else:
                             if operator[ll] == op.CONVTRANSPOSE2D:
-                                in_col = stride[ll][1] * input_dim[ll][1]
                                 in_row = stride[ll][0] * input_dim[ll][0]
+                                in_col = stride[ll][1] * input_dim[ll][1]
                             else:
-                                in_col = input_dim[ll][1]
                                 in_row = input_dim[ll][0]
+                                in_col = input_dim[ll][1]
                         if hasattr(tc.dev, 'CNT_DIFF_OFFS'):
                             diff = (in_row - ((in_row - pool[ll][0])
                                               // pool_stride[ll][0]) * pool_stride[ll][0])
