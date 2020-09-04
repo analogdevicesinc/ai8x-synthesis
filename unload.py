@@ -176,7 +176,7 @@ def unload(
                                           f'0x{doffs:08x}; // Set SRAM address\n')
                             # Set wptr_inc to set increment value (default: 1)
                             val = addr + tc.dev.C_CNN*4 \
-                                + tc.dev.LREG_LCTL*4 * tc.dev.MAX_LAYERS
+                                + tc.dev.LREG_LCTL2*4 * tc.dev.MAX_LAYERS
                             memfile.write(f'  *((volatile uint32_t *) 0x{val:08x}) = '
                                           f'0x{expand:08x}; // Set pointer increment\n')
                             # Set mlatorld enable bit to load write ptr; select byte 0..3
@@ -435,7 +435,7 @@ def verify(
                                          f'0x{source >> 2:08x}; // Set SRAM address\n')
                             # Set wptr_inc to set increment value (default: 1)
                             w = apb_base + addr + tc.dev.C_CNN*4 \
-                                + tc.dev.LREG_LCTL*4 * tc.dev.MAX_LAYERS
+                                + tc.dev.LREG_LCTL2*4 * tc.dev.MAX_LAYERS
                             stream.write(f'  *((volatile uint32_t *) 0x{w:08x}) = '
                                          f'0x{expand:08x}; // Set pointer increment\n')
                             # Set mlatorld enable bit to load write ptr; select byte 0..3
