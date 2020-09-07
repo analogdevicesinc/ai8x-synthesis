@@ -382,3 +382,4 @@
 ./ai8xize.py --verbose --autogen rtlsim-ai85 --top-level cnn -L --test-dir rtlsim-ai85 --prefix ai85-burnin-rand_16x64x64 --config-file tests/test-burnin-rand_16x64x64.yaml --device 85 --compact-data --mexpress --max-checklines 4096 $@
 
 ./ai8xize.py --verbose --autogen rtlsim-ai85 --top-level cnn -L --test-dir rtlsim-ai85 --prefix ai85-conv1d-3-bias --config-file tests/test-conv1d-3-bias.yaml --ai85 $@
+./ai8xize.py --verbose --autogen rtlsim-ai85 --top-level cnn -L --test-dir rtlsim-ai85 --prefix ai85-riscv-fastfifo-mnist --checkpoint-file trained/ai85-mnist.pth.tar --config-file networks/mnist-chw-ai85.yaml --ai85 --compact-data --mexpress --riscv --riscv-flash --riscv-cache --riscv-debug $@
