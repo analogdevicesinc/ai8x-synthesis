@@ -205,7 +205,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 eprint("Fast FIFO supports up to four HWC input channels; "
                        f"this test is using {input_chan[0]} channels.")
                 sys.exit(1)
-            if processor_map[0] & 0x0e == 0:
+            if processor_map[0] != 1 and processor_map[0] & 0x0e == 0:
                 fifo_group = False
             if output_width[0] != 8:
                 eprint('Single-layer fast FIFO setup requires output width of 8.')
