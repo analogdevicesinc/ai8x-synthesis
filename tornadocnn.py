@@ -287,7 +287,7 @@ class DevAI87(Dev):
     REG_SRAM = 1
     REG_LCNT_MAX = 2
     REG_SRAM_TEST = 3
-    REG_IFRM = 0x2018
+    REG_IFRM = 0x42018
     REG_MLAT = 0x44000
 
     FIFO_CTL = 0
