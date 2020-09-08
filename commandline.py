@@ -282,9 +282,9 @@ def get_parser():
     else:
         try:
             args.no_bias = [int(s) for s in args.no_bias.split(',')]
-        except ValueError:
+        except ValueError as exc:
             raise ValueError('ERROR: Argument --no-bias must be a comma-separated '
-                             'list of integers only')
+                             'list of integers only') from exc
 
     if args.clock_trim is not None:
         clock_trim_error = False
@@ -312,8 +312,8 @@ def get_parser():
     if args.streaming_layers is not None:
         try:
             args.streaming_layers = [int(s, 0) for s in args.streaming_layers.split(',')]
-        except ValueError:
+        except ValueError as exc:
             raise ValueError('ERROR: Argument --streaming-layers must be a comma-separated '
-                             'list of integers only')
+                             'list of integers only') from exc
 
     return args

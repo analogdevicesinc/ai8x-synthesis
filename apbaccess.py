@@ -624,7 +624,7 @@ class APBBlockLevel(APB):
             input_chan=None,
             sleep=False,
     ):
-        super(APBBlockLevel, self).__init__(
+        super().__init__(
             memfile,
             apb_base,
             verify_writes=verify_writes,
@@ -707,7 +707,7 @@ class APBBlockLevel(APB):
         """
         Change the file handle to `memfile` and reset the .mem output location to 0.
         """
-        super(APBBlockLevel, self).set_memfile(memfile)
+        super().set_memfile(memfile)
         self.foffs = 0
 
     def output(
