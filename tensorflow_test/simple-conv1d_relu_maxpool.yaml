@@ -10,7 +10,6 @@ layers:
   out_offset: 0x2000
   op: conv1d
   kernel_size: 1
-  stride: 1
   activate: ReLU
   max_pool: 2
   pool_stride: 2
