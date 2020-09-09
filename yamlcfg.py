@@ -357,8 +357,6 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
                 if operator[sequence] == op.CONV2D and val != 1 \
                    or (device == 84 and val != 3 or val != 1):
                     error_exit('Cannot set `stride` to non-default value when pooling', sequence)
-                if operator[sequence] != op.CONV2D:
-                    stride[sequence] = [3, 1]  # Fix default for 1D
             else:
                 if operator[sequence] == op.CONVTRANSPOSE2D and val != 2:
                     error_exit('Cannot set `stride` to non-default value for ConvTranspose2D',
