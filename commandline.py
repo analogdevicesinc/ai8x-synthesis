@@ -77,8 +77,9 @@ def get_parser():
                         help="keep first level scale value (default: false)")
     group.add_argument('--generate-dequantized-onnx-file', action='store_true', default=False,
                         help="store dequantized weights (default: false)")
+    # Need to transpose(1,2,0) in loader?
     group.add_argument('--input-type-tensorflow', action='store_true', default=False,
-                       help="use TensorFlow input data format (default: false)") ## need to transpose(1,2,0) in loader?
+                       help="use TensorFlow input data format (default: false)")
 
     # File names
     group = parser.add_argument_group('File names')

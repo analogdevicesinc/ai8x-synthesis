@@ -358,10 +358,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     else:
         filename = c_filename + ('_riscv' if riscv else '') + '.c'
     if not block_mode and (embedded_code or compact_data):
-        #eprint("FILENAME")    
-        #eprint(filename)    
-        #eprint(base_directory)    
-        #eprint(c_filename)    
+        #eprint("FILENAME")
+        #eprint(filename)
+        #eprint(base_directory)
+        #eprint(c_filename)
 
         sampledata_header = \
             open(os.path.join(base_directory, test_name, sample_filename), mode='w')

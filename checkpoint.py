@@ -275,4 +275,5 @@ def load(
             print(output_channels)
             print("")
 
-    return layers, weights, bias, output_shift, fc_weights, fc_bias, input_channels, output_channels
+    return layers, weights, bias, output_shift, fc_weights, \
+           fc_bias, input_channels, output_channels
