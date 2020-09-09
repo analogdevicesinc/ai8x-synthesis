@@ -4,7 +4,6 @@
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
 ###################################################################################################
 """
 Load contents of a checkpoint files and save them in a format usable for AI84/AI85
@@ -116,10 +115,11 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                 if dev != 84 or module != 'fc':
                     if num_layers and layers >= num_layers:
                         continue
-                    if not params:
-                        clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Default to 8 bits
-                    else:
+                    clamp_bits = None
+                    if params is not None:
                         clamp_bits = params['quantization'][layers]
+                    if clamp_bits is None:
+                        clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Default to 8 bits
                     factor = 2**(clamp_bits-1) * sat_fn(checkpoint_state[k])
                     lower_bound = 0
                     if first:

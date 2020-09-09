@@ -198,6 +198,7 @@ def create_net(
             data, out_size = pooling_layer(
                 ll,
                 verbose,
+                False,
                 data[0].shape,
                 pool[ll],
                 pool_stride[ll],
@@ -231,6 +232,7 @@ def create_net(
                 out_buf, out_size = conv2d_layer(
                     ll,
                     verbose,
+                    False,
                     data.shape,
                     kernel_size[ll],
                     output_shift[ll],
@@ -254,6 +256,7 @@ def create_net(
                 out_buf, out_size = conv1d_layer(
                     ll,
                     verbose,
+                    False,
                     data.shape,
                     kernel_size[ll][0],
                     output_shift[ll],
@@ -358,6 +361,7 @@ def create_net(
 
             out_buf, out_size = linear_layer(
                 verbose=verbose,
+                verbose_data=False,
                 activation=False,
                 weight=fc_weights[0],
                 bias=fc_bias[0],

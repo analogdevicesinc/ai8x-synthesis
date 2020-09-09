@@ -560,6 +560,7 @@ def load(
         fc_layer,
         quantization,
         bias_quantization,
+        output_shift,
         kernel_size,  # this information available in onnx model
         operator,
         verbose=False,
@@ -987,4 +988,4 @@ def load(
             print("")
             print(oplist)
 
-    return layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels
+    return layers, weights, bias, output_shift, fc_weights, fc_bias, input_channels, output_channels

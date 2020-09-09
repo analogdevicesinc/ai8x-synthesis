@@ -1,10 +1,8 @@
 ###################################################################################################
-# Copyright (C) 2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
 Operators
@@ -23,7 +21,13 @@ ELTWISE_OR = -3
 ELTWISE_SUB = -4
 ELTWISE_XOR = -5
 
-NAMES = {
+ACT_NAMES = {
+    NONE: 'no activation',
+    ACT_RELU: 'ReLU',
+    ACT_ABS: 'Abs',
+}
+
+OP_NAMES = {
     NONE: 'passthrough',
     CONV1D: 'conv1d',
     CONV2D: 'conv2d',
@@ -52,10 +56,10 @@ def string(
         elt=False,
 ):
     """
-    Return string rep[reaentation of operator `op`
+    Return string representation of operator `op`
     """
     if not elt:
-        return NAMES[op] if op in NAMES else '????'
+        return OP_NAMES[op] if op in OP_NAMES else '????'
     # else:
     return ELT_NAMES[op] if op in ELT_NAMES else '????'
 
@@ -78,3 +82,15 @@ def eltwise_fn(
     if op in ENCODING:
         return ENCODING[op]
     raise NotImplementedError
+
+
+def act_string(
+        act,
+):
+    """
+    Return string representation of activation `act`
+    """
+    if act is None:
+        return ACT_NAMES[NONE]
+    # else:
+    return ACT_NAMES[act] if act in ACT_NAMES else '????'

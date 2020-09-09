@@ -21,6 +21,7 @@ import checkpoint
 import cmsisnn
 import commandline
 import compute
+import devices
 import kbias
 import kernels
 import load
@@ -42,6 +43,7 @@ from utils import ffs, fls, popcount
 def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches
         prefix,
         verbose,
+        verbose_all,
         debug,
         debug_computation,
         no_error_stop,
@@ -203,7 +205,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 eprint("Fast FIFO supports up to four HWC input channels; "
                        f"this test is using {input_chan[0]} channels.")
                 sys.exit(1)
-            if processor_map[0] & 0x0e == 0:
+            if processor_map[0] != 1 and processor_map[0] & 0x0e == 0:
                 fifo_group = False
             if output_width[0] != 8:
                 eprint('Single-layer fast FIFO setup requires output width of 8.')
@@ -228,6 +230,19 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     # Check that input channels are in separate memory instances if CHW (big) data format is used,
     # and calculate input and output expansion
     for ll in range(layers):
+        if quantization[ll] is None:
+            quantization[ll] = 8  # Set default
+        if output_shift[ll] is None:
+            output_shift[ll] = 0  # Set default
+
+        if output_shift[ll] < -15 or output_shift[ll] > 15:
+            implicit_shift = 8 - quantization[ll]
+            eprint(f"Layer {ll} with {quantization[ll]}-bit weight quantization supports an "
+                   f"output_shift range of [{-15 - implicit_shift}, +{15 - implicit_shift}]. "
+                   f"The specified value of output_shift is {output_shift[ll] - implicit_shift} "
+                   "which exceeds the system limits.")
+            sys.exit(1)
+
         if big_data[ll]:
             p = processor_map[ll] >> (ffs(processor_map[ll]) & ~(tc.dev.P_SHARED-1))
             while p:
@@ -334,8 +349,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     # Redirect stdout?
     if log:
         sys.stdout = open(os.path.join(base_directory, test_name, log_filename), 'w')
+        print(f'{" ".join(str(x) for x in sys.argv)}')
+        print(f'{devices.partnum(device)}\n')
         print(f'{test_name}')
-  
+
     if block_mode:
         filename = input_filename + '.mem'
     else:
@@ -375,7 +392,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             sys.exit(1)
         if (ll != 0 or not fast_fifo_quad) \
            and popcount(processor_map[ll]) != in_expand_thresh[ll]:
-            eprint(f'LLayer {ll} has {input_chan[ll]} inputs with input expansion '
+            eprint(f'Layer {ll} has {input_chan[ll]} inputs with input expansion '
                    f'{in_expand[ll]}, {operands[ll]} operands, threshold {in_expand_thresh[ll]}, '
                    f'but enabled processor map 0x{processor_map[ll]:016x} '
                    f'has {popcount(processor_map[ll])} bits instead of the '
@@ -402,10 +419,19 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         group_map.append(this_map)
 
         # Ensure input and output map are the same for passthrough layers
-        if operator[ll] == op.NONE and processor_map[ll] != output_processor_map[ll]:
-            eprint(f'Layer {ll} is a pass-through layer. Input and output processors must be '
-                   f'identical. Configured are: input {processor_map[ll]:08x}, '
-                   f'output {output_processor_map[ll]:08x}.')
+        if operator[ll] == op.NONE:
+            for group in range(tc.dev.P_NUMGROUPS):
+                in_pro = 2**popcount(
+                    (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO
+                ) - 1
+                out_pro = (output_processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO
+                if out_pro != 0:
+                    out_pro >>= ffs(out_pro)
+                if out_pro != in_pro:
+                    eprint(f'Layer {ll} is a pass-through layer. The output processors must be a '
+                           'packed version of the input processors for each x16. Configured are: '
+                           f'input {processor_map[ll]:08x}, output '
+                           f'{output_processor_map[ll]:08x}.')
 
     groups_used = []
     for group in range(tc.dev.P_NUMGROUPS):
@@ -416,6 +442,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     if 0 not in groups_used:
         eprint('Group 0 is not used, this currently does not work.')
         sys.exit(1)
+
     # Create ARM code wrapper if needed
     if riscv and not block_mode:
         with open(os.path.join(base_directory, test_name, c_filename + '.c'), mode='w') as f:
@@ -529,11 +556,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             # Pre-define data memory loader. Inline later when generating RTL sim.
             if input_fifo:
                 apb.output('#define USE_FIFO\n')
-            #eprint("operands")
-            #eprint(operands)
-            #eprint(data.shape[0])
-            #eprint(input_chan[0])
-            #eprint(data.shape[0] // input_chan[0])
             load.load(
                 True,
                 apb,
@@ -1609,6 +1631,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             eltwise[ll],
             ll,
             verbose,
+            verbose_all or ll == layers-1,
             data[0].shape,
             output_shift[ll],
             data,
@@ -1660,6 +1683,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         show_data(
             ll,
             verbose,
+            verbose_all or ll == layers-1,
             data.shape,
             data,
             debug=debug_computation,
@@ -1686,6 +1710,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         data, out_size = pooling_layer(
             ll,
             verbose,
+            verbose_all or ll == layers-1,
             data[0].shape,
             pool[ll],
             pool_stride[ll],
@@ -1725,6 +1750,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             out_buf, out_size = conv2d_layer(
                 ll,
                 verbose,
+                verbose_all or ll == layers-1,
                 data.shape,
                 kernel_size[ll],
                 output_shift[ll],
@@ -1750,6 +1776,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             out_buf, out_size = convtranspose2d_layer(
                 ll,
                 verbose,
+                verbose_all or ll == layers-1,
                 data.shape,
                 kernel_size[ll],
                 output_shift[ll],
@@ -1776,6 +1803,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             out_buf, out_size = conv1d_layer(
                 ll,
                 verbose,
+                verbose_all or ll == layers-1,
                 data.shape,
                 kernel_size[ll][0],
                 output_shift[ll],
@@ -1800,6 +1828,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             out_buf, out_size = passthrough_layer(
                 ll,
                 verbose,
+                verbose_all or ll == layers-1,
                 data.shape,
                 data,
                 device=device,
@@ -1884,10 +1913,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     sleep=False,
                     debug_mem=True,
                 )
+                out_map2 = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
                 apb2.verify_unload(
                     ll,
                     in_map,
-                    out_map,
+                    out_map2,
                     out_buf,
                     output_processor_map[ll],
                     out_size,
@@ -1962,6 +1992,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                 out_buf, out_size = linear_layer(
                     verbose=verbose,
+                    verbose_data=verbose_all or ll == layers-1,
                     activation=None,
                     data=data,
                     weight=fc_weights[0],
@@ -2088,7 +2119,8 @@ def main():
         fext = args.checkpoint_file.rsplit(sep='.', maxsplit=1)[1].lower()
         if fext == 'onnx':
             # ONNX file selected
-            layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
+            layers, weights, bias, output_shift, fc_weights, \
+                fc_bias, input_channels, output_channels = \
                 onnxcp.load(
                     args.checkpoint_file,
                     cfg_layers,
@@ -2096,6 +2128,7 @@ def main():
                     args.fc_layer,
                     params['quantization'],
                     params['bias_quantization'],
+                    params['output_shift'],
                     params['kernel_size'],
                     params['operator'],
                     args.display_checkpoint,
@@ -2106,24 +2139,28 @@ def main():
                 )
         else:
             # PyTorch checkpoint file selected
-            layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
+            layers, weights, bias, output_shift, fc_weights, \
+                fc_bias, input_channels, output_channels = \
                 checkpoint.load(
                     args.checkpoint_file,
                     cfg['arch'],
                     args.fc_layer,
                     params['quantization'],
                     params['bias_quantization'],
+                    params['output_shift'],
                     params['kernel_size'],
                     params['operator'],
                     args.display_checkpoint,
                     args.no_bias,
                 )
     else:  # Get some hard-coded sample weights
-        layers, weights, bias, fc_weights, fc_bias, input_channels, output_channels = \
+        layers, weights, bias, output_shift, fc_weights, \
+            fc_bias, input_channels, output_channels = \
             sampleweight.load(
                 cfg['dataset'],
                 params['quantization'],
                 params['bias_quantization'],
+                params['output_shift'],
                 cfg_layers,
                 cfg['weights'] if 'weights' in cfg else None,
                 cfg['bias'] if 'bias' in cfg else None,
@@ -2217,6 +2254,7 @@ def main():
 
     # Remove extraneous layer configuration values (when --stop-after is used)
     processor_map = processor_map[:layers]
+
     input_channels = input_channels[:layers]
     output_channels = output_channels[:layers]
     output_offset = params['output_offset'][:layers]
@@ -2224,7 +2262,7 @@ def main():
     input_offset = params['input_offset'][:layers]
     kernel_size = params['kernel_size'][:layers]
     quantization = params['quantization'][:layers]
-    output_shift = params['output_shift'][:layers]
+    output_shift = output_shift[:layers]
     pool = params['pool'][:layers]
     pool_stride = params['pool_stride'][:layers]
     padding = params['padding'][:layers]
@@ -2335,9 +2373,6 @@ def main():
             pooled_size = input_dim[ll]
 
         pooled_dim[ll] = pooled_size
-        #eprint("pooling")
-        #eprint(input_dim[ll])
-        #eprint(pooled_dim[ll])
         if any(dim == 0 for dim in pooled_dim[ll]):
             eprint(f'Pooling in layer {ll} results in a zero data dimension '
                    f'(input {input_dim[ll]}, pooled {pooled_dim[ll]}).')
@@ -2419,6 +2454,7 @@ def main():
         tn = create_net(
             args.prefix,
             args.verbose,
+            args.verbose_all,
             args.debug,
             args.debug_computation,
             args.no_error_stop,

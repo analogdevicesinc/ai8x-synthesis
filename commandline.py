@@ -129,10 +129,12 @@ def get_parser():
     group.add_argument('-L', '--log', action='store_true', default=False,
                        help="redirect stdout to log file (default: false)")
     group.add_argument('--log-intermediate', action='store_true', default=False,
-                       help="log data between layers (default: false)")
+                       help="log weights/data between layers to .mem files (default: false)")
     group.add_argument('--log-pooling', action='store_true', default=False,
                        help="log unpooled and pooled data between layers in CSV format "
                             "(default: false)")
+    group.add_argument('--log-last-only', action='store_false', dest='verbose_all', default=True,
+                       help="log data for last layer only (default: all layers)")
     group.add_argument('--log-filename', default='log.txt', metavar='S',
                        help="log file name (default: 'log.txt')")
     group.add_argument('-D', '--debug', action='store_true', default=False,
@@ -283,9 +285,9 @@ def get_parser():
     else:
         try:
             args.no_bias = [int(s) for s in args.no_bias.split(',')]
-        except ValueError:
+        except ValueError as exc:
             raise ValueError('ERROR: Argument --no-bias must be a comma-separated '
-                             'list of integers only')
+                             'list of integers only') from exc
 
     if args.clock_trim is not None:
         clock_trim_error = False
@@ -313,8 +315,8 @@ def get_parser():
     if args.streaming_layers is not None:
         try:
             args.streaming_layers = [int(s, 0) for s in args.streaming_layers.split(',')]
-        except ValueError:
+        except ValueError as exc:
             raise ValueError('ERROR: Argument --streaming-layers must be a comma-separated '
-                             'list of integers only')
+                             'list of integers only') from exc
 
     return args
