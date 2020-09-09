@@ -387,3 +387,5 @@ SHORT_LOG="--log-last-only"
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlpflattenpool12to2 --config-file tests/test-mlpflattenpool12to2.yaml --ai87 --debug-computation --debug $@
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-mlpflattenpoolavg12to2 --config-file tests/test-mlpflattenpoolavg12to2.yaml --ai87 --debug-computation --debug $@
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-riscv-fastfifo-mnist --checkpoint-file trained/ai85-mnist.pth.tar --config-file networks/mnist-chw-ai85.yaml --ai87 --compact-data --mexpress --riscv --riscv-flash --riscv-cache --riscv-debug $@
+
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-layers128 --config-file tests/test-layers128.yaml --ai87 $@
