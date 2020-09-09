@@ -71,17 +71,16 @@ def calc_latency(
         debug=False,  # pylint: disable=unused-argument
 ):
     """
-    Returns estimated latencies (in cycles) for startup, each layer, and total for a
-    given network setup.
-    The return value is a list of tuples (cycles [integer], detailed description [string])
+    Returns estimated latencies (in cycles) for startup and each layer for a given network setup.
+    The return values are an integer (startup cycles) and a list of tuples
+    (cycles [integer], detailed description [string]).
     """
 
     # No support for estimating streaming latency yet
     if any(streaming):
-        return None
+        return None, None
 
-    lat = [(tc.dev.C_START, '')]
-    total = tc.dev.C_START
+    lat = []
 
     for ll in range(layers):
         pad = tc.dev.C_PAD * 2 * (  # Pad cycles * (top + left) * 2 (for bottom + right)
@@ -105,7 +104,5 @@ def calc_latency(
             f'{output_dim[ll][0] * output_dim[ll][1] * output_chan[ll]}'
 
         lat.append((lk, s))
-        total += lk
 
-    lat.append((total, ''))
-    return lat
+    return tc.dev.C_START, lat

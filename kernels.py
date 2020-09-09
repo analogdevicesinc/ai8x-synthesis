@@ -54,6 +54,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         embedded_code,
         device,
         apb,
+        start_layer,
         layers,
         operator,
         kernel,
@@ -100,7 +101,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     if debug:
         print('\nLoading Kernels...')
 
-    for ll in range(layers):
+    for ll in range(start_layer, layers):
         if operator[ll] not in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
             kern_len[ll] = 0
             kern_offs[ll] = 0

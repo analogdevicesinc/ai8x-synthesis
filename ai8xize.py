@@ -328,7 +328,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
     test_name = prefix
     if not embedded_code:
-        for ll in range(layers):
+        for ll in range(start_layer, layers):
             test_name += f'-{input_chan[ll]}x{input_dim_str[ll]}' \
                          f'{"b" if big_data[ll] else "l"}' \
                          f'{"f" if flatten[ll] else ""}_' \
@@ -522,7 +522,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                    f'layer{"s" if repeat_layers * layers > 1 else ""}:\n')
 
         for r in range(repeat_layers):
-            for ll in range(layers):
+            for ll in range(start_layer, layers):
                 apb.output(f'// Layer {r * layers + ll}: '
                            f'{str(operands[ll])+"x" if operands[ll] > 1 else ""}'
                            f'{input_chan[ll]}x{input_dim_str[ll]} ('
@@ -587,6 +587,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 True,
                 device,
                 apb,
+                0,
                 layers,
                 operator,
                 kernel,
@@ -626,7 +627,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         # Initialize CNN registers
 
         if verbose:
-            lat = stats.calc_latency(
+            startup, lat = stats.calc_latency(
                 streaming,
                 layers,
                 eltwise,
@@ -644,15 +645,17 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             if lat is None:
                 print('N/A')
             else:
-                print(f'Startup{lat[0][0]:14,}')
-                for k in range(len(lat)-2):
-                    print(f'Layer {k:<3}{lat[k+1][0]:12,}', end='')
+                total = startup
+                print(f'Startup{startup:14,}')
+                for k in range(start_layer, layers):
+                    total += lat[k][0]
+                    print(f'Layer {k:<3}{lat[k][0]:12,}', end='')
                     if debug_latency:
-                        print('', lat[k+1][1])
+                        print('', lat[k][1])
                     else:
                         print('')
                 print('           ==========')
-                print(f'Total{lat[-1][0]:16,} cycles')
+                print(f'Total{total:16,} cycles')
 
             print('\nGlobal registers:')
             print('-----------------')
@@ -762,7 +765,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             kern_offs, kern_len = kernels.load(
                 verbose,
                 embedded_code,
-                device, apb,
+                device,
+                apb,
+                0,
                 layers,
                 operator,
                 kernel,
@@ -873,7 +878,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
         # Configure per-layer control registers
         for r in range(repeat_layers):
-            for ll in range(layers):
+            for ll in range(start_layer, layers):
 
                 local_source = False
                 for _, group in enumerate(groups_used):
@@ -1504,7 +1509,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
         if zero_unused:
             for r in range(repeat_layers):
-                for ll in range(layers, tc.dev.MAX_LAYERS):
+                for ll in range(start_layer, layers, tc.dev.MAX_LAYERS):
                     for _, group in enumerate(groups_used):
                         for reg in range(tc.dev.MAX_LREG+1):
                             if reg == tc.dev.LREG_RFU:  # Register 2 not implemented
@@ -1513,7 +1518,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                            verbose, force_write=True,
                                            comment=f' // Zero unused layer {ll} registers')
                 if hasattr(tc.dev, 'MIN_STREAM_LREG'):
-                    for ll in range(layers, tc.dev.MAX_STREAM_LAYERS):
+                    for ll in range(start_layer, layers, tc.dev.MAX_STREAM_LAYERS):
                         for _, group in enumerate(groups_used):
                             for reg in range(tc.dev.MIN_STREAM_LREG, tc.dev.MAX_STREAM_LREG+1,
                                              tc.dev.MAX_STREAM_LAYERS):
@@ -1753,7 +1758,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
     data_buf = [data]
     # Compute layer-by-layer output and chain results into input
-    for ll in range(layers):
+    for ll in range(start_layer, layers):
         if debug_computation:
             compute.debug_open(ll, base_directory, test_name, log_filename)
 

@@ -389,3 +389,4 @@ SHORT_LOG="--log-last-only"
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-riscv-fastfifo-mnist --checkpoint-file trained/ai85-mnist.pth.tar --config-file networks/mnist-chw-ai85.yaml --ai87 --compact-data --mexpress --riscv --riscv-flash --riscv-cache --riscv-debug $@
 
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-layers128 --config-file tests/test-layers128.yaml --ai87 $@
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-startlayer28 --config-file tests/test-layers.yaml --ai87 --start-layer 28 $@
