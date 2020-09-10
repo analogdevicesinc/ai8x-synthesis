@@ -281,18 +281,18 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         # Data memory size check - 4 channels share one instance unless CHW format
         in_size = input_dim[ll][0] * input_dim[ll][1] * in_expand[ll] * operands[ll] \
             * (1 if big_data[ll] else 4)
-        if not streaming[ll] and in_size + in_offset[ll] > tc.dev.INSTANCE_SIZE*16:
+        if not streaming[ll] and in_size + in_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
             eprint(f'Layer {ll}: {1 if big_data[ll] else 4}-channel input size {in_size} '
                    f'with input offset 0x{in_offset[ll]:04x} and expansion {in_expand[ll]}x '
-                   f'exceeds data memory instance size of {tc.dev.INSTANCE_SIZE*16}.')
+                   f'exceeds data memory instance size of {tc.dev.INSTANCE_WIDTH*16}.')
             sys.exit(1)
         out_size = output_dim[ll][0] * output_dim[ll][1] * out_expand[ll] \
             * 4 * output_width[ll] // 8
         if (not streaming[ll] or ll == layers - 1) \
-           and out_size + out_offset[ll] > tc.dev.INSTANCE_SIZE*16:
+           and out_size + out_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
             eprint(f'Layer {ll}: 4-channel, {output_width[ll]}-bit output size {out_size} '
                    f'with output offset 0x{out_offset[ll]:04x} and expansion {out_expand[ll]}x '
-                   f'exceeds data memory instance size of {tc.dev.INSTANCE_SIZE*16}.')
+                   f'exceeds data memory instance size of {tc.dev.INSTANCE_WIDTH*16}.')
             sys.exit(1)
 
         if operator[ll] != op.CONV1D:
@@ -1487,12 +1487,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                        error=not no_error_stop)
                                 if not no_error_stop:
                                     sys.exit(1)
-                        if in_offset[ll] + val * 4 >= tc.dev.INSTANCE_SIZE * tc.dev.P_SHARED * 4:
+                        if in_offset[ll] + val * 4 >= tc.dev.INSTANCE_WIDTH * tc.dev.P_SHARED * 4:
                             eprint('Input plus rollover exceeds instance size: '
                                    f'in_offset 0x{in_offset[ll]:08x}, '
                                    f'out_offset 0x{out_offset[ll]:08x}, '
                                    f'rollover 0x{val:08x}, '
-                                   f'instance size 0x{tc.dev.INSTANCE_SIZE*4:08x}.',
+                                   f'instance size 0x{tc.dev.INSTANCE_WIDTH*4:08x}.',
                                    error=not no_error_stop)
                             if not no_error_stop:
                                 sys.exit(1)
@@ -2466,7 +2466,7 @@ def main():
         if pool[ll][0] > 1 or pool[ll][1] > 1:
             if operator[ll] != op.CONV1D:
                 if pool_stride[ll][0] != pool_stride[ll][1]:
-                    eprint(f'{op.string(operator[ll])} in layer {ll} does not support non-square'
+                    eprint(f'{op.string(operator[ll])} in layer {ll} does not support non-square '
                            f'pooling stride (currently set to '
                            f'{pool_stride[ll][0]}x{pool_stride[ll][1]}).')
                     sys.exit(1)

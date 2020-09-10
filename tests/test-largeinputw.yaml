@@ -1,0 +1,13 @@
+
+arch: test
+dataset: test_largeinputw
+
+layers:
+- pad: 1
+  out_offset: 0x0
+  processors: 0x0001000100010001
+  output_processors: 0x00000000000000f0
+  data_format: CHW
+  op: conv2d
+  pool_stride: 2
+  max_pool: 2

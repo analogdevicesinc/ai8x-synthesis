@@ -331,7 +331,7 @@ class DevAI87(Dev):
     C_GROUP_OFFS = 0x1000000
 
     INSTANCE_SIZE = 8192  # x32 (includes empty space)
-    INSTANCE_WIDTH = 6144  # x32 (true memory size)
+    INSTANCE_WIDTH = 5120  # x32 (true memory size)
     INSTANCE_SHIFT = 17
     WRITE_PTR_SHIFT = 15
     MEM_SIZE = INSTANCE_WIDTH * P_NUMPRO * P_NUMGROUPS // P_SHARED  # x32
