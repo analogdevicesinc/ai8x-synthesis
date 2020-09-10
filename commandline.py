@@ -151,6 +151,8 @@ def get_parser():
                             "0 to ignore a particular trim")
     group.add_argument('--fixed-input', action='store_true', default=False,
                        help="use fixed 0xaa/0x55 alternating input (default: false)")
+    group.add_argument('--reshape-inputs', action='store_true', default=False,
+                       help="drop data channel dimensions to match weights (default: false)")
     group.add_argument('--max-checklines', type=int, metavar='N', default=None, dest='max_count',
                        help="output only N output check lines (default: all)")
     group.add_argument('--forever', action='store_true', default=False,

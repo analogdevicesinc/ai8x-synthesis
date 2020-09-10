@@ -155,6 +155,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         write_gap=None,
         start_layer=0,
         pipeline=False,
+        reshape_inputs=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -1817,6 +1818,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         else:
             data = data.reshape(data.shape[0], data.shape[1], input_dim[ll][0], input_dim[ll][1])
 
+        # Drop input channels?
+        if reshape_inputs:
+            data = np.delete(data, np.s_[in_chan:], axis=1)
+
         # In-flight pooling
         data, out_size = pooling_layer(
             ll,
@@ -2672,6 +2677,7 @@ def main():
             write_gap,
             args.start_layer,
             args.pipeline,
+            args.reshape_inputs,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

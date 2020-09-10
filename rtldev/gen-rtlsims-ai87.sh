@@ -390,3 +390,5 @@ SHORT_LOG="--log-last-only"
 
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-layers128 --config-file tests/test-layers128.yaml --ai87 $@
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-startlayer28 --config-file tests/test-layers.yaml --ai87 --start-layer 28 $@
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-maxkern --config-file tests/test-maxkern.yaml --ai87 --reshape-inputs $@
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-maxkern0123 --config-file tests/test-maxkern0123.yaml --ai87 --reshape-inputs $@
