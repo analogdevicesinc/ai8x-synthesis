@@ -5,7 +5,7 @@
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
 ###################################################################################################
 """
-Tornado CNN hardware constants - AI84, AI85
+Tornado CNN hardware constants - AI84, AI85, AI87
 """
 import sys
 
@@ -21,6 +21,13 @@ class Dev:
     Metaclass for all hardware devices
     """
     FIX_STREAM_BIAS = False
+    MASK_WIDTH_SMALL = MASK_WIDTH_LARGE = P_NUMPRO = 0  # These will be overridden by child classes
+
+    def mask_width(self, proc):
+        """
+        Returns the number of kernels (x9 bytes) for processor `proc`.
+        """
+        return self.MASK_WIDTH_LARGE if proc % self.P_NUMPRO == 0 else self.MASK_WIDTH_SMALL
 
     def __init__(self, part_no):
         self.part_no = part_no
@@ -78,7 +85,8 @@ class DevAI84(Dev):
     TRAM_SIZE = 256
     TRAM_OFFS = 256
     BIAS_SIZE = 256
-    MASK_WIDTH = 128
+    MASK_WIDTH_SMALL = 128
+    MASK_WIDTH_LARGE = 128
     MASK_OFFS = 128
     MCNT_SAD_OFFS = 8
     MCNT_MAX_OFFS = 0
@@ -182,7 +190,8 @@ class DevAI85(Dev):
     TRAM_SIZE = 3072
     TRAM_OFFS = 4096
     BIAS_SIZE = 512
-    MASK_WIDTH = 768
+    MASK_WIDTH_SMALL = 768
+    MASK_WIDTH_LARGE = 768
     MASK_OFFS = 1024
     MCNT_SAD_OFFS = 16
     MCNT_MAX_OFFS = 0
@@ -305,7 +314,8 @@ class DevAI87(Dev):
     TRAM_SIZE = 12288
     TRAM_OFFS = 16384
     BIAS_SIZE = 2048
-    MASK_WIDTH = 4096
+    MASK_WIDTH_SMALL = 4096
+    MASK_WIDTH_LARGE = 5120
     MASK_OFFS = 8192
     MCNT_SAD_OFFS = 16
     MCNT_MAX_OFFS = 0

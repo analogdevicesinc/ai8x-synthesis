@@ -1,10 +1,8 @@
 ###################################################################################################
-# Copyright (C) 2018-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
 Kernel related functions
@@ -38,15 +36,18 @@ def print_map(
     if width > 1:
         width += 1  # Add space if wider than a single character
 
-    print_fn('-' * kmap.shape[1] * width)
-    for row in range(kmap.shape[0]):
-        for col in range(kmap.shape[1]):
+    assert kmap.shape[0] == tc.dev.MAX_PROC
+    assert kmap.shape[1] == tc.dev.MASK_WIDTH_LARGE
+
+    print_fn('-' * tc.dev.MASK_WIDTH_LARGE * width)
+    for row in range(tc.dev.MAX_PROC):
+        for col in range(tc.dev.mask_width(row)):
             val = kmap[row][col]
             if val == _INVALID_VALUE:
                 val = 'X'
             print_fn('{:>{w}}'.format(val, w=width), end='')
         print_fn('')
-    print_fn('-' * kmap.shape[1] * width)
+    print_fn('-' * tc.dev.MASK_WIDTH_LARGE * width)
 
 
 def load(  # pylint: disable=too-many-branches,too-many-statements
@@ -90,13 +91,14 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     proc_kern_max = [0] * tc.dev.MAX_PROC
     kern_offs = [0] * layers
     kern_len = [0] * layers
-    kernel_map = np.full((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH), _INVALID_VALUE, dtype=np.int64)
-    kernels_used = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH), dtype=np.int64)
-    kernel_data = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH, 9), dtype=np.int8)
+    kernel_map = np.full((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE),
+                         _INVALID_VALUE, dtype=np.int64)
+    kernels_used = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE), dtype=np.int64)
+    kernel_data = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE, 9), dtype=np.int8)
     # There are four 32-bit words per 9-byte kernel.
     # The value map is initialized with zeros so we can later ignore unused entries and use
     # memcpy() on initialized and uninitialized data.
-    kernel_values = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH * _WORDS_PER_KERNEL),
+    kernel_values = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE * _WORDS_PER_KERNEL),
                              dtype=np.int64)
     if debug:
         print('\nLoading Kernels...')
@@ -158,7 +160,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                      + qfactor - 1) // qfactor))
         # The kernel offset needs to start at a multiple of 4.
         kern_offs[ll] = (kern_offs[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
-        if kern_offs[ll] + kern_len[ll] > tc.dev.MASK_WIDTH:
+        if kern_offs[ll] + kern_len[ll] > tc.dev.mask_width(p):
             eprint(f'\nKernel memory exceeded at layer {ll}; offset: {kern_offs[ll]}, '
                    f'needed: {kern_len[ll]}.'
                    '\n\nKernel map so far:')

@@ -318,7 +318,7 @@ class APB():
         weight memory.
         """
         assert p < tc.dev.MAX_PROC
-        assert idx < tc.dev.MASK_WIDTH
+        assert idx < tc.dev.mask_width(p)
         addr = tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
             + tc.dev.C_MRAM_BASE \
             + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16 + idx * 16
