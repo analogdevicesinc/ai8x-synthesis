@@ -157,8 +157,8 @@ def load(
 
                 weights.append(w)
                 weight_keys.append(k)
-                #print("SHAPE")
-                #print(w.shape)
+                # print("SHAPE")
+                # print(w.shape)
                 # Is there a bias for this layer?
                 bias_name = operation + '.bias'
 
@@ -276,4 +276,4 @@ def load(
             print("")
 
     return layers, weights, bias, output_shift, fc_weights, \
-           fc_bias, input_channels, output_channels
+        fc_bias, input_channels, output_channels

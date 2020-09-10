@@ -88,7 +88,9 @@ def get_inouts(node):
 
 
 def eight_bit_quantitize(w_in, scale_factor):
-    """quantitize to 8 bit as scale and zeropoint"""
+    """
+    quantitize to 8 bit as scale and zeropoint
+    """
     low = np.min(w_in)
     high = np.max(w_in)
     scale = (high - low) / (128.0*scale_factor)
@@ -97,8 +99,11 @@ def eight_bit_quantitize(w_in, scale_factor):
     return w_out, low, scale
 
 
-def basic_quantize0(w_in, first, scale_factor):
-    w, l, s = eight_bit_quantitize(w_in, scale_factor)
+def basic_quantize0(w_in, first, scale_factor):  # pylint: disable=W0613
+    """
+    quantitize to 8 bit as scale and zeropoint
+    """
+    w, l, s = eight_bit_quantitize(w_in, scale_factor)  # pylint: disable=W0612
     return w
 
 
@@ -118,6 +123,7 @@ def basic_quantize(w, first, scale_factor):
 
 def get_perm(index, perm):
     """
+    get permutation count
     """
     count = 0
     for _index in perm:
@@ -154,33 +160,29 @@ def process_channels(model, _input, initializers, do_quant, div, scale_factor):
 
 def manage_bias(
         w, bias, bias_min, bias_max, bias_keys, bias_quant, bias_size, param_size,
-        bias_quantization, seq, _input, param_count, do_quant, first_bias, scale_factor
+        bias_quantization, seq, _input, param_count, do_quant,
+        first_bias, scale_factor  # pylint: disable=W0613
 ):
     '''
     Collect bias info. Verify range. Quantize if needed. Modularized repeatitive code.
     '''
     if do_quant is False:  # using fixed bias quant
-        w = w
+        w = w  # pylint: disable=W0127
     else:
-        '''
-        if weights are not quantized we do not want to divide weights
-
-        from quantize.py:
-          # Save conv biases so PyTorch can still use them to run a model. This needs
-          # to be reversed before loading the weights into the AI84/AI85.
-          # When multiplying data with weights, 1.0 * 1.0 corresponds to 128 * 128 and
-          # we divide the output by 128 to compensate. The bias therefore needs to be
-          # multiplied by 128. This depends on the data width, not the weight width,
-          # and is therefore always 128.
-          if dev != 84:
-              weights *= 2**(tc.dev.ACTIVATION_BITS-1)
-
-          from checkpoint.py:
-          if bias_name in checkpoint_state and seq not in no_bias:
-              w = checkpoint_state[bias_name].numpy(). \
-              astype(np.int64) // tornadocnn.dev.BIAS_DIV
-
-        '''
+        # if weights are not quantized we do not want to divide weights
+        # from quantize.py:
+        # Save conv biases so PyTorch can still use them to run a model. This needs
+        # to be reversed before loading the weights into the AI84/AI85.
+        # When multiplying data with weights, 1.0 * 1.0 corresponds to 128 * 128 and
+        # we divide the output by 128 to compensate. The bias therefore needs to be
+        # multiplied by 128. This depends on the data width, not the weight width,
+        # and is therefore always 128.
+        # if dev != 84:
+        #    weights *= 2**(tc.dev.ACTIVATION_BITS-1)
+        # from checkpoint.py:
+        # if bias_name in checkpoint_state and seq not in no_bias:
+        #    w = checkpoint_state[bias_name].numpy(). \
+        #    astype(np.int64) // tornadocnn.dev.BIAS_DIV
         w = basic_quantize(w, False, scale_factor)
 
     w = w.astype(np.int64)
@@ -269,7 +271,7 @@ def track_data_shape(model, op_list, initializers):
                     #
                 if attr.name == "kernel_shape":
                     kernel_size = attr.ints[0]
-            for x in range(len(data_shape)):
+            for x in range(len(data_shape)):  # pylint: disable=C0200
                 if x > 1:
                     data_shape[x] = int((data_shape[x] - kernel_size) // stride + 1)
 
@@ -322,17 +324,17 @@ def track_data_shape(model, op_list, initializers):
                     kernel_size = attr.ints
 
             for x, parm in enumerate(shape_track):
-                if parm is "H":
+                if parm == "H":
                     data_shape[x] = int(((data_shape[x] - kernel_size[0] + 2 * pad[0])
                                         / stride[0]) + 1)
-                if parm is "W":
+                if parm == "W":
                     data_shape[x] = int(((data_shape[x] - kernel_size[1] + 2 * pad[1])
                                         / stride[1]) + 1)
                 # https://pytorch.org/docs/stable/generated/torch.nn.Conv1d.html
-                if parm is "L":
+                if parm == "L":
                     data_shape[x] = int(((data_shape[x] + 2 * pad[0] - dilation[0] *
                                         (kernel_size[0] - 1) - 1) // stride[0]) + 1)
-                if parm is "C":
+                if parm == "C":
                     data_shape[x] = cweights.shape[0]
 
         if node.op_type == 'Slice':
@@ -592,10 +594,10 @@ def load(
     add_in = None
     save_shape = []
     save_perm = None
-    transpose_list = []
+    transpose_list = []  # pylint: disable=W0612
     op_list = []
-    conv1d = False
-    conv2d = False
+    conv1d = False  # pylint: disable=W0612
+    conv2d = False  # pylint: disable=W0612
 
     # looking for conv1d/conv2d indications
     for x in range(cfg_layers):
@@ -607,7 +609,7 @@ def load(
         op_list.append(op)
 
     save_shape, save_perm, transpose_list, conv1d, conv2d = \
-        track_data_shape(model, op_list, initializers)
+        track_data_shape(model, op_list, initializers)  # pylint: disable=W0612
 
     # find Cast/Mul/Add sequences with connected in/outs
     # and integer initializers in Cast node
@@ -622,7 +624,7 @@ def load(
                     if attr.name == 'to':
                         if attr.HasField("i"):
                             if attr.i == 1:
-                                cast_w, iq = process_channels(model,
+                                cast_w, iq = process_channels(model,  # pylint: disable=W0612
                                                               _inputs[0],
                                                               initializers,
                                                               False,
@@ -661,7 +663,7 @@ def load(
             continue
 
         if node.op_type == 'Conv' or node.op_type == 'ConvTranspose' or node.op_type == 'Gemm' \
-          or node.op_type == 'MatMul' or node.op_type == 'Add':
+          or node.op_type == 'MatMul' or node.op_type == 'Add':  # noqa: E127
             if node.op_type == 'Conv' or node.op_type == 'ConvTranspose' \
               or node.op_type == 'Gemm' or node.op_type == 'MatMul':
                 num_layer_ops += 1
@@ -731,7 +733,8 @@ def load(
 
                         if node.op_type == 'Add':
                             if len(oplist) > 3:
-                                if oplist[-4]+oplist[-3]+oplist[-2] == 'ConvSqueezeTranspose':
+                                if oplist[-4]+oplist[-3]+oplist[-2] == \
+                                 'ConvSqueezeTranspose':  # pylint:disable=R1703
                                     cst_seq = True
                                 else:
                                     cst_seq = False
@@ -930,4 +933,5 @@ def load(
             print("")
             print(oplist)
 
-    return layers, weights, bias, output_shift, fc_weights, fc_bias, input_channels, output_channels
+    return layers, weights, bias, output_shift, fc_weights, \
+        fc_bias, input_channels, output_channels

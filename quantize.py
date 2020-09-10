@@ -35,7 +35,7 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
     print(arguments)
     print(arguments.config_file)
     if arguments.config_file:
-        _,_d, params = yamlcfg.parse(arguments.config_file, device=dev)
+        _, _d, params = yamlcfg.parse(arguments.config_file, device=dev)
     else:
         params = None
 
