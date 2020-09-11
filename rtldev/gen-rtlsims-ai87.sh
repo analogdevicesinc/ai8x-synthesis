@@ -395,3 +395,5 @@ SHORT_LOG="--log-last-only"
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-largeinput --config-file tests/test-largeinput.yaml --ai87 $@
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-largeinputw --config-file tests/test-largeinputw.yaml --ai87 $@
 ./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-largeinputh --config-file tests/test-largeinputh.yaml --ai87 $@
+
+./ai8xize.py --verbose --autogen rtlsim-ai87 --top-level cnn -L --test-dir rtlsim-ai87 --prefix ai87-linklayer --checkpoint-file tests/test-mnist-extrasmallnet.pth.tar --config-file tests/test-mnist-chw-extrasmallnet.yaml --stop-after 2 --link-layer --ai87 $@

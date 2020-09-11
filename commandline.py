@@ -157,6 +157,8 @@ def get_parser():
                        help="output only N output check lines (default: all)")
     group.add_argument('--forever', action='store_true', default=False,
                        help="after initial run, repeat CNN forever (default: false)")
+    group.add_argument('--link-layer', action='store_true', default=False,
+                       help="always use the link layer feature (default: false)")
 
     # RTL sim
     group = parser.add_argument_group('RTL simulation')

@@ -156,6 +156,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         start_layer=0,
         pipeline=False,
         reshape_inputs=False,
+        link_layer=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -177,6 +178,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     if start_layer > tc.dev.MAX_START_LAYER:
         eprint(f"--start-layer is set to {start_layer}, but the device only supports "
                f"a maximum of {tc.dev.MAX_START_LAYER}.")
+        sys.exit(1)
+
+    if link_layer and not hasattr(tc.dev, 'LREG_NXTLYR'):
+        eprint("--link-layer is not supported on this device.")
         sys.exit(1)
 
     if riscv_debug:
@@ -925,7 +930,13 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     apb.output(f'\n  // Layer {r * layers + ll} group {group}\n')
 
                     if hasattr(tc.dev, 'LREG_NXTLYR'):
-                        val = 0
+                        if link_layer:
+                            if ll < layers-1:
+                                val = 1 << 7 | (ll + 1)
+                            else:
+                                val = 1 << 8  # Stop
+                        else:
+                            val = 0
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_NXTLYR, val,
                                        verbose, comment=' // Next Layer')
 
@@ -2678,6 +2689,7 @@ def main():
             args.start_layer,
             args.pipeline,
             args.reshape_inputs,
+            args.link_layer,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(
