@@ -500,8 +500,8 @@ def modify_weights(input_file, output_file, scale, first, dequantize):
                         first = False
 
                     if len(node.input) > 2:
-                        inp_b = node.input[2]  # bias for Conv, Gemm
-                        if inp_b == initializer.name:
+                        input_b = node.input[2]  # bias for Conv, Gemm
+                        if input_b == initializer.name:
                             w = numpy_helper.to_array(initializer)
                             w = basic_quantize(w, first, scale).astype(np.float32)
                             if dequantize is True:
@@ -851,7 +851,7 @@ def load(
                         param_size += w_size
 
                         if len(w.shape) == 2:  # linear - add dummy 'channel'
-                            w = np.expanddims(w, axis=0)
+                            w = np.expand_dims(w, axis=0)
                         else:  # conv1d, conv2d, ... - combine input and output channels
                             if squeeze is True:
                                 w = np.reshape(w, (-1, ) + w.shape[sqz_dim:])
