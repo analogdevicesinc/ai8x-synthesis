@@ -16,6 +16,7 @@ from onnx import numpy_helper
 
 import op as opn
 from eprint import eprint
+from utils import fls
 
 
 def get_attribute(attr):
@@ -792,11 +793,24 @@ def load(
                             continue
 
                     if len(w.shape) > 1:  # not a bias
+                        w_min, w_max = w.min(), w.max()
+
+                        if quantization[seq] is not None:
+                            assert w_min >= -(2**(quantization[seq]-1)), print(w_min)
+                            assert w_max < 2**(quantization[seq]-1), print(w_max)
+                        else:
+                            if w_max > 0:
+                                w_max_m = int(w_max)
+                            else:
+                                w_max_m = int(abs(w_max)) - 1
+                            if w_min > 0:
+                                w_min_m = int(w_min)
+                            else:
+                                w_min_m = int(abs(w_min)) - 1
+                                quantization[seq] = 1 << (fls(max(fls(w_max_m), fls(w_min_m)) + 1) + 1)
+                            assert quantization[seq] <= 8
                         quant.append(quantization[seq])
 
-                        w_min, w_max = w.min(), w.max()
-                        assert w_min >= -(2**(quantization[seq]-1)), print(w_min)
-                        assert w_max < 2**(quantization[seq]-1), print(w_max)
                         w = w.astype(np.int64)
 
                         weight_min.append(w_min)
