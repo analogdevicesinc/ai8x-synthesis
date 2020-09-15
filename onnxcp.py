@@ -99,11 +99,15 @@ def eight_bit_quantitize(w_in, scale_factor):
     return w_out, low, scale
 
 
-def basic_quantize0(w_in, first, scale_factor):  # pylint: disable=W0613
+def basic_quantize0(
+        w_in,
+        first,  # pylint: disable=unused-argument
+        scale_factor,
+):
     """
     quantitize to 8 bit as scale and zeropoint
     """
-    w, l, s = eight_bit_quantitize(w_in, scale_factor)  # pylint: disable=W0612
+    w, _, _ = eight_bit_quantitize(w_in, scale_factor)
     return w
 
 
@@ -126,48 +130,60 @@ def get_perm(index, perm):
     get permutation count
     """
     count = 0
-    for _index in perm:
-        if _index == index:
+    for idx in perm:
+        if idx == index:
             return count
-        count = count + 1
+        count += 1
 
     return -1
 
 
-def process_channels(model, _input, initializers, do_quant, div, scale_factor):
+def process_channels(model, inp, initializers, do_quant, div, scale_factor):
     """
     Match model and initializer names from input to find weights.
     """
     internal_quantized = False
     w = None
 
-    if _input in initializers:
-        for _init in model.graph.initializer:
-            if _input == _init.name:
-                if len(numpy_helper.to_array(_init).shape) == 1:
+    if inp in initializers:
+        for initializer in model.graph.initializer:
+            if inp == initializer.name:
+                if len(numpy_helper.to_array(initializer).shape) == 1:
                     #  bias
-                    w = numpy_helper.to_array(_init)
-                elif isinstance(_init, np.int64):
-                    w = numpy_helper.to_array(_init).astype(np.int64)
+                    w = numpy_helper.to_array(initializer)
+                elif isinstance(initializer, np.int64):
+                    w = numpy_helper.to_array(initializer).astype(np.int64)
                 elif do_quant is True:
-                    w = basic_quantize(numpy_helper.to_array(_init), div, scale_factor)
+                    w = basic_quantize(numpy_helper.to_array(initializer), div, scale_factor)
                     internal_quantized = True
                 else:
-                    w = numpy_helper.to_array(_init).astype(np.int64)
+                    w = numpy_helper.to_array(initializer).astype(np.int64)
                 break
     return w, internal_quantized
 
 
 def manage_bias(
-        w, bias, bias_min, bias_max, bias_keys, bias_quant, bias_size, param_size,
-        bias_quantization, seq, _input, param_count, do_quant,
-        first_bias, scale_factor  # pylint: disable=W0613
+        w,
+        bias,
+        bias_min,
+        bias_max,
+        bias_keys,
+        bias_quant,
+        bias_size,
+        param_size,
+        bias_quantization,
+        seq,
+        inp,
+        param_count,
+        do_quant,
+        first_bias,  # pylint: disable=unused-argument
+        scale_factor,
 ):
     '''
     Collect bias info. Verify range. Quantize if needed. Modularized repeatitive code.
     '''
     if do_quant is False:  # using fixed bias quant
-        w = w  # pylint: disable=W0127
+        pass
     else:
         # if weights are not quantized we do not want to divide weights
         # from quantize.py:
@@ -195,7 +211,7 @@ def manage_bias(
     bias_max.append(w_max)
 
     bias.append(w)
-    bias_keys.append(_input)
+    bias_keys.append(inp)
     bias_quant.append(bias_quantization[seq])
     w_count = np.prod(w.shape)
     param_count += w_count
@@ -235,10 +251,10 @@ def track_data_shape(model, op_list, initializers):
     conv1d = False
     conv2d = False
 
-    for _, _input in enumerate(model.graph.input):
+    for _, inp in enumerate(model.graph.input):
         if first_node is True:
             first_node = False
-            dims = _input.type.tensor_type.shape.dim
+            dims = inp.type.tensor_type.shape.dim
             dim_len = len(dims)
 
             for x in range(dim_len):
@@ -259,7 +275,7 @@ def track_data_shape(model, op_list, initializers):
             shape = []
 
     for _, node in enumerate(model.graph.node):
-        _inputs, _outputs = get_inouts(node)
+        inputs, outputs = get_inouts(node)
         #  cur_out = node.output[0]
 
         if node.op_type == 'AveragePool' or node.op_type == 'MaxPool':
@@ -271,7 +287,8 @@ def track_data_shape(model, op_list, initializers):
                     #
                 if attr.name == "kernel_shape":
                     kernel_size = attr.ints[0]
-            for x in range(len(data_shape)):  # pylint: disable=C0200
+            ld = len(data_shape)
+            for x in range(ld):
                 if x > 1:
                     data_shape[x] = int((data_shape[x] - kernel_size) // stride + 1)
 
@@ -309,9 +326,9 @@ def track_data_shape(model, op_list, initializers):
             shape = []
             input_shape = []
 
-            for _init in model.graph.initializer:
-                if node.input[1] == _init.name:
-                    cweights = numpy_helper.to_array(_init)
+            for initializer in model.graph.initializer:
+                if node.input[1] == initializer.name:
+                    cweights = numpy_helper.to_array(initializer)
 
             for attr in node.attribute:
                 if attr.name == "dilations":
@@ -339,40 +356,42 @@ def track_data_shape(model, op_list, initializers):
 
         if node.op_type == 'Slice':
             sltemp = []
-            for _input in _inputs:
-                if _input in initializers:
-                    for _init in model.graph.initializer:
-                        if _input == _init.name:
-                            sltemp.append(numpy_helper.to_array(_init)[0].astype(np.int64))
+            for inp in inputs:
+                if inp in initializers:
+                    for initializer in model.graph.initializer:
+                        if inp == initializer.name:
+                            sltemp.append(numpy_helper.to_array(initializer)[0].astype(np.int64))
 
             slice_shape = data_shape[sltemp[0]:sltemp[1]]
-            slice_out = _outputs[0]
+            slice_out = outputs[0]
 
         if node.op_type == 'Concat':
             concat_shape = []
-            concat_out = _outputs[0]
+            concat_out = outputs[0]
 
-            for _input in _inputs:
-                if _input in initializers:
-                    for _init in model.graph.initializer:
-                        if _input == _init.name:
-                            concat_shape.append(numpy_helper.to_array(_init)[0].astype(np.int64))
+            for inp in inputs:
+                if inp in initializers:
+                    for initializer in model.graph.initializer:
+                        if inp == initializer.name:
+                            concat_shape.append(
+                                numpy_helper.to_array(initializer)[0].astype(np.int64)
+                            )
 
-            if _inputs[0] == slice_out:
+            if inputs[0] == slice_out:
                 concat_shape = np.concatenate((slice_shape, concat_shape)).astype(np.int64)
 
         if node.op_type == 'Cast':
             if node.input[0] == concat_out:
-                cast_out = _outputs[0]
+                cast_out = outputs[0]
 
         if node.op_type == 'Reshape':
             if node.input[1] == cast_out:
                 data_shape = concat_shape
                 continue
 
-            for _init in model.graph.initializer:
-                if node.input[1] == _init.name:
-                    shape = numpy_helper.to_array(_init).copy()
+            for initializer in model.graph.initializer:
+                if node.input[1] == initializer.name:
+                    shape = numpy_helper.to_array(initializer).copy()
                     temp = len(shape)
                     test_shape = 0
                     for x in range(temp):
@@ -458,7 +477,7 @@ def modify_weights(input_file, output_file, scale, first, dequantize):
     for _, node in enumerate(model.graph.node):
         if node.op_type == 'Conv' or node.op_type == 'ConvTranspose' or node.op_type == 'Gemm' \
           or node.op_type == 'MatMul' or node.op_type == 'Add':
-            _input = node.input[1]  # weights
+            inp = node.input[1]  # weights
 
             if node.op_type == 'MatMul':
                 mat_mul_out = node.output[0]
@@ -469,24 +488,24 @@ def modify_weights(input_file, output_file, scale, first, dequantize):
                         mat_mul_out = None  # bias for MatMul
                     # allow other Add operations... they are probably biases
 
-            if _input in initializers:
+            if inp in initializers:
                 init_count = 0
-                for _init in model.graph.initializer:
-                    if _input == _init.name:
-                        w = numpy_helper.to_array(_init)
+                for initializer in model.graph.initializer:
+                    if inp == initializer.name:
+                        w = numpy_helper.to_array(initializer)
                         w = basic_quantize(w, first, scale).astype(np.float32)
                         if dequantize is True:
-                            w = w / 128.0
+                            w /= 128.0
                         model.graph.initializer[init_count].raw_data = w.tobytes()
                         first = False
 
                     if len(node.input) > 2:
-                        _input_b = node.input[2]  # bias for Conv, Gemm
-                        if _input_b == _init.name:
-                            w = numpy_helper.to_array(_init)
+                        inp_b = node.input[2]  # bias for Conv, Gemm
+                        if inp_b == initializer.name:
+                            w = numpy_helper.to_array(initializer)
                             w = basic_quantize(w, first, scale).astype(np.float32)
                             if dequantize is True:
-                                w = w / 128.0
+                                w /= 128.0
                             model.graph.initializer[init_count].raw_data = w.tobytes()
                             first = False
                     init_count = init_count + 1
@@ -571,7 +590,7 @@ def load(
     is_not_layer = 0
     kernel_size_onnx = []
     input_dims = []
-    _dim = []
+    dim = []
     matmul_out = None
     trans_perm = (0, 1, 2, 3)
     oplist = []
@@ -594,10 +613,10 @@ def load(
     add_in = None
     save_shape = []
     save_perm = None
-    transpose_list = []  # pylint: disable=W0612
+    transpose_list = []  # pylint: disable=unused-variable
     op_list = []
-    conv1d = False  # pylint: disable=W0612
-    conv2d = False  # pylint: disable=W0612
+    conv1d = False  # pylint: disable=unused-variable
+    conv2d = False  # pylint: disable=unused-variable
 
     # looking for conv1d/conv2d indications
     for x in range(cfg_layers):
@@ -609,7 +628,7 @@ def load(
         op_list.append(op)
 
     save_shape, save_perm, transpose_list, conv1d, conv2d = \
-        track_data_shape(model, op_list, initializers)  # pylint: disable=W0612
+        track_data_shape(model, op_list, initializers)
 
     # find Cast/Mul/Add sequences with connected in/outs
     # and integer initializers in Cast node
@@ -617,29 +636,29 @@ def load(
     # and Add/Mul initializers are dequantize operands
     for _, node in enumerate(model.graph.node):
         if node.op_type == 'Cast' or node.op_type == 'Mul' or node.op_type == 'Add':
-            _inputs, _outputs = get_inouts(node)
+            inputs, outputs = get_inouts(node)
             if node.op_type == 'Cast':
-                cast_out = _outputs[0]
+                cast_out = outputs[0]
                 for attr in node.attribute:
                     if attr.name == 'to':
                         if attr.HasField("i"):
                             if attr.i == 1:
-                                cast_w, iq = process_channels(model,  # pylint: disable=W0612
-                                                              _inputs[0],
-                                                              initializers,
-                                                              False,
-                                                              False,
-                                                              scale_factor)
+                                cast_w, _iq = process_channels(model,
+                                                               inputs[0],
+                                                               initializers,
+                                                               False,
+                                                               False,
+                                                               scale_factor)
                                 cast_w = cast_w.astype(np.int8)
                                 cast_w = np.clip(cast_w, -128, 127).round()
 
             if node.op_type == 'Mul':
-                mul_out = _outputs[0]
-                mul_in = _inputs[0]
+                mul_out = outputs[0]
+                mul_in = inputs[0]
 
             if node.op_type == 'Add':
-                add_out = _outputs[0]
-                add_in = _inputs[0]
+                add_out = outputs[0]
+                add_in = inputs[0]
 
                 if (cast_out == mul_in) and (mul_out == add_in):
                     cast_w_quant.append(cast_w)
@@ -654,7 +673,7 @@ def load(
     for _, node in enumerate(model.graph.node):
         oplist.append(node.op_type)
 
-        _inputs, _outputs = get_inouts(node)
+        inputs, outputs = get_inouts(node)
 
         if node.op_type == 'Cast':
             continue
@@ -663,19 +682,19 @@ def load(
             continue
 
         if node.op_type == 'Conv' or node.op_type == 'ConvTranspose' or node.op_type == 'Gemm' \
-          or node.op_type == 'MatMul' or node.op_type == 'Add':  # noqa: E127
+           or node.op_type == 'MatMul' or node.op_type == 'Add':
             if node.op_type == 'Conv' or node.op_type == 'ConvTranspose' \
-              or node.op_type == 'Gemm' or node.op_type == 'MatMul':
+               or node.op_type == 'Gemm' or node.op_type == 'MatMul':
                 num_layer_ops += 1
                 if node.op_type == 'MatMul':
-                    matmul_out = _outputs[0]  # reference to find following Add(matmul_out,bias)
+                    matmul_out = outputs[0]  # reference to find following Add(matmul_out,bias)
 
-                for _input in _inputs:
-                    if _input in initializers:
-                        for _init in model.graph.initializer:
-                            if _input == _init.name:
-                                for _dim in _init.dims:
-                                    input_dims.append(_dim)
+                for inp in inputs:
+                    if inp in initializers:
+                        for initializer in model.graph.initializer:
+                            if inp == initializer.name:
+                                for d in initializer.dims:
+                                    input_dims.append(d)
 
             if node.op_type == 'Gemm' or node.op_type == 'MatMul':
                 kernel_shape = [1, 1]
@@ -693,9 +712,9 @@ def load(
                         else:
                             kernel_size_onnx.append(a.ints)
 
-            for _input in _inputs:
+            for inp in inputs:
                 w, internal_quantized = process_channels(model,
-                                                         _input,
+                                                         inp,
                                                          initializers,
                                                          do_quantize,
                                                          first,
@@ -706,10 +725,10 @@ def load(
 
                 if w is None:
                     # tf quantize script stores weights in Cast node
-                    if _input in cast_out_ref:
+                    if inp in cast_out_ref:
                         index = 0
                         for cast_ref in cast_out_ref:
-                            if _input == cast_ref:
+                            if inp == cast_ref:
                                 w = cast_w_quant[index]
                                 break
                             index = index + 1
@@ -719,32 +738,29 @@ def load(
                        or node.op_type == 'Add':  # general matrix multiplication (FC layer)
                         if node.op_type == 'Gemm' or node.op_type == 'MatMul':
                             if fc_layer:
-                                if _input == _inputs[1]:  # weight
+                                if inp == inputs[1]:  # weight
                                     assert w.min() >= -128 and w.max() <= 127
                                     fc_weights.append(w)
 
                                 if node.op_type == 'Gemm':
-                                    if len(_inputs) == 3:  # have optional bias input
-                                        if _input == _inputs[2]:  # bias
+                                    if len(inputs) == 3:  # have optional bias input
+                                        if inp == inputs[2]:  # bias
                                             assert w.min() >= -128 and w.max() <= 127
                                             fc_bias.append(w)
-                                    elif _input == _inputs[1]:  # add bias 'None'
+                                    elif inp == inputs[1]:  # add bias 'None'
                                         fc_bias.append(None)    # during weight input processing
 
                         if node.op_type == 'Add':
                             if len(oplist) > 3:
-                                if oplist[-4]+oplist[-3]+oplist[-2] == \
-                                 'ConvSqueezeTranspose':  # pylint:disable=R1703
-                                    cst_seq = True
-                                else:
-                                    cst_seq = False
+                                cst_seq = oplist[-4] + oplist[-3] + oplist[-2] == \
+                                 'ConvSqueezeTranspose'
 
                             # TODO: Is a bias ever more than a single dimension
                             #       that needs to be transposed?
 
-                            if _inputs[0] == matmul_out or cst_seq is True:
+                            if inputs[0] == matmul_out or cst_seq is True:
                                 if fc_layer:
-                                    if _input == _inputs[1]:  # bias
+                                    if inp == inputs[1]:  # bias
                                         assert w.min() >= -128 and w.max() <= 127
                                         fc_bias.append(w)
                                 else:
@@ -767,7 +783,7 @@ def load(
                                                 param_size,
                                                 bias_quantization,
                                                 seq - 1,
-                                                _input,
+                                                inp,
                                                 param_count,
                                                 do_quantize,
                                                 False,
@@ -835,17 +851,17 @@ def load(
                         param_size += w_size
 
                         if len(w.shape) == 2:  # linear - add dummy 'channel'
-                            w = np.expand_dims(w, axis=0)
+                            w = np.expanddims(w, axis=0)
                         else:  # conv1d, conv2d, ... - combine input and output channels
                             if squeeze is True:
                                 w = np.reshape(w, (-1, ) + w.shape[sqz_dim:])
                             else:
                                 w = np.reshape(w, (-1, ) + w.shape[2:])
                         weights.append(w)
-                        weight_keys.append(_input)
+                        weight_keys.append(inp)
 
-                    if len(_inputs) < 3 or \
-                       ((_input == _inputs[2] or cast_ref == _inputs[2])
+                    if len(inputs) < 3 or \
+                       ((inp == inputs[2] or cast_ref == inputs[2])
                        and seq in no_bias):  # no bias input
                         bias.append(None)
                         bias_min.append(0)
@@ -853,7 +869,7 @@ def load(
                         bias_keys.append('N/A')
                         bias_quant.append(0)
                         bias_size.append(0)
-                    elif _input == _inputs[2]:  # bias input
+                    elif inp == inputs[2]:  # bias input
                         manage_bias(w,
                                     bias,
                                     bias_min,
@@ -864,7 +880,7 @@ def load(
                                     param_size,
                                     bias_quantization,
                                     seq,
-                                    _input,
+                                    inp,
                                     param_count,
                                     do_quantize,
                                     False,
@@ -929,7 +945,7 @@ def load(
             print("len(weights):")
             print(len(weights))
             print("")
-            print(_dim)
+            print(dim)
             print("")
             print(oplist)
 
