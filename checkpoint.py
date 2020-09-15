@@ -157,8 +157,7 @@ def load(
 
                 weights.append(w)
                 weight_keys.append(k)
-                # print("SHAPE")
-                # print(w.shape)
+
                 # Is there a bias for this layer?
                 bias_name = operation + '.bias'
 
@@ -257,23 +256,5 @@ def load(
     if error_exit:
         sys.exit(1)
 
-    if not verbose:
-        with np.printoptions(threshold=np.inf, linewidth=80):
-            print("\nSUMMARY\n=======")
-            print(layers, "layers\n")
-            print("weights:")
-            print(weights)
-            print("bias:")
-            print(bias)
-            print("fc_weights:")
-            print(fc_weights)
-            print("fc_bias:")
-            print(fc_bias)
-            print("input_channels:")
-            print(input_channels)
-            print("output_channels:")
-            print(output_channels)
-            print("")
-
-    return layers, weights, bias, output_shift, fc_weights, \
-        fc_bias, input_channels, output_channels
+    return layers, weights, bias, output_shift, \
+        fc_weights, fc_bias, input_channels, output_channels

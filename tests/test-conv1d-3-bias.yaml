@@ -1,0 +1,14 @@
+# Test Conv1D
+
+arch: test
+dataset: test_conv1d-3
+bias: rand64
+
+layers:
+- out_offset: 0x2000
+  processors: 0x0000000000007000
+  operation: conv1d
+  kernel_size: 3
+  stride: 1
+  pad: 1
+

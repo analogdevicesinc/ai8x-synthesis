@@ -29,13 +29,8 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
     Convert checkpoint file or dump parameters for C code
     """
     # Load configuration file
-    print(dev)
-    print(input_file)
-    print(output_file)
-    print(arguments)
-    print(arguments.config_file)
     if arguments.config_file:
-        _, _d, params = yamlcfg.parse(arguments.config_file, device=dev)
+        _, _, params = yamlcfg.parse(arguments.config_file, device=dev)
     else:
         params = None
 

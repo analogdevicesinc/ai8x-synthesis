@@ -11,7 +11,6 @@ import sys
 import yaml
 import op
 import tornadocnn as tc
-from utils import ffs
 from eprint import eprint
 
 
@@ -97,9 +96,9 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
     pooling_enabled = [False] * tc.dev.MAX_LAYERS
     average = [0] * tc.dev.MAX_LAYERS
     pool_stride = [[1, 1]] * tc.dev.MAX_LAYERS
-    quantization = [8] * tc.dev.MAX_LAYERS
+    quantization = [None] * tc.dev.MAX_LAYERS
     bias_quantization = [8] * tc.dev.MAX_LAYERS
-    output_shift = [0] * tc.dev.MAX_LAYERS
+    output_shift = [None] * tc.dev.MAX_LAYERS
     output_offset = [0] * tc.dev.MAX_LAYERS
     activation = [None] * tc.dev.MAX_LAYERS
     big_data = [False] * tc.dev.MAX_LAYERS
@@ -181,17 +180,11 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
             if val not in [1, 2, 4, 8]:
                 error_exit('`quantization` must be 1, 2, 4, or 8', sequence)
             quantization[sequence] = val
-            output_shift[sequence] = 3 - ffs(val)
 
         if 'output_shift' in ll:
             val = ll['output_shift']
-            val += 3 - ffs(quantization[sequence])
             output_shift[sequence] = val
-            min_range = -18 + ffs(quantization[sequence])
-            max_range = 12 + ffs(quantization[sequence])
-            if val < -15 or val > 15:
-                error_exit(f'`output_shift` for quantization `{quantization[sequence]} `must be '
-                           f'in range [{min_range}, {max_range}]', sequence)
+            # The implicit shift for quantization is added later
 
         if 'in_channels' in ll:
             input_chan[sequence] = ll['in_channels']
