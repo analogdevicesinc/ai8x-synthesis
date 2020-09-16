@@ -1,0 +1,14 @@
+# Benchmark network. Uses all processors.
+
+arch: ai85net5
+dataset: simple-dense
+
+# Define layer parameters in order of the layer sequence
+layers:
+- flatten: true
+  operation: MLP
+  out_offset: 0x2000
+  processors: 0x000000000000003ff
+  #output_width: 32
+  
+  
