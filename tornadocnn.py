@@ -365,8 +365,12 @@ def lreg_addr(group, reg, layer=0):
     layer `layer`.
     """
     if hasattr(dev, 'LREG_OFFS'):
-        addr = dev.C_GROUP_OFFS*group + dev.C_CNN_BASE \
-            + dev.C_CNN*4 + reg*4 + layer*dev.LREG_OFFS
+        if reg <= dev.MAX_LREG:
+            addr = dev.C_GROUP_OFFS*group + dev.C_CNN_BASE \
+                + dev.C_CNN*4 + reg*4 + layer*dev.LREG_OFFS
+        else:
+            addr = dev.C_GROUP_OFFS*group + dev.C_CNN_BASE \
+                + dev.C_CNN*4 + reg*4 + layer*4
     else:
         addr = dev.C_GROUP_OFFS*group + dev.C_CNN_BASE \
             + dev.C_CNN*4 + reg*4 * dev.MAX_LAYERS + layer*4
