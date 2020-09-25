@@ -4,7 +4,7 @@
 
 # MAX78000 Network Loader and RTL Simulation Generator
 
-_September 17, 2020_
+_September 22, 2020_
 
 _Open the `.md` version of this file in a markdown enabled viewer, for example Typora (http://typora.io).
 See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A [PDF copy of this file](README.pdf) is available in this repository. The GitHub rendering of this document does not show the formulas or the clickable table of contents._
@@ -207,7 +207,7 @@ $ git submodule update --init
 $ pyenv local 3.6.9
 $ python3 -m venv .
 $ source bin/activate
-(ai8x-training) $ pip3 install -U pip setuptools
+(ai8x-training) $ pip3 install -U pip wheel setuptools
 ```
 
 The next step differs depending on whether the system uses Linux with CUDA 10.1, or any other setup.
@@ -1092,7 +1092,6 @@ The following table describes the most important command line arguments for `ai8
 | `--unload`               | Add cnn_unload() function to generated code                  |                                 |
 | `--softmax`              | Add cnn_unload() and Softmax functions to generated code     |                                 |
 | `--boost`                | Turn on a port pin to boost the CNN supply                   | `--boost 2.5`                   |
-| `--energy` | Add instrumentation for inference energy measurement |  |
 | *File names*             |                                                              |                                 |
 | `--c-filename`           | C file name base (default: main.c)                           | `--c-filename cnn.c`            |
 | `--weight-filename`      | Weight header file name (default: weights.h)                 | `--weight-filename wt.h`        |
@@ -1739,18 +1738,6 @@ The software Softmax function is optimized for processing time and it quantizes 
 #### Contents of the device-* Folder
 
 * For MAX78000/MAX78002, the software Softmax is implemented in `softmax.c`.
-
-#### Energy Measurement
-
-The MAX78000 Evaluation Kit (EVKit) revision C and later includes a MAX32625 microcontroller connected to a MAX34417 power accumulator. Since the sample rate of the MAX34417 is slow compared to typical inference times, `ai8xize.py` supports the command line parameter `--energy` that will operate the MAX78000 at 7.37 MHz, and the CNN in a divide-by-8 mode (~ 0.9 MHz), rather than the defaults of 100 MHz and 50 MHz. This allows enough sample time to get meaningful results (recommended minimum: 1 second). *When adding instrumentation to much faster or much slower networks, modify the C code to change the divide-by ratio (default:* `MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV8`*).*
-
-When running C code generated with `--energy`, the power display on the EVKit will display the inference energy.
-
-*Note: MAX78000 uses LED1 and LED2 to trigger power measurement via MAX32625 and MAX34417.*
-
-## Further Information
-
-Additional information about the evaluation kits, and the software development kit (SDK) is available on the web at https://github.com/MaximIntegratedAI/MaximAI_Documentation
 
 ---
 
