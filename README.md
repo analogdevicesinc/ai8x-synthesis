@@ -4,7 +4,7 @@
 
 # MAX78000 Network Loader and RTL Simulation Generator
 
-_September 22, 2020_
+_September 25, 2020_
 
 _Open the `.md` version of this file in a markdown enabled viewer, for example Typora (http://typora.io).
 See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A [PDF copy of this file](README.pdf) is available in this repository. The GitHub rendering of this document does not show the formulas or the clickable table of contents._
@@ -1738,6 +1738,18 @@ The software Softmax function is optimized for processing time and it quantizes 
 #### Contents of the device-* Folder
 
 * For MAX78000/MAX78002, the software Softmax is implemented in `softmax.c`.
+
+#### Energy Measurement
+
+The MAX78000 Evaluation Kit (EVKit) revision C and later includes a MAX32625 microcontroller connected to a MAX34417 power accumulator. Since the sample rate of the MAX34417 is slow compared to typical inference times, `ai8xize.py` supports the command line parameter `--energy` that will operate the MAX78000 at 7.37 MHz, and the CNN in a divide-by-8 mode (resulting in ~ 0.45 MHz), rather than the defaults of 100 MHz and 50 MHz. This allows enough sample time to get meaningful results (recommended minimum: 1 second).
+
+When running C code generated with `--energy`, the power display on the EVKit will display the inference energy.
+
+*Note: MAX78000 uses LED1 and LED2 to trigger power measurement via MAX32625 and MAX34417.*
+
+## Further Information
+
+Additional information about the evaluation kits, and the software development kit (SDK) is available on the web at https://github.com/MaximIntegratedAI/MaximAI_Documentation
 
 ---
 
