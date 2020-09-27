@@ -1,7 +1,7 @@
 #!/bin/sh
-DEVICE="--device 78000"
-TARGET="blocklevel-ai85"
-PREFIX="ai85"
+DEVICE="--device 78002"
+TARGET="blocklevel-ai87"
+PREFIX="ai87"
 SHORT_LOG="--log-last-only"
 
 ./ai8xize.py --verbose --autogen $TARGET -L --test-dir $TARGET --prefix $PREFIX-cifar --checkpoint-file trained/ai84-cifar10.pth.tar --config-file networks/cifar10-hwc.yaml $DEVICE

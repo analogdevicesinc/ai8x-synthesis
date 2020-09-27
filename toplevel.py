@@ -72,6 +72,7 @@ def header(
         camera=False,
         embedded_arm=False,
         fail_indicator=False,
+        device=84,
 ):
     """
     Write include files and forward definitions to .c file handle `memfile`.
@@ -86,7 +87,10 @@ def header(
     if not cmsis_nn:
         if embedded_code or embedded_arm:
             memfile.write('#include "mxc_sys.h"\n')
-            memfile.write('#include "bbfc_regs.h"\n')
+            if device >= 87:
+                memfile.write('#include "gcfr_regs.h"\n')
+            else:
+                memfile.write('#include "bbfc_regs.h"\n')
             memfile.write('#include "fcr_regs.h"\n')
             memfile.write('#include "icc.h"\n')
             memfile.write('#include "led.h"\n')
@@ -226,6 +230,8 @@ def main(
     if embedded_code and (classification_layer or softmax):
         memfile.write('  int digs, tens;\n')
 
+    bbfc = 'BBFC' if device < 87 else 'GCFR'
+
     if riscv is None or not riscv:
         if embedded_code or embedded_arm:
             if device == 84:
@@ -263,11 +269,11 @@ def main(
                 memfile.write('  SystemCoreClockUpdate();\n')
 
                 memfile.write('\n  // Reset all domains, restore power to CNN\n')
-                memfile.write('  MXC_BBFC->reg3 = 0xf; // Reset\n')
-                memfile.write(f'  MXC_BBFC->reg1 = 0x{mask:01x}; // Mask memory\n')
-                memfile.write(f'  MXC_BBFC->reg0 = 0x{mask:01x}; // Power\n')
-                memfile.write(f'  MXC_BBFC->reg2 = 0x{unmask:01x}; // Iso\n')
-                memfile.write('  MXC_BBFC->reg3 = 0x0; // Reset\n\n')
+                memfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
+                memfile.write(f'  MXC_{bbfc}->reg1 = 0x{mask:01x}; // Mask memory\n')
+                memfile.write(f'  MXC_{bbfc}->reg0 = 0x{mask:01x}; // Power\n')
+                memfile.write(f'  MXC_{bbfc}->reg2 = 0x{unmask:01x}; // Iso\n')
+                memfile.write(f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n\n')
 
                 memfile.write('  MXC_GCR->pclkdiv &= ~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | '
                               'MXC_F_GCR_PCLKDIV_CNNCLKSEL);\n'
@@ -295,20 +301,44 @@ def main(
                 memfile.write('  *((volatile uint32_t *) 0x40006c04) = 0x000001a0; // 96M trim\n')
                 memfile.write('  *((volatile uint32_t *) 0x40000c00) = 0x00000000; '
                               '// Clear TME\n\n')
-                memfile.write('  MXC_GCR->clkcn |= MXC_F_GCR_CLKCN_HIRC96M_EN; // Enable 96M\n')
-                memfile.write('  while ((MXC_GCR->clkcn & MXC_F_GCR_CLKCN_HIRC96M_RDY) == 0) ; '
-                              '// Wait for 96M\n')
-                memfile.write('  MXC_GCR->clkcn |= MXC_S_GCR_CLKCN_CLKSEL_HIRC96; // Select 96M\n')
+                if device >= 87:
+                    memfile.write('  MXC_GCR->clkctrl |= MXC_F_GCR_CLKCTRL_IPO_EN;'
+                                  ' // Enable internal primary osc (IPO)\n')
+                    memfile.write('  while ((MXC_GCR->clkctrl & MXC_F_GCR_CLKCTRL_IPO_RDY) == 0) ;'
+                                  ' // Wait for osc\n')
+                    memfile.write('  MXC_GCR->clkctrl |= MXC_S_GCR_CLKCTRL_SYSCLK_SEL_IPO;'
+                                  ' // Select osc\n')
 
-                memfile.write('\n  // Reset all domains, restore power to CNN\n')
-                memfile.write('  MXC_BBFC->reg3 = 0xf; // Reset\n')
-                memfile.write(f'  MXC_BBFC->reg1 = 0x{mask:01x}; // Mask memory\n')
-                memfile.write(f'  MXC_BBFC->reg0 = 0x{mask:01x}; // Power\n')
-                memfile.write(f'  MXC_BBFC->reg2 = 0x{unmask:01x}; // Iso\n')
-                memfile.write('  MXC_BBFC->reg3 = 0x0; // Reset\n\n')
+                    memfile.write('\n  // Reset all domains, restore power to CNN\n')
+                    memfile.write('  MXC_GCFR->reg3 = 0xf; // Reset\n')
+                    memfile.write(f'  MXC_GCFR->reg1 = 0x{mask:01x}; // Mask memory\n')
+                    memfile.write(f'  MXC_GCFR->reg0 = 0x{mask:01x}; // Power\n')
+                    memfile.write(f'  MXC_GCFR->reg2 = 0x{unmask:01x}; // Iso\n')
+                    memfile.write('  MXC_GCFR->reg3 = 0x0; // Reset\n\n')
 
-                memfile.write('  MXC_GCR->pckdiv = 0x00010000; // CNN clock 96M div 2\n')
-                memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable CNN clock\n')
+                    memfile.write('  MXC_GCR->pclkdiv &= ~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | '
+                                  'MXC_F_GCR_PCLKDIV_CNNCLKSEL);\n'
+                                  '  MXC_GCR->pclkdiv |= MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1; '
+                                  '// CNN clock: APB div 1\n')
+                    memfile.write('  MXC_GCR->pclkdis0 &= ~MXC_F_GCR_PCLKDIS0_CNN;'
+                                  ' // Enable CNN clock\n')
+                else:
+                    memfile.write('  MXC_GCR->clkcn |= MXC_F_GCR_CLKCN_HIRC96M_EN;'
+                                  ' // Enable 96M\n')
+                    memfile.write('  while ((MXC_GCR->clkcn & MXC_F_GCR_CLKCN_HIRC96M_RDY) == 0) ;'
+                                  ' // Wait for 96M\n')
+                    memfile.write('  MXC_GCR->clkcn |= MXC_S_GCR_CLKCN_CLKSEL_HIRC96;'
+                                  ' // Select 96M\n')
+
+                    memfile.write('\n  // Reset all domains, restore power to CNN\n')
+                    memfile.write('  MXC_BBFC->reg3 = 0xf; // Reset\n')
+                    memfile.write(f'  MXC_BBFC->reg1 = 0x{mask:01x}; // Mask memory\n')
+                    memfile.write(f'  MXC_BBFC->reg0 = 0x{mask:01x}; // Power\n')
+                    memfile.write(f'  MXC_BBFC->reg2 = 0x{unmask:01x}; // Iso\n')
+                    memfile.write('  MXC_BBFC->reg3 = 0x0; // Reset\n\n')
+
+                    memfile.write('  MXC_GCR->pckdiv = 0x00010000; // CNN clock 96M div 2\n')
+                    memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable CNN clock\n')
 
         if riscv is not None:
             if riscv_cache:
@@ -403,11 +433,11 @@ def main(
 
         if not forever:
             memfile.write('  // Disable power to CNN\n')
-            memfile.write('  MXC_BBFC->reg3 = 0xf; // Reset\n')
-            memfile.write('  MXC_BBFC->reg1 = 0x0; // Mask memory\n')
-            memfile.write('  MXC_BBFC->reg0 = 0x0; // Power\n')
-            memfile.write('  MXC_BBFC->reg2 = 0xf; // Iso\n')
-            memfile.write('  MXC_BBFC->reg3 = 0x0; // Reset\n\n')
+            memfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
+            memfile.write(f'  MXC_{bbfc}->reg1 = 0x0; // Mask memory\n')
+            memfile.write(f'  MXC_{bbfc}->reg0 = 0x0; // Power\n')
+            memfile.write(f'  MXC_{bbfc}->reg2 = 0xf; // Iso\n')
+            memfile.write(f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n\n')
 
         if not forever:
             if classification_layer or softmax:

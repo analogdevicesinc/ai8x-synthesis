@@ -907,6 +907,7 @@ class APBTopLevel(APB):
             camera=self.input_csv is not None,
             embedded_arm=embedded_arm,
             fail_indicator=fail_indicator,
+            device=self.device,
         )
 
     def verify_header(

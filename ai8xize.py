@@ -2183,15 +2183,15 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             input_period=input_csv_period,
             input_sync=input_sync,
         )
-        assets.copy('assets', 'all', base_directory, test_name)
+        assets.copy('assets', 'rtlsim-ai' + str(device), base_directory, test_name)
         if riscv_cache:
-            assets.copy('assets', 'riscv-cache', base_directory, test_name)
+            assets.copy('assets', 'rtlsim-riscv-cache-ai' + str(device), base_directory, test_name)
         elif riscv_flash:
-            assets.copy('assets', 'riscv-flash', base_directory, test_name)
+            assets.copy('assets', 'rtlsim-riscv-flash-ai' + str(device), base_directory, test_name)
         elif riscv:
-            assets.copy('assets', 'riscv', base_directory, test_name)
+            assets.copy('assets', 'rtlsim-riscv-ai' + str(device), base_directory, test_name)
     elif block_mode:
-        assets.copy('assets', 'blocklevel', base_directory, test_name)
+        assets.copy('assets', 'blocklevel-ai' + str(device), base_directory, test_name)
     elif embedded_code:
         if riscv:
             assets.copy('assets', 'embedded-riscv-ai' + str(device), base_directory, test_name)
