@@ -327,9 +327,21 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 tram_max[ll] *= stride[ll][1]
 
         if input_chan[ll] % conv_groups[ll] != 0 or output_chan[ll] % conv_groups[ll] != 0:
-            eprint(f'Layer {ll}: convolution groups {conv_groups[ll]} does not divide'
-                   f' the input channels {input_chan[ll]} or output channels {output_chan[ll]}.')
+            eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) does not divide'
+                   f' the input channels ({input_chan[ll]}) or'
+                   f' output channels ({output_chan[ll]}).')
             sys.exit(1)
+
+        if conv_groups[ll] > 1:
+            if device < 87:
+                eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) > 1 are not supported'
+                       f' on this device.')
+                sys.exit(1)
+            if conv_groups[ll] != input_chan[ll] or conv_groups[ll] != output_chan[ll]:
+                eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) must be equal to the'
+                       f' number of input channels ({input_chan[ll]}), and output '
+                       f' channels ({output_chan[ll]}) must be equal to input channels.')
+                sys.exit(1)
 
     # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
     test_name = prefix
@@ -1888,7 +1900,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 activation[ll],
                 kernel[ll].reshape(
                     output_chan[ll],
-                    in_chan,
+                    in_chan // conv_groups[ll],
                     kernel_size[ll][0],
                     kernel_size[ll][1]
                 ),
@@ -1915,7 +1927,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 activation[ll],
                 kernel[ll].reshape(
                     output_chan[ll],
-                    in_chan,
+                    in_chan // conv_groups[ll],
                     kernel_size[ll][0],
                     kernel_size[ll][1],
                 ),
@@ -1941,7 +1953,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 activation[ll],
                 kernel[ll].reshape(
                     output_chan[ll],
-                    input_chan[ll],
+                    input_chan[ll] // conv_groups[ll],
                     kernel_size[ll][0],
                 ),
                 bias[ll],
@@ -2272,6 +2284,7 @@ def main():
                     params['operator'],
                     args.display_checkpoint,
                     args.no_bias,
+                    params['conv_groups'],
                 )
     else:  # Get some hard-coded sample weights
         layers, weights, bias, output_shift, fc_weights, \
@@ -2285,6 +2298,8 @@ def main():
                 cfg['weights'] if 'weights' in cfg else None,
                 cfg['bias'] if 'bias' in cfg else None,
                 args.no_bias,
+                params['conv_groups'],
+                params['operator'],
             )
 
     if cfg_layers > layers:
@@ -2553,7 +2568,8 @@ def main():
 
         # Prohibit pad greater than or equal to kernel size
         if padding[ll][0] >= kernel_size[ll][0] or padding[ll][1] >= kernel_size[ll][1]:
-            eprint(f'Pad size for layer {ll} exceeds kernel size.')
+            eprint(f'Pad size ({padding[ll]}) for layer {ll} is greater than or equal to'
+                   f' kernel size ({kernel_size[ll]}).')
             sys.exit(1)
 
         # Check for max dimensions

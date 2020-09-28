@@ -120,7 +120,7 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
     sequence = 0
     for ll in cfg['layers']:
         if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'conv_groups',
-                               'in_channels', 'in_dim', 'in_sequences', 'in_offset',
+                               'groups', 'in_channels', 'in_dim', 'in_sequences', 'in_offset',
                                'kernel_size', 'pool_stride', 'out_channels', 'out_offset',
                                'activate', 'activation', 'data_format', 'eltwise', 'flatten',
                                'op', 'operands', 'operation', 'operator',
@@ -382,8 +382,9 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
                 error_exit('`in_sequences` cannot be greater than layer sequence', sequence)
             in_sequences[sequence] = ll['in_sequences']
 
-        if 'conv_groups' in ll:
-            conv_groups[sequence] = ll['conv_groups']
+        if 'conv_groups' in ll or 'groups' in ll:
+            key = 'conv_groups' if 'conv_groups' in ll else 'groups'
+            conv_groups[sequence] = ll[key]
 
         if 'write_gap' in ll:
             write_gap[sequence] = ll['write_gap']

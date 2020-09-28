@@ -11,6 +11,7 @@ import os
 
 import numpy as np
 
+import op
 from utils import fls
 
 
@@ -23,6 +24,8 @@ def load(
         cfg_weights=None,
         cfg_bias=None,
         no_bias=None,
+        conv_groups=None,
+        operator=None,
 ):
     """
     Return sample weights.
@@ -101,8 +104,10 @@ def load(
         # Add based on quantization
         output_shift[ll] += 8 - quantization[ll]
 
-        output_channels.append(w[ll].shape[0])  # Output channels
-        input_channels.append(w[ll].shape[1])  # Input channels
+        mult = conv_groups[ll] if operator[ll] == op.CONVTRANSPOSE2D else 1
+        output_channels.append(w[ll].shape[0] * mult)  # Output channels
+        mult = conv_groups[ll] if operator[ll] != op.CONVTRANSPOSE2D else 1
+        input_channels.append(w[ll].shape[1] * mult)  # Input channels
         if len(w[ll].shape) == 4:
             weights.append(w[ll].reshape(-1, w[ll].shape[-2], w[ll].shape[-1]))
         else:
