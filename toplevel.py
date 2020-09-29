@@ -113,7 +113,8 @@ def header(
 
     if not cmsis_nn and (riscv is None or riscv):
         if embedded_code:
-            memfile.write('uint32_t cnn_time; // Stopwatch\n\n')
+            if not measure_energy:
+                memfile.write('uint32_t cnn_time; // Stopwatch\n\n')
 
             memfile.write('void fail(void)\n{\n')
 
@@ -134,7 +135,8 @@ def header(
                       '& (1<<12)) != 1<<12) ;\n')
         if embedded_code:
             memfile.write('  CNN_COMPLETE; // Signal that processing is complete\n')
-            memfile.write('  cnn_time = MXC_TMR_SW_Stop(MXC_TMR0);\n')
+            if not measure_energy:
+                memfile.write('  cnn_time = MXC_TMR_SW_Stop(MXC_TMR0);\n')
         memfile.write('}\n\n')
 
     if master is not False:
@@ -272,7 +274,17 @@ def main(
                 memfile.write('  SystemCoreClockUpdate();\n')
 
                 if measure_energy:
-                    memfile.write('\n  printf("Measuring system base power...\\n");\n'
+                    memfile.write('\n  // Disable CNN clock\n'
+                                  '  MXC_SYS_ClockDisable(MXC_SYS_PERIPH_CLOCK_CNN);\n'
+                                  '  // Disable power to CNN\n'
+                                  '  MXC_BBFC->reg3 = 0xf; // Reset\n'
+                                  '  MXC_BBFC->reg1 = 0x0; // Mask memory\n'
+                                  '  MXC_BBFC->reg0 = 0x0; // Power\n'
+                                  '  MXC_BBFC->reg2 = 0xf; // Iso\n'
+                                  '  MXC_BBFC->reg3 = 0x0; // Reset\n'
+                                  '  // Enable primary clock\n'
+                                  '  MXC_SYS_ClockSourceEnable(MXC_SYS_CLOCK_IPO);\n\n'
+                                  '  printf("Measuring system base power...\\n");\n'
                                   '  SYS_START;\n'
                                   '  MXC_Delay(SEC(1));\n'
                                   '  SYS_COMPLETE;\n')
@@ -422,8 +434,9 @@ def main(
 
         if embedded_code:
             memfile.write('\n  printf("\\n*** PASS ***\\n\\n");\n\n')
-            memfile.write('  printf("Inference time: %d us\\n\\n", cnn_time);\n\n')
-            if measure_energy:
+            if not measure_energy:
+                memfile.write('  printf("Inference time: %d us\\n\\n", cnn_time);\n\n')
+            else:
                 memfile.write('  printf("See monitor display for inference energy.\\n");\n\n')
 
         if not forever:
