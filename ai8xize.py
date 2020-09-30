@@ -1670,6 +1670,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             val |= 1 << 31  # Qupac bit
         if hasattr(tc.dev, 'CTL_PIPELINE_OFFS') and pipeline:
             val |= 1 << tc.dev.CTL_PIPELINE_OFFS
+            if streaming[0] and big_data[0]:
+                val |= 1 << 6
 
         # Enable all needed groups except the first one
         for _, group in enumerate(groups_used):
