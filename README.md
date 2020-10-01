@@ -655,7 +655,7 @@ The MAX78000 hardware does not support arbitrary network parameters. Specificall
 
   * Kernel sizes must be 3×3.
   * Padding can be 0, 1, or 2.
-  * Stride is fixed to 2.
+  * Stride is fixed to 2. Output padding is fixed to 1.
 
 * A programmable layer-specific shift operator is available at the output of a convolution.
 
