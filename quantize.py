@@ -127,6 +127,8 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
         param_levels = k.rsplit(sep='.', maxsplit=2)
         if len(param_levels) == 3:
             layer, operation, parameter = param_levels[0], param_levels[1], param_levels[2]
+        elif len(param_levels) == 2:
+            layer, operation, parameter = param_levels[0], None, param_levels[1]
         else:
             continue
         if parameter in ['w_zero_point', 'b_zero_point']:
@@ -152,7 +154,9 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                     if clamp_bits is None:
                         weight_bits_name = '.'.join([layer, 'weight_bits'])
                         if weight_bits_name in checkpoint_state:
-                            clamp_bits = int(unwrap(checkpoint_state[weight_bits_name]))
+                            layer_weight_bits = int(unwrap(checkpoint_state[weight_bits_name]))
+                            if layer_weight_bits != 0:
+                                clamp_bits = layer_weight_bits
 
                     # Third priority: --qat-weight-bits or default
                     if clamp_bits is None:
@@ -274,6 +278,8 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                 layers += 1
         elif parameter in ['base_b_q']:
             del new_checkpoint_state[k]
+        elif parameter == 'adjust_output_shift':
+            new_checkpoint_state[k] = torch.Tensor([0.])
 
     checkpoint['state_dict'] = new_checkpoint_state
     if compression_sched is not None and new_masks_dict is not None:
