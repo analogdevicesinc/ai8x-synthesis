@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 ###################################################################################################
-# Copyright (C) 2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
-# Maxim Confidential
-#
-# Written by RM
+# Maxim Integrated Products, Inc. Default Copyright Notice:
+# https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
 ###################################################################################################
 """
 Generate sample input data.
