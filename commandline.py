@@ -9,6 +9,7 @@ Command line parser for Tornado CNN
 """
 import argparse
 import camera
+import devices
 from devices import device
 
 
@@ -28,6 +29,9 @@ def get_parser():
                         help="enable AI87 features (default: AI84)")
     mgroup.add_argument('--device', type=device, metavar='N',
                         help="set device (default: 84)")
+    mgroup.add_argument('--cmsis-software-nn', action='store_const',
+                        const=devices.CMSISNN, dest='device',
+                        help="create code for an Arm CMSIS NN software network")
 
     # Hardware features
     group = parser.add_argument_group('Hardware features')
@@ -258,8 +262,6 @@ def get_parser():
 
     # Various
     group = parser.add_argument_group('Various')
-    group.add_argument('--cmsis-software-nn', action='store_true', default=False,
-                       help="create code for an Arm CMSIS NN software network instead")
     group.add_argument('--input-split', type=int, default=1, metavar='N', choices=range(1, 1025),
                        help="split input into N portions (default: don't split)")
     group.add_argument('--synthesize-input', type=int, metavar='N',
