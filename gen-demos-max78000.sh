@@ -5,8 +5,8 @@ SDK_TARGET="sdk/Examples/MAX78000/CNN"
 
 # Update common code and header files
 mkdir -p $SDK_TARGET/Common/
-cp device-ai85/softmax.c $SDK_TARGET/Common/
-cp device-ai85/*.h $SDK_TARGET/Common/
+cp assets/device-ai85/softmax.c $SDK_TARGET/Common/
+cp assets/device-ai85/*.h $SDK_TARGET/Common/
 
 ./ai8xize.py -e --verbose --top-level cnn -L --test-dir $SDK_TARGET --prefix mnist --checkpoint-file trained/ai85-mnist.pth.tar --config-file networks/mnist-chw-ai85.yaml --device MAX78000 --compact-data --mexpress --softmax --display-checkpoint $CLOCK_TRIM $@
 ./ai8xize.py -e --verbose --top-level cnn -L --test-dir $SDK_TARGET --prefix mnist-riscv --checkpoint-file trained/ai85-mnist.pth.tar --config-file networks/mnist-chw-ai85.yaml --device MAX78000 --compact-data --mexpress --softmax --display-checkpoint $CLOCK_TRIM --riscv --riscv-flash --riscv-cache --riscv-debug $@
