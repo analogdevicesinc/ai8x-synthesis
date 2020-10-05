@@ -554,12 +554,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     apb.output('no pooling')
                 if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
                     conv_str = f', {op.string(operator[ll])} with kernel size ' \
-                               f'{kernel_size_str[ll]}, '
+                               f'{kernel_size_str[ll]}, ' \
+                               f'stride {stride_str[ll]}, ' \
+                               f'pad {padding_str[ll]}, '
                 else:
                     conv_str = ', no convolution, '
                 apb.output(conv_str +
-                           f'stride {stride_str[ll]}, '
-                           f'pad {padding_str[ll]}, '
                            f'{output_chan[ll]}x{output_dim_str[ll]} output\n')
 
         apb.output('\n')
@@ -2377,17 +2377,18 @@ def main():
     processor_map = params['processor_map']
     output_processor_map = params['output_processor_map'][:layers]
 
-    if 'output_map' in cfg:
-        # Use optional configuration value if it's specified
-        output_processor_map[-1] = cfg['output_map']
-    elif len(processor_map) == layers and output_processor_map[-1] is None:
-        # Default to packed, 0-aligned output map
-        expand = (output_channels[layers-1] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
-        expand_chunk = (output_channels[layers-1] + expand-1) // expand
-        if output_channels[layers-1] > tc.dev.MAX_PROC:
-            expand_chunk = min((expand_chunk + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1),
-                               tc.dev.MAX_PROC)
-        output_processor_map[-1] = 2**expand_chunk-1
+    if args.device != devices.CMSISNN:
+        if 'output_map' in cfg:
+            # Use optional configuration value if it's specified
+            output_processor_map[-1] = cfg['output_map']
+        elif len(processor_map) == layers and output_processor_map[-1] is None:
+            # Default to packed, 0-aligned output map
+            expand = (output_channels[layers-1] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
+            expand_chunk = (output_channels[layers-1] + expand-1) // expand
+            if output_channels[layers-1] > tc.dev.MAX_PROC:
+                expand_chunk = min((expand_chunk + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1),
+                                   tc.dev.MAX_PROC)
+            output_processor_map[-1] = 2**expand_chunk-1
 
     # Remove extraneous layer configuration values (when --stop-after is used)
     processor_map = processor_map[:layers]
@@ -2590,7 +2591,7 @@ def main():
         eprint("Embedded code on RISC-V requires --riscv-cache.")
         sys.exit(1)
 
-    if not args.cmsis_software_nn:
+    if args.device != devices.CMSISNN:
         tn = create_net(
             args.prefix,
             args.verbose,
@@ -2717,11 +2718,12 @@ def main():
                 args.autogen,
             )
     else:
-        eprint('--cmsis-software-nn is not supported.', error=False)
+        eprint('CMSIS-NN code generation is unsupported.', error=False)
 
         cmsisnn.create_net(
             args.prefix,
             args.verbose,
+            args.verbose_all,
             args.debug,
             args.log,
             layers,
@@ -2735,6 +2737,7 @@ def main():
             output_shift,
             input_channels,
             output_channels,
+            conv_groups,
             output_width,
             padding,
             dilation,
@@ -2749,12 +2752,18 @@ def main():
             fc_weights,
             fc_bias,
             flatten,
+            operands,
+            eltwise,
+            pool_first,
+            in_sequences,
             args.c_filename,
             args.test_dir,
             args.log_filename,
             args.weight_filename,
             args.sample_filename,
+            args.avg_pool_rounding,
             args.device,
+            args.legacy_test,
         )
 
     print("SUMMARY OF OPS")
