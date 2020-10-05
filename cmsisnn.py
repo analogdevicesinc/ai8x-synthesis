@@ -3,8 +3,6 @@
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
 Routines to generate software CNNs using Arm's CMSIS NN library
@@ -14,15 +12,19 @@ import sys
 
 import numpy as np
 
+import assets
+import devices
 import op
 import toplevel
 from eprint import eprint
-from simulate import conv1d_layer, conv2d_layer, linear_layer, pooling_layer
+from simulate import conv1d_layer, conv2d_layer, linear_layer, pooling_layer, eltwise_layer, \
+    passthrough_layer, convtranspose2d_layer, show_data
 
 
-def create_net(
+def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches
         prefix,
         verbose,
+        verbose_all,
         debug,
         log,
         layers,
@@ -36,6 +38,7 @@ def create_net(
         output_shift,
         input_chan,
         output_chan,
+        conv_groups,
         output_width,
         padding,
         dilation,
@@ -43,26 +46,75 @@ def create_net(
         pool,
         pool_stride,
         pool_average,
-        activate,
+        activation,
         data,
         kernel,
         bias,
         fc_weights,
         fc_bias,
         flatten,
+        operands,
+        eltwise,
+        pool_first,
+        in_sequences,
         c_filename,
         base_directory,
         log_filename,
         weight_filename,
         sample_filename,
+        avg_pool_rounding,
         device=84,
+        legacy_test=False,
 ):
     """
     Create the CMSIS NN network.
     """
-    if any(w != 8 for w in output_width):
-        eprint('CMSIS network generator does not currently support `output_width` that is not 8.')
-        sys.exit(1)
+    if output_width[-1] != 8:
+        eprint('CMSIS network generator does not currently support `output_width` that is not 8. '
+               'Forcing to 8 bit.', error=False)  # FIXME: Support 32-bit output
+        output_width[-1] = 8
+
+    input_dim_str = [None] * layers
+    output_dim_str = [None] * layers
+    kernel_size_str = [None] * layers
+    pool_str = [None] * layers
+    padding_str = [None] * layers
+    pool_stride_str = [None] * layers
+    stride_str = [None] * layers
+
+    for ll in range(layers):
+        if quantization[ll] is None:
+            quantization[ll] = 8  # Set default
+        elif quantization[ll] != 8:  # FIXME: Support quantization
+            eprint('CMSIS network generator does not currently support `quantization` != 8.')
+            sys.exit(1)
+
+        if output_shift[ll] is None:
+            output_shift[ll] = 0  # Set default
+
+        if operator[ll] != op.CONV1D:
+            input_dim_str[ll] = f'{input_dim[ll][0]}x{input_dim[ll][1]}'
+            output_dim_str[ll] = f'{output_dim[ll][0]}x{output_dim[ll][1]}'
+            kernel_size_str[ll] = f'{kernel_size[ll][0]}x{kernel_size[ll][1]}'
+            pool_str[ll] = f'{pool[ll][0]}x{pool[ll][1]}' \
+                if pool[ll][0] > 1 or pool[ll][1] > 1 else '0x0'
+            padding_str[ll] = f'{padding[ll][0]}/{padding[ll][1]}'
+            pool_stride_str[ll] = f'{pool_stride[ll][0]}/{pool_stride[ll][1]}'
+            stride_str[ll] = f'{stride[ll][0]}/{stride[ll][1]}'
+        else:
+            input_dim_str[ll] = f'{input_dim[ll][0]}'
+            output_dim_str[ll] = f'{output_dim[ll][0]}'
+            kernel_size_str[ll] = f'{kernel_size[ll][0]}'
+            pool_str[ll] = f'{pool[ll][0]}' \
+                if pool[ll][0] > 1 or pool[ll][1] > 1 else '0'
+            padding_str[ll] = f'{padding[ll][0]}'
+            pool_stride_str[ll] = f'{pool_stride[ll][0]}'
+            stride_str[ll] = f'{stride[ll][0]}'
+
+        if input_chan[ll] % conv_groups[ll] != 0 or output_chan[ll] % conv_groups[ll] != 0:
+            eprint(f'Layer {ll}: convolution groups {conv_groups[ll]} does not divide'
+                   f' the input channels {input_chan[ll]} or output channels {output_chan[ll]}.')
+            sys.exit(1)
 
     test_name = prefix
     print(f'{test_name}...')
@@ -72,6 +124,8 @@ def create_net(
     # Redirect stdout?
     if log:
         sys.stdout = open(os.path.join(base_directory, test_name, log_filename), 'w')
+        print(f'{" ".join(str(x) for x in sys.argv)}')
+        print(f'{devices.partnum(device)}\n')
         print(f'{test_name}')
 
     filename = c_filename + '.c'
@@ -85,24 +139,8 @@ def create_net(
 
         c_file.write(f'// {test_name}\n')
         c_file.write(f'// Created using {" ".join(str(x) for x in sys.argv)}\n')
-
-        # Human readable description of test
-        c_file.write(f'\n// Configuring {layers} layer{"s" if layers > 1 else ""}:\n')
-
-        for ll in range(layers):
-            c_file.write(f'// Layer {ll}: '
-                         f'{input_chan[ll]}x{input_dim[ll][0]}x{input_dim[ll][1]}, ')
-            if pool[ll][0] > 1 or pool[ll][1] > 1:
-                c_file.write(f'{pool[ll][0]}x{pool[ll][1]} {"avg" if pool_average[ll] else "max"} '
-                             f'pool with stride {pool_stride[ll]}')
-            else:
-                c_file.write('no pooling')
-            c_file.write(f', {kernel_size[ll][0]}x{kernel_size[ll][1]} convolution '
-                         f'with stride {stride[ll]} '
-                         f'pad {padding[ll]}, '
-                         f'{output_chan[ll]}x{output_dim[ll][0]}x{output_dim[ll][1]} out\n')
-
         c_file.write('\n')
+
         toplevel.header(c_file, 0, embedded_code=True, cmsis_nn=True)
 
         # Pre-define data memory loader.
@@ -110,47 +148,50 @@ def create_net(
         toplevel.c_define(sampledata_header, d, 'INPUT_DATA', '%d', 16)
         input_size = d.size
         c_file.write('static const q7_t input_data[] = INPUT_DATA;\n')
-        c_file.write('static const q7_t output_data[] = OUTPUT_DATA; // Last conv layer output\n')
+        c_file.write(f'static const q{output_width[-1]-1}_t output_data[] = OUTPUT_DATA; '
+                     '// Last conv layer output\n')
 
         # Pre-define the kernels and bias values
         for ll in range(layers):
             # Rearrange kernels when emulating a fully connected network using 1x1 Conv2D
             # CMSIS data uses HWC, PyTorch uses CHW
-            if kernel_size[ll] == [1, 1] and input_dim[ll] == [1, 1]:
-                w = kernel[ll]. \
-                    reshape((output_chan[ll],
-                             input_chan[ll] // (auto_input_dim[ll][0] * auto_input_dim[ll][1]),
-                             auto_input_dim[ll][0], auto_input_dim[ll][1],
-                             kernel_size[ll][0], kernel_size[ll][1])). \
-                    transpose((0, 4, 5, 2, 3, 1)). \
-                    flatten()
-            elif flatten[ll]:
-                w = kernel[ll]. \
-                    reshape((output_chan[ll],
-                             input_chan[ll],
-                             auto_input_dim[ll][0], auto_input_dim[ll][1],
-                             kernel_size[ll][0], kernel_size[ll][1])). \
-                    transpose((0, 4, 5, 2, 3, 1)). \
-                    flatten()
-            else:
-                w = kernel[ll]. \
-                    reshape((output_chan[ll], input_chan[ll],
-                             kernel_size[ll][0], kernel_size[ll][1])). \
-                    transpose((0, 2, 3, 1)). \
-                    flatten()
-            toplevel.c_define(weight_header, w, f'WEIGHTS_{ll}', '%d', 16)
-            if bias[ll] is not None:
-                b = bias[ll].flatten()
-            else:
-                # We need empty bias values (the Arm code needs them both for rounding of
-                # the shifted output, and it does not like NULL bias pointers)
-                b = np.zeros(output_chan[ll], dtype=np.int64)
-            toplevel.c_define(weight_header, b, f'BIAS_{ll}', '%d', 16)
+            if operator[ll] != op.NONE:
+                if kernel_size[ll] == [1, 1] and input_dim[ll] == [1, 1]:
+                    w = kernel[ll]. \
+                        reshape((output_chan[ll],
+                                input_chan[ll] // (auto_input_dim[ll][0] * auto_input_dim[ll][1]),
+                                auto_input_dim[ll][0], auto_input_dim[ll][1],
+                                kernel_size[ll][0], kernel_size[ll][1])). \
+                        transpose((0, 4, 5, 2, 3, 1)). \
+                        flatten()
+                elif flatten[ll]:
+                    w = kernel[ll]. \
+                        reshape((output_chan[ll],
+                                input_chan[ll],
+                                auto_input_dim[ll][0], auto_input_dim[ll][1],
+                                kernel_size[ll][0], kernel_size[ll][1])). \
+                        transpose((0, 4, 5, 2, 3, 1)). \
+                        flatten()
+                else:
+                    w = kernel[ll]. \
+                        reshape((output_chan[ll], input_chan[ll],
+                                kernel_size[ll][0], kernel_size[ll][1])). \
+                        transpose((0, 2, 3, 1)). \
+                        flatten()
+                toplevel.c_define(weight_header, w, f'WEIGHTS_{ll}', '%d', 16)
+                if bias[ll] is not None:
+                    b = bias[ll].flatten()
+                else:
+                    # We need empty bias values (the Arm code needs them both for rounding of
+                    # the shifted output, and it does not like NULL bias pointers)
+                    b = np.zeros(output_chan[ll], dtype=np.int64)
+                toplevel.c_define(weight_header, b, f'BIAS_{ll}', '%d', 16)
         c_file.write('\n')
 
         for ll in range(layers):
-            c_file.write(f'static const q7_t weights_{ll}[] = WEIGHTS_{ll};\n')
-            c_file.write(f'static const q7_t bias_{ll}[] = BIAS_{ll};\n')
+            if operator[ll] != op.NONE:
+                c_file.write(f'static const q7_t weights_{ll}[] = WEIGHTS_{ll};\n')
+                c_file.write(f'static const q7_t bias_{ll}[] = BIAS_{ll};\n')
         c_file.write('\n')
 
         # Compute buffer sizes
@@ -176,16 +217,90 @@ def create_net(
         # Compute layer-by-layer output and chain results into input
         buffer0, buffer1 = 'buffer0', 'buffer1'
 
-        for ll in range(layers):
-            c_file.write(f'  // Layer {ll}: [{input_chan[ll]}, {input_dim[ll][0]}, '
-                         f'{input_dim[ll][1]}] -> ')
-            if pool[ll][0] > 1 or pool[ll][1] > 1:
-                c_file.write(f'[{input_chan[ll]}, {pooled_dim[ll][0]}, {pooled_dim[ll][1]}] -> ')
+        def run_eltwise(
+                data,
+                ll,
+        ):
+            """
+            In-flight element-wise operations
+            """
+            if operator[ll] == op.NONE:
+                # Let element-wise do 32-bit, else 8-bit only
+                o_width = output_width[ll]
+            else:
+                o_width = 8
+            d_shape = data.shape
 
-            # Add element-wise dimension
-            data = np.expand_dims(data, 0)
+            data, out_size = eltwise_layer(
+                eltwise[ll],
+                ll,
+                verbose,
+                verbose_all or ll == layers-1,
+                data[0].shape,
+                output_shift[ll],
+                data,
+                output_width=o_width,
+                device=device,
+                debug=False,
+                operands=operands[ll],
+            )
+            assert out_size[0] == d_shape[1] \
+                and out_size[1] == d_shape[2] and out_size[2] == d_shape[3]
+
+            return data
+
+        data_buf = [data]
+        # Compute layer-by-layer output and chain results into input
+        for ll in range(layers):
+            # Concatenate input data if needed
+            if in_sequences[ll] is not None:
+                if isinstance(in_sequences[ll], list):
+                    try:
+                        data = np.concatenate([data_buf[i + 1] for i in in_sequences[ll]], axis=0)
+                    except ValueError as err:
+                        eprint('Error in input data concatenation layer:', err)
+                        sys.exit(1)
+                else:
+                    data = data_buf[in_sequences[ll] + 1]
+            else:
+                data = data_buf[-1]
+
+            # Split data into multiple inputs if needed
+            if operands[ll] > 1:
+                if ll == 0 and legacy_test:
+                    data = np.array(np.split(data, operands[ll], axis=0))
+                elif legacy_test:
+                    d = np.empty((operands[ll],
+                                 data.shape[0], data.shape[1], data.shape[2] // operands[ll]),
+                                 dtype=np.int64)
+                    for i in range(operands[ll]):
+                        d[i, :, :, :] = data[:, :, i::operands[ll]]
+                    data = d
+                else:
+                    data = np.array(np.split(data, operands[ll], axis=0))
+            else:
+                data = np.expand_dims(data, 0)
+
+            show_data(
+                ll,
+                verbose,
+                verbose_all or ll == layers-1,
+                data.shape,
+                data,
+                debug=False,
+                expand=1,
+                expand_thresh=1,
+                operation=operator[ll],
+                operands=operands[ll],
+            )
 
             in_chan = input_chan[ll]
+
+            # Run in-flight element-wise operations first?
+            if operands[ll] > 1 and not pool_first[ll]:
+                eprint("Element-wise operations are currently not implemented for CMSIS-NN")
+                sys.exit(1)  # FIXME: Support element-wise operations
+                data = np.expand_dims(run_eltwise(data, ll), 0)
 
             # Allow 1D <-> 2D and 2D W/L conversions
             if operator[ll] == op.CONV1D:
@@ -195,21 +310,23 @@ def create_net(
                 data = data.reshape(data.shape[0], data.shape[1],
                                     input_dim[ll][0], input_dim[ll][1])
 
+            # In-flight pooling
             data, out_size = pooling_layer(
                 ll,
                 verbose,
-                False,
+                verbose_all or ll == layers-1,
                 data[0].shape,
                 pool[ll],
                 pool_stride[ll],
                 pool_average[ll],
                 data,
+                debug=False,
                 expand=1,
-                expand_thresh=16384,
+                expand_thresh=1,
                 operation=operator[ll],
                 operands=data.shape[0],
-                rounding=False,
-                debug=debug,
+                rounding=avg_pool_rounding,
+                debug_data=None,
             )
 
             if operator[ll] == op.CONV1D:
@@ -221,18 +338,23 @@ def create_net(
                     and out_size[1] == pooled_dim[ll][0] \
                     and out_size[2] == pooled_dim[ll][1]
 
-            # Get rid of element-wise dimension
-            data = np.squeeze(data, axis=0)
+            if operands[ll] > 1 and pool_first[ll]:
+                data = run_eltwise(data, ll)
+            else:
+                data = np.squeeze(data, axis=0)
 
+            # Convolution or passthrough
             if operator[ll] == op.CONV2D:
                 if flatten[ll]:
                     in_chan *= input_dim[ll][0] * input_dim[ll][1]
                     data = data.reshape(in_chan, 1, 1)
+                    if verbose:
+                        print(f"FLATTEN TO {in_chan}x1x1...\n")
 
                 out_buf, out_size = conv2d_layer(
                     ll,
                     verbose,
-                    False,
+                    verbose_all or ll == layers-1,
                     data.shape,
                     kernel_size[ll],
                     output_shift[ll],
@@ -240,7 +362,34 @@ def create_net(
                     padding[ll],
                     dilation[ll],
                     stride[ll],
-                    activate[ll],
+                    activation[ll],
+                    kernel[ll].reshape(
+                        output_chan[ll],
+                        in_chan,
+                        kernel_size[ll][0],
+                        kernel_size[ll][1]
+                    ),
+                    bias[ll],
+                    data,
+                    output_width=output_width[ll],
+                    groups=conv_groups[ll],
+                    device=device,
+                    debug=False,
+                )
+            elif operator[ll] == op.CONVTRANSPOSE2D:
+                out_buf, out_size = convtranspose2d_layer(
+                    ll,
+                    verbose,
+                    verbose_all or ll == layers-1,
+                    data.shape,
+                    kernel_size[ll],
+                    output_shift[ll],
+                    output_chan[ll],
+                    padding[ll],
+                    dilation[ll],
+                    stride[ll],
+                    [1, 1],  # output_padding
+                    activation[ll],
                     kernel[ll].reshape(
                         output_chan[ll],
                         in_chan,
@@ -249,14 +398,16 @@ def create_net(
                     ),
                     bias[ll],
                     data,
+                    output_width=output_width[ll],
+                    groups=conv_groups[ll],
                     device=device,
-                    debug=debug,
+                    debug=False,
                 )
-            else:
+            elif operator[ll] == op.CONV1D:
                 out_buf, out_size = conv1d_layer(
                     ll,
                     verbose,
-                    False,
+                    verbose_all or ll == layers-1,
                     data.shape,
                     kernel_size[ll][0],
                     output_shift[ll],
@@ -264,18 +415,65 @@ def create_net(
                     padding[ll][0],
                     dilation[ll][0],
                     stride[ll][0],
-                    activate[ll],
+                    activation[ll],
                     kernel[ll].reshape(
                         output_chan[ll],
-                        in_chan,
-                        kernel_size[ll][0]
+                        input_chan[ll],
+                        kernel_size[ll][0],
                     ),
                     bias[ll],
                     data,
+                    output_width=output_width[ll],
+                    groups=conv_groups[ll],
                     device=device,
-                    debug=debug,
+                    debug=False,
                 )
-            c_file.write(f'{out_size}\n')
+            elif operator[ll] == op.NONE:  # '0'D (pooling only or passthrough)
+                out_buf, out_size = passthrough_layer(
+                    ll,
+                    verbose,
+                    verbose_all or ll == layers-1,
+                    data.shape,
+                    data,
+                    device=device,
+                    debug=False,
+                )
+            else:
+                eprint(f'Unknown operator `{op.string(operator[ll])}`.')
+                sys.exit(1)
+
+            assert out_size[0] == output_chan[ll] \
+                and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
+
+            c_file.write(f'  // Layer {ll}: '
+                         f'{str(operands[ll])+"x" if operands[ll] > 1 else ""}'
+                         f'{input_chan[ll]}x{input_dim_str[ll]}'
+                         f'{" flattened, " if flatten[ll] else ", "}')
+            if pool[ll][0] > 1 or pool[ll][1] > 1:
+                c_file.write(f'{pool_str[ll]} {"avg" if pool_average[ll] else "max"} '
+                             f'pool with stride {pool_stride_str[ll]}')
+            else:
+                c_file.write('no pooling')
+            if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
+                conv_str = f', {op.string(operator[ll])} with kernel size ' \
+                           f'{kernel_size_str[ll]}, ' \
+                           f'stride {stride_str[ll]}, ' \
+                           f'pad {padding_str[ll]}, '
+            else:
+                conv_str = ', no convolution, '
+            c_file.write(conv_str +
+                         f'{output_chan[ll]}x{output_dim_str[ll]} output\n')
+
+            c_file.write(f'  // Dimensions: [{input_chan[ll]}, {input_dim[ll][0]}, '
+                         f'{input_dim[ll][1]}]')
+            if pool[ll][0] > 1 or pool[ll][1] > 1:
+                c_file.write(f' -> [{input_chan[ll]}, {pooled_dim[ll][0]}, {pooled_dim[ll][1]}]')
+            if flatten[ll]:
+                c_file.write(f' -> [{input_chan[ll]*pooled_dim[ll][0]*pooled_dim[ll][1]}, 1, 1]')
+            if operator[ll] != op.NONE:
+                c_file.write(f' -> {out_size}\n')
+            else:
+                c_file.write('\n')
 
             source = 'input_data' if ll == 0 else buffer0
 
@@ -306,51 +504,79 @@ def create_net(
                 source = buffer1
                 buffer0, buffer1 = buffer1, buffer0
 
-            # Check for squareness
-            if kernel_size[ll][0] == kernel_size[ll][1] \
-               and pooled_dim[ll][0] == pooled_dim[ll][1] \
-               and output_dim[ll][0] == output_dim[ll][1] \
-               and padding[ll][0] == padding[ll][1] \
-               and stride[ll][0] == stride[ll][1]:
-                fn = 'fast' if input_chan[ll] % 4 == 0 and output_chan[ll] % 2 == 0 else 'basic'
-                c_file.write(f'  arm_convolve_HWC_q7_{fn}({source}, '
-                             f'{pooled_dim[ll][0]}, '
-                             f'{input_chan[ll]}, weights_{ll}, {output_chan[ll]}, '
-                             f'{kernel_size[ll][0]}, '
-                             f'{padding[ll][0]}, '
-                             f'{stride[ll][0]}, '
-                             f'bias_{ll}, 0, 7, {buffer1}, '
-                             f'{output_dim[ll][0]}, '
-                             'col_buffer, NULL);\n')
-            else:
-                c_file.write(f'  arm_convolve_HWC_q7_basic_nonsquare({source}, '
-                             f'{pooled_dim[ll][1]}, {pooled_dim[ll][0]}, '
-                             f'{input_chan[ll]}, weights_{ll}, {output_chan[ll]}, '
-                             f'{kernel_size[ll][1]}, {kernel_size[ll][0]}, '
-                             f'{padding[ll][1]}, {padding[ll][0]}, '
-                             f'{stride[ll][1]}, {stride[ll][0]},\n'
-                             '                                      '
-                             f'bias_{ll}, 0, 7, {buffer1}, '
-                             f'{output_dim[ll][1]}, {output_dim[ll][0]}, '
-                             'col_buffer, NULL);\n')
-            assert out_size[0] == output_chan[ll] \
-                and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
+            if operator[ll] != op.NONE:
+                in_chan = input_chan[ll]
+                in_dim = pooled_dim[ll]
+                if flatten[ll]:
+                    in_chan *= pooled_dim[ll][0] * pooled_dim[ll][1]
+                    in_dim = [1, 1]
 
-            if activate[ll]:
-                size = output_dim[ll][0] * output_dim[ll][1] * output_chan[ll]
-                if size < 65536:
-                    c_file.write(f'  arm_relu_q7({buffer1}, {size});\n')
+                if operator[ll] in [op.CONV1D, op.CONVTRANSPOSE2D]:  # FIXME: Support Conv1d etc.
+                    eprint("CMSIS-NN generator does not currently support the operator in "
+                           f"layer {ll}")
+                    sys.exit(1)
+
+                # FIXME: First check that everything is [-128, +127] and use s8 function otherwise
+
+                # Check for squareness
+                if kernel_size[ll][0] == kernel_size[ll][1] \
+                   and in_dim[0] == in_dim[1] \
+                   and output_dim[ll][0] == output_dim[ll][1] \
+                   and padding[ll][0] == padding[ll][1] \
+                   and stride[ll][0] == stride[ll][1]:
+                    # Detect fully connected layers
+                    if in_dim == [1, 1] and output_dim[ll] == [1, 1]:
+                        c_file.write(f'  arm_fully_connected_q7({source}, '
+                                     f'weights_{ll}, {in_chan}, {output_chan[ll]}, 7, 7, '
+                                     f'bias_{ll}, {buffer1}, '
+                                     'col_buffer);\n')
+                    else:
+                        fn = 'fast' if in_chan % 4 == 0 and output_chan[ll] % 2 == 0 \
+                            else 'basic'
+                        c_file.write(f'  arm_convolve_HWC_q7_{fn}({source}, '
+                                     f'{in_dim[0]}, '
+                                     f'{in_chan}, weights_{ll}, {output_chan[ll]}, '
+                                     f'{kernel_size[ll][0]}, '
+                                     f'{padding[ll][0]}, '
+                                     f'{stride[ll][0]}, '
+                                     f'bias_{ll}, 7, 7, {buffer1}, '
+                                     f'{output_dim[ll][0]}, '
+                                     'col_buffer, NULL);\n')
                 else:
-                    c_file.write(f'  arm_relu32_q7({buffer1}, {size});\n')
-            buffer0, buffer1 = buffer1, buffer0
+                    c_file.write(f'  arm_convolve_HWC_q7_basic_nonsquare({source}, '
+                                 f'{in_dim[1]}, {in_dim[0]}, '
+                                 f'{in_chan}, weights_{ll}, {output_chan[ll]}, '
+                                 f'{kernel_size[ll][1]}, {kernel_size[ll][0]}, '
+                                 f'{padding[ll][1]}, {padding[ll][0]}, '
+                                 f'{stride[ll][1]}, {stride[ll][0]},\n'
+                                 '                                      '
+                                 f'bias_{ll}, 7, 7, {buffer1}, '
+                                 f'{output_dim[ll][1]}, {output_dim[ll][0]}, '
+                                 'col_buffer, NULL);\n')
 
-            data = out_buf.reshape(out_size)
+                assert out_size[0] == output_chan[ll] \
+                    and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
+
+                if activation[ll] == op.ACT_RELU:
+                    size = output_dim[ll][0] * output_dim[ll][1] * output_chan[ll]
+                    if size < 65536:
+                        c_file.write(f'  arm_relu_q7({buffer1}, {size});\n')
+                    else:
+                        c_file.write(f'  arm_relu32_q7({buffer1}, {size});\n')
+                elif activation[ll] is not None:  # FIXME: Support abs() activation
+                    eprint("CMSIS-NN generator implements ReLU only.")
+                    sys.exit(1)
+                buffer0, buffer1 = buffer1, buffer0
+
+            data_buf.append(out_buf.reshape(out_size))
             c_file.write('\n')
-            data_cmsis = data.transpose((1, 2, 0)).flatten()
+            data_cmsis = data_buf[-1].transpose((1, 2, 0)).flatten()
             if verbose:
                 print('TRANSPOSED (HWC) AND FLATTENED:')
                 print(data_cmsis)
                 print('')
+
+        data = data_buf[-1]
 
         c_file.write(f'  *output = {buffer0};\n'
                      f'  *output_size = {data_cmsis.size};\n\n'
@@ -415,3 +641,5 @@ def create_net(
     # Close header files
     sampledata_header.close()
     weight_header.close()
+
+    assets.copy('assets', 'cmsis-nn', base_directory, test_name)

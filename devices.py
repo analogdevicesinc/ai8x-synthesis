@@ -11,6 +11,9 @@ Part number and device type conversion
 import argparse
 
 
+CMSISNN = -1
+
+
 def device(astring):
     """
     Take die type, or part number, and return the die type.
@@ -21,6 +24,8 @@ def device(astring):
         s = s[3:]  # Strip 'MAX' from part number
     elif s.startswith('ai'):
         s = s[2:]  # Strip 'AI' from die type
+    elif s == 'cmsis-nn':
+        return CMSISNN
 
     try:
         num = int(s)
@@ -48,5 +53,7 @@ def partnum(num):
         return 'MAX78000'
     if num == 87:
         return 'MAX78002'
+    if num == CMSISNN:
+        return 'CMSIS-NN'
 
     raise RuntimeError(f'Unknown die type {num}')
