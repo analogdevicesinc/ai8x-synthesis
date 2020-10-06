@@ -896,7 +896,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             val = 0
                         else:
                             if operator[ll] == op.CONVTRANSPOSE2D:
-                                val = stride[ll][1]*input_dim[ll][0] - 1
+                                val = stride[ll][0]*input_dim[ll][0] - 1
                             else:
                                 val = input_dim[ll][0] - 1
                         assert padding[ll][0] < 2**2
