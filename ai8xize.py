@@ -896,7 +896,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             val = 0
                         else:
                             if operator[ll] == op.CONVTRANSPOSE2D:
-                                val = stride[ll][1]*input_dim[ll][0] - 1
+                                val = stride[ll][0]*input_dim[ll][0] - 1
                             else:
                                 val = input_dim[ll][0] - 1
                         assert padding[ll][0] < 2**2
@@ -1219,6 +1219,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             val = 0  # Do not shift
                         # Scale Control - bit 4 determines shift direction (1>>,0<<),
                         # bits[3:0] determine magnitude
+                        assert operator[ll] != op.NONE or output_shift[ll] == 0
                         if output_shift[ll] < 0:
                             val |= (-output_shift[ll] | 2**4) << 13
                         else:
