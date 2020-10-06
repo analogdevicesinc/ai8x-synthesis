@@ -74,6 +74,10 @@ def load(
             eprint(f'Layer {ll}: output channel count {output_chan[ll]} does not match the number '
                    f'of bias values {len(bias[ll])}.')
             sys.exit(1)
+        if not np.any(bias[ll] != 0):
+            eprint(f'Layer {ll}: All bias values are zero. Ignoring the input.', error=False)
+            continue
+
         q = 8  # Fixed to 8 bits instead of quantization[ll]
         qfactor = 8 // q
         # Round up the divided length of bias values
