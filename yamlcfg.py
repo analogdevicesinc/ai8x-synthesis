@@ -483,6 +483,8 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
                 error_exit('Pass-through layers must not use activation', ll)
             if padding[ll][0] != 0 or padding[ll][1] != 0:
                 error_exit('Padding must be zero for passthrough layers', ll)
+            if output_shift[ll] != 0 and output_shift[ll] is not None:
+                error_exit('`output_shift` must be zero for passthrough layers', ll)
         # Check that pooling isn't set for ConvTranspose2d:
         elif e == op.CONVTRANSPOSE2D:
             if pooling_enabled[ll]:

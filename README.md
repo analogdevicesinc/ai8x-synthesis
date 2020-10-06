@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis 
 
-_October 5, 2020_
+_October 6, 2020_
 
 The Maxim Integrated AI project is comprised of four repositories:
 
@@ -1362,7 +1362,7 @@ Example:
 
 ##### `output_shift` (Optional)
 
-When `output_width` is 8, the 32-bit intermediate result can be shifted left or right before reduction to 8-bit. The value specified here is cumulative with the value generated from `quantization`.
+When `output_width` is 8, the 32-bit intermediate result can be shifted left or right before reduction to 8-bit. The value specified here is cumulative with the value generated from `quantization`. Note that `output_shift` is not supported for passthrough layers.
 
 The 32-bit intermediate result is multiplied by $2^{totalshift}$, where the total shift count must be within the range $[-15, +15]$, resulting in a factor of $[2^{–15}, 2^{15}]$ or $[0.0000305176$ to $32768]$.
 

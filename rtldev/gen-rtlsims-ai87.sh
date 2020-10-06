@@ -401,3 +401,4 @@ SHORT_LOG="--log-last-only"
 
 ./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-linklayer --checkpoint-file tests/test-mnist-extrasmallnet.pth.tar --config-file tests/test-mnist-chw-extrasmallnet.yaml --stop-after 2 --link-layer $DEVICE $@
 ./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-mlpflattenpool --config-file tests/test-mlpflattenpool.yaml $DEVICE $@
+./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-upsample-nonsquare --config-file tests/test-upsample-nonsquare.yaml $DEVICE --debug --debug-computation $@

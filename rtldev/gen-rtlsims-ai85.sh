@@ -389,3 +389,4 @@ SHORT_LOG="--log-last-only"
 ./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-conv1d-3-bias --config-file tests/test-conv1d-3-bias.yaml $DEVICE $@
 ./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-riscv-fastfifo-mnist --checkpoint-file trained/ai85-mnist.pth.tar --config-file networks/mnist-chw-ai85.yaml $DEVICE --compact-data --mexpress --riscv --riscv-flash --riscv-cache --riscv-debug $@
 ./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-mlpflattenpool --config-file tests/test-mlpflattenpool.yaml $DEVICE $@
+./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-upsample-nonsquare --config-file tests/test-upsample-nonsquare.yaml $DEVICE --debug --debug-computation $@
