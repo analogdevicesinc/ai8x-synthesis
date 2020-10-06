@@ -385,3 +385,4 @@
 ./ai8xize.py --verbose --autogen rtlsim-ai85 --top-level cnn -L --test-dir rtlsim-ai85 --prefix ai85-riscv-fastfifo-mnist --checkpoint-file trained/ai85-mnist.pth.tar --config-file networks/mnist-chw-ai85.yaml --ai85 --compact-data --mexpress --riscv --riscv-flash --riscv-cache --riscv-debug $@
 
 ./ai8xize.py --verbose --autogen rtlsim-ai85 --top-level cnn -L --test-dir rtlsim-ai85 --prefix ai85-mlpflattenpool --config-file tests/test-mlpflattenpool.yaml --ai85 $@
+./ai8xize.py --verbose --autogen rtlsim-ai85 --top-level cnn -L --test-dir rtlsim-ai85 --prefix ai85-upsample-nonsquare --config-file tests/test-upsample-nonsquare.yaml --ai85 --debug --debug-computation $@
