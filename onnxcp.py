@@ -14,6 +14,7 @@ import onnx
 import onnx.shape_inference
 from onnx import numpy_helper
 
+import onnxruntime
 import op as opn
 from eprint import eprint
 from utils import fls
@@ -223,234 +224,61 @@ def manage_bias(
     param_size += w_size
 
 
-def track_data_shape(model, op_list, initializers):
+def track_data_shape(model, out_dict):
     '''
     Trace data shape through the conv layers
     '''
-    shape = []
-    data_shape = []
-    input_shape = []
-    slice_shape = []
-    slice_out = None
-    concat_shape = []
-    concat_out = None
-    cast_out = None
-    reshape_shape = []
-    reshape_out = None
-    perm = []
-    first_node = True
-    kernel_size = 1
-    pad = [0, 0]
-    temp = None
-    transpose_layers = []
-    transpose_info = {}
-    in_transpose = False
     layer_num = -1
-    shape_list = []
-    perm = []
-    shape_track = []
-    conv1d = False
-    conv2d = False
-
-    for _, inp in enumerate(model.graph.input):
-        if first_node is True:
-            first_node = False
-            dims = inp.type.tensor_type.shape.dim
-            dim_len = len(dims)
-
-            for x in range(dim_len):
-                if dims[x].HasField("dim_param"):
-                    shape.append(-1)
-
-                if dims[x].HasField("dim_value"):
-                    shape.append(dims[x].dim_value)
-
-            input_shape = shape.copy()
-            data_shape = shape.copy()
-            if op_list[0].lower() == 'conv1d':
-                shape_track = ['N', 'L', 'C']
-                conv1d = True
-            if op_list[0].lower() == 'conv2d':
-                shape_track = ['B', 'C', 'H', 'W']
-                conv2d = True
-            shape = []
+    save_perm = []
+    save_shape = []
+    transpose_info = {}
+    last_op = ''
 
     for _, node in enumerate(model.graph.node):
-        inputs, outputs = get_inouts(node)
-        #  cur_out = node.output[0]
-
-        if node.op_type == 'AveragePool' or node.op_type == 'MaxPool':
-            for attr in node.attribute:
-                if attr.name == "strides":
-                    stride = attr.ints[0]
-                    #
-                    # TODO - Add support for unequal pool strides
-                    #
-                if attr.name == "kernel_shape":
-                    kernel_size = attr.ints[0]
-            ld = len(data_shape)
-            for x in range(ld):
-                if x > 1:
-                    data_shape[x] = int((data_shape[x] - kernel_size) // stride + 1)
-
-        if node.op_type == 'MatMul' or node.op_type == 'Gemm':
+        if node.op_type == 'Conv':
             layer_num = layer_num + 1
-            if in_transpose is True:
-                transpose_layers.append(layer_num)
+            if node.output[0] in out_dict.keys():
+                save_shape = list(out_dict[node.output[0]].shape)
+                if save_shape[0] == 1:  # set batch size to unknown
+                    save_shape[0] = -1
 
-        # ConvTranspose not implemented yet
-        if node.op_type == 'Conv' or node.op_type == 'ConvTranspose':
+        elif node.op_type == 'ConvTranspose':
             layer_num = layer_num + 1
-            if layer_num > 0:
-                if op_list[layer_num-1].lower() != op_list[layer_num].lower():
-                    if op_list[layer_num].lower() == 'conv1d':
-                        shape_track = ['N', 'L', 'C']
-                        conv1d = True
-                    if op_list[layer_num].lower() == 'conv2d':
-                        conv2d = True
-                        if conv1d is True:  # conv1d followed by conv2d
-                            shape_track = ['B', 'H', 'W', 'C']
-                        else:
-                            shape_track = ['B', 'C', 'H', 'W']
+            if node.output[0] in out_dict.keys():
+                save_shape = list(out_dict[node.output[0]].shape)
+                if save_shape[0] == 1:  # set batch size to unknown
+                    save_shape[0] = -1
 
-            if in_transpose is True:
-                transpose_layers.append(layer_num)
+        elif node.op_type == 'Squeeze':
+            if last_op == 'Conv':
+                for attr in node.attribute:
+                    if attr.name == 'axes':
+                        if attr.ints:
+                            save_shape.pop(attr.ints[0])
 
-            if node.input[0] == reshape_out:
-                data_shape = reshape_shape.copy()
-            elif len(data_shape) > 0:
-                data_shape = data_shape.copy()
-            else:
-                data_shape = input_shape.copy()
-
-            shape_list.append(data_shape.copy())
-            shape = []
-            input_shape = []
-
-            for initializer in model.graph.initializer:
-                if node.input[1] == initializer.name:
-                    cweights = numpy_helper.to_array(initializer)
-
-            for attr in node.attribute:
-                if attr.name == "dilations":
-                    dilation = attr.ints
-                if attr.name == "pads":
-                    pad = attr.ints
-                if attr.name == "strides":
-                    stride = attr.ints
-                if attr.name == "kernel_shape":
-                    kernel_size = attr.ints
-
-            for x, parm in enumerate(shape_track):
-                if parm == "H":
-                    data_shape[x] = int(((data_shape[x] - kernel_size[0] + 2 * pad[0])
-                                        / stride[0]) + 1)
-                if parm == "W":
-                    data_shape[x] = int(((data_shape[x] - kernel_size[1] + 2 * pad[1])
-                                        / stride[1]) + 1)
-                # https://pytorch.org/docs/stable/generated/torch.nn.Conv1d.html
-                if parm == "L":
-                    data_shape[x] = int(((data_shape[x] + 2 * pad[0] - dilation[0] *
-                                        (kernel_size[0] - 1) - 1) // stride[0]) + 1)
-                if parm == "C":
-                    data_shape[x] = cweights.shape[0]
-
-        if node.op_type == 'Slice':
-            sltemp = []
-            for inp in inputs:
-                if inp in initializers:
-                    for initializer in model.graph.initializer:
-                        if inp == initializer.name:
-                            sltemp.append(numpy_helper.to_array(initializer)[0].astype(np.int64))
-
-            slice_shape = data_shape[sltemp[0]:sltemp[1]]
-            slice_out = outputs[0]
-
-        if node.op_type == 'Concat':
-            concat_shape = []
-            concat_out = outputs[0]
-
-            for inp in inputs:
-                if inp in initializers:
-                    for initializer in model.graph.initializer:
-                        if inp == initializer.name:
-                            concat_shape.append(
-                                numpy_helper.to_array(initializer)[0].astype(np.int64)
-                            )
-
-            if inputs[0] == slice_out:
-                concat_shape = np.concatenate((slice_shape, concat_shape)).astype(np.int64)
-
-        if node.op_type == 'Cast':
-            if node.input[0] == concat_out:
-                cast_out = outputs[0]
-
-        if node.op_type == 'Reshape':
-            if node.input[1] == cast_out:
-                data_shape = concat_shape
-                continue
-
-            for initializer in model.graph.initializer:
-                if node.input[1] == initializer.name:
-                    shape = numpy_helper.to_array(initializer).copy()
-                    temp = len(shape)
-                    test_shape = 0
-                    for x in range(temp):
-                        test_shape |= shape[x]
-                    if test_shape == 1:
-                        shape = data_shape.copy()
-                        continue
-                    reshape_shape = shape.copy()
-                    reshape_out = node.output[0]
-                    continue
-
-        if node.op_type == 'Transpose':
-            if len(data_shape) > 0:
-                shape = data_shape.copy()
-            else:
-                shape = input_shape.copy()
-                data_shape = input_shape.copy()
-
+        elif node.op_type == 'Transpose':
             for attr in node.attribute:
                 if attr.name == "perm":
                     perm_len = len(attr.ints)
                     perm = []
                     for x in range(perm_len):
                         perm.append(attr.ints[x])
-                    if conv1d is False:
-                        for x in range(perm_len):
-                            data_shape[x] = shape[attr.ints[x]]
 
             if len(perm) > 0:
                 transpose_info[layer_num+1] = perm
+                save_perm = perm.copy()
 
-        if node.op_type == 'Unsqueeze':
-            if len(data_shape) > 0:
-                shape = data_shape.copy()
-            else:
-                shape = input_shape.copy()
+            if len(save_shape) > 0:
+                temp = save_shape.copy()
+                if len(save_perm) == len(save_shape):
+                    for x in range(len(save_perm)):
+                        save_shape[x] = temp[save_perm[x]]
 
-            for attr in node.attribute:
-                if attr.name == "axes":
-                    axes = attr.ints[0]
-                if conv1d is False:
-                    data_shape = shape.copy()
-                    data_shape.insert(1, axes)
-                    shape_track.insert('e', axes)
+        elif node.op_type == 'MatMul' or node.op_type == 'Gemm':
+            layer_num = layer_num + 1
 
-        if node.op_type == 'Squeeze':
-            if len(data_shape) > 0:
-                shape = data_shape.copy()
-            else:
-                shape = input_shape.copy()
-
-            for attr in node.attribute:
-                if attr.name == "axes":
-                    axes = attr.ints[0]
-                if conv1d is False:
-                    data_shape.pop(axes)
-                    shape_track.pop(axes)
-    return data_shape, perm, transpose_info, conv1d, conv2d
+        last_op = node.op_type
+    return save_shape, save_perm, transpose_info
 
 
 def inv(perm):
@@ -515,6 +343,203 @@ def modify_weights(input_file, output_file, scale, first, dequantize):
 
     onnx.checker.check_model(model)
     onnx.save(model, output_file)
+
+
+float_dict = {
+    'tensor(float16)': 'float16',
+    'tensor(float)': 'float32',
+    'tensor(double)': 'float64'
+}
+
+integer_dict = {
+    'tensor(int32)': 'int32',
+    'tensor(int8)': 'int8',
+    'tensor(uint8)': 'uint8',
+    'tensor(int16)': 'int16',
+    'tensor(uint16)': 'uint16',
+    'tensor(int64)': 'int64',
+    'tensor(uint64)': 'uint64'
+}
+
+
+def tensor_has_valid_type(tensor_valueproto, verbose):
+    """ Ensures ValueProto tensor element type is not UNDEFINED"""
+    if tensor_valueproto.type.tensor_type.elem_type == onnx.TensorProto.UNDEFINED:
+        if verbose:
+            print('Type could not be inferred for the following output,'
+                  ' it will be not be exposed:\n',
+                  tensor_valueproto)
+        return False
+    return True
+
+
+def expose_node_outputs(model_path, overwrite, run_checker=True, verbose=False):
+    """
+    Samrat Debroy,
+    https://github.com/zetane/expose_onnx_node_outputs/blob/master/expose_node_outputs.py
+    Exposes each intermediary node as one of the ONNX model's graph outputs.
+     This allows inspection of data passing through the model.
+    :param model_path: (str) The path to the .onnx model, with the extension.
+    :param overwrite:  (boolean) If true, will overwrite the .onnx file at model_path,
+                       else will make a copy.
+    :param run_checker: (boolean) If true, will run the ONNX model validity checker
+    :param verbose: (boolean) If true, will print detailed messages about execution
+                              of preprocessing script
+    :return: (str) file path to new ONNX model
+    """
+    # 1. Get name of all external outputs to the model (ie. graph-level outputs,
+    #    not internal outputs shared bw nodes)
+    model = onnx.load(model_path)
+    external_outputs = [output.name for output in model.graph.output]
+    extended_outputs = []
+
+    # 2. Get the list of nodes in the graph
+    for i, node in enumerate(model.graph.node):
+        # 3. For every node, copy its (internal) output over to graph.output
+        #    to make it a graph output
+        output_name = [output for output in node.output if output not in external_outputs]
+        extended_outputs.extend(output_name)
+        for output in output_name:
+            # Added to expose Intermediate Node data
+            intermediate_layer_value_info = \
+                onnx.helper.make_tensor_value_info(
+                                                   output,
+                                                   onnx.TensorProto.UNDEFINED,
+                                                   None,
+                                                   node.op_type
+                                                  )
+            model.graph.output.extend([intermediate_layer_value_info])
+
+    if verbose:
+        print('The following nodes were exposed as outputs in the {} model:\n {}'.
+              format(model_path, extended_outputs))
+
+    # If all outputs were already "external", no changes are required to the ONNX model,
+    # return it as-is
+    if len(external_outputs) == len(model.graph.output):
+        if verbose:
+            print('No change required for ONNX model:'
+                  ' All nodes already exposed as outputs')
+        return model_path
+
+    # 4. Do a shape and type inference pass on the model to ensure
+    #    they're defined for graph outputs
+    model = onnx.shape_inference.infer_shapes(model)
+    # 4.5 Remove every output node for which the type or shape could not be inferred
+    for i, tensor_valueproto in reversed(list(enumerate(model.graph.output))):
+        if not tensor_has_valid_type(tensor_valueproto, verbose):
+            del model.graph.output[i]
+
+    if run_checker:
+        try:
+            onnx.checker.check_model(model)
+        except onnx.checker.ValidationError as v:
+            # Ignoring this specific error because the ONNX spec says a missing shape is the
+            # legal way to define a tensor of unknown dimensions. Honestly, believe this is
+            # a bug in the checker.
+            # See https://github.com/onnx/onnx/issues/2492
+            if str(v).endswith("Field 'shape' of type is required but missing."):
+                if verbose:
+                    print("Warning: Ignoring the following error because it is probably an "
+                          "ONNX Checker error: ", v)
+            else:
+                raise v
+
+    if not overwrite:
+        # Make a copy of the .onnx model to save it as a file
+        model_path_components = model_path.rsplit(".", 1)  # Split before and after extension
+        model_path = model_path_components[0] + '_exposed_nodes.' + model_path_components[1]
+    onnx.save(model, model_path)
+    return model_path
+
+
+def onnxrt(
+          model_path,
+          model
+):
+    '''
+    execute onnxruntime to validate onnx file and to extract data shapes needed
+    to transform weight shapes
+    '''
+    sess_opt = onnxruntime.SessionOptions()
+    sess_opt.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
+
+    input_shapes = {}
+
+    input_shape = []
+    input_shape.append(1)
+    for _dim in range(1, len(model.graph.input[0].type.tensor_type.shape.dim)):
+        input_shape.append(model.graph.input[0].type.tensor_type.shape.dim[_dim].dim_value)
+
+    # convert model
+    input_shapes[None] = input_shape
+    exfile = expose_node_outputs(model_path, overwrite=False, run_checker=False, verbose=False)
+
+    sess = onnxruntime.InferenceSession(exfile, sess_options=sess_opt)
+
+    feeds = {}
+    for input_meta in sess.get_inputs():
+        # replace any symbolic dimensions
+        shape = []
+        for dim in input_meta.shape:
+            if not dim:
+                # unknown dim
+                shape.append(1)
+            elif type(dim) == str:
+                # symbolic dim. see if we have a value otherwise use 1
+                shape.append(1)
+            else:
+                shape.append(dim)
+
+        if input_meta.type in float_dict:
+            feeds[input_meta.name] = np.random.rand(*shape).astype(float_dict[input_meta.type])
+        elif input_meta.type in integer_dict:
+            feeds[input_meta.name] = \
+                np.random.uniform(high=1000,
+                                  size=tuple(shape)).astype(integer_dict[input_meta.type])
+        elif input_meta.type == 'tensor(bool)':
+            feeds[input_meta.name] = np.random.randint(2, size=tuple(shape)).astype('bool')
+        else:
+            eprint("unsupported input type {} for input {}".
+                   format(input_meta.type, input_meta.name))
+            sys.exit(-1)
+
+    # Starting with IR4 some initializers provide default values
+    # and can be overridden (available in IR4). For IR < 4 models
+    # the list would be empty
+    for initializer in sess.get_overridable_initializers():
+        shape = [dim if dim else 1 for dim in initializer.shape]
+        if initializer.type in float_dict:
+            feeds[initializer.name] = np.random.rand(*shape).astype(float_dict[initializer.type])
+        elif initializer.type in integer_dict:
+            feeds[initializer.name] = \
+                np.random.uniform(high=1000,
+                                  size=tuple(shape)).astype(integer_dict[initializer.type])
+        elif initializer.type == 'tensor(bool)':
+            feeds[initializer.name] = np.random.randint(2, size=tuple(shape)).astype('bool')
+        else:
+            eprint("unsupported initializer type {} for initializer {}".
+                   format(initializer.type, initializer.name))
+            sys.exit(-1)
+
+    try:
+        ort_outs = sess.run(None, feeds)  # fetch all outputs
+    except onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException:
+        eprint("Unsupported ONNX operation encountered")
+        sys.exit(1)
+
+    inps = {}
+
+    for x, _ in enumerate(feeds):
+        inps[sess.get_inputs()[x].name] = sess.get_inputs()[x]
+
+    outs = {}
+    i = 0
+    for ort_out in ort_outs:
+        outs[sess.get_outputs()[i].name] = ort_out
+        i = i + 1
+
+    return inps, outs
 
 
 def load(
@@ -588,7 +613,7 @@ def load(
     bias_max = []
     bias_size = []
     seq = 0
-    is_not_layer = 0
+    is_not_layer = False
     kernel_size_onnx = []
     input_dims = []
     dim = []
@@ -616,8 +641,6 @@ def load(
     save_perm = None
     transpose_list = []  # pylint: disable=unused-variable
     op_list = []
-    conv1d = False  # pylint: disable=unused-variable
-    conv2d = False  # pylint: disable=unused-variable
 
     # looking for conv1d/conv2d indications
     for x in range(cfg_layers):
@@ -628,8 +651,9 @@ def load(
             op = cfg['layers'][x].get('convolution', None)
         op_list.append(op)
 
-    save_shape, save_perm, transpose_list, conv1d, conv2d = \
-        track_data_shape(model, op_list, initializers)
+    _, out_dict = onnxrt(checkpoint_file, model)
+    save_shape, save_perm, transpose_list = \
+        track_data_shape(model, out_dict)
 
     # find Cast/Mul/Add sequences with connected in/outs
     # and integer initializers in Cast node
@@ -704,7 +728,7 @@ def load(
                 if layers >= num_conv_layers:
                     continue
 
-            if node.op_type == 'Conv':
+            if node.op_type == 'Conv' or node.op_type == 'ConvTranspose':
                 for a in node.attribute:
                     if a.name == 'kernel_shape':
                         if len(a.ints) == 1:
@@ -752,6 +776,7 @@ def load(
                                         fc_bias.append(None)    # during weight input processing
 
                         if node.op_type == 'Add':
+                            is_not_layer = True
                             if len(oplist) > 3:
                                 cst_seq = oplist[-4] + oplist[-3] + oplist[-2] == \
                                  'ConvSqueezeTranspose'
@@ -789,7 +814,7 @@ def load(
                                                 do_quantize,
                                                 False,
                                                 scale_factor)
-                            is_not_layer = 1
+                            is_not_layer = True
                             continue
 
                     if len(w.shape) > 1:  # not a bias
@@ -807,7 +832,8 @@ def load(
                                 w_min_m = int(w_min)
                             else:
                                 w_min_m = int(abs(w_min)) - 1
-                                quantization[seq] = 1 << (fls(max(fls(w_max_m), fls(w_min_m)) + 1) + 1)
+                                quantization[seq] = \
+                                    1 << (fls(max(fls(w_max_m), fls(w_min_m)) + 1) + 1)
                             assert quantization[seq] <= 8
                         quant.append(quantization[seq])
 
@@ -821,7 +847,8 @@ def load(
                         # from the op_type Conv plus shape?
                         if operator[seq] == opn.CONVTRANSPOSE2D:
                             # For ConvTranspose2d, flip the weights as follows:
-                            w = np.flip(w, axis=(2, 3)).swapaxes(0, 1)
+                            w = np.flip(w, axis=(2, 3))
+                            w = np.transpose(w, (1, 0, 2, 3))
 
                         if len(w.shape) == 2:
                             if w.shape[t0] > w.shape[t1]:
@@ -900,9 +927,10 @@ def load(
                                     False,
                                     scale_factor)
 
-            if is_not_layer == 0:
-                seq += 1
-                layers += 1
+            if is_not_layer is False:
+                if node.op_type != 'Add':
+                    seq += 1
+                    layers += 1
 
             trans_perm = (0, 1, 2, 3)
             t0 = get_perm(0, trans_perm)
@@ -910,9 +938,9 @@ def load(
             t2 = get_perm(2, trans_perm)
             t3 = get_perm(3, trans_perm)
             squeeze = False
-
-            is_not_layer = 0
-
+            is_not_layer = False
+        else:
+            continue
         # TODO: Things to add
         # if attribute.name == 'pads':
         # if attribute.name == 'strides':
