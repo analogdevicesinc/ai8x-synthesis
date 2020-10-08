@@ -1,0 +1,13 @@
+# Test 1x1 Conv2D as MLP
+
+arch: test
+dataset: test_mlpflattenpool12to2
+
+layers:
+- out_offset: 0x2000
+  processors: 0x0000000000000007
+  operation: linear
+  flatten: true
+  max_pool: 2
+  pool_stride: 2
+
