@@ -256,10 +256,11 @@ def verify(
         # If using single layer, make sure we're not overwriting the input
         if (not overwrite_ok) and in_map[target_offs >> 2] is not None:
             old_ll, old_c, old_row, old_col, _ = in_map[target_offs >> 2]
+            old_layer = f'layer {old_ll}' if old_ll >= 0 else 'the input loader'
             eprint(f'Processor {p}: '
                    f'Layer {ll} output for CHW={c},{row},{col} is overwriting '
                    f'input at offset 0x{target_offs:08x} that was created by '
-                   f'layer {old_ll}, CHW={old_c},{old_row},{old_col}.',
+                   f'{old_layer}, CHW={old_c},{old_row},{old_col}.',
                    error=not no_error_stop)
             if not no_error_stop:
                 sys.exit(1)
@@ -378,7 +379,7 @@ def verify(
                                 )
                             offs += out_size
                     count += 1
-                    if count == max_count:
+                    if count == max_count and stream is not None:
                         stream.write('  // Truncated further checks...\n')
 
                 coffs += 4

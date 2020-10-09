@@ -2349,7 +2349,7 @@ def main():
             if operator[ll] != op.CONV1D:
                 if pool_stride[ll][0] != pool_stride[ll][1]:
                     eprint(f'{op.string(operator[ll])} in layer {ll} does not support non-square'
-                           f'pooling stride (currently set to '
+                           f' pooling stride (currently set to '
                            f'{pool_stride[ll][0]}x{pool_stride[ll][1]}).')
                     sys.exit(1)
                 pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])
