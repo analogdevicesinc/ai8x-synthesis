@@ -528,12 +528,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     apb.output('no pooling')
                 if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
                     conv_str = f', {op.string(operator[ll])} with kernel size ' \
-                               f'{kernel_size_str[ll]}, '
+                               f'{kernel_size_str[ll]}, ' \
+                               f'stride {stride_str[ll]}, ' \
+                               f'pad {padding_str[ll]}, '
                 else:
                     conv_str = ', no convolution, '
                 apb.output(conv_str +
-                           f'stride {stride_str[ll]}, '
-                           f'pad {padding_str[ll]}, '
                            f'{output_chan[ll]}x{output_dim_str[ll]} output\n')
 
         apb.output('\n')
@@ -896,7 +896,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             val = 0
                         else:
                             if operator[ll] == op.CONVTRANSPOSE2D:
-                                val = stride[ll][1]*input_dim[ll][0] - 1
+                                val = stride[ll][0]*input_dim[ll][0] - 1
                             else:
                                 val = input_dim[ll][0] - 1
                         assert padding[ll][0] < 2**2
@@ -1219,6 +1219,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             val = 0  # Do not shift
                         # Scale Control - bit 4 determines shift direction (1>>,0<<),
                         # bits[3:0] determine magnitude
+                        assert operator[ll] != op.NONE or output_shift[ll] == 0
                         if output_shift[ll] < 0:
                             val |= (-output_shift[ll] | 2**4) << 13
                         else:
@@ -1735,7 +1736,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         # Convolution or passthrough
         if operator[ll] == op.CONV2D:
             if flatten[ll]:
-                in_chan *= input_dim[ll][0] * input_dim[ll][1]
+                in_chan *= pooled_dim[ll][0] * pooled_dim[ll][1]
                 data = data.reshape(in_chan, 1, 1)
                 if verbose:
                     print(f"FLATTEN TO {in_chan}x1x1...\n")
@@ -2233,17 +2234,18 @@ def main():
     processor_map = params['processor_map']
     output_processor_map = params['output_processor_map'][:layers]
 
-    if 'output_map' in cfg:
-        # Use optional configuration value if it's specified
-        output_processor_map[-1] = cfg['output_map']
-    elif len(processor_map) == layers and output_processor_map[-1] is None:
-        # Default to packed, 0-aligned output map
-        expand = (output_channels[layers-1] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
-        expand_chunk = (output_channels[layers-1] + expand-1) // expand
-        if output_channels[layers-1] > tc.dev.MAX_PROC:
-            expand_chunk = min((expand_chunk + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1),
-                               tc.dev.MAX_PROC)
-        output_processor_map[-1] = 2**expand_chunk-1
+    if args.device != devices.CMSISNN:
+        if 'output_map' in cfg:
+            # Use optional configuration value if it's specified
+            output_processor_map[-1] = cfg['output_map']
+        elif len(processor_map) == layers and output_processor_map[-1] is None:
+            # Default to packed, 0-aligned output map
+            expand = (output_channels[layers-1] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
+            expand_chunk = (output_channels[layers-1] + expand-1) // expand
+            if output_channels[layers-1] > tc.dev.MAX_PROC:
+                expand_chunk = min((expand_chunk + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1),
+                                   tc.dev.MAX_PROC)
+            output_processor_map[-1] = 2**expand_chunk-1
 
     # Remove extraneous layer configuration values (when --stop-after is used)
     processor_map = processor_map[:layers]
@@ -2398,7 +2400,7 @@ def main():
                 output_dim[ll] = [pooled_size[0], pooled_size[1]]
             if flatten[ll]:
                 output_dim[ll] = [1, 1]
-                input_channels[ll] //= input_dim[ll][0] * input_dim[ll][1]
+                input_channels[ll] //= pooled_dim[ll][0] * pooled_dim[ll][1]
             if padding[ll][0] >= 3:
                 eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
                        f'(currently set to {padding[ll][0]}).')
@@ -2443,7 +2445,7 @@ def main():
         eprint("Embedded code on RISC-V requires --riscv-cache.")
         sys.exit(1)
 
-    if not args.cmsis_software_nn:
+    if args.device != devices.CMSISNN:
         tn = create_net(
             args.prefix,
             args.verbose,
@@ -2565,11 +2567,12 @@ def main():
                 args.autogen,
             )
     else:
-        eprint('--cmsis-software-nn is not supported.', error=False)
+        eprint('CMSIS-NN code generation is unsupported.', error=False)
 
         cmsisnn.create_net(
             args.prefix,
             args.verbose,
+            args.verbose_all,
             args.debug,
             args.log,
             layers,
@@ -2583,6 +2586,7 @@ def main():
             output_shift,
             input_channels,
             output_channels,
+            conv_groups,
             output_width,
             padding,
             dilation,
@@ -2597,12 +2601,18 @@ def main():
             fc_weights,
             fc_bias,
             flatten,
+            operands,
+            eltwise,
+            pool_first,
+            in_sequences,
             args.c_filename,
             args.test_dir,
             args.log_filename,
             args.weight_filename,
             args.sample_filename,
+            args.avg_pool_rounding,
             args.device,
+            args.legacy_test,
         )
 
     print("SUMMARY OF OPS")
