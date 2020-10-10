@@ -317,6 +317,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                    f' the input channels {input_chan[ll]} or output channels {output_chan[ll]}.')
             sys.exit(1)
 
+        if flatten[ll] and operator[ll] == op.NONE:
+            eprint(f'Layer {ll}: `flatten` is not compatible with passthrough layers.')
+            sys.exit(1)
+
     # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
     test_name = prefix
     if not embedded_code:
@@ -2397,6 +2401,7 @@ def main():
             if flatten[ll]:
                 output_dim[ll] = [1, 1]
                 input_channels[ll] //= pooled_dim[ll][0] * pooled_dim[ll][1]
+                assert input_channels[ll] > 0
             if padding[ll][0] >= 3:
                 eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
                        f'(currently set to {padding[ll][0]}).')
