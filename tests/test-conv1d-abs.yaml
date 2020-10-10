@@ -11,4 +11,3 @@ layers:
   stride: 1
   pad: 2
   activate: abs
-

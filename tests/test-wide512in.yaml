@@ -1,4 +1,3 @@
-
 arch: test
 dataset: test_wide512inII
 
@@ -14,4 +13,3 @@ layers:
   quantization: 2
   output_shift: -5
   op: conv2d
-

@@ -10,4 +10,3 @@ layers:
   flatten: true
   avg_pool: 2
   pool_stride: 2
-
