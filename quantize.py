@@ -197,21 +197,11 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                 weights = factor * checkpoint_state[k]
 
                 # Ensure it fits and is an integer
-                weights = weights.clamp(min=-(2**(clamp_bits-1)-lower_bound),
-                                        max=2**(clamp_bits-1)-1).round()
+                weights = weights.add(.5).floor().clamp(min=-(2**(clamp_bits-1)-lower_bound),
+                                        max=2**(clamp_bits-1)-1)
 
                 # Store modified weight/bias back into model
                 new_checkpoint_state[k] = weights
-
-                # Set output shift
-                out_shift_name = '.'.join([layer, 'output_shift'])
-                out_shift = torch.Tensor([-1 * get_max_bit_shift(checkpoint_state[k], True)])
-                if first:
-                    out_shift -= 1
-                    first = False
-                new_checkpoint_state[out_shift_name] = out_shift
-                if new_masks_dict is not None:
-                    new_masks_dict[out_shift_name] = out_shift
 
                 # Set weight_bits
                 weight_bits_name = '.'.join([layer, 'weight_bits'])
@@ -246,8 +236,21 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                     if dev != 84:
                         weights *= 2**(tc.dev.ACTIVATION_BITS-1)
 
+                    if first:
+                        weights *= 2
+
                     # Store modified weight/bias back into model
                     new_checkpoint_state[bias_name] = weights
+
+                # Set output shift
+                out_shift_name = '.'.join([layer, 'output_shift'])
+                out_shift = torch.Tensor([-1 * get_max_bit_shift(checkpoint_state[k], True)])
+                if first:
+                    out_shift -= 1
+                    first = False
+                new_checkpoint_state[out_shift_name] = out_shift
+                if new_masks_dict is not None:
+                    new_masks_dict[out_shift_name] = out_shift
             else:
                 # Work on a pre-quantized network -- this code is old and probably doesn't work
                 # anymore
