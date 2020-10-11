@@ -152,6 +152,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         boost=None,
         forever=False,
         write_gap=None,
+        measure_energy=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -458,6 +459,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             apb.header(
                 embedded_arm=embedded_code,
                 fail_indicator=forever,
+                measure_energy=measure_energy,
             )
             apb.main(
                 clock_trim=clock_trim,
@@ -467,6 +469,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 forever=forever,
                 mexpress=mexpress,
                 fifo=fifo,
+                measure_energy=measure_energy,
             )
 
     if input_csv is not None:
@@ -537,7 +540,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                            f'{output_chan[ll]}x{output_dim_str[ll]} output\n')
 
         apb.output('\n')
-        apb.header(fail_indicator=forever)
+        apb.header(
+            fail_indicator=forever,
+            measure_energy=measure_energy,
+        )
 
         if embedded_code or compact_data or mexpress:
             apb.output('void memcpy32(uint32_t *dst, const uint32_t *src, int n)\n{\n')
@@ -2022,6 +2028,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 forever=forever,
                 mexpress=mexpress,
                 fifo=fifo,
+                measure_energy=measure_energy,
             )
 
     # Close header files
@@ -2554,6 +2561,7 @@ def main():
             args.boost,
             args.forever,
             write_gap,
+            args.energy,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(
