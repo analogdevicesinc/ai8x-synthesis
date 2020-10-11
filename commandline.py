@@ -76,6 +76,8 @@ def get_parser():
                             "boost the power supply, e.g. --boost 2.5 (default: None)")
     group.add_argument('--start-layer', type=int, metavar='N', default=0,
                        help="set starting layer (default: 0)")
+    group.add_argument('--energy', action='store_true', default=False,
+                       help="insert instrumentation code for energy measurement")
 
     # File names
     group = parser.add_argument_group('File names')
