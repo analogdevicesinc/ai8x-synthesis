@@ -309,5 +309,6 @@ def test_linear():
 
     linear(d1, w1, None, e1)
 
+
 if __name__ == '__main__':
     test_linear()
