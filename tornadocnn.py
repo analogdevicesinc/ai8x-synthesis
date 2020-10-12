@@ -99,6 +99,20 @@ class DevAI84(Dev):
         return self.__class__.__name__
 
 
+class DevCMSISNN(Dev):
+    """
+    CMSIS limitations
+    """
+    APB_BASE = 0
+    MAX_LAYERS = 256
+    MAX_ROW_COL = 2**16
+    MEM_SIZE = 2**32
+    BIAS_DIV = 128
+
+    def __str__(self):
+        return self.__class__.__name__
+
+
 class DevAI85(Dev):
     """
     AI85 hardware constants
@@ -213,6 +227,8 @@ def get_device(
         d = DevAI85(part)
     elif device == 87:
         d = DevAI85(part)  # For now, no differences from AI85
+    elif device == devices.CMSISNN:
+        d = DevCMSISNN(part)
     else:
         eprint(f'Unknown device code `{device}`')
         sys.exit(1)

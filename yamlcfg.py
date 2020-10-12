@@ -9,6 +9,7 @@ YAML Configuration Routines
 """
 import sys
 import yaml
+import devices
 import op
 import tornadocnn as tc
 from eprint import eprint
@@ -135,22 +136,27 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
 
         if processor_map[sequence]:
             error_exit('Layer was already specified', sequence)
-        if 'processors' in ll:
-            processor_map[sequence] = ll['processors']
-        if not processor_map[sequence]:
-            error_exit('`processors` must not be zero or missing', sequence)
-        if not isinstance(processor_map[sequence], int) \
-           or processor_map[sequence] >= 2**tc.dev.MAX_PROC:
-            error_exit(f'`processors` must be an int from 0 to 2**{tc.dev.MAX_PROC}-1', sequence)
 
-        if 'output_processors' in ll:
-            output_map[sequence] = ll['output_processors']
-            if not output_map[sequence]:
-                error_exit('output_processors` cannot be zero', sequence)
-            if not isinstance(output_map[sequence], int) \
-               or output_map[sequence] >= 2**tc.dev.MAX_PROC:
-                error_exit('`output_processors` must be an int from 0 to '
-                           f'2**{tc.dev.MAX_PROC}-1', sequence)
+        if device != devices.CMSISNN:
+            if 'processors' in ll:
+                processor_map[sequence] = ll['processors']
+            if not processor_map[sequence]:
+                error_exit('`processors` must not be zero or missing', sequence)
+            if not isinstance(processor_map[sequence], int) \
+               or processor_map[sequence] >= 2**tc.dev.MAX_PROC:
+                error_exit(f'`processors` must be an int from 0 to 2**{tc.dev.MAX_PROC}-1',
+                           sequence)
+
+            if 'output_processors' in ll:
+                output_map[sequence] = ll['output_processors']
+                if not output_map[sequence]:
+                    error_exit('output_processors` cannot be zero', sequence)
+                if not isinstance(output_map[sequence], int) \
+                   or output_map[sequence] >= 2**tc.dev.MAX_PROC:
+                    error_exit('`output_processors` must be an int from 0 to '
+                               f'2**{tc.dev.MAX_PROC}-1', sequence)
+        else:
+            processor_map[sequence] = 1
 
         if 'max_pool' in ll:
             val = ll['max_pool']
@@ -458,11 +464,12 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
     # Check first layer
     if input_offset[0] is None:
         input_offset[0] = 0
-    # Check last layer
-    if output_map[-1] is None and 'output_map' in cfg:
-        output_map[-1] = cfg['output_map']
-    if output_width[-1] != 8 and activation[-1] is not None:
-        error_exit('`output_width` must be 8 when activation is used', len(activation))
+    if device != devices.CMSISNN:
+        # Check last layer
+        if output_map[-1] is None and 'output_map' in cfg:
+            output_map[-1] = cfg['output_map']
+        if output_width[-1] != 8 and activation[-1] is not None:
+            error_exit('`output_width` must be 8 when activation is used', len(activation))
 
     # Check all layers
     for ll, e in enumerate(operator):
@@ -472,6 +479,8 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
                 error_exit('Pass-through layers must not use activation', ll)
             if padding[ll][0] != 0 or padding[ll][1] != 0:
                 error_exit('Padding must be zero for passthrough layers', ll)
+            if output_shift[ll] != 0 and output_shift[ll] is not None:
+                error_exit('`output_shift` must be zero for passthrough layers', ll)
         # Check that pooling isn't set for ConvTranspose2d:
         elif e == op.CONVTRANSPOSE2D:
             if pooling_enabled[ll]:

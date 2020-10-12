@@ -1,4 +1,4 @@
-# Test 1x1 Conv2D as MLP (no flatten)
+# Test 1x1 Conv2D as MLP with flatten
 
 arch: test
 dataset: test_mlpflatten12to2
