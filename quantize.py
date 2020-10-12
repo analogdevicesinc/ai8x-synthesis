@@ -198,7 +198,7 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
 
                 # Ensure it fits and is an integer
                 weights = weights.add(.5).floor().clamp(min=-(2**(clamp_bits-1)-lower_bound),
-                                        max=2**(clamp_bits-1)-1)
+                                                        max=2**(clamp_bits-1)-1)
 
                 # Store modified weight/bias back into model
                 new_checkpoint_state[k] = weights
@@ -216,7 +216,11 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                 if bias_name in checkpoint_state:
                     clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Always 8 bits
                     if arguments.verbose:
-                        print(' -', bias_name)
+                        print(bias_name, 'avg_max:', unwrap(avg_max(checkpoint_state[bias_name])),
+                              'max:', unwrap(max_max(checkpoint_state[bias_name])),
+                              'mean:', unwrap(checkpoint_state[bias_name].mean()),
+                              'factor:', unwrap(factor),
+                              'bits:', clamp_bits)
                     weights = factor * checkpoint_state[bias_name]
 
                     # The scale is different for AI84, and this has to happen before clamping.
@@ -224,8 +228,8 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                         weights *= 2**(clamp_bits-1)
 
                     # Ensure it fits and is an integer
-                    weights = weights.clamp(min=-(2**(clamp_bits-1)-lower_bound),
-                                            max=2**(clamp_bits-1)-1).round()
+                    weights = weights.add(.5).floor().clamp(min=-(2**(clamp_bits-1)-lower_bound),
+                                                            max=2**(clamp_bits-1)-1)
 
                     # Save conv biases so PyTorch can still use them to run a model. This needs
                     # to be reversed before loading the weights into the AI84/AI85.
