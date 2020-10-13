@@ -165,6 +165,8 @@ def get_parser():
                        help="after initial run, repeat CNN forever (default: false)")
     group.add_argument('--link-layer', action='store_true', default=False,
                        help="always use the link layer feature (default: false)")
+    group.add_argument('--read-ahead', dest='rd_ahead', action='store_true', default=False,
+                       help="set the rd_ahead bit (default: false)")
 
     # RTL sim
     group = parser.add_argument_group('RTL simulation')

@@ -158,6 +158,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         reshape_inputs=False,
         link_layer=False,
         measure_energy=False,
+        rd_ahead=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -1184,6 +1185,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 sources |= 1 << t
                         val |= sources << 12
 
+                    if rd_ahead and hasattr(tc.dev, 'RD_AHEAD_OFFS'):
+                        val |= 1 << tc.dev.RD_AHEAD_OFFS
+
                     if hasattr(tc.dev, 'CPRIME_MAX_OFFS') and operator[ll] != op.NONE:
                         val |= kernel_size[ll][0] - 1 << tc.dev.RPRIME_MAX_OFFS
                         val |= kernel_size[ll][1] - 1 << tc.dev.CPRIME_MAX_OFFS
@@ -1385,6 +1389,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                         if operator[ll] == op.CONVTRANSPOSE2D:
                             val |= 1 << 28
+
+                        if conv_groups[ll] > 1:
+                            val |= 1 << 30 | 1 << 24  # depthwise_ena, ts_ena
 
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_POST, val,
                                        verbose, comment=' // Post processing register')
@@ -2719,6 +2726,7 @@ def main():
             args.reshape_inputs,
             args.link_layer,
             args.energy,
+            args.rd_ahead,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(
