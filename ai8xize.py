@@ -2204,6 +2204,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             input_csv=input_csv,
             input_period=input_csv_period,
             input_sync=input_sync,
+            device=device,
         )
         assets.copy('assets', 'rtlsim-ai' + str(device), base_directory, test_name)
         if riscv_cache:
