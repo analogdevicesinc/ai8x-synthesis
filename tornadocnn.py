@@ -237,6 +237,8 @@ class DevAI85(Dev):
 
     FIX_STREAM_BIAS = True
 
+    FLASH_SIZE = 0x8000
+
     # Cycles
     C_START = 4
     C_PAD = 2
@@ -365,6 +367,8 @@ class DevAI87(Dev):
     FAST_FIFO_DMA = 5  # DMA register (reserved function, not yet supported)
 
     FIX_STREAM_BIAS = True
+
+    FLASH_SIZE = 0x28000
 
     # Cycles
     C_START = 4

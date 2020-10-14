@@ -8,6 +8,7 @@
 RTL simulation support routines
 """
 import os
+import tornadocnn as tc
 
 
 GLOBAL_TIME_OFFSET = 3
@@ -81,7 +82,7 @@ def create_runtest_sv(
                     '    $display("Loading RISC-V FLASH main array image %s at %0t", '
                     'FLASH_IMAGE, $time);\n'
                     '    $readmemh({`TARGET_DIR,"/RISCV_PROG_flash.prog"}, '
-                    '`FLASH.main_mem, 32\'h0000, 32\'h83FF);\n'
+                    f'`FLASH.main_mem, 32\'h0000, 32\'h{tc.dev.FLASH_SIZE + 0x3FF:04X});\n'
                     '    ->ev_load_riscv_flash_image;\n'
                     '    #1;\n'
                     '    multi_cpu_en = 1\'b0;\n'

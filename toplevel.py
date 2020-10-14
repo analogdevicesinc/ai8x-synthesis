@@ -378,19 +378,22 @@ def main(
         if riscv is not None:
             if riscv_cache:
                 if embedded_code or embedded_arm:
-                    memfile.write('\n  MXC_FCR->urvbootaddr = (uint32_t) &__FlashStart_;'
+                    memfile.write('\n  MXC_FCR->urvbootaddr = (uint32_t) &__FlashStart_; '
+                                  '// Set RISC-V boot address\n')
+                elif device >= 87:
+                    memfile.write(f'  MXC_FCR->urvbootaddr = 0x{rv.RISCV_CODE_ORIGIN:08x}; '
                                   '// Set RISC-V boot address\n')
                 else:
                     memfile.write(f'  MXC_NBBFC->reg4 = 0x{rv.RISCV_CODE_ORIGIN:08x}; '
                                   '// Set RISC-V boot address\n')
             if riscv_exclusive:
-                if embedded_code or embedded_arm:
+                if embedded_code or embedded_arm or device >= 87:
                     memfile.write('  MXC_FCR->urvctrl |= 0x00000001; '
                                   '// Exclusive SRAM access for RISC-V\n')
                 else:
                     memfile.write('  *((volatile uint32_t *) 0x40000814) |= 0x00000001; '
                                   '// Exclusive SRAM access for RISC-V (MXC_NBBFC->reg5)\n')
-            if embedded_code or embedded_arm:
+            if embedded_code or embedded_arm or device >= 87:
                 memfile.write('  MXC_GCR->pclkdis1 &= ~MXC_F_GCR_PCLKDIS1_CPU1; '
                               '// Enable RISC-V clock\n')
             else:
@@ -470,8 +473,12 @@ def main(
                 memfile.write('  printf("See monitor display for inference energy.\\n");\n\n')
 
         if not forever:
-            memfile.write('  // Disable CNN clock\n'
-                          '  MXC_SYS_ClockDisable(MXC_SYS_PERIPH_CLOCK_CNN);\n')
+            if embedded_code:
+                memfile.write('  // Disable CNN clock\n'
+                              '  MXC_SYS_ClockDisable(MXC_SYS_PERIPH_CLOCK_CNN);\n')
+            else:
+                memfile.write('  // Disable CNN clock\n'
+                              '  MXC_GCR->pclkdis0 |= MXC_F_GCR_PCLKDIS0_CNN;\n')
             memfile.write('  // Disable power to CNN\n')
             memfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
             memfile.write(f'  MXC_{bbfc}->reg1 = 0x0; // Mask memory\n')

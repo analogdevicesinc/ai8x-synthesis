@@ -1117,7 +1117,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         # [15:0] Write Pointer Timeslot Offset Register
                         # Used for 1x1 convolution, and pooling without convolution
                         if operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]:
-                            val = 1
+                            if conv_groups[ll] > 1:
+                                val = 1
                         elif operator[ll] == op.NONE:
                             if popcount(processor_map[ll]) > 4 \
                                or operands[ll] > 1 and in_expand[ll] > 1:

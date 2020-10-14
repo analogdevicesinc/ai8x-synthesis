@@ -49,8 +49,8 @@ ifeq "$(BOARD)" ""
 BOARD=MAX78002/Simulation
 endif
 
-MICRO_CORE=ARM_CM3
-RISCV_CORE=
+MICRO_CORE=RV32
+RISCV_CORE=RV32
 export RISCV_CORE
 $(info Info: -------------------------------------------------------------)
 $(info Info: -------------------------------------------------------------)
@@ -74,7 +74,7 @@ CMSIS_ROOT=$(LIBS_DIR)/CMSIS
 export CMSIS_ROOT
 
 # Source files for this test (add path to VPATH below)
-SRCS  = test.c
+SRCS  = test_riscv.c
 SRCS  += global_functions.c
 #SRCS  += i2cl.c
 
@@ -84,9 +84,19 @@ VPATH+=$(PROJECT_ROOT)/digital/verification/tb_support/c_code
 # Where to find header files for this test
 IPATH = .
 IPATH+=$(PROJECT_ROOT)/digital/verification/tb_support/c_include
+IPATH+=$(PROJECT_ROOT)/digital/verification/tb_support/c_include/test_csrc
+#IPATH+=$(PROJECT_ROOT)/support/gcc-riscv/riscv32-unknown-elf/include
 
 # Enable assertion checking for development
-PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE -DCPU0_ARM_CM3
+PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE -DRV32
+
+# Specify STACK SIZE
+STACK_SIZE=1024
+#HEAP_SIZE=2048 
+
+# Specify RISCV MARCH and MABI (optional)
+#MARCH=rv32imc 
+#MABI=ilp32
 
 # Specify the target revision to override default
 # "A2" in ASCII
@@ -100,12 +110,13 @@ PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE -DCPU0_ARM_CM3
 #PROJ_LDFLAGS+=--specs=nano.specs
 
 # Point this variable to a startup file to override the default file
-#STARTUPFILE=start.S
+STARTUPFILE=startup_riscv_max78002.S
 
-MXC_OPTIMIZE_CFLAGS=-O0
+MXC_OPTIMIZE_CFLAGS=-O0 
+#MXC_OPTIMIZE_CFLAGS=-Og
 
 # Point this variable to a linker file to override the default file
-LINKERFILE=$(LIBS_DIR)/Boards/$(TARGET_UC)/Simulation/Source/max_simulation_rom.ld
+LINKERFILE=max78002_simulation_riscv.ld
 
 ################################################################################
 # Include external library makefiles here
@@ -121,6 +132,7 @@ include $(PERIPH_DRIVER_DIR)/periphdriver.mk
 ################################################################################
 # Include the rules for building for this target. All other makefiles should be
 # included before this one.
+# RVC instead of using a separate _riscv.mk file use the common file with specific checks based on MICRO_CORE variable :: include $(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/$(COMPILER)/$(TARGET_LC)_riscv.mk
 include $(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/$(COMPILER)/$(TARGET_LC).mk
 
 # The rule to clean out all the build products.
