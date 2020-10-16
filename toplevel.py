@@ -440,8 +440,9 @@ def main(
                 memfile.write('  printf("See monitor display for inference energy.\\n");\n\n')
 
         if not forever:
-            memfile.write('  // Disable CNN clock\n'
-                          '  MXC_SYS_ClockDisable(MXC_SYS_PERIPH_CLOCK_CNN);\n')
+            if embedded_code:
+                memfile.write('  // Disable CNN clock\n'
+                              '  MXC_SYS_ClockDisable(MXC_SYS_PERIPH_CLOCK_CNN);\n')
             memfile.write('  // Disable power to CNN\n')
             memfile.write('  MXC_BBFC->reg3 = 0xf; // Reset\n')
             memfile.write('  MXC_BBFC->reg1 = 0x0; // Mask memory\n')

@@ -23,7 +23,7 @@ def linear(data, weight, bias, expected):
     t = torch.nn.functional.linear(
         torch.as_tensor(data, dtype=torch.float).unsqueeze(0),  # Add batch dimension
         torch.as_tensor(weight, dtype=torch.float),
-        torch.as_tensor(bias, dtype=torch.float),
+        torch.as_tensor(bias, dtype=torch.float) if bias is not None else None,
     ).int().squeeze().numpy()
 
     output = compute.linear(
@@ -290,6 +290,24 @@ def test_linear():
                   dtype=np.int64)
 
     linear(d0, w0, b0, e0)
+
+    d1 = np.array(
+        [[[45, -6],
+          [107, 113]],
+         [[24, 85],
+          [29, 44]],
+         [[82, 99],
+          [85, 66]]],
+        dtype=np.int64).flatten()
+    w1 = np.array(
+        [[-29, -101, 67, -37, 19, -89, 121, 63, 116, 44, 51, 84],
+         [-99, -2, 24, 41, -31, 71, 71, 82, 41, 2, -128, 68]],
+        dtype=np.int64)
+    e1 = np.array(
+        [25208, 10884],
+        dtype=np.int64)
+
+    linear(d1, w1, None, e1)
 
 
 if __name__ == '__main__':

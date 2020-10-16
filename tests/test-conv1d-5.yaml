@@ -10,4 +10,3 @@ layers:
   kernel_size: 5
   stride: 1
   pad: 1
-
