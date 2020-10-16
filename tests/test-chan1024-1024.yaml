@@ -1,4 +1,3 @@
-
 arch: test
 dataset: test_chan1024-1024
 
@@ -15,4 +14,3 @@ layers:
   quantization: 4
   output_shift: -3
   op: conv2d
-
