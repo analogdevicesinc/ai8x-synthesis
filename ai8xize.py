@@ -944,6 +944,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 (popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
                                           % 2**tc.dev.P_NUMPRO) * output_width[ll] // 8 - 1) // 4
                             )
+                    elif conv_groups[ll] > 1:
+                        tscnt_max = max(
+                            tscnt_max,
+                            popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
+                                     % 2**tc.dev.P_NUMPRO) - 1
+                        )
 
                 for _, group in enumerate(groups_used):
                     apb.output(f'\n  // Layer {r * layers + ll} group {group}\n')
@@ -1117,8 +1123,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         # [15:0] Write Pointer Timeslot Offset Register
                         # Used for 1x1 convolution, and pooling without convolution
                         if operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]:
-                            if conv_groups[ll] > 1:
-                                val = 1
+                            val = 1 if conv_groups[ll] == 1 else 0
                         elif operator[ll] == op.NONE:
                             if popcount(processor_map[ll]) > 4 \
                                or operands[ll] > 1 and in_expand[ll] > 1:
