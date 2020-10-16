@@ -396,6 +396,7 @@ SHORT_LOG="--log-last-only"
 # FIXME ./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-fifostream-quant --config-file tests/test-fifostream-quant.yaml --device "$DEVICE" --fifo --stop-after 0 "$@"
 # FIXME ./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-fifostream-quant --config-file tests/test-fifostream-quant.yaml --device "$DEVICE" --fifo "$@"
 ./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-mlpflattennopool12to2 --config-file tests/test-mlpflattennopool12to2.yaml --device "$DEVICE" --debug-computation --debug "$@"
+# ./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant-fc --config-file tests/test-flatten-fc-quant-fc.yaml --device "$DEVICE" --debug-computation --debug "$@"
 
 # MAX78002 only
 ./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-layers128 --config-file tests/test-layers128.yaml --device "$DEVICE" "$@"
