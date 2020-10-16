@@ -40,4 +40,3 @@ layers:
   quantization: 4
   output_shift: -3
   op: conv2d
-

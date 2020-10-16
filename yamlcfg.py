@@ -134,6 +134,9 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
         if 'sequence' in ll:
             sequence = ll['sequence']  # Override sequence information
 
+        if sequence >= tc.dev.MAX_LAYERS:
+            error_exit(f'Layer sequence exceeds device limit of {tc.dev.MAX_LAYERS}', sequence)
+
         if processor_map[sequence]:
             error_exit('Layer was already specified', sequence)
 
