@@ -241,6 +241,14 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                             * input_chan[ll]
                                         if koffs < len(kernel_reshaped):
                                             this_kern = kernel_reshaped[koffs].flatten()
+                                            if len(this_kern) % qfactor != 0:
+                                                this_kern = np.append(
+                                                    this_kern,
+                                                    np.zeros(
+                                                        qfactor - len(this_kern) % qfactor,
+                                                        dtype=np.int64
+                                                    )
+                                                )
                                             for i in range(qfactor):
                                                 k |= ((this_kern[i::qfactor]
                                                        & (2**quantization[ll]-1))) \
