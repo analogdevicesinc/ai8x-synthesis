@@ -140,6 +140,8 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         if output_chan[ll] > tc.dev.MAX_PROC:
             kern_len[ll] = (kern_len[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
         kern_len[ll] *= out_expand[ll] * in_expand[ll]
+        if flatten[ll]:
+            kern_len[ll] *= kernel_reshaped.shape[1]
         if device != 84:
             # Pack kernels when using 1D convolutions, or 1x1 kernels
             kern_len[ll] = (kern_len[ll] * ksize + 8) // 9
@@ -198,6 +200,12 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
 
                             def add_kernel_data(ll, p, col_target, b):
                                 col = kern_offs[ll] + col_target
+                                if col >= tc.dev.MASK_WIDTH:
+                                    eprint(f'\nKernel memory exceeded in layer {ll}.'
+                                           '\n\nKernel map so far:')
+                                    print_map(layers, kernel_map, print_fn=eprint_noprefix)
+                                    sys.exit(1)
+
                                 if kernels_used[p][col] == 0:  # Update kernel map
                                     assert kernel_map[p][col] == _INVALID_VALUE
                                     kernel_map[p][col] = ll
