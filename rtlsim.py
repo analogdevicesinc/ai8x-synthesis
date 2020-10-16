@@ -85,7 +85,6 @@ def create_runtest_sv(
                     f'`FLASH.main_mem, 32\'h0000, 32\'h{tc.dev.FLASH_SIZE + 0x3FF:04X});\n'
                     '    ->ev_load_riscv_flash_image;\n'
                     '    #1;\n'
-                    '    multi_cpu_en = 1\'b0;\n'
                     'end\n'
                 )
             if device >= 87:
