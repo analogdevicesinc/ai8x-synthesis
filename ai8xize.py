@@ -652,35 +652,35 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         # Initialize CNN registers
 
         if verbose:
-            startup, lat = stats.calc_latency(
-                streaming,
-                layers,
-                eltwise,
-                pool,
-                pooled_dim,
-                in_expand,
-                output_chan,
-                output_dim,
-                input_dim,
-                padding,
-                kernel_size,
-            )
-            print('\nEstimated latency:')
-            print('------------------')
-            if lat is None:
-                print('N/A')
-            else:
-                total = startup
-                print(f'Startup{startup:14,}')
-                for k in range(start_layer, layers):
-                    total += lat[k][0]
-                    print(f'Layer {k:<3}{lat[k][0]:12,}', end='')
-                    if debug_latency:
-                        print('', lat[k][1])
-                    else:
-                        print('')
-                print('           ==========')
-                print(f'Total{total:16,} cycles')
+            # startup, lat = stats.calc_latency(
+            #     streaming,
+            #     layers,
+            #     eltwise,
+            #     pool,
+            #     pooled_dim,
+            #     in_expand,
+            #     output_chan,
+            #     output_dim,
+            #     input_dim,
+            #     padding,
+            #     kernel_size,
+            # )
+            # print('\nEstimated latency:')
+            # print('------------------')
+            # if lat is None:
+            #     print('N/A')
+            # else:
+            #     total = startup
+            #     print(f'Startup{startup:14,}')
+            #     for k in range(start_layer, layers):
+            #         total += lat[k][0]
+            #         print(f'Layer {k:<3}{lat[k][0]:12,}', end='')
+            #         if debug_latency:
+            #             print('', lat[k][1])
+            #         else:
+            #             print('')
+            #     print('           ==========')
+            #     print(f'Total{total:16,} cycles')
 
             print('\nGlobal registers:')
             print('-----------------')
