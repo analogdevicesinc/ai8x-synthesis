@@ -271,7 +271,7 @@ def track_data_shape(model, out_dict):
             if len(save_shape) > 0:
                 temp = save_shape.copy()
                 if len(save_perm) == len(save_shape):
-                    for x in range(len(save_perm)):
+                    for x in range(len(save_perm)):  # pylint: disable=consider-using-enumerate
                         save_shape[x] = temp[save_perm[x]]
 
         elif node.op_type == 'MatMul' or node.op_type == 'Gemm':
@@ -363,8 +363,13 @@ integer_dict = {
 
 
 def tensor_has_valid_type(tensor_valueproto, verbose):
-    """ Ensures ValueProto tensor element type is not UNDEFINED"""
-    if tensor_valueproto.type.tensor_type.elem_type == onnx.TensorProto.UNDEFINED:
+    """
+    Ensures ValueProto tensor element
+    type is not UNDEFINED
+    """  # FIXME pylint below
+    if tensor_valueproto.type.tensor_type.elem_type \
+       == \
+       onnx.TensorProto.UNDEFINED:  # pylint: disable=no-member
         if verbose:
             print('Type could not be inferred for the following output,'
                   ' it will be not be exposed:\n',
@@ -403,8 +408,8 @@ def expose_node_outputs(model_path, overwrite, run_checker=True, verbose=False):
             # Added to expose Intermediate Node data
             intermediate_layer_value_info = \
                 onnx.helper.make_tensor_value_info(
-                                                   output,
-                                                   onnx.TensorProto.UNDEFINED,
+                                                   output,  # FIXME: linter below
+                                                   onnx.TensorProto.UNDEFINED,  # pylint: disable=E1101, # noqa:E501
                                                    None,
                                                    node.op_type
                                                   )
@@ -485,7 +490,7 @@ def onnxrt(
             if not dim:
                 # unknown dim
                 shape.append(1)
-            elif type(dim) == str:
+            elif type(dim) == str:  # pylint: disable=unidiomatic-typecheck
                 # symbolic dim. see if we have a value otherwise use 1
                 shape.append(1)
             else:
@@ -524,7 +529,7 @@ def onnxrt(
 
     try:
         ort_outs = sess.run(None, feeds)  # fetch all outputs
-    except onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException:
+    except onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException:  # pylint: disable=I1101
         eprint("Unsupported ONNX operation encountered")
         sys.exit(1)
 
