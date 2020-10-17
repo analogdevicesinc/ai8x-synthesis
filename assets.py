@@ -28,11 +28,12 @@ def copy(
             shutil.copy(os.path.join(base, source, name), dst)
 
 
-def eclipse_template(
+def from_template(
         base,
         source,
         target,
         test_name,
+        board_name,
         riscv=False,
 ):
     """
@@ -57,7 +58,8 @@ def eclipse_template(
                     for line in infile:
                         outfile.write(
                             line.replace('##__PROJ_NAME__##', test_name).
-                            replace('##__ELF_FILE__##', elf_file)
+                            replace('##__ELF_FILE__##', elf_file).
+                            replace('##__BOARD__##', board_name)
                         )
             else:
                 shutil.copy(os.path.join(base, source, name), os.path.join(target, test_name))

@@ -153,6 +153,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         forever=False,
         write_gap=None,
         measure_energy=False,
+        board_name='',
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -2072,10 +2073,13 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         assets.copy('assets', 'blocklevel', base_directory, test_name)
     elif embedded_code:
         if riscv:
-            assets.copy('assets', 'embedded-riscv-ai' + str(device), base_directory, test_name)
+            assets.from_template('assets', 'embedded-riscv-ai' + str(device), base_directory,
+                                 test_name, board_name, riscv=riscv)
         else:
-            assets.copy('assets', 'embedded-ai' + str(device), base_directory, test_name)
-        assets.eclipse_template('assets', 'eclipse', base_directory, test_name, riscv=riscv)
+            assets.from_template('assets', 'embedded-ai' + str(device), base_directory,
+                                  test_name, board_name, riscv=riscv)
+        assets.from_template('assets', 'eclipse', base_directory,
+                             test_name, board_name, riscv=riscv)
 
     return test_name
 
@@ -2567,6 +2571,7 @@ def main():
             args.forever,
             write_gap,
             args.energy,
+            args.board_name,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(
