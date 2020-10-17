@@ -39,4 +39,3 @@ layers:
   op: mlp
   processors: 0x0000000000000fff
   output_width: 32
-

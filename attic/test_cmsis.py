@@ -32,10 +32,15 @@ def test_cmsis(test_no):
     pool = [[0, 0]]
     pool_stride = [[1, 1]]
     pool_average = [False]
-    activate = [False]
+    activate = [None]
     bias = [None]
     output_width = [8]
     convolution = [op.CONV2D]
+    operands = [1]
+    eltwise = [None]
+    pool_first = [False]
+    in_sequences = [None]
+    conv_groups = [1]
 
     assert 0 <= test_no <= 4
     if test_no == 0:  # Passes
@@ -142,11 +147,12 @@ def test_cmsis(test_no):
     cmsisnn.create_net(
         'test_cmsis',  # prefix
         True,  # verbose
+        False,  # verbose_all
         False,  # debug
         True,  # log
         layers,
         convolution,
-        input_dim,
+        input_dim,  # auto_input_dim
         input_dim,
         pooled_dim,
         output_dim,
@@ -155,6 +161,7 @@ def test_cmsis(test_no):
         output_shift,
         input_chan,
         output_chan,
+        conv_groups,
         output_width,
         padding,
         dilation,
@@ -169,12 +176,18 @@ def test_cmsis(test_no):
         None,  # fc_weights
         None,  # fc_bias
         flatten,
+        operands,
+        eltwise,
+        pool_first,
+        in_sequences,
         'main',  # c_filename,
         'tests',  # base_directory
         'log.txt',  # log_filename
         'weights.h',  # weight_filename
         'sampledata.h',  # sample_filename,
-        84,  # device
+        False,  # avg_pool_rounding
+        85,  # device
+        False,  # legacy_test
     )
 
 

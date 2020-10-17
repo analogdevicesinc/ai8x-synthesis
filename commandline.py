@@ -195,6 +195,9 @@ def get_parser():
                        help="run test file name (default: 'run_test.sv')")
     group.add_argument('--legacy-test', action='store_true', default=False,
                        help="enable compatibility for certain old RTL sims (default: false)")
+    group.add_argument('--legacy-kernels', action='store_true', default=False,
+                       help="use old, less efficient kernel allocation for certain old RTL sims"
+                            " (default: false)")
     group.add_argument('--test-dir', metavar='S', required=True,
                        help="set base directory name for auto-filing .mem files")
     group.add_argument('--top-level', default=None, metavar='S',

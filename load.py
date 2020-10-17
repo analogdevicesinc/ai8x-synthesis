@@ -145,7 +145,7 @@ def load(
                         val |= (s2u(data[c][row][col]) & 0xff) << (shift * 8)
                         if shift == 3:
                             apb.check_overwrite(data_offs & ~3)
-                            out_map[(data_offs & ~3) >> 2] = (c, row, col, val)
+                            out_map[(data_offs & ~3) >> 2] = (-1, c, row, col, val)
                             code_buffer[offs] = val
                             offs += 1
                             val = 0
@@ -155,7 +155,7 @@ def load(
 
                 if shift != 3:
                     apb.check_overwrite(data_offs & ~3)
-                    out_map[(data_offs & ~3) >> 2] = (c, row, col, val)
+                    out_map[(data_offs & ~3) >> 2] = (-1, c, row, col, val)
                     code_buffer[offs] = val
                     offs += 1
 
@@ -243,7 +243,7 @@ def load(
                                 this_c += 1
 
                         apb.check_overwrite(data_offs)
-                        out_map[data_offs >> 2] = (this_c, row, col, val)
+                        out_map[data_offs >> 2] = (-1, this_c, row, col, val)
                         if not embedded_code:
                             apb.write(data_offs, val)
                         else:

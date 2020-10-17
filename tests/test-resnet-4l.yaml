@@ -7,7 +7,7 @@ dataset: CIFAR100
 layers:
 # Layer 0
 - in_offset: 0x0000
-  out_offset: 0x2000 
+  out_offset: 0x2000
   processors: 0x0000000000000007
   operation: conv2d
   kernel_size: 3x3

@@ -11,4 +11,3 @@ layers:
   max_pool: 3
   pool_stride: 1
   pad: 1
-

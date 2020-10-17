@@ -23,4 +23,3 @@ layers:
   processors: 0x000000000000ffff
   streaming: true
   op: conv2d
-

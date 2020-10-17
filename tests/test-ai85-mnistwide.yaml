@@ -32,4 +32,3 @@ layers:
   out_offset: 0
   processors: 0x0fffffffffffffff
   op: conv2d
-

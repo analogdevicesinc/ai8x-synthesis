@@ -46,7 +46,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         verbose_all,
         debug,
         debug_computation,
-        debug_latency,
+        debug_latency,  # pylint: disable=unused-argument
         no_error_stop,
         overwrite_ok,
         log,
@@ -141,6 +141,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         powerdown=False,
         simple1b=False,
         legacy_test=True,
+        legacy_kernels=False,
         log_intermediate=False,
         log_pooling=False,
         allow_streaming=False,
@@ -332,6 +333,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) does not divide'
                    f' the input channels ({input_chan[ll]}) or'
                    f' output channels ({output_chan[ll]}).')
+            sys.exit(1)
+
+        if flatten[ll] and operator[ll] == op.NONE:
+            eprint(f'Layer {ll}: `flatten` is not compatible with passthrough layers.')
             sys.exit(1)
 
         if conv_groups[ll] > 1:
@@ -633,6 +638,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 fast_fifo_quad,
                 debug,
                 block_mode,
+                legacy_kernels=legacy_kernels,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
                 verbose,
@@ -813,6 +819,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 fast_fifo_quad,
                 debug,
                 block_mode,
+                legacy_kernels=legacy_kernels,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
                 verbose,
@@ -2566,6 +2573,7 @@ def main():
             if flatten[ll]:
                 output_dim[ll] = [1, 1]
                 input_channels[ll] //= pooled_dim[ll][0] * pooled_dim[ll][1]
+                assert input_channels[ll] > 0
             if padding[ll][0] >= 3:
                 eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
                        f'(currently set to {padding[ll][0]}).')
@@ -2715,6 +2723,7 @@ def main():
             args.powerdown,
             args.simple1b,
             args.legacy_test,
+            args.legacy_kernels,
             args.log_intermediate,
             args.log_pooling,
             args.allow_streaming,
