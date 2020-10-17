@@ -2077,7 +2077,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                  test_name, board_name, riscv=riscv)
         else:
             assets.from_template('assets', 'embedded-ai' + str(device), base_directory,
-                                  test_name, board_name, riscv=riscv)
+                                 test_name, board_name, riscv=riscv)
         assets.from_template('assets', 'eclipse', base_directory,
                              test_name, board_name, riscv=riscv)
 
