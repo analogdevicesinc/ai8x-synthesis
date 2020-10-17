@@ -77,6 +77,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         debug=False,
         blocklevel=False,
         legacy_kernels=False,
+        calcx4=False,
 ):
     """
     Stack `kernel` values and write them to C code (for `embedded_code` if `True` or
@@ -103,6 +104,11 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                              dtype=np.int64)
     if debug:
         print('\nLoading Kernels...')
+
+    if calcx4 and not tc.dev.SUPPORT_CALCX4:
+        eprint('--calcx4 is not supported on this device.')
+        sys.exit(1)
+    assert not ((embedded_code or mexpress) and calcx4)  # FIXME Add support later
 
     for ll in range(start_layer, layers):
         if operator[ll] not in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
@@ -323,7 +329,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 ll = kernel_map[p][col]
                 if ll != _INVALID_VALUE:
                     k = kernel_data[p][col]
-                    apb.write_kern(ll, p, col, k, verify_only=verify)
+                    apb.write_kern(ll, p, col, k, verify_only=verify, calcx4=calcx4)
         if verify:
             apb.output('  return 1;\n}\n\n')
     if embedded_code or mexpress:

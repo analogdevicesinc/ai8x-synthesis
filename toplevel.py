@@ -72,7 +72,6 @@ def header(
         camera=False,
         embedded_arm=False,
         fail_indicator=False,
-        device=84,
         measure_energy=False,
 ):
     """
@@ -88,7 +87,7 @@ def header(
     if not cmsis_nn:
         if embedded_code or embedded_arm:
             memfile.write('#include "mxc_sys.h"\n')
-            if device >= 87:
+            if tc.dev.SUPPORT_GCFR:
                 memfile.write('#include "gcfr_regs.h"\n')
             else:
                 memfile.write('#include "bbfc_regs.h"\n')
@@ -236,7 +235,7 @@ def main(
     if embedded_code and (classification_layer or softmax):
         memfile.write('  int digs, tens;\n')
 
-    bbfc = 'BBFC' if device < 87 else 'GCFR'
+    bbfc = 'BBFC' if not tc.dev.SUPPORT_GCFR else 'GCFR'
 
     if riscv is None or not riscv:
         if embedded_code or embedded_arm:
@@ -336,7 +335,7 @@ def main(
                 memfile.write('  *((volatile uint32_t *) 0x40006c04) = 0x000001a0; // 96M trim\n')
                 memfile.write('  *((volatile uint32_t *) 0x40000c00) = 0x00000000; '
                               '// Clear TME\n\n')
-                if device >= 87:
+                if tc.dev.SUPPORT_GCFR:
                     memfile.write('  MXC_GCR->clkctrl |= MXC_F_GCR_CLKCTRL_IPO_EN;'
                                   ' // Enable internal primary osc (IPO)\n')
                     memfile.write('  while ((MXC_GCR->clkctrl & MXC_F_GCR_CLKCTRL_IPO_RDY) == 0) ;'
@@ -380,20 +379,20 @@ def main(
                 if embedded_code or embedded_arm:
                     memfile.write('\n  MXC_FCR->urvbootaddr = (uint32_t) &__FlashStart_; '
                                   '// Set RISC-V boot address\n')
-                elif device >= 87:
+                elif tc.dev.MODERN_SIM:
                     memfile.write(f'  MXC_FCR->urvbootaddr = 0x{rv.RISCV_CODE_ORIGIN:08x}; '
                                   '// Set RISC-V boot address\n')
                 else:
                     memfile.write(f'  MXC_NBBFC->reg4 = 0x{rv.RISCV_CODE_ORIGIN:08x}; '
                                   '// Set RISC-V boot address\n')
             if riscv_exclusive:
-                if embedded_code or embedded_arm or device >= 87:
+                if embedded_code or embedded_arm or tc.dev.MODERN_SIM:
                     memfile.write('  MXC_FCR->urvctrl |= 0x00000001; '
                                   '// Exclusive SRAM access for RISC-V\n')
                 else:
                     memfile.write('  *((volatile uint32_t *) 0x40000814) |= 0x00000001; '
                                   '// Exclusive SRAM access for RISC-V (MXC_NBBFC->reg5)\n')
-            if embedded_code or embedded_arm or device >= 87:
+            if embedded_code or embedded_arm or tc.dev.MODERN_SIM:
                 memfile.write('  MXC_GCR->pclkdis1 &= ~MXC_F_GCR_PCLKDIS1_CPU1; '
                               '// Enable RISC-V clock\n')
             else:
@@ -476,7 +475,7 @@ def main(
             if embedded_code:
                 memfile.write('  // Disable CNN clock\n'
                               '  MXC_SYS_ClockDisable(MXC_SYS_PERIPH_CLOCK_CNN);\n')
-            else:
+            elif tc.dev.MODERN_SIM:
                 memfile.write('  // Disable CNN clock\n'
                               '  MXC_GCR->pclkdis0 |= MXC_F_GCR_PCLKDIS0_CNN;\n')
             memfile.write('  // Disable power to CNN\n')

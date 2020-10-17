@@ -310,6 +310,7 @@ class APB():
             k,
             size=9,
             verify_only=False,
+            calcx4=False,
     ):
         """
         Write single kernel `k` of length `size` for layer `ll`, processor `p` to index `idx` in
@@ -317,9 +318,19 @@ class APB():
         """
         assert p < tc.dev.MAX_PROC
         assert idx < tc.dev.mask_width(p)
-        addr = tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
-            + tc.dev.C_MRAM_BASE \
-            + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16 + idx * 16
+        if not calcx4:
+            addr = tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
+                + tc.dev.C_MRAM_BASE \
+                + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16 + idx * 16
+        else:
+            if idx < tc.dev.MASK_WIDTH_SMALL:
+                idx_x4 = (idx % tc.dev.MASK_NUM_INSTANCE) * tc.dev.MASK_WIDTH_INSTANCE \
+                    + idx // tc.dev.MASK_NUM_INSTANCE
+            else:
+                idx_x4 = idx
+            addr = tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
+                + tc.dev.C_MRAM_BASE \
+                + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16 + idx_x4 * 16
 
         if not verify_only:
             self.write(addr, k[0] & 0xff, no_verify=True,
@@ -907,7 +918,6 @@ class APBTopLevel(APB):
             camera=self.input_csv is not None,
             embedded_arm=embedded_arm,
             fail_indicator=fail_indicator,
-            device=self.device,
             measure_energy=measure_energy,
         )
 

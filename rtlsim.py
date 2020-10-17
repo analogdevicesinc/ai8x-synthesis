@@ -26,7 +26,6 @@ def create_runtest_sv(
         input_csv=None,
         input_period=80,
         input_sync=False,
-        device=84,
 ):
     """
     For for test `test_name`, create the runtest.sv file named `runtest_filename`, in the
@@ -87,7 +86,7 @@ def create_runtest_sv(
                     '    #1;\n'
                     'end\n'
                 )
-            if device >= 87:
+            if tc.dev.MODERN_SIM:
                 runfile.write(
                     '\n`define CNN_ENA  `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.cnnena\n'
                     '`define CNN_CLK  `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.clk\n\n'

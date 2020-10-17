@@ -160,6 +160,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         link_layer=False,
         measure_energy=False,
         rd_ahead=False,
+        calcx4=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -340,7 +341,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             sys.exit(1)
 
         if conv_groups[ll] > 1:
-            if device < 87:
+            if not tc.dev.SUPPORT_DEPTHWISE:
                 eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) > 1 are not supported'
                        f' on this device.')
                 sys.exit(1)
@@ -639,6 +640,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 debug,
                 block_mode,
                 legacy_kernels=legacy_kernels,
+                calcx4=calcx4,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
                 verbose,
@@ -820,6 +822,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 debug,
                 block_mode,
                 legacy_kernels=legacy_kernels,
+                calcx4=calcx4,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
                 verbose,
@@ -1405,6 +1408,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                         if conv_groups[ll] > 1:
                             val |= 1 << 30 | 1 << 24  # depthwise_ena, ts_ena
+
+                        if calcx4:
+                            val |= 1 << 29
 
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_POST, val,
                                        verbose, comment=' // Post processing register')
@@ -2224,7 +2230,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             input_csv=input_csv,
             input_period=input_csv_period,
             input_sync=input_sync,
-            device=device,
         )
         assets.copy('assets', 'rtlsim-ai' + str(device), base_directory, test_name)
         if riscv_cache:
@@ -2742,6 +2747,7 @@ def main():
             args.link_layer,
             args.energy,
             args.rd_ahead,
+            args.calcx4,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

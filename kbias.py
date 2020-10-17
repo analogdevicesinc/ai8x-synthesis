@@ -82,10 +82,10 @@ def load(
         # FIXME: Is it necessary to handle gaps in the next layer?
         bias_len = (output_chan[ll] + qfactor-1) // qfactor
 
-        if ll == 0 and streaming[ll] and tc.dev.FIX_STREAM_BIAS:
+        if ll == 0 and streaming[ll] and not tc.dev.SUPPORT_STREAM_BIAS:
             # Work around a problem on AI85
             bias_len += 1
-        if streaming[ll] and tc.dev.FIX_STREAM_BIAS:
+        if streaming[ll] and not tc.dev.SUPPORT_STREAM_BIAS:
             eprint(f'Layer {ll} uses streaming and a bias. '
                    'THIS COMBINATION MIGHT NOT BE FUNCTIONING CORRECTLY!!!',
                    error=False)

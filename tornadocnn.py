@@ -20,7 +20,11 @@ class Dev:
     """
     Metaclass for all hardware devices
     """
-    FIX_STREAM_BIAS = False
+    SUPPORT_STREAM_BIAS = False
+    SUPPORT_DEPTHWISE = False
+    SUPPORT_CALCX4 = False
+    SUPPORT_GCFR = False
+    MODERN_SIM = False
     MASK_WIDTH_SMALL = MASK_WIDTH_LARGE = P_NUMPRO = 0  # These will be overridden by child classes
 
     def mask_width(self, proc):
@@ -235,8 +239,6 @@ class DevAI85(Dev):
     FAST_FIFO_DR = 4  # Data register
     FAST_FIFO_DMA = 5  # DMA register (reserved function, not yet supported)
 
-    FIX_STREAM_BIAS = True
-
     FLASH_SIZE = 0x8000
 
     # Cycles
@@ -330,8 +332,10 @@ class DevAI87(Dev):
     TRAM_SIZE = 12288
     TRAM_OFFS = 16384
     BIAS_SIZE = 2048
-    MASK_WIDTH_SMALL = 4096
-    MASK_WIDTH_LARGE = 5120
+    MASK_WIDTH_INSTANCE = 1024
+    MASK_NUM_INSTANCE = 4
+    MASK_WIDTH_SMALL = MASK_NUM_INSTANCE * MASK_WIDTH_INSTANCE
+    MASK_WIDTH_LARGE = 5 * MASK_WIDTH_INSTANCE
     MASK_OFFS = 8192
     MCNT_SAD_OFFS = 16
     MCNT_MAX_OFFS = 0
@@ -366,7 +370,12 @@ class DevAI87(Dev):
     FAST_FIFO_DR = 4  # Data register
     FAST_FIFO_DMA = 5  # DMA register (reserved function, not yet supported)
 
-    FIX_STREAM_BIAS = True
+    SUPPORT_STREAM_BIAS = True
+    SUPPORT_DEPTHWISE = True
+    SUPPORT_CALCX4 = True
+
+    SUPPORT_GCFR = True
+    MODERN_SIM = True
 
     FLASH_SIZE = 0x28000
 
