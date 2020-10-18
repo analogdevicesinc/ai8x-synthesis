@@ -16,7 +16,7 @@ import op
 import rv
 import tornadocnn as tc
 from eprint import eprint, eprint_noprefix
-from utils import ffs, fls
+from utils import ffs, fls, popcount
 
 
 _INVALID_VALUE = -(2**63)
@@ -142,6 +142,8 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         kern_len[ll] *= out_expand[ll] * in_expand[ll]
         if flatten[ll]:
             kern_len[ll] *= kernel_reshaped.shape[1]
+            kern_len[ll] -= (out_expand[ll] * popcount(next_layer_map) - output_chan[ll]) \
+                * kernel_reshaped.shape[1] * 8 // (ksize * quantization[ll])
         if device != 84:
             # Pack kernels when using 1D convolutions, or 1x1 kernels
             kern_len[ll] = (kern_len[ll] * ksize + 8) // 9
