@@ -116,6 +116,7 @@ def create_runtest_sv(
                 'always @(posedge `CNN_ENA) begin\n'
                 '  start_time  = $realtime;\n'
                 '  start_ena   = 1;\n'
+                '  $display("CNN enabled");\n'
                 'end\n\n'
                 'always @(negedge `CNN_ENA) begin\n'
                 '  if (start_ena) begin\n'
