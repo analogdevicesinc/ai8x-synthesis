@@ -396,7 +396,7 @@ SHORT_LOG="--log-last-only"
 # FIXME ./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-fifostream-quant --config-file tests/test-fifostream-quant.yaml --device "$DEVICE" --fifo --stop-after 0 "$@"
 # FIXME ./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-fifostream-quant --config-file tests/test-fifostream-quant.yaml --device "$DEVICE" --fifo "$@"
 ./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-mlpflattennopool12to2 --config-file tests/test-mlpflattennopool12to2.yaml --device "$DEVICE" --debug-computation --debug "$@"
-./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant2-fc --config-file tests/test-flatten-fc-quant2-fc.yaml --device "$DEVICE" "$@"
+./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant2-fc --config-file tests/test-flatten-fc-quant2-fc.yaml --device "$DEVICE" --timeout 1000 "$@"
 ./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-mlpflatten768to100-quant4 --config-file tests/test-mlpflatten768to100-quant4.yaml --device "$DEVICE" "$@"
 
 # MAX78002 only
@@ -424,5 +424,5 @@ SHORT_LOG="--log-last-only"
 ./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-x4-cifar --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-readahead-cifar10-hwc.yaml --stop-after 0 --device "$DEVICE" --calcx4 "$@"
 ./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-x4-readahead-cifar --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-readahead-cifar10-hwc.yaml --stop-after 0 --device "$DEVICE" --calcx4 --read-ahead "$@"
 
-./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant4-fc --config-file tests/test-flatten-fc-quant4-fc.yaml --device "$DEVICE" "$@"
-./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant8-fc --config-file tests/test-flatten-fc-quant8-fc.yaml --device "$DEVICE" "$@"
+./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant4-fc --config-file tests/test-flatten-fc-quant4-fc.yaml --device "$DEVICE" --timeout 1000 "$@"
+./ai8xize.py --verbose --autogen $TARGET --top-level cnn -L --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant8-fc --config-file tests/test-flatten-fc-quant8-fc.yaml --device "$DEVICE" --timeout 1000 "$@"
