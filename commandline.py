@@ -187,8 +187,8 @@ def get_parser():
                        help="enable compatibility for certain old RTL sims (default: false)")
     group.add_argument('--test-dir', metavar='S', required=True,
                        help="set base directory name for auto-filing .mem files")
-    group.add_argument('--top-level', default=None, metavar='S',
-                       help="top level name instead of block mode (default: None)")
+    group.add_argument('--top-level', default='cnn', metavar='S',
+                       help="top level name (default: 'cnn', 'None' for block level)")
     group.add_argument('--queue-name', default='short', metavar='S',
                        help="queue name (default: 'short')")
     group.add_argument('--timeout', type=int, metavar='N',
@@ -313,5 +313,8 @@ def get_parser():
         except ValueError as exc:
             raise ValueError('ERROR: Argument --streaming-layers must be a comma-separated '
                              'list of integers only') from exc
+
+    if args.top_level == 'None':
+        args.top_level = None
 
     return args
