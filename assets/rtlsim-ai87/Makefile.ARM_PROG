@@ -105,7 +105,7 @@ PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE -DCPU0_ARM_CM3
 MXC_OPTIMIZE_CFLAGS=-O0
 
 # Point this variable to a linker file to override the default file
-LINKERFILE=$(LIBS_DIR)/Boards/$(TARGET_UC)/Simulation/Source/max_simulation_rom.ld
+LINKERFILE=$(LIBS_DIR)/Boards/$(TARGET_UC)/Simulation/Source/max_simulation.ld
 
 ################################################################################
 # Include external library makefiles here
