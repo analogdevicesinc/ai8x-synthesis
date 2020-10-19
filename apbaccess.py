@@ -324,10 +324,12 @@ class APB():
                 + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16 + idx * 16
         else:
             if idx < tc.dev.MASK_WIDTH_SMALL:
-                idx_x4 = (idx % tc.dev.MASK_NUM_INSTANCE) * tc.dev.MASK_WIDTH_INSTANCE \
-                    + idx // tc.dev.MASK_NUM_INSTANCE
+                idx_x4 = (idx % 4) * (tc.dev.MASK_WIDTH_SMALL // 4) + idx // 4
             else:
-                idx_x4 = idx
+                idx -= tc.dev.MASK_WIDTH_SMALL
+                idx_x4 = (idx % 4) * ((tc.dev.MASK_WIDTH_LARGE - tc.dev.MASK_WIDTH_SMALL) // 4) \
+                    + idx // 4
+                idx += tc.dev.MASK_WIDTH_SMALL
             addr = tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
                 + tc.dev.C_MRAM_BASE \
                 + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16 + idx_x4 * 16

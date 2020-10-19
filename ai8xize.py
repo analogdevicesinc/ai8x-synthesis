@@ -1248,6 +1248,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                                & ~(tc.dev.P_SHARED-1))) + 1)
                                           * quantization[ll]) * out_expand[ll] * in_exp
                                          - quantization[ll]) // quantization[ll]
+                                if calcx4:
+                                    ochan = (ochan + 3) // 4
                                 if ochan > 0:
                                     val |= ochan - 1 << tc.dev.OCHAN_CNT_OFFS
                             elif tscnt_max > 0:
@@ -1286,8 +1288,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                     - (ffs(output_processor_map[ll])
                                        & ~(tc.dev.P_SHARED-1))) + 1)
                                   * quantization[ll]) * out_expand[ll] * in_exp - quantization[ll]
-                            if ll == 0 and fast_fifo_quad:
-                                kl = (kl + 3) // 4
+                            if ll == 0 and fast_fifo_quad or calcx4:
+                                kl = (kl + 3) // 4  # FIXME: Handle fast_fifo_quad and calcx4
                             koffs, oned_sad = divmod(9 * kern_offs[ll],
                                                      kernel_size[ll][0] * kernel_size[ll][1])
                             koffs *= 8
