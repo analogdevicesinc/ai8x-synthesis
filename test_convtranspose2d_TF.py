@@ -324,7 +324,7 @@ def test_convtranspose2d():
          [0,   0]]]],
        dtype=np.int64,
     )
-    '''
+    '''  # pylint: disable=W0105
         [[[[81,  72],
           [62,  53],
           [112,  94],
