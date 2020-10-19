@@ -300,7 +300,7 @@ def main(
                     memfile.write('  MXC_GCR->pclkdiv &= ~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | '
                                   'MXC_F_GCR_PCLKDIV_CNNCLKSEL);\n'
                                   '  MXC_GCR->pclkdiv |= MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1; '
-                                  ' // CNN clock: 0.5*100 MHz div 1\n'
+                                  '// CNN clock: 0.5*100 MHz div 1\n'
                                   '  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CNN); '
                                   '// Enable CNN clock\n')
                 else:
