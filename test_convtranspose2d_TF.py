@@ -324,7 +324,7 @@ def test_convtranspose2d():
          [0,   0]]]],
        dtype=np.int64,
     )
-    '''  # pylint: disable=W0105
+    """  # pylint: disable=pointless-string-statement
         [[[[81,  72],
           [62,  53],
           [112,  94],
@@ -402,7 +402,7 @@ def test_convtranspose2d():
           [94, 112],
           [53,  62],
           [72,  81]]]],
-    '''  # pylint: disable=pointless-string-statement
+    """  # pylint: disable=pointless-string-statement
 
     deconvolve(1, d0, w0, w1, e0)  # pylint: disable=too-many-function-args
 
