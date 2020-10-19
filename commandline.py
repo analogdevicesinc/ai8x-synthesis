@@ -48,6 +48,8 @@ def get_parser():
                        help="YAML configuration file containing layer configuration")
     group.add_argument('--checkpoint-file', metavar='S',
                        help="checkpoint file containing quantized weights")
+    group.add_argument('--board-name', metavar='S', default='EvKit_V1',
+                       help="set board name (default: EvKit_V1)")
     group.add_argument('--display-checkpoint', action='store_true', default=False,
                        help="show parsed checkpoint data")
     group.add_argument('--prefix', metavar='S', required=True,
