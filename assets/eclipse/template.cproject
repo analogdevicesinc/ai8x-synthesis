@@ -51,7 +51,7 @@
 									<listOptionValue builtIn="false" value="&quot;${MAXIM_PATH}/Libraries/CMSIS/Device/Maxim/MAX78000/Include&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${MAXIM_PATH}/Libraries/Boards/MAX78000/Include&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${MAXIM_PATH}/Libraries/PeriphDrivers/Include/MAX78000&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${MAXIM_PATH}/Libraries/Boards/MAX78000/EvKit_V1/Include&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${MAXIM_PATH}/Libraries/Boards/MAX78000/##__BOARD__##/Include&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${MAXIM_PATH}/Tools/GNUTools/arm-none-eabi/include&quot;"/>
 								</option>
 								<inputType id="ilg.gnumcueclipse.managedbuild.cross.tool.c.compiler.input.68945223" superClass="ilg.gnumcueclipse.managedbuild.cross.tool.c.compiler.input"/>

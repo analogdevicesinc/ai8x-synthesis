@@ -42,12 +42,17 @@ def get_parser():
 
     # Embedded code
     group = parser.add_argument_group('Embedded code')
-    group.add_argument('-e', '--embedded-code', action='store_true', default=False,
-                       help="generate embedded code for device instead of RTL simulation")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('-e', '--embedded-code', action='store_true',
+                        help="generate embedded code for device (default)")
+    mgroup.add_argument('--rtl', '--rtl-sim', action='store_false', dest='embedded_code',
+                        help="generate RTL sim code instead of embedded code (default: false)")
     group.add_argument('--config-file', required=True, metavar='S',
                        help="YAML configuration file containing layer configuration")
     group.add_argument('--checkpoint-file', metavar='S',
                        help="checkpoint file containing quantized weights")
+    group.add_argument('--board-name', metavar='S', default='EvKit_V1',
+                       help="set board name (default: EvKit_V1)")
     group.add_argument('--display-checkpoint', action='store_true', default=False,
                        help="show parsed checkpoint data")
     group.add_argument('--prefix', metavar='S', required=True,
@@ -202,8 +207,8 @@ def get_parser():
                             " (default: false)")
     group.add_argument('--test-dir', metavar='S', required=True,
                        help="set base directory name for auto-filing .mem files")
-    group.add_argument('--top-level', default=None, metavar='S',
-                       help="top level name instead of block mode (default: None)")
+    group.add_argument('--top-level', default='cnn', metavar='S',
+                       help="top level name (default: 'cnn', 'None' for block level)")
     group.add_argument('--queue-name', default='short', metavar='S',
                        help="queue name (default: 'short')")
     group.add_argument('--timeout', type=int, metavar='N',
@@ -330,5 +335,11 @@ def get_parser():
         except ValueError as exc:
             raise ValueError('ERROR: Argument --streaming-layers must be a comma-separated '
                              'list of integers only') from exc
+
+    if args.top_level == 'None':
+        args.top_level = None
+
+    if args.embedded_code is None:
+        args.embedded_code = True
 
     return args
