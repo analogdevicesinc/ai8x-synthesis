@@ -2413,7 +2413,7 @@ def main():
                 output_dim[ll] = [1, 1]
                 input_channels[ll] //= pooled_dim[ll][0] * pooled_dim[ll][1]
                 assert input_channels[ll] > 0
-            if padding[ll][0] >= 3:
+            if padding[ll][0] >= 3 and args.device != devices.CMSISNN:
                 eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
                        f'(currently set to {padding[ll][0]}).')
                 sys.exit(1)
@@ -2430,7 +2430,7 @@ def main():
                            f'`pad` (currently set to {padding[ll][0]}).')
                     sys.exit(1)
             else:
-                if padding[ll][0] >= 3:
+                if padding[ll][0] >= 3 and args.device != devices.CMSISNN:
                     eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
                            f'(currently set to {padding[ll][0]}).')
                     sys.exit(1)
