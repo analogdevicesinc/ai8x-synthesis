@@ -240,6 +240,7 @@ class DevAI85(Dev):
     FAST_FIFO_DMA = 5  # DMA register (reserved function, not yet supported)
 
     FLASH_SIZE = 0x8000
+    RISCV_SRAM_ORIGIN = 0x2001C000
 
     # Cycles
     C_START = 4
@@ -376,6 +377,7 @@ class DevAI87(Dev):
     MODERN_SIM = True
 
     FLASH_SIZE = 0x28000
+    RISCV_SRAM_ORIGIN = 0x2005C000
 
     # Cycles
     C_START = 4

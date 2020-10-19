@@ -225,6 +225,12 @@ def main(
         memfile.write(f'#define NUM_OUTPUTS {num_classes}\n')
         memfile.write(f'static int{output_width}_t ml_data[NUM_OUTPUTS];\n\n')
 
+    if riscv is not None and not riscv and (embedded_arm or tc.dev.MODERN_SIM):
+        memfile.write('void WakeISR(void)\n'
+                      '{\n'
+                      '  MXC_SEMA->irq0 = MXC_F_SEMA_IRQ0_EN & ~MXC_F_SEMA_IRQ0_CM4_IRQ;\n'
+                      '}\n\n')
+
     memfile.write('int main(void)\n{\n')
     if clock_trim is not None and not riscv:
         memfile.write('  uint32_t trim;\n')
@@ -385,6 +391,9 @@ def main(
                 else:
                     memfile.write(f'  MXC_NBBFC->reg4 = 0x{rv.RISCV_CODE_ORIGIN:08x}; '
                                   '// Set RISC-V boot address\n')
+            elif tc.dev.MODERN_SIM:
+                memfile.write(f'  MXC_FCR->urvbootaddr = 0x{tc.dev.RISCV_SRAM_ORIGIN:08x}; '
+                              '// Set RISC-V boot address\n')
             if riscv_exclusive:
                 if embedded_code or embedded_arm or tc.dev.MODERN_SIM:
                     memfile.write('  MXC_FCR->urvctrl |= 0x00000001; '
@@ -393,7 +402,10 @@ def main(
                     memfile.write('  *((volatile uint32_t *) 0x40000814) |= 0x00000001; '
                                   '// Exclusive SRAM access for RISC-V (MXC_NBBFC->reg5)\n')
             if embedded_code or embedded_arm or tc.dev.MODERN_SIM:
-                memfile.write('  MXC_GCR->pclkdis1 &= ~MXC_F_GCR_PCLKDIS1_CPU1; '
+                memfile.write('  MXC_GCR->pclkdis1 &= ~MXC_F_GCR_PCLKDIS1_SMPHR; '
+                              '// Enable Sempahore clock\n'
+                              '  NVIC_SetVector(RISCV_IRQn, WakeISR); // Wakeup ISR\n'
+                              '  MXC_GCR->pclkdis1 &= ~MXC_F_GCR_PCLKDIS1_CPU1; '
                               '// Enable RISC-V clock\n')
             else:
                 memfile.write('  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_CPU1; '
@@ -473,10 +485,10 @@ def main(
 
         if not forever:
             if embedded_code:
-                memfile.write('  // Disable CNN clock\n'
+                memfile.write('\n  // Disable CNN clock\n'
                               '  MXC_SYS_ClockDisable(MXC_SYS_PERIPH_CLOCK_CNN);\n')
             elif tc.dev.MODERN_SIM:
-                memfile.write('  // Disable CNN clock\n'
+                memfile.write('\n  // Disable CNN clock\n'
                               '  MXC_GCR->pclkdis0 |= MXC_F_GCR_PCLKDIS0_CNN;\n')
             memfile.write('  // Disable power to CNN\n')
             memfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
@@ -534,13 +546,16 @@ def main(
     if riscv is not None and not riscv:
         if sleep:
             memfile.write('  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=1\n')
-        if embedded_arm:
-            if riscv_debugwait:
+        if embedded_arm or tc.dev.MODERN_SIM:
+            if embedded_arm and riscv_debugwait:
                 memfile.write('  for (i = 0; i < (1 << 27); i++); '
                               '// Let debugger interrupt if needed\n')
             memfile.write('  __WFI(); // Let RISC-V run\n')
         else:
             memfile.write('  asm volatile("wfi"); // Let RISC-V run\n')
+    elif embedded_arm or tc.dev.MODERN_SIM:
+        memfile.write('  // Signal the Cortex-M4\n'
+                      '  MXC_SEMA->irq0 = MXC_F_SEMA_IRQ0_EN | MXC_F_SEMA_IRQ0_CM4_IRQ;\n\n')
 
     if not embedded_code and not embedded_arm:
         memfile.write('  pass();\n')
