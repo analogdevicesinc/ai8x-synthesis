@@ -1,4 +1,3 @@
-
 arch: test
 dataset: test_255x1x1
 
@@ -7,4 +6,3 @@ layers:
   processors: 0xffffffffffffffff
   pad: 1
   op: conv2d
-

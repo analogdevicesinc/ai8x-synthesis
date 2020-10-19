@@ -39,15 +39,13 @@ np.save('weights_test_conv2Dk1x1', d, allow_pickle=False, fix_imports=False)
 
 # 2) Four-dimensional NP array (Layers, ChOut, ChIn, KernL) for Conv1D
 # 3) Sequence of four-dimensional NP arrays (ChOut, ChIn, KernX, KernY) for Conv2D cases where the
-#    input channels and output channels aren't the same. In that case, use "with open() as fhandle:"
-#    and multiple np.save(handle, ...)
+#    input channels and output channels aren't the same. In that case, use
+#    "with open() as fhandle:" and multiple np.save(handle, ...)
 
-#with open('weights_test_wide3to512to3in.npy', mode='wb') as fhandle:
-#  d = np.random.randint(-128, 127, (512, 3, 3, 3), dtype=np.int64)
-#  np.save(fhandle, d, allow_pickle=False, fix_imports=False)
-#  d = np.random.randint(-128, 127, (96, 512, 3, 3), dtype=np.int64)
-#  np.save(fhandle, d, allow_pickle=False, fix_imports=False)
-#  d = np.random.randint(-128, 127, (3, 96, 3, 3), dtype=np.int64)
-#  np.save(fhandle, d, allow_pickle=False, fix_imports=False)
-
-
+# with open('weights_test_wide3to512to3in.npy', mode='wb') as fhandle:
+#   d = np.random.randint(-128, 127, (512, 3, 3, 3), dtype=np.int64)
+#   np.save(fhandle, d, allow_pickle=False, fix_imports=False)
+#   d = np.random.randint(-128, 127, (96, 512, 3, 3), dtype=np.int64)
+#   np.save(fhandle, d, allow_pickle=False, fix_imports=False)
+#   d = np.random.randint(-128, 127, (3, 96, 3, 3), dtype=np.int64)
+#   np.save(fhandle, d, allow_pickle=False, fix_imports=False)

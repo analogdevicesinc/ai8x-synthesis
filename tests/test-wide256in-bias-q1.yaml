@@ -1,4 +1,3 @@
-
 arch: test
 dataset: test_wide256in
 bias: eight

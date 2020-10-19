@@ -13,4 +13,3 @@ layers:
   pad: 1
   quantization: 4
   output_shift: -3
-

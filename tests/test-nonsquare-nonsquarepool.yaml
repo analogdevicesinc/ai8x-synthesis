@@ -10,4 +10,3 @@ layers:
   max_pool: [2, 3]
   pool_stride: [3, 3]
   op: conv2d
-
