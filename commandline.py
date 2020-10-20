@@ -43,7 +43,7 @@ def get_parser():
     # Embedded code
     group = parser.add_argument_group('Embedded code')
     mgroup = group.add_mutually_exclusive_group()
-    mgroup.add_argument('-e', '--embedded-code', action='store_true',
+    mgroup.add_argument('-e', '--embedded-code', action='store_true', default=True,
                         help="generate embedded code for device (default)")
     mgroup.add_argument('--rtl', '--rtl-sim', action='store_false', dest='embedded_code',
                         help="generate RTL sim code instead of embedded code (default: false)")
@@ -274,6 +274,9 @@ def get_parser():
 
     args = parser.parse_args()
 
+    if args.embedded_code is None:
+        args.embedded_code = True
+
     if not args.c_filename:
         args.c_filename = 'main' if args.embedded_code else 'test'
 
@@ -321,8 +324,5 @@ def get_parser():
 
     if args.top_level == 'None':
         args.top_level = None
-
-    if args.embedded_code is None:
-        args.embedded_code = True
 
     return args
