@@ -511,9 +511,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     in_chan *= pooled_dim[ll][0] * pooled_dim[ll][1]
                     in_dim = [1, 1]
 
-                if operator[ll] in [op.CONV1D, op.CONVTRANSPOSE2D]:  # FIXME: Support Conv1d etc.
-                    eprint("CMSIS-NN generator does not currently support the operator in "
-                           f"layer {ll}")
+                if operator[ll] in [op.CONVTRANSPOSE2D]:  # FIXME: Support ConvTranspose2d
+                    eprint("CMSIS-NN generator does not currently support the operator "
+                           f"`{op.string(operator[ll])}` in layer {ll}")
                     sys.exit(1)
 
                 # FIXME: First check that everything is [-128, +127] and use s8 function otherwise
