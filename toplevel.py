@@ -449,7 +449,6 @@ def main(
 
         if embedded_code:
             memfile.write('  if (!cnn_load()) fail();\n')
-            memfile.write('  MXC_TMR_SW_Start(MXC_TMR0);\n')
         else:
             memfile.write('  if (!cnn_load()) { fail(); pass(); return 0; }\n')
 
@@ -479,9 +478,10 @@ def main(
         if embedded_code:
             memfile.write('\n  printf("\\n*** PASS ***\\n\\n");\n\n')
             if not measure_energy:
-                memfile.write('  printf("Inference time: %d us\\n\\n", cnn_time);\n\n')
+                memfile.write(f'  printf("Approximate {"data loading and " if fifo else ""}')
+                memfile.write('inference time: %d us\\n\\n", cnn_time);\n\n')
             else:
-                memfile.write('  printf("See monitor display for inference energy.\\n");\n\n')
+                memfile.write('  printf("See monitor display for inference energy.\\n\\n");\n\n')
 
         if not forever:
             if embedded_code:

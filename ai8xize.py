@@ -1738,6 +1738,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                verbose, comment=' // AON control')
 
         if embedded_code:
+            if not measure_energy:
+                apb.output('\n  MXC_TMR_SW_Start(MXC_TMR0);\n')
             apb.output('\n  CNN_START; // Allow capture of processing time\n')
 
         # Master control - go
