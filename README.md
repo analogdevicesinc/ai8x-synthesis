@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_October 19, 2020_
+_October 21, 2020_
 
 The Maxim Integrated AI project is comprised of four repositories:
 
@@ -241,7 +241,7 @@ By default, the main branch is checked out. This branch has been tested more rig
 
 After additional testing, `develop` is merged into the main branch at regular intervals.
 
-For all non-trivial merges, a “Release” tag is created on GitHub. GitHub offers email alerts for all activity in a project, or for new releases only. Subscribing to releases only substantially reduces email traffic.
+After a small delay of typically a day, a “Release” tag is created on GitHub for all non-trivial merges into the main branch. GitHub offers email alerts for all activity in a project, or for new releases only. Subscribing to releases only substantially reduces email traffic.
 
 *Note: Each “Release” automatically creates a code archive. It is recommended to use a git client to access (pull from) the main branch of the repository using a git client instead of downloading the archives.*
 
