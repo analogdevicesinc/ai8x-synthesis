@@ -1,0 +1,16 @@
+# Energy consumption test network - maximize usage of everything
+
+arch: test
+dataset: test_burnin_64x80x128
+weights: weights_test_burnin_64-64
+
+# Define layer parameters in order of the layer sequence
+layers:
+- pad: 1
+  activate: None
+  out_offset: 0xa000
+  in_offset: 0
+  processors: 0xffffffffffffffff
+  data_format: HWC
+  op: conv2d
+  output_shift: -7
