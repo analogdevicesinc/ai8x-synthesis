@@ -189,6 +189,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         eprint("--link-layer is not supported on this device.")
         sys.exit(1)
 
+    if rd_ahead and not hasattr(tc.dev, 'RD_AHEAD_OFFS'):
+        eprint("--read-ahead is not supported on this device.")
+        sys.exit(1)
+
+    if calcx4 and not tc.dev.SUPPORT_CALCX4:
+        eprint("--calcx4 is not supported on this device.")
+        sys.exit(1)
+
     if riscv_debug:
         riscv = True
     if riscv_cache:

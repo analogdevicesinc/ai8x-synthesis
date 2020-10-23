@@ -9,7 +9,7 @@ weights: weights_test_burnin-alternating
 layers:
 - pad: 1
   activate: ReLU
-  out_offset: 0xa000
+  out_offset: 0x4000
   processors: 0xffffffffffffffff
   data_format: HWC
   op: Conv2d

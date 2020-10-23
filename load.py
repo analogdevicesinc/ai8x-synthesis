@@ -52,6 +52,10 @@ def load(
     Output is written to the `apb` object.
     """
 
+    if fixed_input and not embedded_code:
+        eprint('--fixed-input requires --embedded-code')
+        sys.exit(1)
+
     if csv_file is not None:
         return loadcsv(
             embedded_code,
