@@ -382,8 +382,8 @@ SHORT_LOG="--log-last-only"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-resnet --checkpoint-file tests/test-resnet.pth.tar --config-file tests/test-resnet-4l.yaml --device "$DEVICE" --compact-data --mexpress "$@"
 # FIXME ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-resnet --checkpoint-file tests/test-resnet.pth.tar --config-file tests/test-resnet.yaml --device "$DEVICE" --compact-data --mexpress --timeout 100 $SHORT_LOG "$@"
 
-./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-burnin_64x64x64 --config-file tests/test-burnin_64x64x64.yaml --device "$DEVICE" --compact-data --mexpress --fixed-input --max-checklines 4096 --timeout 60 $SHORT_LOG "$@"
-./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-burnin_16x64x64 --config-file tests/test-burnin_16x64x64.yaml --device "$DEVICE" --compact-data --mexpress --fixed-input --max-checklines 4096 "$@"
+./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-burnin_64x64x64 --config-file tests/test-burnin_64x64x64.yaml --device "$DEVICE" --compact-data --mexpress --max-checklines 4096 --timeout 60 $SHORT_LOG "$@"
+./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-burnin_16x64x64 --config-file tests/test-burnin_16x64x64.yaml --device "$DEVICE" --compact-data --mexpress --max-checklines 4096 "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-burnin-rand_64x64x64 --config-file tests/test-burnin-rand_64x64x64.yaml --device "$DEVICE" --compact-data --mexpress --max-checklines 4096 --timeout 60 $SHORT_LOG "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-burnin-rand_16x64x64 --config-file tests/test-burnin-rand_16x64x64.yaml --device "$DEVICE" --compact-data --mexpress --max-checklines 4096 "$@"
 
@@ -422,12 +422,15 @@ SHORT_LOG="--log-last-only"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-readahead-pool-multipass --config-file tests/test-readahead-pool-multipass.yaml --device "$DEVICE" --read-ahead "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-readahead-pool-inputmultipass --config-file tests/test-readahead-pool-inputmultipass.yaml --device "$DEVICE" --read-ahead "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-readahead-alternating --config-file tests/test-readahead-alternating.yaml --stop-after 0 --device "$DEVICE" --read-ahead "$@"
+./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-readahead-burnin-alternating --config-file tests/test-readahead-burnin-alternating.yaml --stop-after 0 --device "$DEVICE" --read-ahead "$@"
 
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-x4-cifar --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-readahead-cifar10-hwc.yaml --stop-after 0 --device "$DEVICE" --calcx4 "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-x4-readahead-cifar --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-readahead-cifar10-hwc.yaml --stop-after 0 --device "$DEVICE" --calcx4 --read-ahead "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-x4-readahead-alternating --config-file tests/test-readahead-alternating.yaml --stop-after 0 --device "$DEVICE" --calcx4 --read-ahead "$@"
+./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-x4-readahead-burnin-alternating --config-file tests/test-readahead-burnin-alternating.yaml --stop-after 0 --device "$DEVICE" --calcx4 --read-ahead "$@"
 
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant4-fc --config-file tests/test-flatten-fc-quant4-fc.yaml --device "$DEVICE" --timeout 1000 "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant8-fc --config-file tests/test-flatten-fc-quant8-fc.yaml --device "$DEVICE" --timeout 1000 "$@"
 
-./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-burnin_64x80x128 --config-file tests/test-burnin_64x80x128.yaml --device "$DEVICE" --compact-data --mexpress --fixed-input --max-checklines 4096 --timeout 60 $SHORT_LOG "$@"
+./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-burnin_64x80x128 --config-file tests/test-burnin_64x80x128.yaml --device "$DEVICE" --compact-data --mexpress --max-checklines 4096 --timeout 60 $SHORT_LOG "$@"
+
