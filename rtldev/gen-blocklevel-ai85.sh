@@ -14,4 +14,4 @@
 ./ai8xize.py --rtl --verbose --autogen blocklevel --top-level None --log --test-dir blocklevel --prefix ai85-conv1x1 --config-file tests/test-conv1x1.yaml --ai85
 ./ai8xize.py --rtl --verbose --autogen blocklevel --top-level None --log --test-dir blocklevel --prefix ai85-upscale --config-file tests/test-upscale.yaml --ai85 --stop-after 0
 # ./ai8xize.py --rtl --verbose --autogen blocklevel --top-level None --log --test-dir blocklevel --prefix ai85-nonsquare-mexpress-mlator --config-file tests/test-nonsquare.yaml --ai85 --mexpress --mlator
-# ./ai8xize.py --rtl --verbose --autogen blocklevel --top-level None --log --test-dir blocklevel --prefix ai85-riscv-qfastfifostream-32-hwc --config-file tests/test-fifostream-32-hwc.yaml --ai85 --fifo --riscv --riscv-flash --fast-fifo-quad --riscv-cache --input-fifo
+# ./ai8xize.py --rtl --verbose --autogen blocklevel --top-level None --log --test-dir blocklevel --prefix ai85-riscv-qfastfifostream-32-hwc --config-file tests/test-fifostream-32-hwc.yaml --ai85 --fifo --riscv --fast-fifo-quad --input-fifo
