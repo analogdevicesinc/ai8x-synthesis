@@ -1100,8 +1100,6 @@ The following table describes the most important command line arguments for `ai8
 | *RISC-V*                 |                                                              |                                 |
 | `--riscv`                | Use RISC-V processor                                         |                                 |
 | `--riscv-debug`          | Use RISC-V processor and enable the RISC-V JTAG              |                                 |
-| `--riscv-flash`          | Move kernel/input to Flash (implies --riscv)                 |                                 |
-| `--riscv-cache`          | Enable RISC-V cache (implies --riscv and --riscv-flash)      |                                 |
 | `--riscv-exclusive`      | Use exclusive SRAM access for RISC-V (implies --riscv)       |                                 |
 | *Debug and logging*      |                                                              |                                 |
 | `-v`, `--verbose`        | Verbose output                                               |                                 |

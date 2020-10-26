@@ -111,11 +111,17 @@ def get_parser():
     group = parser.add_argument_group('RISC-V')
     group.add_argument('--riscv', action='store_true', default=False,
                        help="use RISC-V processor (default: false)")
-    group.add_argument('--riscv-flash', action='store_true', default=False,
-                       help="move kernel/input to Flash (implies --riscv; default: false)")
-    group.add_argument('--riscv-cache', action='store_true', default=False,
-                       help="enable RISC-V cache (implies --riscv and --riscv-flash; "
-                            "default: false)")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('--riscv-flash', action='store_true', default=None,
+                        help="move kernel/input to Flash (implies --riscv; default: true)")
+    mgroup.add_argument('--no-riscv-flash', action='store_false', dest='riscv_flash',
+                        help="disable --riscv-flash")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('--riscv-cache', action='store_true', default=None,
+                        help="enable RISC-V cache (implies --riscv and --riscv-flash; "
+                             "default: true)")
+    mgroup.add_argument('--no-riscv-cache', action='store_false', dest='riscv_cache',
+                        help="disable RISC-V cache")
     group.add_argument('--riscv-debug', action='store_true', default=False,
                        help="enable RISC-V debug interface (implies --riscv; default: false)")
     group.add_argument('--riscv-disable-debugwait', dest='riscv_debugwait',
@@ -324,5 +330,10 @@ def get_parser():
 
     if args.top_level == 'None':
         args.top_level = None
+
+    if args.riscv_flash is None:
+        args.riscv_flash = args.riscv
+    if args.riscv_cache is None:
+        args.riscv_cache = args.riscv
 
     return args
