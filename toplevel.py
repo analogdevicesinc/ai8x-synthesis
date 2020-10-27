@@ -232,8 +232,6 @@ def main(
         memfile.write('  uint32_t trim;\n')
     if embedded_code and (classification_layer or softmax) or oneshot > 0:
         memfile.write('  int i;\n')
-    if embedded_arm and riscv_debugwait:
-        memfile.write('  int i;\n')
     if embedded_code and (classification_layer or softmax):
         memfile.write('  int digs, tens;\n')
 
@@ -279,55 +277,6 @@ def main(
                                   '  // Switch to 7.37 MHz clock\n'
                                   '  MXC_SYS_Clock_Select(MXC_SYS_CLOCK_IBRO);\n')
                 memfile.write('  SystemCoreClockUpdate();\n')
-
-                if measure_energy:
-                    memfile.write('\n  // Disable CNN clock\n'
-                                  '  MXC_SYS_ClockDisable(MXC_SYS_PERIPH_CLOCK_CNN);\n'
-                                  '  // Disable power to CNN\n'
-                                  '  MXC_BBFC->reg3 = 0xf; // Reset\n'
-                                  '  MXC_BBFC->reg1 = 0x0; // Mask memory\n'
-                                  '  MXC_BBFC->reg0 = 0x0; // Power\n'
-                                  '  MXC_BBFC->reg2 = 0xf; // Iso\n'
-                                  '  MXC_BBFC->reg3 = 0x0; // Reset\n'
-                                  '  // Enable primary clock\n'
-                                  '  MXC_SYS_ClockSourceEnable(MXC_SYS_CLOCK_IPO);\n\n'
-                                  '  printf("Measuring system base power...\\n");\n'
-                                  '  SYS_START;\n'
-                                  '  MXC_Delay(SEC(1));\n'
-                                  '  SYS_COMPLETE;\n')
-
-                memfile.write('\n  // Reset all domains, restore power to CNN\n')
-                memfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
-                memfile.write(f'  MXC_{bbfc}->reg1 = 0x{mask:01x}; // Mask memory\n')
-                memfile.write(f'  MXC_{bbfc}->reg0 = 0x{mask:01x}; // Power\n')
-                memfile.write(f'  MXC_{bbfc}->reg2 = 0x{unmask:01x}; // Iso\n')
-                memfile.write(f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n\n')
-
-                if not measure_energy:
-                    memfile.write('  MXC_GCR->pclkdiv &= ~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | '
-                                  'MXC_F_GCR_PCLKDIV_CNNCLKSEL);\n'
-                                  '  MXC_GCR->pclkdiv |= MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1; '
-                                  '// CNN clock: 0.5*100 MHz div 1\n'
-                                  '  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CNN); '
-                                  '// Enable CNN clock\n')
-                else:
-                    memfile.write('  MXC_GCR->pclkdiv &= ~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | '
-                                  'MXC_F_GCR_PCLKDIV_CNNCLKSEL);\n'
-                                  '  MXC_GCR->pclkdiv |= MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV8; '
-                                  '// CNN clock: 0.5*7.37 MHz div 8\n'
-                                  '  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CNN); '
-                                  '// Enable CNN clock\n')
-
-                if boost is not None:
-                    memfile.write(f'\n  // Configure P{boost[0]}.{boost[1]}, '
-                                  'turn on the CNN Boost\n')
-                    memfile.write('  mxc_gpio_cfg_t gpio_out;\n')
-                    memfile.write(f'  gpio_out.port = MXC_GPIO{boost[0]};\n')
-                    memfile.write(f'  gpio_out.mask = MXC_GPIO_PIN_{boost[1]};\n')
-                    memfile.write('  gpio_out.pad = MXC_GPIO_PAD_NONE;\n')
-                    memfile.write('  gpio_out.func = MXC_GPIO_FUNC_OUT;\n')
-                    memfile.write('  MXC_GPIO_Config(&gpio_out);\n')
-                    memfile.write('  MXC_GPIO_OutSet(gpio_out.port, gpio_out.mask);\n')
         else:
             memfile.write('  icache_enable();\n\n')
             if device == 84:
@@ -345,19 +294,20 @@ def main(
                     memfile.write('  MXC_GCR->clkctrl |= MXC_S_GCR_CLKCTRL_SYSCLK_SEL_IPO;'
                                   ' // Select osc\n')
 
-                    memfile.write('\n  // Reset all domains, restore power to CNN\n')
-                    memfile.write('  MXC_GCFR->reg3 = 0xf; // Reset\n')
-                    memfile.write(f'  MXC_GCFR->reg1 = 0x{mask:01x}; // Mask memory\n')
-                    memfile.write(f'  MXC_GCFR->reg0 = 0x{mask:01x}; // Power\n')
-                    memfile.write(f'  MXC_GCFR->reg2 = 0x{unmask:01x}; // Iso\n')
-                    memfile.write('  MXC_GCFR->reg3 = 0x0; // Reset\n\n')
+                    if not tc.dev.MODERN_SIM:
+                        memfile.write('\n  // Reset all domains, restore power to CNN\n')
+                        memfile.write('  MXC_GCFR->reg3 = 0xf; // Reset\n')
+                        memfile.write(f'  MXC_GCFR->reg1 = 0x{mask:01x}; // Mask memory\n')
+                        memfile.write(f'  MXC_GCFR->reg0 = 0x{mask:01x}; // Power\n')
+                        memfile.write(f'  MXC_GCFR->reg2 = 0x{unmask:01x}; // Iso\n')
+                        memfile.write('  MXC_GCFR->reg3 = 0x0; // Reset\n\n')
 
-                    memfile.write('  MXC_GCR->pclkdiv &= ~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | '
-                                  'MXC_F_GCR_PCLKDIV_CNNCLKSEL);\n'
-                                  '  MXC_GCR->pclkdiv |= MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1; '
-                                  '// CNN clock: APB div 1\n')
-                    memfile.write('  MXC_GCR->pclkdis0 &= ~MXC_F_GCR_PCLKDIS0_CNN;'
-                                  ' // Enable CNN clock\n')
+                        memfile.write('  MXC_GCR->pclkdiv &= ~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | '
+                                      'MXC_F_GCR_PCLKDIV_CNNCLKSEL);\n'
+                                      '  MXC_GCR->pclkdiv |= MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1; '
+                                      '// CNN clock: APB div 1\n')
+                        memfile.write('  MXC_GCR->pclkdis0 &= ~MXC_F_GCR_PCLKDIS0_CNN;'
+                                      ' // Enable CNN clock\n')
                 else:
                     memfile.write('  MXC_GCR->clkcn |= MXC_F_GCR_CLKCN_HIRC96M_EN;'
                                   ' // Enable 96M\n')
@@ -366,15 +316,16 @@ def main(
                     memfile.write('  MXC_GCR->clkcn |= MXC_S_GCR_CLKCN_CLKSEL_HIRC96;'
                                   ' // Select 96M\n')
 
-                    memfile.write('\n  // Reset all domains, restore power to CNN\n')
-                    memfile.write('  MXC_BBFC->reg3 = 0xf; // Reset\n')
-                    memfile.write(f'  MXC_BBFC->reg1 = 0x{mask:01x}; // Mask memory\n')
-                    memfile.write(f'  MXC_BBFC->reg0 = 0x{mask:01x}; // Power\n')
-                    memfile.write(f'  MXC_BBFC->reg2 = 0x{unmask:01x}; // Iso\n')
-                    memfile.write('  MXC_BBFC->reg3 = 0x0; // Reset\n\n')
+                    if not tc.dev.MODERN_SIM:
+                        memfile.write('\n  // Reset all domains, restore power to CNN\n')
+                        memfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
+                        memfile.write(f'  MXC_{bbfc}->reg1 = 0x{mask:01x}; // Mask memory\n')
+                        memfile.write(f'  MXC_{bbfc}->reg0 = 0x{mask:01x}; // Power\n')
+                        memfile.write(f'  MXC_{bbfc}->reg2 = 0x{unmask:01x}; // Iso\n')
+                        memfile.write(f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n\n')
 
-                    memfile.write('  MXC_GCR->pckdiv = 0x00010000; // CNN clock 96M div 2\n')
-                    memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable CNN clock\n')
+                        memfile.write('  MXC_GCR->pckdiv = 0x00010000; // CNN clock 96M div 2\n')
+                        memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable CNN clock\n')
 
         if riscv is not None:
             if riscv_cache:
@@ -401,9 +352,8 @@ def main(
                 memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_SMPHR); '
                               '// Enable Sempahore clock\n'
                               '  NVIC_SetVector(RISCV_IRQn, WakeISR); // Set wakeup ISR\n')
-                if riscv_debugwait:
-                    memfile.write('\n  for (i = 0; i < (1 << 27); i++); '
-                                  '// Let debugger interrupt if needed\n')
+                if (embedded_code or embedded_arm) and riscv_debugwait:
+                    memfile.write('\n  MXC_Delay(SEC(2)); // Let debugger interrupt if needed\n')
                 memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CPU1); '
                               '// Enable RISC-V clock\n')
             else:
@@ -443,6 +393,57 @@ def main(
             memfile.write(';\n\n')
 
     if riscv is None or riscv:
+        if embedded_code or tc.dev.MODERN_SIM:
+            if measure_energy:
+                memfile.write('  // Disable CNN clock\n'
+                              '  MXC_SYS_ClockDisable(MXC_SYS_PERIPH_CLOCK_CNN);\n'
+                              '  // Disable power to CNN\n'
+                              f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n'
+                              f'  MXC_{bbfc}->reg1 = 0x0; // Mask memory\n'
+                              f'  MXC_{bbfc}->reg0 = 0x0; // Power\n'
+                              f'  MXC_{bbfc}->reg2 = 0xf; // Iso\n'
+                              f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n'
+                              '  // Enable primary clock\n'
+                              '  MXC_SYS_ClockSourceEnable(MXC_SYS_CLOCK_IPO);\n\n'
+                              '  printf("Measuring system base power...\\n");\n'
+                              '  SYS_START;\n'
+                              '  MXC_Delay(SEC(1));\n'
+                              '  SYS_COMPLETE;\n')
+
+            memfile.write('  // Reset all domains, restore power to CNN\n')
+            memfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
+            memfile.write(f'  MXC_{bbfc}->reg1 = 0x{mask:01x}; // Mask memory\n')
+            memfile.write(f'  MXC_{bbfc}->reg0 = 0x{mask:01x}; // Power\n')
+            memfile.write(f'  MXC_{bbfc}->reg2 = 0x{unmask:01x}; // Iso\n')
+            memfile.write(f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n\n')
+
+            if not measure_energy:
+                memfile.write('  MXC_GCR->pclkdiv &= ~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | '
+                              'MXC_F_GCR_PCLKDIV_CNNCLKSEL);\n'
+                              '  MXC_GCR->pclkdiv |= MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1; '
+                              '// CNN clock: 0.5*100 MHz div 1\n'
+                              '  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CNN); '
+                              '// Enable CNN clock\n')
+            else:
+                memfile.write('  MXC_GCR->pclkdiv &= ~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | '
+                              'MXC_F_GCR_PCLKDIV_CNNCLKSEL);\n'
+                              '  MXC_GCR->pclkdiv |= MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV8; '
+                              '// CNN clock: 0.5*7.37 MHz div 8\n'
+                              '  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CNN); '
+                              '// Enable CNN clock\n')
+
+            if boost is not None:
+                memfile.write(f'\n  // Configure P{boost[0]}.{boost[1]}, '
+                              'turn on the CNN Boost\n')
+                memfile.write('  mxc_gpio_cfg_t gpio_out;\n')
+                memfile.write(f'  gpio_out.port = MXC_GPIO{boost[0]};\n')
+                memfile.write(f'  gpio_out.mask = MXC_GPIO_PIN_{boost[1]};\n')
+                memfile.write('  gpio_out.pad = MXC_GPIO_PAD_NONE;\n')
+                memfile.write('  gpio_out.func = MXC_GPIO_FUNC_OUT;\n')
+                memfile.write('  MXC_GPIO_Config(&gpio_out);\n')
+                memfile.write('  MXC_GPIO_OutSet(gpio_out.port, gpio_out.mask);\n')
+            memfile.write('\n')
+
         if embedded_code:
             memfile.write('  printf("\\n*** CNN Inference Test ***\\n");\n\n')
 
@@ -484,10 +485,10 @@ def main(
 
         if not forever:
             if embedded_code:
-                memfile.write('\n  // Disable CNN clock\n'
+                memfile.write('  // Disable CNN clock\n'
                               '  MXC_SYS_ClockDisable(MXC_SYS_PERIPH_CLOCK_CNN);\n')
             elif tc.dev.MODERN_SIM:
-                memfile.write('\n  // Disable CNN clock\n'
+                memfile.write('  // Disable CNN clock\n'
                               '  MXC_GCR->pclkdis0 |= MXC_F_GCR_PCLKDIS0_CNN;\n')
             memfile.write('  // Disable power to CNN\n')
             memfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
