@@ -502,6 +502,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 embedded_arm=embedded_code,
                 fail_indicator=forever,
                 measure_energy=measure_energy,
+                groups=list(set().union(groups_used)),
             )
             apb.main(
                 clock_trim=clock_trim,
@@ -585,6 +586,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         apb.header(
             fail_indicator=forever,
             measure_energy=measure_energy,
+            groups=list(set().union(groups_used)),
         )
 
         if embedded_code or compact_data or mexpress:

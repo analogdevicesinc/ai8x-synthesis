@@ -73,6 +73,7 @@ def header(
         embedded_arm=False,
         fail_indicator=False,
         measure_energy=False,
+        groups=None,
 ):
     """
     Write include files and forward definitions to .c file handle `memfile`.
@@ -111,10 +112,10 @@ def header(
         memfile.write('extern volatile void const *__FlashStart_; // Defined in linker file\n\n')
 
     if not cmsis_nn and (riscv is None or riscv):
-        if embedded_code:
-            if not measure_energy:
-                memfile.write('uint32_t cnn_time; // Stopwatch\n\n')
+        if embedded_code or tc.dev.MODERN_SIM:
+            memfile.write('volatile uint32_t cnn_time; // Stopwatch\n\n')
 
+        if embedded_code:
             memfile.write('void fail(void)\n{\n')
 
             if fail_indicator:
@@ -129,14 +130,31 @@ def header(
             memfile.write('  printf("\\n*** FAIL ***\\n\\n");\n')
             memfile.write('  while (1);\n}\n\n')
 
-        memfile.write('void cnn_wait(void)\n{\n')
-        memfile.write(f'  while ((*((volatile uint32_t *) 0x{apb_base + tc.dev.C_CNN_BASE:08x}) '
-                      '& (1<<12)) != 1<<12) ;\n')
-        if embedded_code:
-            memfile.write('  CNN_COMPLETE; // Signal that processing is complete\n')
-            if not measure_energy:
-                memfile.write('  cnn_time = MXC_TMR_SW_Stop(MXC_TMR0);\n')
-        memfile.write('}\n\n')
+        if embedded_code or tc.dev.MODERN_SIM:
+            if not riscv:
+                memfile.write('void CNN_ISR(void)\n{\n')
+            else:
+                memfile.write('void __attribute__((interrupt("machine"))) '
+                              'CNN_IRQHandler(void)\n{\n')
+            if embedded_code:
+                memfile.write('  CNN_COMPLETE; // Signal that processing is complete\n')
+                if not measure_energy:
+                    memfile.write('  cnn_time = MXC_TMR_SW_Stop(MXC_TMR0);\n\n')
+            if not embedded_code or measure_energy:
+                memfile.write('  cnn_time = 1;\n\n')
+            memfile.write('  // Acknowledge interrupt to all groups\n')
+            for _, group in enumerate(groups):
+                addr = tc.dev.APB_BASE + tc.ctl_addr(group, tc.dev.REG_CTL)
+                memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ~(1<<12);\n')
+            if riscv:
+                memfile.write('  NVIC_ClearPendingIRQ(CNN_IRQn);\n')
+                memfile.write('  NVIC_ClearPendingEVENT(CNN_IRQn);\n')
+            memfile.write('}\n\n')
+        else:
+            memfile.write('void cnn_wait(void)\n{\n'
+                          '  while ((*((volatile uint32_t *) '
+                          f'0x{apb_base + tc.dev.C_CNN_BASE:08x}) & (1<<12)) != 1<<12) ;\n'
+                          '}\n\n')
 
     if master is not False:
         addr = apb_base + tc.ctl_addr(master, tc.dev.REG_CTL)
@@ -431,7 +449,14 @@ def main(
                               '// CNN clock: 0.5*7.37 MHz div 8\n'
                               '  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CNN); '
                               '// Enable CNN clock\n')
-
+            if not riscv:
+                memfile.write('\n  NVIC_SetVector(CNN_IRQn, CNN_ISR); '
+                              '// Set CNN complete vector\n')
+            else:
+                memfile.write('\n  // Set CNN complete vector\n'
+                              '  __enable_irq();\n'
+                              '  NVIC_EnableIRQ(CNN_IRQn);\n'
+                              '  NVIC_EnableEVENT(CNN_IRQn);\n')
             if boost is not None:
                 memfile.write(f'\n  // Configure P{boost[0]}.{boost[1]}, '
                               'turn on the CNN Boost\n')
@@ -456,11 +481,18 @@ def main(
             memfile.write('\n  cnn_stop();\n')
             memfile.write('  cnn_restart();\n\n')
 
-        memfile.write('  cnn_wait();\n\n')
+        memfile.write('  while (cnn_time == 0)\n')
+        if not riscv:
+            memfile.write('    __WFI(); // Wait for CNN\n\n')
+        else:
+            memfile.write('    asm volatile("wfi"); // Wait for CNN\n\n')
         if oneshot > 0:
             memfile.write(f'  for (i = 0; i < {oneshot}; i++) {{\n')
             memfile.write('    cnn_restart();\n')
-            memfile.write('    cnn_wait();\n')
+            if not riscv:
+                memfile.write('  __WFI();\n')
+            else:
+                memfile.write('  asm volatile("wfi");\n')
             memfile.write('  }\n\n')
 
         if not forever and boost is not None:

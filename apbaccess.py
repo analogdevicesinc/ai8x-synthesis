@@ -448,6 +448,7 @@ class APB():
             embedded_arm=False,  # pylint: disable=unused-argument
             fail_indicator=False,  # pylint: disable=unused-argument
             measure_energy=False,  # pylint: disable=unused-argument
+            groups=None,  # pylint: disable=unused-argument
     ):
         """
         Write file headers.
@@ -902,6 +903,7 @@ class APBTopLevel(APB):
             embedded_arm=False,
             fail_indicator=False,
             measure_energy=False,
+            groups=None,
     ):
         """
         Write include files and forward definitions to .c file.
@@ -921,6 +923,7 @@ class APBTopLevel(APB):
             embedded_arm=embedded_arm,
             fail_indicator=fail_indicator,
             measure_energy=measure_energy,
+            groups=groups,
         )
 
     def verify_header(
