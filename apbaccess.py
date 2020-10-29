@@ -7,6 +7,7 @@
 """
 Routines to read and write the APB peripherals.
 """
+import os
 import sys
 
 import toplevel
@@ -52,6 +53,8 @@ class APB():
             input_chan=None,
             sleep=False,
             blocklevel=False,
+            mem_output=False,
+            mem_output_final=False,
     ):
         """
         Create an APB class object that writes to memfile.
@@ -83,6 +86,8 @@ class APB():
         self.input_chan = input_chan
         self.sleep = sleep
         self.blocklevel = blocklevel
+        self.mem_output = mem_output
+        self.mem_output_final = mem_output_final
 
         self.data = 0
         self.num = 0
@@ -90,6 +95,78 @@ class APB():
         self.mem = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
         self.writes = 0
         self.reads = 0
+
+        if mem_output:
+            self.data_mem = [[[[] for mem in range(tc.dev.INSTANCE_COUNT)]
+                              for proc in range(tc.dev.P_NUMPRO // tc.dev.P_SHARED)]
+                             for group in range(tc.dev.P_NUMGROUPS)]
+            self.kernel_mem = [[[[] for mem in range(tc.dev.MASK_INSTANCES)]
+                                for proc in range(tc.dev.P_NUMPRO)]
+                               for group in range(tc.dev.P_NUMGROUPS)]
+        else:
+            self.data_mem = self.kernel_mem = None
+        if mem_output_final:
+            self.output_data_mem = [[[[] for mem in range(tc.dev.INSTANCE_COUNT)]
+                                     for proc in range(tc.dev.P_NUMPRO // tc.dev.P_SHARED)]
+                                    for group in range(tc.dev.P_NUMGROUPS)]
+        else:
+            self.output_data_mem = None
+
+    def write_mem(
+            self,
+            base_directory,
+            test_name,
+    ):
+        """
+        Write used kernel memories and data memories to disk
+        """
+        if self.data_mem is not None:
+            target_dir = os.path.join(base_directory, test_name, 'data')
+            os.makedirs(target_dir, exist_ok=True)
+            for group in range(tc.dev.P_NUMGROUPS):
+                for proc in range(tc.dev.P_NUMPRO // tc.dev.P_SHARED):
+                    for mem in range(tc.dev.INSTANCE_COUNT):
+                        if self.data_mem[group][proc][mem]:
+                            self.data_mem[group][proc][mem].sort()
+                            with open(
+                                os.path.join(target_dir,
+                                             f'DRAM_x16_{group}_proc_{proc*4}_ram_{mem}.dat'),
+                                mode='w'
+                            ) as f:
+                                for (addr, val) in self.data_mem[group][proc][mem]:
+                                    f.write(f'@{addr:04x} {val}\n')
+
+        if self.kernel_mem is not None:
+            target_dir = os.path.join(base_directory, test_name, 'masks')
+            os.makedirs(target_dir, exist_ok=True)
+            for group in range(tc.dev.P_NUMGROUPS):
+                for proc in range(tc.dev.P_NUMPRO):
+                    for mem in range(tc.dev.MASK_INSTANCES):
+                        if self.kernel_mem[group][proc][mem]:
+                            self.kernel_mem[group][proc][mem].sort()
+                            with open(
+                                os.path.join(target_dir,
+                                             f'MRAM_x16_{group}_proc_{proc}_ram_{mem}.dat'),
+                                mode='w'
+                            ) as f:
+                                for (addr, val) in self.kernel_mem[group][proc][mem]:
+                                    f.write(f'@{addr:04x} {val}\n')
+
+        if self.output_data_mem is not None:
+            target_dir = os.path.join(base_directory, test_name, 'data-out')
+            os.makedirs(target_dir, exist_ok=True)
+            for group in range(tc.dev.P_NUMGROUPS):
+                for proc in range(tc.dev.P_NUMPRO // tc.dev.P_SHARED):
+                    for mem in range(tc.dev.INSTANCE_COUNT):
+                        if self.output_data_mem[group][proc][mem]:
+                            self.output_data_mem[group][proc][mem].sort()
+                            with open(
+                                os.path.join(target_dir,
+                                             f'DRAM_x16_{group}_proc_{proc*4}_ram_{mem}.dat'),
+                                mode='w'
+                            ) as f:
+                                for (addr, val) in self.output_data_mem[group][proc][mem]:
+                                    f.write(f'@{addr:04x} {val}\n')
 
     def get_time(
             self,
@@ -116,6 +193,24 @@ class APB():
         An optional `comment` can be added to the output.
         """
         raise NotImplementedError
+
+    def write_data(
+            self,
+            addr,
+            val,
+            comment='',
+            indent='  ',
+            no_verify=False,
+            fifo=None,
+            base=None,
+    ):  # pylint: disable=unused-argument
+        """
+        Write address `addr` and data `val` to the output file.
+        if `no_verify` is `True`, do not check the result of the write operation, even if
+        `verify_writes` is globally enabled.
+        An optional `comment` can be added to the output.
+        """
+        return self.write(addr, val, comment, indent, no_verify, fifo, base)
 
     def verify(
             self,
@@ -322,6 +417,7 @@ class APB():
             addr = tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
                 + tc.dev.C_MRAM_BASE \
                 + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16 + idx * 16
+            idx_x4 = idx
         else:
             if idx < tc.dev.MASK_WIDTH_SMALL:
                 idx_x4 = (idx % 4) * (tc.dev.MASK_WIDTH_SMALL // 4) + idx // 4
@@ -335,17 +431,36 @@ class APB():
                 + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16 + idx_x4 * 16
 
         if not verify_only:
-            self.write(addr, k[0] & 0xff, no_verify=True,
-                       comment=f' // Layer {ll}: processor {p} kernel #{idx}')
-            if size != 1:
-                self.write(addr+4, (k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 |
-                           (k[3] & 0xff) << 8 | k[4] & 0xff, no_verify=True)
-                self.write(addr+8, (k[5] & 0xff) << 24 | (k[6] & 0xff) << 16 |
-                           (k[7] & 0xff) << 8 | k[8] & 0xff, no_verify=True)
+            if self.mem_output:
+                if idx_x4 < tc.dev.MASK_WIDTH_SMALL:
+                    mem, offs = divmod(idx_x4,
+                                       tc.dev.MASK_WIDTH_SMALL // tc.dev.MASK_INSTANCES_EACH)
+                else:
+                    idx_x4 -= tc.dev.MASK_WIDTH_SMALL
+                    mem, offs = divmod(idx_x4,
+                                       (tc.dev.MASK_WIDTH_LARGE - tc.dev.MASK_WIDTH_SMALL)
+                                       // tc.dev.MASK_INSTANCES_EACH)
+                    mem += tc.dev.MASK_INSTANCES_EACH
+                if size != 1:
+                    val = f'{k[0] & 0xff:02x}_{k[1] & 0xff:02x}{k[2] & 0xff:02x}' \
+                          f'{k[3] & 0xff:02x}{k[4] & 0xff:02x}_{k[5] & 0xff:02x}' \
+                          f'{k[6] & 0xff:02x}{k[7] & 0xff:02x}{k[8] & 0xff:02x}'
+                else:
+                    val = f'{k[0] & 0xff:02x}_00000000_00000000'
+                self.kernel_mem[p // tc.dev.P_NUMPRO][p % tc.dev.P_NUMPRO][mem]. \
+                    append((offs, val))
             else:
-                self.write(addr+4, 0, no_verify=True)
-                self.write(addr+8, 0, no_verify=True)
-            self.write(addr+12, 0, no_verify=True)  # Execute write
+                self.write(addr, k[0] & 0xff, no_verify=True,
+                           comment=f' // Layer {ll}: processor {p} kernel #{idx}')
+                if size != 1:
+                    self.write(addr+4, (k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 |
+                               (k[3] & 0xff) << 8 | k[4] & 0xff, no_verify=True)
+                    self.write(addr+8, (k[5] & 0xff) << 24 | (k[6] & 0xff) << 16 |
+                               (k[7] & 0xff) << 8 | k[8] & 0xff, no_verify=True)
+                else:
+                    self.write(addr+4, 0, no_verify=True)
+                    self.write(addr+8, 0, no_verify=True)
+                self.write(addr+12, 0, no_verify=True)  # Execute write
         if self.verify_writes or verify_only:
             self.verify(addr, k[0] & 0xff)
             if size != 1:
@@ -385,7 +500,7 @@ class APB():
         if self.num > 0:
             woffs = self.data_offs - self.num
             self.check_overwrite(woffs)
-            self.write(woffs, self.data, comment, fifo=fifo)
+            self.write_data(woffs, self.data, comment, fifo=fifo)
             self.mem[woffs >> 2] = True
             self.num = 0
             self.data = 0
@@ -818,6 +933,31 @@ class APBTopLevel(APB):
                                    f'{val};{comment}\n')
             self.writes += 1
 
+    def write_data(
+            self,
+            addr,
+            val,
+            comment='',
+            indent='  ',
+            no_verify=False,
+            fifo=None,
+            base=None,
+    ):  # pylint: disable=unused-argument
+        """
+        Write address `addr` and data `val` to the output file.
+        if `no_verify` is `True`, do not check the result of the write operation, even if
+        `verify_writes` is globally enabled.
+        An optional `comment` can be added to the output.
+        The `write_data()` function is called for data memory only to allow memory-preloading
+        in RTL simulation. For normal cases, it is equivalent to `write()`.
+        """
+        if self.mem_output and fifo is None:
+            group, proc, mem, offs = tc.dev.datainstance_from_addr(addr)
+            self.data_mem[group][proc][mem].append((offs, f'{val:08x}'))
+            return
+
+        self.write(addr, val, comment, indent, no_verify, fifo, base)
+
     def verify(
             self,
             addr,
@@ -835,6 +975,12 @@ class APBTopLevel(APB):
         """
         assert val >= 0
         assert addr >= 0
+
+        if self.mem_output_final:
+            group, proc, mem, offs = tc.dev.datainstance_from_addr(addr)
+            self.output_data_mem[group][proc][mem].append((offs, f'{val:08x}'))
+            return
+
         addr += self.apb_base
 
         if self.memfile is None:

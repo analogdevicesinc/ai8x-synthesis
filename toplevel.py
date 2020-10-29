@@ -79,8 +79,8 @@ def header(
     Write include files and forward definitions to .c file handle `memfile`.
     The APB base address is passed in `apb_base`.
     """
-    memfile.write('#include <stdlib.h>\n')
-    memfile.write('#include <stdint.h>\n')
+    memfile.write('#include <stdlib.h>\n'
+                  '#include <stdint.h>\n')
     if embedded_code or verify_kernels:
         memfile.write('#include <string.h>\n')
     if embedded_code:
@@ -92,14 +92,24 @@ def header(
                 memfile.write('#include "gcfr_regs.h"\n')
             else:
                 memfile.write('#include "bbfc_regs.h"\n')
-            memfile.write('#include "fcr_regs.h"\n')
-            memfile.write('#include "sema_regs.h"\n')
+            if riscv is not None:
+                memfile.write('#include "fcr_regs.h"\n'
+                              '#include "sema_regs.h"\n')
         else:
+            if tc.dev.MODERN_SIM:
+                memfile.write('#include "mxc_device.h"\n'
+                              '#include "mxc_delay.h"\n'
+                              '#include "mxc_assert.h"\n'
+                              '#include "mxc_errors.h"\n'
+                              '#include "mxc_lock.h"\n'
+                              '#include "mxc_pins.h"\n'
+                              '#include "mxc_sys.h"\n'
+                              '#include "nvic_table.h"\n')
             memfile.write('#include "global_functions.h" // For RTL Simulation\n')
     if camera:
-        memfile.write('#include "pcif_defines_af2.h"\n')
-        memfile.write('#define NUM_DATA_WORDS 4\n')
-        memfile.write('#include "pcif.c"\n')
+        memfile.write('#include "pcif_defines_af2.h"\n'
+                      '#define NUM_DATA_WORDS 4\n'
+                      '#include "pcif.c"\n')
     if embedded_code:
         memfile.write('#include "tornadocnn.h"\n')
     if embedded_code or compact_weights:
@@ -424,9 +434,12 @@ def main(
                               '  // Enable primary clock\n'
                               '  MXC_SYS_ClockSourceEnable(MXC_SYS_CLOCK_IPO);\n\n'
                               '  printf("Measuring system base power...\\n");\n'
-                              '  SYS_START;\n'
-                              '  MXC_Delay(SEC(1));\n'
-                              '  SYS_COMPLETE;\n')
+                              '  SYS_START;\n')
+                if not riscv:
+                    memfile.write('  MXC_Delay(SEC(1));\n')
+                else:
+                    memfile.write('  MXC_TMR_Delay(MXC_TMR0, 1000000);\n')
+                memfile.write('  SYS_COMPLETE;\n')
 
             memfile.write('  // Reset all domains, restore power to CNN\n')
             memfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
@@ -481,18 +494,24 @@ def main(
             memfile.write('\n  cnn_stop();\n')
             memfile.write('  cnn_restart();\n\n')
 
-        memfile.write('  while (cnn_time == 0)\n')
-        if not riscv:
-            memfile.write('    __WFI(); // Wait for CNN\n\n')
+        if embedded_code or tc.dev.MODERN_SIM:
+            memfile.write('  while (cnn_time == 0)\n')
+            if not riscv:
+                memfile.write('    __WFI(); // Wait for CNN\n\n')
+            else:
+                memfile.write('    asm volatile("wfi"); // Wait for CNN\n\n')
         else:
-            memfile.write('    asm volatile("wfi"); // Wait for CNN\n\n')
+            memfile.write('  cnn_wait();\n\n')
         if oneshot > 0:
             memfile.write(f'  for (i = 0; i < {oneshot}; i++) {{\n')
             memfile.write('    cnn_restart();\n')
-            if not riscv:
-                memfile.write('  __WFI();\n')
+            if embedded_code or tc.dev.MODERN_SIM:
+                if not riscv:
+                    memfile.write('    __WFI();\n')
+                else:
+                    memfile.write('    asm volatile("wfi");\n')
             else:
-                memfile.write('  asm volatile("wfi");\n')
+                memfile.write('    cnn_wait();\n')
             memfile.write('  }\n\n')
 
         if not forever and boost is not None:
@@ -580,7 +599,7 @@ def main(
             if sleep:
                 memfile.write('  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=1\n')
             memfile.write('  __WFI(); // Let RISC-V run\n')
-        else:
+        elif embedded_code or tc.dev.MODERN_SIM:
             memfile.write('  // Signal the Cortex-M4\n'
                           '  MXC_SEMA->irq0 = MXC_F_SEMA_IRQ0_EN | MXC_F_SEMA_IRQ0_CM4_IRQ;\n\n')
 

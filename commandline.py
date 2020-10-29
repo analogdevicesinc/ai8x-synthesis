@@ -47,6 +47,8 @@ def get_parser():
                         help="generate embedded code for device (default)")
     mgroup.add_argument('--rtl', '--rtl-sim', action='store_false', dest='embedded_code',
                         help="generate RTL sim code instead of embedded code (default: false)")
+    mgroup.add_argument('--rtl-preload', action='store_true',
+                        help="generate RTL sim code with memory preload (default: false)")
     group.add_argument('--config-file', required=True, metavar='S',
                        help="YAML configuration file containing layer configuration")
     group.add_argument('--checkpoint-file', metavar='S',
@@ -219,6 +221,9 @@ def get_parser():
                        help="queue name (default: 'short')")
     group.add_argument('--timeout', type=int, metavar='N',
                        help="set RTL sim timeout (units of 1ms, default based on test)")
+    group.add_argument('--result-output', action='store_true', default=False,
+                       help="write expected output to memory dumps instead of inline code"
+                            " (default: false)")
 
     # Streaming
     group = parser.add_argument_group('Streaming tweaks')
@@ -297,6 +302,8 @@ def get_parser():
 
     args = parser.parse_args()
 
+    if args.rtl_preload:
+        args.embedded_code = False
     if args.embedded_code is None:
         args.embedded_code = True
 

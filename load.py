@@ -249,7 +249,7 @@ def load(
                         apb.check_overwrite(data_offs)
                         out_map[data_offs >> 2] = (-1, this_c, row, col, val)
                         if not embedded_code:
-                            apb.write(data_offs, val)
+                            apb.write_data(data_offs, val)
                         else:
                             code_buffer[offs] = val
                             offs += 1

@@ -162,6 +162,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         board_name='',
         rd_ahead=False,
         calcx4=False,
+        rtl_preload=False,
+        result_output=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -492,6 +494,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 riscv_cache=riscv_cache,
                 riscv_exclusive=riscv_exclusive,
                 sleep=sleep,
+                mem_output=rtl_preload,
+                mem_output_final=result_output,
             )
             apb.copyright_header()
 
@@ -548,6 +552,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             input_csv_format=input_csv_format,
             input_chan=input_chan[0],
             sleep=sleep,
+            mem_output=rtl_preload,
+            mem_output_final=result_output,
         )
 
         apb.copyright_header()
@@ -2225,6 +2231,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         sampledata_header.close()
     if weight_header is not None:
         weight_header.close()
+    if rtl_preload:
+        apb.write_mem(base_directory, test_name)
 
     # Create run_test.sv
     if not embedded_code and not block_mode:
@@ -2767,6 +2775,8 @@ def main():
             args.board_name,
             args.rd_ahead,
             args.calcx4,
+            args.rtl_preload,
+            args.result_output,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

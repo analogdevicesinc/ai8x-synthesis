@@ -25,6 +25,8 @@ class Dev:
     SUPPORT_CALCX4 = False
     SUPPORT_GCFR = False
     MODERN_SIM = False
+    MASK_INSTANCES = MASK_INSTANCES_EACH = 1
+    C_SRAM_BASE = C_GROUP_OFFS = INSTANCE_SIZE = INSTANCE_COUNT = INSTANCE_WIDTH = 0
     MASK_WIDTH_SMALL = MASK_WIDTH_LARGE = P_NUMPRO = 0  # These will be overridden by child classes
 
     def mask_width(self, proc):
@@ -32,6 +34,21 @@ class Dev:
         Returns the number of kernels (x9 bytes) for processor `proc`.
         """
         return self.MASK_WIDTH_LARGE if proc % self.P_NUMPRO == 0 else self.MASK_WIDTH_SMALL
+
+    def datainstance_from_addr(self, addr):
+        """
+        Unpack the address `addr` into an individual memory instance and offset and
+        return group, processor, instance, and offset.
+        """
+        addr -= self.C_SRAM_BASE
+        group = addr // self.C_GROUP_OFFS
+        addr %= self.C_GROUP_OFFS
+        proc = (addr // (self.INSTANCE_SIZE*16))
+        addr %= self.INSTANCE_SIZE*16
+        mem = addr // (self.INSTANCE_WIDTH * 4 // self.INSTANCE_COUNT)
+        addr %= self.INSTANCE_WIDTH * 4 // self.INSTANCE_COUNT
+        addr //= 4
+        return group, proc, mem, addr
 
     def __init__(self, part_no):
         self.part_no = part_no
@@ -222,6 +239,7 @@ class DevAI85(Dev):
     C_GROUP_OFFS = 0x400000
 
     INSTANCE_SIZE = INSTANCE_WIDTH = 2048  # x32
+    INSTANCE_COUNT = 1
     INSTANCE_SHIFT = 13
     WRITE_PTR_SHIFT = 13
     MEM_SIZE = INSTANCE_SIZE * P_NUMPRO * P_NUMGROUPS // P_SHARED  # x32
@@ -333,8 +351,10 @@ class DevAI87(Dev):
     TRAM_SIZE = 12288
     TRAM_OFFS = 16384
     BIAS_SIZE = 2048
-    MASK_WIDTH_SMALL = 4 * 1024
-    MASK_WIDTH_LARGE = MASK_WIDTH_SMALL + 4 * 256
+    MASK_INSTANCES = 8
+    MASK_INSTANCES_EACH = 4
+    MASK_WIDTH_SMALL = MASK_INSTANCES_EACH * 1024
+    MASK_WIDTH_LARGE = MASK_WIDTH_SMALL + MASK_INSTANCES_EACH * 256
     MASK_OFFS = 8192
     MCNT_SAD_OFFS = 16
     MCNT_MAX_OFFS = 0
@@ -352,6 +372,7 @@ class DevAI87(Dev):
 
     INSTANCE_SIZE = 8192  # x32 (includes empty space)
     INSTANCE_WIDTH = 5120  # x32 (true memory size)
+    INSTANCE_COUNT = 5
     INSTANCE_SHIFT = 17
     WRITE_PTR_SHIFT = 15
     MEM_SIZE = INSTANCE_WIDTH * P_NUMPRO * P_NUMGROUPS // P_SHARED  # x32
