@@ -215,7 +215,7 @@ def main(
         riscv_flash=False,  # pylint: disable=unused-argument
         riscv_cache=False,
         riscv_debug=False,
-        riscv_debugwait=True,
+        debugwait=1,
         camera=False,
         camera_format=None,
         device=84,
@@ -380,13 +380,18 @@ def main(
                 memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_SMPHR); '
                               '// Enable Sempahore clock\n'
                               '  NVIC_SetVector(RISCV_IRQn, WakeISR); // Set wakeup ISR\n')
-                if (embedded_code or embedded_arm) and riscv_debugwait:
-                    memfile.write('\n  MXC_Delay(SEC(2)); // Let debugger interrupt if needed\n')
+                if (embedded_code or embedded_arm) and debugwait:
+                    memfile.write(f'\n  MXC_Delay(SEC({debugwait})); '
+                                  '// Let debugger interrupt if needed\n')
                 memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CPU1); '
                               '// Enable RISC-V clock\n')
             else:
                 memfile.write('  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_CPU1; '
                               '// Enable RISC-V clock\n')
+        else:
+            if (embedded_code or embedded_arm) and debugwait:
+                memfile.write(f'\n  MXC_Delay(SEC({debugwait})); '
+                              '// Let debugger interrupt if needed\n')
         memfile.write('\n')
     elif riscv:
         if riscv_debug and embedded_code:

@@ -46,7 +46,7 @@ class APB():
             riscv_flash=False,
             riscv_cache=False,
             riscv_debug=False,
-            riscv_debugwait=True,
+            debugwait=1,
             fast_fifo=False,
             input_csv=None,
             input_csv_format=888,
@@ -79,7 +79,7 @@ class APB():
         self.riscv_flash = riscv_flash
         self.riscv_cache = riscv_cache
         self.riscv_debug = riscv_debug
-        self.riscv_debugwait = riscv_debugwait
+        self.debugwait = debugwait
         self.fast_fifo = fast_fifo
         self.input_csv = input_csv
         self.input_csv_format = input_csv_format
@@ -1129,7 +1129,7 @@ class APBTopLevel(APB):
             riscv_flash=self.riscv_flash,
             riscv_cache=self.riscv_cache,
             riscv_debug=self.riscv_debug,
-            riscv_debugwait=self.riscv_debugwait,
+            debugwait=self.debugwait,
             device=self.device,
             camera=self.input_csv is not None,
             camera_format=self.input_csv_format,

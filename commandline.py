@@ -59,6 +59,8 @@ def get_parser():
                        help="show parsed checkpoint data")
     group.add_argument('--prefix', metavar='S', required=True,
                        help="set test name prefix")
+    group.add_argument('--debugwait', type=int, default=2, metavar='N',
+                       help="set the delay in seconds before calling __WFI() (default: 1)")
 
     # Code generation
     group = parser.add_argument_group('Code generation')
@@ -128,9 +130,6 @@ def get_parser():
                         help="disable RISC-V cache")
     group.add_argument('--riscv-debug', action='store_true', default=False,
                        help="enable RISC-V debug interface (implies --riscv; default: false)")
-    group.add_argument('--riscv-disable-debugwait', dest='riscv_debugwait',
-                       action='store_false', default=True,
-                       help="disable the for loop before calling WFI() (default: use loop)")
     group.add_argument('--riscv-exclusive', action='store_true', default=False,
                        help="exclusive SRAM access for RISC-V (implies --riscv; default: false)")
 
