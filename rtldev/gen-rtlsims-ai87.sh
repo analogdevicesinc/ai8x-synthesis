@@ -1,6 +1,6 @@
 #!/bin/sh
 DEVICE="MAX78002"
-TARGET="rtlsim-ai87"
+TARGET="rtldev/rtlsim-ai87"
 PREFIX="ai87"
 SHORT_LOG="--log-last-only"
 
@@ -379,7 +379,9 @@ SHORT_LOG="--log-last-only"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --device "$DEVICE" --mexpress "$@"
 
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-resnet --checkpoint-file tests/test-resnet.pth.tar --config-file tests/test-resnet-4l.yaml --device "$DEVICE" --compact-data --mexpress "$@"
-# FIXME ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-resnet --checkpoint-file tests/test-resnet.pth.tar --config-file tests/test-resnet.yaml --device "$DEVICE" --compact-data --mexpress --timeout 100 $SHORT_LOG "$@"
+# FIXME
+./ai8xize.py --rtl --verbose --log --test-dir $TARGET --prefix $PREFIX-resnet --checkpoint-file tests/test-resnet.pth.tar --config-file tests/test-resnet.yaml --device "$DEVICE" --compact-data --mexpress --timeout 100 $SHORT_LOG "$@"
+# END FIXME ###
 
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-burnin_64x64x64 --config-file tests/test-burnin_64x64x64.yaml --device "$DEVICE" --compact-data --mexpress --max-checklines 4096 --timeout 60 $SHORT_LOG "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-burnin_16x64x64 --config-file tests/test-burnin_16x64x64.yaml --device "$DEVICE" --compact-data --mexpress --max-checklines 4096 "$@"
@@ -387,14 +389,18 @@ SHORT_LOG="--log-last-only"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-burnin-rand_16x64x64 --config-file tests/test-burnin-rand_16x64x64.yaml --device "$DEVICE" --compact-data --mexpress --max-checklines 4096 "$@"
 
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-conv1d-3-bias --config-file tests/test-conv1d-3-bias.yaml --device "$DEVICE" "$@"
-# FIXME ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mlpflattenpool12to2 --config-file tests/test-mlpflattenpool12to2.yaml --device "$DEVICE" --debug-computation --debug "$@"
-# FIXME ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mlpflattenpoolavg12to2 --config-file tests/test-mlpflattenpoolavg12to2.yaml --device "$DEVICE" --debug-computation --debug "$@"
+# FIXME
+./ai8xize.py --rtl --verbose --log --test-dir $TARGET --prefix $PREFIX-mlpflattenpool12to2 --config-file tests/test-mlpflattenpool12to2.yaml --device "$DEVICE" --debug-computation --debug "$@"
+./ai8xize.py --rtl --verbose --log --test-dir $TARGET --prefix $PREFIX-mlpflattenpoolavg12to2 --config-file tests/test-mlpflattenpoolavg12to2.yaml --device "$DEVICE" --debug-computation --debug "$@"
+# END FIXME ###
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-riscv-fastfifo-mnist --checkpoint-file trained/ai85-mnist.pth.tar --config-file networks/mnist-chw-ai85.yaml --device "$DEVICE" --compact-data --mexpress --riscv --riscv-debug "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mlpflattenpool --config-file tests/test-mlpflattenpool.yaml --device "$DEVICE" "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-upsample-nonsquare --config-file tests/test-upsample-nonsquare.yaml --device "$DEVICE" --debug --debug-computation "$@"
 
-# FIXME ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fifostream-quant --config-file tests/test-fifostream-quant.yaml --device "$DEVICE" --fifo --stop-after 0 "$@"
-# FIXME ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fifostream-quant --config-file tests/test-fifostream-quant.yaml --device "$DEVICE" --fifo "$@"
+# FIXME
+./ai8xize.py --rtl --verbose --log --test-dir $TARGET --prefix $PREFIX-fifostream-quant --config-file tests/test-fifostream-quant.yaml --device "$DEVICE" --fifo --stop-after 0 "$@"
+./ai8xize.py --rtl --verbose --log --test-dir $TARGET --prefix $PREFIX-fifostream-quant --config-file tests/test-fifostream-quant.yaml --device "$DEVICE" --fifo "$@"
+# END FIXME ###
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mlpflattennopool12to2 --config-file tests/test-mlpflattennopool12to2.yaml --device "$DEVICE" --debug-computation --debug "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant2-fc --config-file tests/test-flatten-fc-quant2-fc.yaml --device "$DEVICE" --timeout 1000 "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mlpflatten768to100-quant4 --config-file tests/test-mlpflatten768to100-quant4.yaml --device "$DEVICE" "$@"
@@ -402,9 +408,11 @@ SHORT_LOG="--log-last-only"
 # MAX78002 only
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-layers128 --config-file tests/test-layers128.yaml --device "$DEVICE" "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-startlayer28 --config-file tests/test-layers.yaml --device "$DEVICE" --start-layer 28 "$@"
-./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-maxkern --config-file tests/test-maxkern.yaml --device "$DEVICE" --reshape-inputs "$@"
-./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-maxkern0123 --config-file tests/test-maxkern0123.yaml --device "$DEVICE" --reshape-inputs "$@"
+# FIXME
+./ai8xize.py --rtl --verbose --log --test-dir $TARGET --prefix $PREFIX-maxkern --config-file tests/test-maxkern.yaml --device "$DEVICE" --reshape-inputs "$@"
+./ai8xize.py --rtl --verbose --log --test-dir $TARGET --prefix $PREFIX-maxkern0123 --config-file tests/test-maxkern0123.yaml --device "$DEVICE" --reshape-inputs "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-largeinput --config-file tests/test-largeinput.yaml --device "$DEVICE" "$@"
+# END FIXME ###
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-largeinputw --config-file tests/test-largeinputw.yaml --device "$DEVICE" "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-largeinputh --config-file tests/test-largeinputh.yaml --device "$DEVICE" "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-linklayer --checkpoint-file tests/test-mnist-extrasmallnet.pth.tar --config-file tests/test-mnist-chw-extrasmallnet.yaml --stop-after 2 --link-layer --device "$DEVICE" "$@"

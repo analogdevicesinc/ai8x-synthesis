@@ -49,6 +49,16 @@ def get_parser():
                         help="generate RTL sim code instead of embedded code (default: false)")
     mgroup.add_argument('--rtl-preload', action='store_true',
                         help="generate RTL sim code with memory preload (default: false)")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('--pipeline', action='store_true', default=None,
+                        help="enable pipeline (default: enabled where supported)")
+    mgroup.add_argument('--no-pipeline', action='store_false', dest='pipeline',
+                        help="disable pipeline")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('--pll', action='store_true', default=None,
+                        help="enable PLL (default: automatic)")
+    mgroup.add_argument('--no-pll', action='store_false', dest='pll',
+                        help="disable PLL (default: automatic)")
     group.add_argument('--config-file', required=True, metavar='S',
                        help="YAML configuration file containing layer configuration")
     group.add_argument('--checkpoint-file', metavar='S',
@@ -198,9 +208,8 @@ def get_parser():
                        help="use synchronous camera input (default: false)")
     group.add_argument('--input-fifo', action='store_true', default=False,
                        help="use software FIFO to buffer input (default: false)")
-    group.add_argument('--autogen', default='tests', metavar='S',
-                       help="directory location for autogen_list (default: 'tests'); "
-                            "don't add if 'None'")
+    group.add_argument('--autogen', default='None', metavar='S',
+                       help="directory location for autogen_list (default: None)")
     group.add_argument('--input-filename', default='input', metavar='S',
                        help="input .mem file name base (default: 'input' -> 'input.mem')")
     group.add_argument('--output-filename', default='output', metavar='S',
@@ -289,8 +298,6 @@ def get_parser():
                        help="specify FIFO waitstates")
     group.add_argument('--ready-sel-aon', type=int, metavar='N',
                        help="specify AON waitstates")
-    group.add_argument('--disable-pipeline', action='store_false', default=True, dest='pipeline',
-                       help="disable pipeline (default: enabled)")
 
     # Various
     group = parser.add_argument_group('Various')

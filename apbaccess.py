@@ -53,6 +53,7 @@ class APB():
             input_chan=None,
             sleep=False,
             blocklevel=False,
+            mexpress=False,
             mem_output=False,
             mem_output_final=False,
     ):
@@ -96,21 +97,19 @@ class APB():
         self.writes = 0
         self.reads = 0
 
+        self.data_mem = self.kernel_mem = self.output_data_mem = None
         if mem_output:
             self.data_mem = [[[[] for mem in range(tc.dev.INSTANCE_COUNT)]
                               for proc in range(tc.dev.P_NUMPRO // tc.dev.P_SHARED)]
                              for group in range(tc.dev.P_NUMGROUPS)]
-            self.kernel_mem = [[[[] for mem in range(tc.dev.MASK_INSTANCES)]
-                                for proc in range(tc.dev.P_NUMPRO)]
-                               for group in range(tc.dev.P_NUMGROUPS)]
-        else:
-            self.data_mem = self.kernel_mem = None
+            if not mexpress:
+                self.kernel_mem = [[[[] for mem in range(tc.dev.MASK_INSTANCES)]
+                                    for proc in range(tc.dev.P_NUMPRO)]
+                                   for group in range(tc.dev.P_NUMGROUPS)]
         if mem_output_final:
             self.output_data_mem = [[[[] for mem in range(tc.dev.INSTANCE_COUNT)]
                                      for proc in range(tc.dev.P_NUMPRO // tc.dev.P_SHARED)]
                                     for group in range(tc.dev.P_NUMGROUPS)]
-        else:
-            self.output_data_mem = None
 
     def write_mem(
             self,
@@ -153,7 +152,7 @@ class APB():
                                     f.write(f'@{addr:04x} {val}\n')
 
         if self.output_data_mem is not None:
-            target_dir = os.path.join(base_directory, test_name, 'data-out')
+            target_dir = os.path.join(base_directory, test_name, 'data-expected')
             os.makedirs(target_dir, exist_ok=True)
             for group in range(tc.dev.P_NUMGROUPS):
                 for proc in range(tc.dev.P_NUMPRO // tc.dev.P_SHARED):
@@ -1197,6 +1196,17 @@ class APBTopLevel(APB):
             toplevel.c_define(self.weight_header, array, define_name, fmt, columns)
         else:
             toplevel.c_define(self.sampledata_header, array, define_name, fmt, columns)
+
+    def select_clock(
+            self,
+            source,
+            divider,
+            comment='',
+    ):
+        """
+        Switch clock source and divider.
+        """
+        toplevel.select_clock(self.memfile, source, divider, comment)
 
 
 def apbwriter(

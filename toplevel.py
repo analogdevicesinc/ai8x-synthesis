@@ -92,7 +92,7 @@ def header(
                 memfile.write('#include "gcfr_regs.h"\n')
             else:
                 memfile.write('#include "bbfc_regs.h"\n')
-            if riscv is not None:
+            if riscv is not None:  # FIXME: https://jira.maxim-ic.com/browse/MSDK-281
                 memfile.write('#include "fcr_regs.h"\n'
                               '#include "sema_regs.h"\n')
         else:
@@ -231,6 +231,7 @@ def main(
         fifo=False,
         mexpress=False,
         measure_energy=False,
+        pll=False,
 ):
     """
     Write the main function (including an optional call to the fully connected layer if
@@ -300,6 +301,9 @@ def main(
                 if not measure_energy:
                     memfile.write('  // Switch to 100 MHz clock\n'
                                   '  MXC_SYS_Clock_Select(MXC_SYS_CLOCK_IPO);\n')
+                    if pll:
+                        memfile.write('  MXC_GCR->ito_ctrl |= MXC_F_GCR_ITO_CTRL_EN;'
+                                      ' // Enable PLL (ITO)\n')
                 else:
                     memfile.write('  MXC_SYS_ClockSourceEnable(MXC_SYS_CLOCK_IBRO);\n'
                                   '  // Switch to 7.37 MHz clock\n'
@@ -317,9 +321,12 @@ def main(
                 if tc.dev.SUPPORT_GCFR:
                     memfile.write('  MXC_GCR->clkctrl |= MXC_F_GCR_CLKCTRL_IPO_EN;'
                                   ' // Enable internal primary osc (IPO)\n')
+                    if pll:
+                        memfile.write('  MXC_GCR->ito_ctrl |= MXC_F_GCR_ITO_CTRL_EN;'
+                                      ' // Enable PLL (ITO)\n')
                     memfile.write('  while ((MXC_GCR->clkctrl & MXC_F_GCR_CLKCTRL_IPO_RDY) == 0) ;'
-                                  ' // Wait for osc\n')
-                    memfile.write('  MXC_GCR->clkctrl |= MXC_S_GCR_CLKCTRL_SYSCLK_SEL_IPO;'
+                                  ' // Wait for osc\n'
+                                  '  MXC_GCR->clkctrl |= MXC_S_GCR_CLKCTRL_SYSCLK_SEL_IPO;'
                                   ' // Select osc\n')
 
                     if not tc.dev.MODERN_SIM:
@@ -454,19 +461,11 @@ def main(
             memfile.write(f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n\n')
 
             if not measure_energy:
-                memfile.write('  MXC_GCR->pclkdiv &= ~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | '
-                              'MXC_F_GCR_PCLKDIV_CNNCLKSEL);\n'
-                              '  MXC_GCR->pclkdiv |= MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1; '
-                              '// CNN clock: 0.5*100 MHz div 1\n'
-                              '  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CNN); '
-                              '// Enable CNN clock\n')
+                select_clock(memfile, 'PCLK', 'DIV1', 'CNN clock: 0.5*100 MHz div 1')
             else:
-                memfile.write('  MXC_GCR->pclkdiv &= ~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | '
-                              'MXC_F_GCR_PCLKDIV_CNNCLKSEL);\n'
-                              '  MXC_GCR->pclkdiv |= MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV8; '
-                              '// CNN clock: 0.5*7.37 MHz div 8\n'
-                              '  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CNN); '
-                              '// Enable CNN clock\n')
+                select_clock(memfile, 'PCLK', 'DIV8', 'CNN clock: 0.5*7.37 MHz div 8')
+            memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CNN); '
+                          '// Enable CNN clock\n')
             if not riscv:
                 memfile.write('\n  NVIC_SetVector(CNN_IRQn, CNN_ISR); '
                               '// Set CNN complete vector\n')
@@ -519,6 +518,10 @@ def main(
                 memfile.write('    cnn_wait();\n')
             memfile.write('  }\n\n')
 
+        if pll:
+            select_clock(memfile, 'PCLK', 'DIV1', 'Switch CNN clock and disable PLL')
+            memfile.write('  MXC_GCR->ito_ctrl &= ~MXC_F_GCR_ITO_CTRL_EN;\n\n')
+
         if not forever and boost is not None:
             memfile.write('  // Turn off the CNN Boost\n')
             memfile.write('  MXC_GPIO_OutClr(gpio_out.port, gpio_out.mask);\n\n')
@@ -540,12 +543,9 @@ def main(
                 memfile.write('  printf("See monitor display for inference energy.\\n\\n");\n\n')
 
         if not forever:
-            if embedded_code:
+            if embedded_code or tc.dev.MODERN_SIM:
                 memfile.write('  // Disable CNN clock\n'
                               '  MXC_SYS_ClockDisable(MXC_SYS_PERIPH_CLOCK_CNN);\n')
-            elif tc.dev.MODERN_SIM:
-                memfile.write('  // Disable CNN clock\n'
-                              '  MXC_GCR->pclkdis0 |= MXC_F_GCR_PCLKDIS0_CNN;\n')
             memfile.write('  // Disable power to CNN\n')
             memfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
             memfile.write(f'  MXC_{bbfc}->reg1 = 0x0; // Mask memory\n')
@@ -733,3 +733,28 @@ def c_define(
             if (i + 1) % columns == 0:
                 memfile.write('\\\n  ')
     memfile.write(' \\\n}\n')
+
+
+def select_clock(
+        memfile,
+        source,
+        divider,
+        comment='',
+):
+    """
+    Switch clock source and divider.
+    """
+    if comment != '':
+        memfile.write(f'  // {comment}\n')
+    if source == 'ITO':
+        memfile.write('  while ((MXC_GCR->ito_ctrl & MXC_F_GCR_ITO_CTRL_RDY) != '
+                      'MXC_F_GCR_ITO_CTRL_RDY) ;\n')
+    if tc.dev.part_no == 'MAX78000':  # FIXME: https://jira.maxim-ic.com/browse/MSDK-283
+        memfile.write('  MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
+                      '~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | MXC_F_GCR_PCLKDIV_CNNCLKSEL))\n'
+                      f'                     | MXC_S_GCR_PCLKDIV_CNNCLKDIV_{divider};\n')
+    else:
+        memfile.write('  MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
+                      '~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | MXC_F_GCR_PCLKDIV_CNNCLKSEL))\n'
+                      f'                     | MXC_S_GCR_PCLKDIV_CNNCLKDIV_{divider} | '
+                      f'MXC_S_GCR_PCLKDIV_CNNCLKSEL_{source};\n')

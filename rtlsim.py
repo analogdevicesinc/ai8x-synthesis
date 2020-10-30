@@ -26,6 +26,8 @@ def create_runtest_sv(
         input_csv=None,
         input_period=80,
         input_sync=False,
+        rtl_preload=False,
+        result_output=False,
 ):
     """
     For for test `test_name`, create the runtest.sv file named `runtest_filename`, in the
@@ -103,8 +105,18 @@ def create_runtest_sv(
                 'real  clk2_time;\n'
                 'logic start_ena;\n'
                 'logic clkena1;\n'
-                'logic clkena2;\n\n'
-                'initial begin\n'
+                'logic clkena2;\n')
+            if result_output:
+                runfile.write('int   chk_stat;\n')
+            runfile.write(
+                '\ninitial begin\n'
+            )
+            if result_output:
+                runfile.write(
+                    '   open_files;\n'
+                    '   chk_stat   = 0;\n'
+                )
+            runfile.write(
                 '   start_time = 0;\n'
                 '   end_time   = 0;\n'
                 '   clk1_time  = 0;\n'
@@ -114,15 +126,38 @@ def create_runtest_sv(
                 '   clkena2    = 0;\n'
                 'end\n\n'
                 'always @(posedge `CNN_ENA) begin\n'
-                '  start_time  = $realtime;\n'
-                '  start_ena   = 1;\n'
-                '  $display("CNN enabled");\n'
+                '  if (!start_ena) begin\n'
+            )
+            if rtl_preload:
+                runfile.write(
+                    '    load_cnn_mems_0;\n'
+                    '    load_cnn_mems_1;\n'
+                    '    load_cnn_mems_2;\n'
+                    '    load_cnn_mems_3;\n'
+                )
+            runfile.write(
+                '    start_time  = $realtime;\n'
+                '    start_ena   = 1;\n'
+                '    $display("CNN enabled");\n'
+                '  end\n'
                 'end\n\n'
                 'always @(negedge `CNN_ENA) begin\n'
                 '  if (start_ena) begin\n'
                 '    end_time  = $realtime;\n'
-                '    start_ena = 0;\n'
                 '    clkena1   = 1;\n'
+            )
+            if result_output:
+                runfile.write(
+                    '    dump_cnn_mems_0;\n'
+                    '    dump_cnn_mems_1;\n'
+                    '    dump_cnn_mems_2;\n'
+                    '    dump_cnn_mems_3;\n'
+                    '    close_files;\n'
+                    '    chk_stat = $system({`TARGET_DIR,"/verify-output.py ",`TARGET_DIR});\n'
+                    '    if (chk_stat != 0)\n'
+                    '      error_count++;\n'
+                )
+            runfile.write(
                 '  end\n'
                 'end\n\n'
                 'always @(posedge `CNN_CLK) begin\n'

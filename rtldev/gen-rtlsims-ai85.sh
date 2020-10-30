@@ -1,6 +1,6 @@
 #!/bin/sh
 DEVICE="MAX78000"
-TARGET="rtlsim-ai85"
+TARGET="rtldev/rtlsim-ai85"
 PREFIX="ai85"
 SHORT_LOG="--log-last-only"
 

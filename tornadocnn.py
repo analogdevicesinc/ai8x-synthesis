@@ -24,6 +24,8 @@ class Dev:
     SUPPORT_DEPTHWISE = False
     SUPPORT_CALCX4 = False
     SUPPORT_GCFR = False
+    SUPPORT_PIPELINE = False
+    SUPPORT_PLL = False
     MODERN_SIM = False
     MASK_INSTANCES = MASK_INSTANCES_EACH = 1
     C_SRAM_BASE = C_GROUP_OFFS = INSTANCE_SIZE = INSTANCE_COUNT = INSTANCE_WIDTH = 0
@@ -45,9 +47,9 @@ class Dev:
         addr %= self.C_GROUP_OFFS
         proc = (addr // (self.INSTANCE_SIZE*16))
         addr %= self.INSTANCE_SIZE*16
+        addr //= 4
         mem = addr // (self.INSTANCE_WIDTH * 4 // self.INSTANCE_COUNT)
         addr %= self.INSTANCE_WIDTH * 4 // self.INSTANCE_COUNT
-        addr //= 4
         return group, proc, mem, addr
 
     def __init__(self, part_no):
@@ -99,6 +101,7 @@ class DevAI84(Dev):
     REG_LCNT_MAX = 2
 
     READY_SEL = 0x03
+    PIPELINE_READY_SEL = READY_SEL
 
     DEFAULT_WEIGHT_BITS = 8
     ACTIVATION_BITS = 8
@@ -217,6 +220,7 @@ class DevAI85(Dev):
     AON_CTL = 1024
 
     READY_SEL = 0
+    PIPELINE_READY_SEL = READY_SEL
     FIFO_READY_SEL = 0
     AON_READY_SEL = 0
 
@@ -343,6 +347,7 @@ class DevAI87(Dev):
     AON_CTL = 1024
 
     READY_SEL = 0
+    PIPELINE_READY_SEL = 3
     FIFO_READY_SEL = 0
     AON_READY_SEL = 0
 
@@ -393,6 +398,8 @@ class DevAI87(Dev):
     SUPPORT_STREAM_BIAS = True
     SUPPORT_DEPTHWISE = True
     SUPPORT_CALCX4 = True
+    SUPPORT_PIPELINE = True
+    SUPPORT_PLL = True
 
     SUPPORT_GCFR = True
     MODERN_SIM = True

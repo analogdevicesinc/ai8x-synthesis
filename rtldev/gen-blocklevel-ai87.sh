@@ -1,6 +1,6 @@
 #!/bin/sh
 DEVICE="78002"
-TARGET="blocklevel-ai87"
+TARGET="rtldev/blocklevel-ai87"
 PREFIX="ai87"
 
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --top-level None --test-dir $TARGET --prefix $PREFIX-cifar --checkpoint-file trained/ai84-cifar10.pth.tar --config-file networks/cifar10-hwc.yaml --device "$DEVICE"

@@ -156,6 +156,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         write_gap=None,
         start_layer=0,
         pipeline=False,
+        pll=False,
         reshape_inputs=False,
         link_layer=False,
         measure_energy=False,
@@ -199,6 +200,20 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         eprint("--calcx4 is not supported on this device.")
         sys.exit(1)
 
+    if pipeline and not tc.dev.SUPPORT_PIPELINE:
+        eprint("--pipeline is not supported on this device.")
+        sys.exit(1)
+
+    if pll and not tc.dev.SUPPORT_PLL:
+        eprint("--pll is not supported on this device.")
+        sys.exit(1)
+
+    if pipeline is None:
+        pipeline = tc.dev.SUPPORT_PIPELINE
+
+    if pll is None:
+        pll = pipeline
+
     if riscv_debug:
         riscv = True
     if riscv_cache:
@@ -206,6 +221,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         riscv_flash = True
     if riscv_flash or riscv_exclusive:
         riscv = True
+
+    if result_output and mlator:
+        result_output = False
 
     # Check streaming and FIFO constraints
     if fast_fifo_quad:
@@ -494,6 +512,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 riscv_cache=riscv_cache,
                 riscv_exclusive=riscv_exclusive,
                 sleep=sleep,
+                mexpress=mexpress,
                 mem_output=rtl_preload,
                 mem_output_final=result_output,
             )
@@ -517,6 +536,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 mexpress=mexpress,
                 fifo=fifo,
                 measure_energy=measure_energy,
+                pll=pll,
             )
 
     if input_csv is not None:
@@ -552,6 +572,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             input_csv_format=input_csv_format,
             input_chan=input_chan[0],
             sleep=sleep,
+            mexpress=mexpress,
             mem_output=rtl_preload,
             mem_output_final=result_output,
         )
@@ -1266,7 +1287,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                           * quantization[ll]) * out_expand[ll] * in_exp
                                          - quantization[ll]) // quantization[ll]
                                 if calcx4:
-                                    ochan = (ochan + 3) // 4
+                                    ochan //= 4
                                 if ochan > 0:
                                     val |= ochan - 1 << tc.dev.OCHAN_CNT_OFFS
                             elif tscnt_max > 0:
@@ -1306,7 +1327,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                        & ~(tc.dev.P_SHARED-1))) + 1)
                                   * quantization[ll]) * out_expand[ll] * in_exp - quantization[ll]
                             if ll == 0 and fast_fifo_quad or calcx4:
+                                if calcx4:
+                                    kl += quantization[ll]
                                 kl = (kl + 3) // 4  # FIXME: Handle fast_fifo_quad and calcx4
+                                if calcx4:
+                                    kl -= quantization[ll]
                             koffs, oned_sad = divmod(9 * kern_offs[ll],
                                                      kernel_size[ll][0] * kernel_size[ll][1])
                             koffs *= 8
@@ -1430,6 +1455,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                         if calcx4:
                             val |= 1 << 29
+
+                        if rd_ahead and in_expand[ll] > 1:
+                            val |= 1 << 31  # tcalc
 
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_POST, val,
                                        verbose, comment=' // Post processing register')
@@ -1720,12 +1748,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             val |= 1 << 21
         if fast_fifo_quad:
             val |= 1 << 31  # Qupac bit
-        if hasattr(tc.dev, 'CTL_PIPELINE_OFFS') and pipeline:
-            val |= 1 << tc.dev.CTL_PIPELINE_OFFS
+        if hasattr(tc.dev, 'CTL_PIPELINE_OFFS'):
+            if not pipeline:
+                val |= 1 << tc.dev.CTL_PIPELINE_OFFS
             if streaming[0] and big_data[0]:
                 val |= 1 << 6
 
         # Enable all needed groups except the first one
+        rdy_sel = tc.dev.READY_SEL if not pipeline else tc.dev.PIPELINE_READY_SEL
         for _, group in enumerate(groups_used):
             # Turn on the FIFO for this group if it's being loaded
             if fifo and processor_map_0 & 0x0f << group * 16 != 0:
@@ -1740,7 +1770,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 fval = 0
             if group != groups_used[0]:
                 fval |= 0x01
-            apb.write_ctl(group, tc.dev.REG_CTL, val | 0x800 | tc.dev.READY_SEL << 1
+            apb.write_ctl(group, tc.dev.REG_CTL, val | 0x800 | rdy_sel << 1
                           | fval | groups_used[0] << 9,
                           verbose, comment=f' // Enable group {group}')
 
@@ -1753,6 +1783,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             apb.write_fifo_ctl(tc.dev.AON_CTL, val2 | tc.dev.AON_READY_SEL,
                                verbose, comment=' // AON control')
 
+        if pll:
+            apb.select_clock('ITO', 'DIV1', 'Switch CNN clock to PLL (ITO)')
         if embedded_code:
             if not measure_energy:
                 apb.output('\n  MXC_TMR_SW_Start(MXC_TMR0);\n')
@@ -1765,7 +1797,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 val |= 1 << 22
             if fifo_group:
                 val |= 1 << 23
-        apb.write_ctl(groups_used[0], tc.dev.REG_CTL, val | tc.dev.READY_SEL << 1 | 0x01,
+        apb.write_ctl(groups_used[0], tc.dev.REG_CTL, val | rdy_sel << 1 | 0x01,
                       verbose, comment=f' // Master enable group {groups_used[0]}')
 
         if fifo:
@@ -1871,6 +1903,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         else:
             data = np.expand_dims(data, 0)
 
+        in_chan = input_chan[ll]
+
+        # Drop input channels?
+        if reshape_inputs:
+            data = np.delete(data, np.s_[in_chan:], axis=1)
+
         show_data(
             ll,
             verbose,
@@ -1884,8 +1922,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             operands=operands[ll],
         )
 
-        in_chan = input_chan[ll]
-
         # Run in-flight element-wise operations first?
         if operands[ll] > 1 and not pool_first[ll]:
             data = np.expand_dims(run_eltwise(data, ll), 0)
@@ -1896,10 +1932,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             data = data.reshape(data.shape[0], data.shape[1], input_dim[ll][0])
         else:
             data = data.reshape(data.shape[0], data.shape[1], input_dim[ll][0], input_dim[ll][1])
-
-        # Drop input channels?
-        if reshape_inputs:
-            data = np.delete(data, np.s_[in_chan:], axis=1)
 
         # In-flight pooling
         data, out_size = pooling_layer(
@@ -2224,6 +2256,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 mexpress=mexpress,
                 fifo=fifo,
                 measure_energy=measure_energy,
+                pll=pll,
             )
 
     # Close header files
@@ -2253,6 +2286,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             input_csv=input_csv,
             input_period=input_csv_period,
             input_sync=input_sync,
+            rtl_preload=rtl_preload,
+            result_output=result_output,
         )
         assets.copy('assets', 'rtlsim-ai' + str(device), base_directory, test_name)
         if riscv_cache:
@@ -2261,6 +2296,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             assets.copy('assets', 'rtlsim-riscv-flash-ai' + str(device), base_directory, test_name)
         elif riscv:
             assets.copy('assets', 'rtlsim-riscv-ai' + str(device), base_directory, test_name)
+        if result_output:
+            assets.copy('assets', 'rtlsim-verify-output', base_directory, test_name)
     elif block_mode:
         assets.copy('assets', 'blocklevel-ai' + str(device), base_directory, test_name)
     elif embedded_code:
@@ -2769,6 +2806,7 @@ def main():
             write_gap,
             args.start_layer,
             args.pipeline,
+            args.pll,
             args.reshape_inputs,
             args.link_layer,
             args.energy,
