@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_October 21, 2020_
+_November 3, 2020_
 
 The Maxim Integrated AI project is comprised of four repositories:
 
@@ -51,7 +51,7 @@ where “....” is the project root, for example `~/Documents/Source/AI`.
 ### Prerequisites
 
 This software currently supports Ubuntu 18.04 LTS.
-*Note: Ubuntu 20.04 LTS works, but requires CUDA 11 which is not yet officially supported by PyTorch.*
+*Note: Ubuntu 20.04 LTS works, but requires CUDA 11 which is not officially supported by PyTorch 1.5.1.*
 The server version is sufficient, see https://ubuntu.com/download/server.
 *Note: The Windows Subsystem for Linux (WSL) currently does <u>not</u> support CUDA.*
 
@@ -752,7 +752,7 @@ The following table describes the most important command line arguments for `tra
 | `--exp-load-weights-from`  | Load weights from file                                       |                                 |
 | *Export*                   |                                                              |                                 |
 | `--summary onnx`           | Export trained model to ONNX (default name: to model.onnx)   |                                 |
-| `—summary onnx_simplified` | Export trained model to simplified ONNX file (default name: model.onnx) |                                 |
+| `--summary onnx_simplified` | Export trained model to simplified ONNX file (default name: model.onnx) |                                 |
 | `--summary-filename`       | Change the file name for the exported model                  | `--summary-filename mnist.onnx` |
 | `--save-sample`            | Save data[index] from the test set to a NumPy pickle for use as sample data | `--save-sample 10`              |
 
@@ -1009,7 +1009,7 @@ To evaluate the quantized network for MAX78000 (run from the training project):
 
 #### Alternative Quantization Approaches
 
-If Quantization-aware training is not desired, post-training quantization can be improved using more sophisticated methods. For example, see
+If quantization-aware training is not desired, post-training quantization can be improved using more sophisticated methods. For example, see
 https://github.com/pytorch/glow/blob/master/docs/Quantization.md,
 https://github.com/ARM-software/ML-examples/tree/master/cmsisnn-cifar10,
 https://github.com/ARM-software/ML-KWS-for-MCU/blob/master/Deployment/Quant_guide.md,
@@ -1351,7 +1351,7 @@ Example:
 
 ##### `output_shift` (Optional)
 
-When `output_width` is 8, the 32-bit intermediate result can be shifted left or right before reduction to 8-bit. The value specified here is cumulative with the value generated from `quantization`.
+When `output_width` is 8, the 32-bit intermediate result can be shifted left or right before reduction to 8-bit. The value specified here is cumulative with the value generated from `quantization`. Note that `output_shift` is not supported for passthrough layers.
 
 The 32-bit intermediate result is multiplied by $2^{totalshift}$, where the total shift count must be within the range $[-15, +15]$, resulting in a factor of $[2^{–15}, 2^{15}]$ or $[0.0000305176$ to $32768]$.
 
@@ -1953,7 +1953,7 @@ The GitHub projects use the [GitHub Super-Linter](https://github.com/github/supe
 To run locally, create a clean copy of the repository and run the following command from the project directory (i.e., `ai8x-training` or `ai8x-synthesis`): 
 
 ```shell
-$ docker run -e RUN_LOCAL=true -e VALIDATE_MARKDOWN=false -e VALIDATE_PYTHON_BLACK=false -e VALIDATE_ANSIBLE=false -e VALIDATE_EDITORCONFIG=false -e FILTER_REGEX_EXCLUDE="attic/.*|inspect_ckpt.py" -v `pwd`:/tmp/lint github/super-linter
+$ docker run --rm -e RUN_LOCAL=true -e VALIDATE_MARKDOWN=false -e VALIDATE_PYTHON_BLACK=false -e VALIDATE_PYTHON_ISORT=false -e VALIDATE_ANSIBLE=false -e VALIDATE_EDITORCONFIG=false -e FILTER_REGEX_EXCLUDE="attic/.*|inspect_ckpt.py" -v `pwd`:/tmp/lint github/super-linter
 ```
 
 ### Submitting Changes

@@ -138,11 +138,10 @@ def unload(
         else:  # mlator
             assert out_size == 1
             this_map = next_layer_map
-            addr = apb_base + tc.dev.C_CNN_BASE + (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS
-            mlat = addr + tc.dev.REG_MLAT*4
+            mlat = tc.ctl_addr(proc // tc.dev.P_NUMPRO, tc.dev.REG_MLAT)
+            ctrl = tc.ctl_addr(proc // tc.dev.P_NUMPRO, tc.dev.REG_CTL)
             if mlat_addr != mlat:
                 mlat_addr = mlat
-                ctrl = addr + tc.dev.REG_CTL*4
                 memfile.write(f'  ctrl = (volatile uint32_t *) 0x{ctrl:08x};\n')
                 memfile.write(f'  mlat = (volatile uint32_t *) 0x{mlat:08x};\n')
 
@@ -170,13 +169,11 @@ def unload(
                                 memfile.write(f'  *ctrl = 0x{tc.dev.READY_SEL << 1 | 1 << 3:08x}; '
                                               '// Disable mlator\n')
                             # Set wptr to start address
-                            val = addr + tc.dev.C_CNN*4 \
-                                + tc.dev.LREG_WPTR_BASE*4 * tc.dev.MAX_LAYERS
+                            val = tc.lreg_addr(proc // tc.dev.P_NUMPRO, tc.dev.LREG_WPTR_BASE)
                             memfile.write(f'  *((volatile uint32_t *) 0x{val:08x}) = '
                                           f'0x{doffs:08x}; // Set SRAM address\n')
                             # Set wptr_inc to set increment value (default: 1)
-                            val = addr + tc.dev.C_CNN*4 \
-                                + tc.dev.LREG_LCTL2*4 * tc.dev.MAX_LAYERS
+                            val = tc.lreg_addr(proc // tc.dev.P_NUMPRO, tc.dev.LREG_LCTL2)
                             memfile.write(f'  *((volatile uint32_t *) 0x{val:08x}) = '
                                           f'0x{expand:08x}; // Set pointer increment\n')
                             # Set mlatorld enable bit to load write ptr; select byte 0..3
@@ -400,9 +397,8 @@ def verify(
             # Physical offset into instance and group
             proc = poffs & ~(tc.dev.P_SHARED-1)
 
-            addr = tc.dev.C_CNN_BASE + (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS
-            mlat = addr + tc.dev.REG_MLAT*4
-            ctrl = addr + tc.dev.REG_CTL*4
+            mlat = tc.ctl_addr(proc // tc.dev.P_NUMPRO, tc.dev.REG_MLAT)
+            ctrl = tc.ctl_addr(proc // tc.dev.P_NUMPRO, tc.dev.REG_CTL)
 
             for shift in range(4):
                 if this_map & 1:
@@ -430,13 +426,13 @@ def verify(
                                              f'0x{tc.dev.READY_SEL << 1 | 1 << 3:08x}; '
                                              '// Disable mlator\n')
                             # Set wptr to start address
-                            w = apb_base + addr + tc.dev.C_CNN*4 \
-                                + tc.dev.LREG_WPTR_BASE*4 * tc.dev.MAX_LAYERS
+                            w = apb_base + tc.lreg_addr(proc // tc.dev.P_NUMPRO,
+                                                        tc.dev.LREG_WPTR_BASE)
                             stream.write(f'  *((volatile uint32_t *) 0x{w:08x}) = '
                                          f'0x{source >> 2:08x}; // Set SRAM address\n')
                             # Set wptr_inc to set increment value (default: 1)
-                            w = apb_base + addr + tc.dev.C_CNN*4 \
-                                + tc.dev.LREG_LCTL2*4 * tc.dev.MAX_LAYERS
+                            w = apb_base + tc.lreg_addr(proc // tc.dev.P_NUMPRO,
+                                                        tc.dev.LREG_LCTL2)
                             stream.write(f'  *((volatile uint32_t *) 0x{w:08x}) = '
                                          f'0x{expand:08x}; // Set pointer increment\n')
                             # Set mlatorld enable bit to load write ptr; select byte 0..3

@@ -29,6 +29,7 @@ def load(
         operator,
         verbose=False,
         no_bias=None,
+        conv_groups=None,
 ):
     """
     Load weights and biases from `checkpoint_file`. If `arch` is not None and does not match
@@ -121,8 +122,10 @@ def load(
                     # For ConvTranspose2d, flip the weights as follows:
                     w = np.flip(w, axis=(2, 3)).swapaxes(0, 1)
 
-                input_channels.append(w.shape[1])  # Input channels
-                output_channels.append(w.shape[0])  # Output channels
+                mult = conv_groups[seq] if operator[seq] != opn.CONVTRANSPOSE2D else 1
+                input_channels.append(w.shape[1] * mult)  # Input channels
+                mult = conv_groups[seq] if operator[seq] == opn.CONVTRANSPOSE2D else 1
+                output_channels.append(w.shape[0] * mult)  # Output channels
 
                 if len(w.shape) == 2:  # MLP
                     if kernel_size[seq][0] != 1 or kernel_size[seq][1] != 1:

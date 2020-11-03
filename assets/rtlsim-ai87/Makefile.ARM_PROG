@@ -1,5 +1,5 @@
 ################################################################################
- # Copyright (C) 2016 Maxim Integrated Products, Inc., All Rights Reserved.
+ # Copyright (C) Maxim Integrated Products, Inc., All Rights Reserved.
  #
  # Permission is hereby granted, free of charge, to any person obtaining a
  # copy of this software and associated documentation files (the "Software"),
@@ -29,16 +29,13 @@
  # property whatsoever. Maxim Integrated Products, Inc. retains all
  # ownership rights.
  #
- # $Date: 2016-09-09 11:58:34 -0500 (Fri, 09 Sep 2016) $ 
- # $Revision: 24340 $
- #
  ###############################################################################
 
 # This is the name of the build output file
-PROJECT=max32650
+PROJECT=max78002
 
 # Specify the target processor
-TARGET=MAX32650
+TARGET=MAX78002
 
 # Create Target name variables
 TARGET_UC:=$(shell echo $(TARGET) | tr a-z A-Z)
@@ -49,16 +46,18 @@ COMPILER=GCC
 
 # Specify the board used
 ifeq "$(BOARD)" ""
-BOARD=Simulation
+BOARD=MAX78002/Simulation
 endif
 
-MICRO_CORE=RV32
+MICRO_CORE=ARM_CM3
+RISCV_CORE=
+export RISCV_CORE
 $(info Info: -------------------------------------------------------------)
 $(info Info: -------------------------------------------------------------)
 $(info Info: -------------------------------------------------------------)
 $(info Info: -------------------------------------------------------------)
 $(info Info: -------------------------------------------------------------)
-$(info Info: -----------------Setting the MICRO_CODE set to  $(MICRO_CORE))
+$(info Info: ----------------------Setting the MICRO_CODE to $(MICRO_CORE))
 $(info Info: -------------------------------------------------------------)
 $(info Info: -------------------------------------------------------------)
 $(info Info: -------------------------------------------------------------)
@@ -67,36 +66,27 @@ $(info Info: -------------------------------------------------------------)
 
 # This is the path to the CMSIS root directory
 ifeq "$(MAXIM_PATH)" ""
-LIBS_DIR=$(REF_ROOT)/support/cmsis/Libraries
+LIBS_DIR=$(PROJECT_ROOT)/support/cmsis/Libraries
 else
 LIBS_DIR=/$(subst \,/,$(subst :,,$(MAXIM_PATH))/Firmware/$(TARGET_UC)/Libraries)
 endif
 CMSIS_ROOT=$(LIBS_DIR)/CMSIS
+export CMSIS_ROOT
 
 # Source files for this test (add path to VPATH below)
-SRCS  = test_riscv.c
+SRCS  = test.c
 SRCS  += global_functions.c
 #SRCS  += i2cl.c
 
 # Where to find source files for this test
 VPATH=.
-VPATH+=$(REF_ROOT)/digital/verification/tb_support/c_code
+VPATH+=$(PROJECT_ROOT)/digital/verification/tb_support/c_code
 # Where to find header files for this test
 IPATH = .
-IPATH+=$(REF_ROOT)/digital/verification/tb_support/c_include
-IPATH+=$(REF_ROOT)/digital/verification/tb_support/c_include/test_csrc
-#IPATH+=$(REF_ROOT)/support/gcc-riscv/riscv32-unknown-elf/include
+IPATH+=$(PROJECT_ROOT)/digital/verification/tb_support/c_include
 
 # Enable assertion checking for development
-PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE -DRV32
-
-# Specify STACK SIZE
-STACK_SIZE=1024
-#HEAP_SIZE=2048 
-
-# Specify RISCV MARCH and MABI (optional)
-#MARCH=rv32imc 
-#MABI=ilp32
+PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE -DCPU0_ARM_CM3
 
 # Specify the target revision to override default
 # "A2" in ASCII
@@ -110,15 +100,12 @@ STACK_SIZE=1024
 #PROJ_LDFLAGS+=--specs=nano.specs
 
 # Point this variable to a startup file to override the default file
-STARTUPFILE=startup_riscv_max32650.S
+#STARTUPFILE=start.S
 
-MXC_OPTIMIZE_CFLAGS=-O0 
-#MXC_OPTIMIZE_CFLAGS=-Og
+MXC_OPTIMIZE_CFLAGS=-O0
 
 # Point this variable to a linker file to override the default file
-# LINKERFILE=$(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/GCC/$(TARGET_LC).ld
-#LINKERFILE=$(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/GCC/$(TARGET_LC)_emulator.ld
-LINKERFILE=max32650_simulation_riscv.ld
+LINKERFILE=$(LIBS_DIR)/Boards/$(TARGET_UC)/Simulation/Source/max_simulation.ld
 
 ################################################################################
 # Include external library makefiles here
@@ -128,13 +115,12 @@ BOARD_DIR=$(LIBS_DIR)/Boards/$(BOARD)
 include $(BOARD_DIR)/board.mk
 
 # Include the peripheral driver
-PERIPH_DRIVER_DIR=$(LIBS_DIR)/$(TARGET_UC)PeriphDriver
+PERIPH_DRIVER_DIR=$(LIBS_DIR)/PeriphDrivers
 include $(PERIPH_DRIVER_DIR)/periphdriver.mk
 
 ################################################################################
 # Include the rules for building for this target. All other makefiles should be
 # included before this one.
-# RVC instead of using a separate _riscv.mk file use the common file with specific checks based on MICRO_CORE variable :: include $(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/$(COMPILER)/$(TARGET_LC)_riscv.mk
 include $(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/$(COMPILER)/$(TARGET_LC).mk
 
 # The rule to clean out all the build products.

@@ -36,15 +36,18 @@ def print_map(
     if width > 1:
         width += 1  # Add space if wider than a single character
 
-    print_fn('-' * kmap.shape[1] * width)
-    for row in range(kmap.shape[0]):
-        for col in range(kmap.shape[1]):
+    assert kmap.shape[0] == tc.dev.MAX_PROC
+    assert kmap.shape[1] == tc.dev.MASK_WIDTH_LARGE
+
+    print_fn('-' * tc.dev.MASK_WIDTH_LARGE * width)
+    for row in range(tc.dev.MAX_PROC):
+        for col in range(tc.dev.mask_width(row)):
             val = kmap[row][col]
             if val == _INVALID_VALUE:
                 val = 'X'
             print_fn('{:>{w}}'.format(val, w=width), end='')
         print_fn('')
-    print_fn('-' * kmap.shape[1] * width)
+    print_fn('-' * tc.dev.MASK_WIDTH_LARGE * width)
 
 
 def load(  # pylint: disable=too-many-branches,too-many-statements
@@ -52,6 +55,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         embedded_code,
         device,
         apb,
+        start_layer,
         layers,
         operator,
         kernel,
@@ -72,6 +76,8 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         quad=False,
         debug=False,
         blocklevel=False,
+        legacy_kernels=False,
+        calcx4=False,
 ):
     """
     Stack `kernel` values and write them to C code (for `embedded_code` if `True` or
@@ -87,18 +93,24 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     proc_kern_max = [0] * tc.dev.MAX_PROC
     kern_offs = [0] * layers
     kern_len = [0] * layers
-    kernel_map = np.full((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH), _INVALID_VALUE, dtype=np.int64)
-    kernels_used = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH), dtype=np.int64)
-    kernel_data = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH, 9), dtype=np.int8)
+    kernel_map = np.full((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE),
+                         _INVALID_VALUE, dtype=np.int64)
+    kernels_used = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE), dtype=np.int64)
+    kernel_data = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE, 9), dtype=np.int8)
     # There are four 32-bit words per 9-byte kernel.
     # The value map is initialized with zeros so we can later ignore unused entries and use
     # memcpy() on initialized and uninitialized data.
-    kernel_values = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH * _WORDS_PER_KERNEL),
+    kernel_values = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE * _WORDS_PER_KERNEL),
                              dtype=np.int64)
     if debug:
         print('\nLoading Kernels...')
 
-    for ll in range(layers):
+    if calcx4 and not tc.dev.SUPPORT_CALCX4:
+        eprint('--calcx4 is not supported on this device.')
+        sys.exit(1)
+    assert not ((embedded_code or mexpress) and calcx4)  # FIXME Add support later
+
+    for ll in range(start_layer, layers):
         if operator[ll] not in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
             kern_len[ll] = 0
             kern_offs[ll] = 0
@@ -140,7 +152,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         if output_chan[ll] > tc.dev.MAX_PROC:
             kern_len[ll] = (kern_len[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
         kern_len[ll] *= out_expand[ll] * in_expand[ll]
-        if flatten[ll]:
+        if not legacy_kernels and flatten[ll]:
             kern_len[ll] *= kernel_reshaped.shape[1]
             kern_len[ll] -= (out_expand[ll] * popcount(next_layer_map) - output_chan[ll]) \
                 * kernel_reshaped.shape[1] * 8 // (ksize * quantization[ll])
@@ -156,7 +168,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                      + qfactor - 1) // qfactor))
         # The kernel offset needs to start at a multiple of 4.
         kern_offs[ll] = (kern_offs[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
-        if kern_offs[ll] + kern_len[ll] > tc.dev.MASK_WIDTH:
+        if kern_offs[ll] + kern_len[ll] > tc.dev.mask_width(p):
             eprint(f'\nKernel memory exceeded at layer {ll}; offset: {kern_offs[ll]}, '
                    f'needed: {kern_len[ll]}.'
                    '\n\nKernel map so far:')
@@ -202,7 +214,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
 
                             def add_kernel_data(ll, p, col_target, b):
                                 col = kern_offs[ll] + col_target
-                                if col >= tc.dev.MASK_WIDTH:
+                                if col >= tc.dev.mask_width(p):
                                     eprint(f'\nKernel memory exceeded in layer {ll}.'
                                            '\n\nKernel map so far:')
                                     print_map(layers, kernel_map, print_fn=eprint_noprefix)
@@ -293,7 +305,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                     else:
                         m += qfactor
 
-            if kern_offs[ll] + col_target < tc.dev.MASK_WIDTH \
+            if kern_offs[ll] + col_target < tc.dev.mask_width(p) \
                and kernels_used[p][kern_offs[ll] + col_target] > 0:  # Partials
                 col_target += 1
             while col_target - start_col < kern_len[ll]:
@@ -315,11 +327,11 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             apb.output('int verify_kernels(void)\n{\n')
         # Write in-line
         for p in range(tc.dev.MAX_PROC):
-            for col in range(0, tc.dev.MASK_WIDTH):
+            for col in range(0, tc.dev.mask_width(p)):
                 ll = kernel_map[p][col]
                 if ll != _INVALID_VALUE:
                     k = kernel_data[p][col]
-                    apb.write_kern(ll, p, col, k, verify_only=verify)
+                    apb.write_kern(ll, p, col, k, verify_only=verify, calcx4=calcx4)
         if verify:
             apb.output('  return 1;\n}\n\n')
     if embedded_code or mexpress:
@@ -329,7 +341,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
 
         if not mexpress:
             for p in range(tc.dev.MAX_PROC):
-                for col in range(0, tc.dev.MASK_WIDTH):
+                for col in range(0, tc.dev.mask_width(p)):
                     ll = kernel_map[p][col]
                     if ll != _INVALID_VALUE:
                         k = kernel_data[p][col]
@@ -343,9 +355,9 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             # First, define the weights (will move to header file)
             # Combining memcopy() requires stacked memories
             max_col = [-1] * tc.dev.MAX_PROC
-            min_col = [tc.dev.MASK_WIDTH] * tc.dev.MAX_PROC
+            min_col = [tc.dev.MASK_WIDTH_LARGE if not legacy_kernels else 0] * tc.dev.MAX_PROC
             for p in range(0, tc.dev.MAX_PROC):
-                for col in range(0, tc.dev.MASK_WIDTH):
+                for col in range(0, tc.dev.mask_width(p)):
                     ll = kernel_map[p][col]
                     if ll != _INVALID_VALUE:
                         max_col[p] = col
@@ -419,8 +431,8 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             for p in range(tc.dev.MAX_PROC):
                 # Find min/max from kernel_map
                 max_col = -1
-                min_col = tc.dev.MASK_WIDTH
-                for col in range(0, tc.dev.MASK_WIDTH):
+                min_col = tc.dev.mask_width(p) if not legacy_kernels else 0
+                for col in range(0, tc.dev.mask_width(p)):
                     ll = kernel_map[p][col]
                     if ll != _INVALID_VALUE:
                         max_col = col
@@ -461,9 +473,9 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         if not blocklevel:
             apb.output('void load_kernels(void)\n{\n')
             max_col = [-1] * tc.dev.MAX_PROC
-            min_col = [tc.dev.MASK_WIDTH] * tc.dev.MAX_PROC
+            min_col = [tc.dev.MASK_WIDTH_LARGE if not legacy_kernels else 0] * tc.dev.MAX_PROC
             for p in range(0, tc.dev.MAX_PROC):
-                for col in range(0, tc.dev.MASK_WIDTH):
+                for col in range(0, tc.dev.mask_width(p)):
                     ll = kernel_map[p][col]
                     if ll != _INVALID_VALUE:
                         max_col[p] = col
