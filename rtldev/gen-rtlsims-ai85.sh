@@ -1,6 +1,6 @@
 #!/bin/sh
 DEVICE="MAX78000"
-TARGET="rtlsim-ai85"
+TARGET="rtldev/rtlsim-ai85"
 PREFIX="ai85"
 SHORT_LOG="--log-last-only"
 
@@ -396,3 +396,5 @@ SHORT_LOG="--log-last-only"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fifostream-quant --config-file tests/test-fifostream-quant.yaml --device "$DEVICE" --fifo --stop-after 0 "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fifostream-quant --config-file tests/test-fifostream-quant.yaml --device "$DEVICE" --fifo "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mlpflattennopool12to2 --config-file tests/test-mlpflattennopool12to2.yaml --device "$DEVICE" --debug-computation --debug "$@"
+./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant2-fc --config-file tests/test-flatten-fc-quant2-fc.yaml --device "$DEVICE" --timeout 1000 "$@"
+./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mlpflatten768to100-quant4 --config-file tests/test-mlpflatten768to100-quant4.yaml --device "$DEVICE" "$@"

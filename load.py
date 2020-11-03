@@ -3,8 +3,6 @@
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
 Load Tornado CNN data memory
@@ -53,6 +51,10 @@ def load(
     The code is target for simulation (`embedded_code` == `False`) or embedded hardware (`True`).
     Output is written to the `apb` object.
     """
+
+    if fixed_input and not embedded_code:
+        eprint('--fixed-input requires --embedded-code')
+        sys.exit(1)
 
     if csv_file is not None:
         return loadcsv(
@@ -247,7 +249,7 @@ def load(
                         apb.check_overwrite(data_offs)
                         out_map[data_offs >> 2] = (-1, this_c, row, col, val)
                         if not embedded_code:
-                            apb.write(data_offs, val)
+                            apb.write_data(data_offs, val)
                         else:
                             code_buffer[offs] = val
                             offs += 1
