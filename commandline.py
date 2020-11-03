@@ -68,7 +68,7 @@ def get_parser():
     group.add_argument('--prefix', metavar='S', required=True,
                        help="set test name prefix")
     group.add_argument('--debugwait', type=int, default=2, metavar='N',
-                       help="set the delay in seconds before calling __WFI() (default: 1)")
+                       help="set the delay in seconds before calling __WFI() (default: 2)")
 
     # Code generation
     group = parser.add_argument_group('Code generation')
