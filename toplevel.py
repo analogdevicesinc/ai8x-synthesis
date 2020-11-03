@@ -397,7 +397,8 @@ def main(
                               '// Enable RISC-V clock\n')
         else:
             if (embedded_code or embedded_arm) and debugwait:
-                memfile.write(f'\n  MXC_Delay(SEC({debugwait})); '
+                memfile.write('\n  printf("Waiting...\\n");\n'
+                              f'  MXC_Delay(SEC({debugwait})); '
                               '// Let debugger interrupt if needed\n')
         memfile.write('\n')
     elif riscv:
