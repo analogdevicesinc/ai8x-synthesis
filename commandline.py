@@ -18,20 +18,18 @@ def get_parser():
     Return an argparse parser.
     """
 
-    parser = argparse.ArgumentParser(description="AI8X CNN Generator")
+    parser = argparse.ArgumentParser(description="MAX7800X CNN Generator")
 
     # Device selection
     group = parser.add_argument_group('Device selection')
-    mgroup = group.add_mutually_exclusive_group()
+    mgroup = group.add_mutually_exclusive_group(required=True)
     mgroup.add_argument('--ai85', action='store_const', const=85, dest='device',
-                        help="enable AI85 features (default: AI84)")
-    mgroup.add_argument('--ai87', action='store_const', const=87, dest='device',
-                        help="enable AI87 features (default: AI84)")
-    mgroup.add_argument('--device', type=device, metavar='N',
-                        help="set device (default: 84)")
+                        help="set device to MAX78000")
+    mgroup.add_argument('--device', type=device, metavar='device-name',
+                        help="set device")
     mgroup.add_argument('--cmsis-software-nn', action='store_const',
                         const=devices.CMSISNN, dest='device',
-                        help="create code for an Arm CMSIS NN software network")
+                        help="create code for an Arm CMSIS-NN software network (unsupported)")
 
     # Hardware features
     group = parser.add_argument_group('Hardware features')
@@ -315,9 +313,6 @@ def get_parser():
 
     if not args.c_filename:
         args.c_filename = 'main' if args.embedded_code else 'test'
-
-    if not args.device:
-        args.device = 84
 
     if args.no_bias is None:
         args.no_bias = []
