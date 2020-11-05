@@ -12,7 +12,6 @@ import sys
 import devices
 from eprint import eprint
 
-
 dev = None
 
 

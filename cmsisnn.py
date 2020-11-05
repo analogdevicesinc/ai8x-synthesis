@@ -17,8 +17,8 @@ import devices
 import op
 import toplevel
 from eprint import eprint
-from simulate import conv1d_layer, conv2d_layer, linear_layer, pooling_layer, eltwise_layer, \
-    passthrough_layer, convtranspose2d_layer, show_data
+from simulate import (conv1d_layer, conv2d_layer, convtranspose2d_layer, eltwise_layer,
+                      linear_layer, passthrough_layer, pooling_layer, show_data)
 
 
 def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches

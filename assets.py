@@ -10,6 +10,7 @@ Copy assets
 """
 import os
 import shutil
+
 import tornadocnn as tc
 
 

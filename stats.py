@@ -9,7 +9,6 @@ Statistics for the pure Python computation modules
 """
 import tornadocnn as tc
 
-
 macc = 0  # Hardware multiply-accumulates (Conv2D, etc.)
 comp = 0  # Comparisons (ReLU, MaxPool)
 add = 0  # Additions (EltwiseAdd, EltwiseSub, AvgPool)
