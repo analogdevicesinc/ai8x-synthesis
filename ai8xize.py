@@ -515,6 +515,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 mexpress=mexpress,
                 mem_output=rtl_preload,
                 mem_output_final=result_output,
+                debugwait=debugwait,
             )
             apb.copyright_header()
 
