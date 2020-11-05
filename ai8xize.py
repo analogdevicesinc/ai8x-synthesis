@@ -34,9 +34,8 @@ import stats
 import tornadocnn as tc
 import yamlcfg
 from eprint import eprint
-from simulate import conv1d_layer, conv2d_layer, convtranspose2d_layer, \
-    linear_layer, passthrough_layer, eltwise_layer, \
-    pooling_layer, show_data
+from simulate import (conv1d_layer, conv2d_layer, convtranspose2d_layer, eltwise_layer,
+                      linear_layer, passthrough_layer, pooling_layer, show_data)
 from utils import ffs, fls, popcount
 
 
@@ -515,6 +514,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 mexpress=mexpress,
                 mem_output=rtl_preload,
                 mem_output_final=result_output,
+                debugwait=debugwait,
             )
             apb.copyright_header()
 

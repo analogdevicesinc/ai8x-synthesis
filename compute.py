@@ -20,7 +20,6 @@ import op
 import stats
 from eprint import eprint
 
-
 debug_log = None
 
 

@@ -15,7 +15,6 @@ import tornadocnn as tc
 from eprint import eprint
 from utils import argmin
 
-
 _INVALID_VALUE = -(2**63)
 
 

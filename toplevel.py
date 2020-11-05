@@ -449,9 +449,9 @@ def main(
                               '  printf("Measuring system base power...\\n");\n'
                               '  SYS_START;\n')
                 if not riscv:
-                    memfile.write('  MXC_Delay(SEC(1));\n')
+                    memfile.write(f'  MXC_Delay(SEC({debugwait}));\n')
                 else:
-                    memfile.write('  MXC_TMR_Delay(MXC_TMR0, 1000000);\n')
+                    memfile.write(f'  MXC_TMR_Delay(MXC_TMR0, {debugwait * 1000000});\n')
                 memfile.write('  SYS_COMPLETE;\n')
 
             memfile.write('  // Reset all domains, restore power to CNN\n')

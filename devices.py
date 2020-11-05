@@ -10,7 +10,6 @@ Part number and device type conversion
 """
 import argparse
 
-
 CMSISNN = -1
 
 
