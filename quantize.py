@@ -12,6 +12,7 @@ import argparse
 from functools import partial
 
 import torch
+
 from distiller.apputils.checkpoint import get_contents_table  # pylint: disable=no-name-in-module
 
 import tornadocnn as tc

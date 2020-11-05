@@ -11,6 +11,7 @@ ONNX File Routines
 import sys
 
 import numpy as np
+
 import onnx
 import onnx.shape_inference
 from onnx import numpy_helper
