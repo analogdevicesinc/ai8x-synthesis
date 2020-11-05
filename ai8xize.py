@@ -34,9 +34,8 @@ import stats
 import tornadocnn as tc
 import yamlcfg
 from eprint import eprint
-from simulate import conv1d_layer, conv2d_layer, convtranspose2d_layer, \
-    linear_layer, passthrough_layer, eltwise_layer, \
-    pooling_layer, show_data
+from simulate import (conv1d_layer, conv2d_layer, convtranspose2d_layer, eltwise_layer,
+                      linear_layer, passthrough_layer, pooling_layer, show_data)
 from utils import ffs, fls, popcount
 
 

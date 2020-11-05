@@ -23,7 +23,6 @@ import re
 from glob import glob
 from typing import List
 
-
 DATA_XX = '00'
 write_access = None
 read_access = None

@@ -8,6 +8,7 @@
 Simulate a single CNN layer
 """
 import os
+
 import numpy as np
 
 import op

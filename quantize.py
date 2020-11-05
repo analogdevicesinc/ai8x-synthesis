@@ -10,11 +10,13 @@ Load contents of a checkpoint files and save them in a format usable for AI84/AI
 """
 import argparse
 from functools import partial
+
 import torch
+from distiller.apputils.checkpoint import get_contents_table  # pylint: disable=no-name-in-module
+
 import tornadocnn as tc
 import yamlcfg
 from devices import device
-from distiller.apputils.checkpoint import get_contents_table  # pylint: disable=no-name-in-module
 
 CONV_SCALE_BITS = 8
 FC_SCALE_BITS = 8

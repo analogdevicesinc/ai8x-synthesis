@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_November 3, 2020_
+_November 5, 2020_
 
 The Maxim Integrated AI project is comprised of four repositories:
 
@@ -1922,20 +1922,20 @@ Total: 2 KiB (4 instances of 128 × 32)
 
 ### Linting
 
-Both projects are set up for `flake8` and `pylint` to lint Python code. The line width is related to 100 (instead of the default of 80), and the number of lines per module was increased; configuration files are included in the projects. Shell code is linted by `shellcheck`, and YAML files by `yamllint`.
+Both projects are set up for `flake8`, `pylint` and `isort` to lint Python code. The line width is related to 100 (instead of the default of 80), and the number of lines per module was increased; configuration files are included in the projects. Shell code is linted by `shellcheck`, and YAML files by `yamllint`.
 Code should not generate any warnings in any of the tools (some of the components in the `ai8x-training` project will create warnings as they are based on third-party code).
 
 `flake8` and `pylint` need to be installed into both virtual environments:
 
 ```shell
-(ai8x-synthesis) $ pip3 install flake8 pylint mypy
+(ai8x-synthesis) $ pip3 install flake8 pylint mypy isort
 ```
 
 The GitHub projects use the [GitHub Super-Linter](https://github.com/github/super-linter) to automatically verify push operations and pull requests. The Super-Linter can be installed locally, see [installation instructions](https://github.com/github/super-linter/blob/master/docs/run-linter-locally.md).
 To run locally, create a clean copy of the repository and run the following command from the project directory (i.e., `ai8x-training` or `ai8x-synthesis`): 
 
 ```shell
-$ docker run --rm -e RUN_LOCAL=true -e VALIDATE_MARKDOWN=false -e VALIDATE_PYTHON_BLACK=false -e VALIDATE_PYTHON_ISORT=false -e VALIDATE_ANSIBLE=false -e VALIDATE_EDITORCONFIG=false -e FILTER_REGEX_EXCLUDE="attic/.*|inspect_ckpt.py" -v `pwd`:/tmp/lint github/super-linter
+$ docker run --rm -e RUN_LOCAL=true -e VALIDATE_MARKDOWN=false -e VALIDATE_PYTHON_BLACK=false -e VALIDATE_ANSIBLE=false -e VALIDATE_EDITORCONFIG=false -e FILTER_REGEX_EXCLUDE="attic/.*|inspect_ckpt.py" -v `pwd`:/tmp/lint github/super-linter
 ```
 
 ### Submitting Changes

@@ -9,9 +9,9 @@
 Test unload() / flatten() software operator
 """
 import numpy as np
+
 import tornadocnn as tc
 from utils import ffs, popcount
-
 
 MEM_INVALID = -(2**63)  # When encountering this value, we know the array value was not initialized
 MEM_SIZE = 0x10000 >> 2

@@ -8,6 +8,7 @@
 Command line parser for Tornado CNN
 """
 import argparse
+
 import camera
 import devices
 from devices import device

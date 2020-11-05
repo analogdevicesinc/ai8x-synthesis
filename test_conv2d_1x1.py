@@ -10,6 +10,7 @@ Test the conv2d operator with 1x1 kernels.
 """
 import numpy as np
 import torch
+
 import compute
 
 
