@@ -1,2 +1,2 @@
 #!/bin/sh
-./quantize.py trained/ai85-faceid-unquantized.pth.tar trained/ai85-faceid.pth.tar --device MAX78000 -v -c networks/faceid.yaml --scale 1.05 "$@"
+./quantize.py trained/ai85-faceid-qat8.pth.tar trained/ai85-faceid-qat8-q.pth.tar --device MAX78000 -v "$@"
