@@ -92,7 +92,7 @@ def header(
                 memfile.write('#include "gcfr_regs.h"\n')
             else:
                 memfile.write('#include "bbfc_regs.h"\n')
-            if riscv is not None:  # FIXME: https://jira.maxim-ic.com/browse/MSDK-281
+            if riscv is not None:
                 memfile.write('#include "fcr_regs.h"\n'
                               '#include "sema_regs.h"\n')
         else:
@@ -750,12 +750,7 @@ def select_clock(
     if source == 'ITO':
         memfile.write('  while ((MXC_GCR->ito_ctrl & MXC_F_GCR_ITO_CTRL_RDY) != '
                       'MXC_F_GCR_ITO_CTRL_RDY) ;\n')
-    if tc.dev.part_no == 'MAX78000':  # FIXME: https://jira.maxim-ic.com/browse/MSDK-283
-        memfile.write('  MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
-                      '~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | MXC_F_GCR_PCLKDIV_CNNCLKSEL))\n'
-                      f'                     | MXC_S_GCR_PCLKDIV_CNNCLKDIV_{divider};\n')
-    else:
-        memfile.write('  MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
-                      '~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | MXC_F_GCR_PCLKDIV_CNNCLKSEL))\n'
-                      f'                     | MXC_S_GCR_PCLKDIV_CNNCLKDIV_{divider} | '
-                      f'MXC_S_GCR_PCLKDIV_CNNCLKSEL_{source};\n')
+    memfile.write('  MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
+                  '~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | MXC_F_GCR_PCLKDIV_CNNCLKSEL))\n'
+                  f'                     | MXC_S_GCR_PCLKDIV_CNNCLKDIV_{divider} | '
+                  f'MXC_S_GCR_PCLKDIV_CNNCLKSEL_{source};\n')
