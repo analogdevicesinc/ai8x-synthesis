@@ -1513,7 +1513,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     elif ll > 0 and streaming[ll]:
                         # [13:0]:  strm_isval[13:0]  Per stream start count - based on previous
                         #                            layer tptr_inc count
-                        # Start count – defines the current layer rcnt (TRAM shift count) that
+                        # Start count - defines the current layer rcnt (TRAM shift count) that
                         # triggers processing of the next layer
 
                         # [16:12]: strm_dsval1[4:0]  Per stream in-row delta count - based on
@@ -1521,10 +1521,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         # [31:20]: strm_dsval2[11:0] Per stream multi-row delta count - based on
                         #                            previous layer tptr_inc count
                         #
-                        # Delta1 count – defines the current layer count once the start count is
+                        # Delta1 count - defines the current layer count once the start count is
                         # triggered that enables incremental layer processing.  This count is
                         # used when layer processing is contained within a single row.
-                        # Delta2 count – defines the current layer count once the start count is
+                        # Delta2 count - defines the current layer count once the start count is
                         # triggered that enables incremental layer processing.  This count is
                         # used when layer processing spans multiple rows.
 
