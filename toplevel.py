@@ -388,8 +388,9 @@ def main(
                               '// Enable Sempahore clock\n'
                               '  NVIC_SetVector(RISCV_IRQn, WakeISR); // Set wakeup ISR\n')
                 if (embedded_code or embedded_arm) and debugwait:
-                    memfile.write(f'\n  MXC_Delay(SEC({debugwait})); '
-                                  '// Let debugger interrupt if needed\n')
+                    memfile.write('\n  // DO NOT DELETE THIS LINE:\n'
+                                  f'  MXC_Delay(SEC({debugwait})); '
+                                  '// Let debugger interrupt if needed\n\n')
                 memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CPU1); '
                               '// Enable RISC-V clock\n')
             else:
@@ -397,7 +398,8 @@ def main(
                               '// Enable RISC-V clock\n')
         else:
             if (embedded_code or embedded_arm) and debugwait:
-                memfile.write('\n  printf("Waiting...\\n");\n'
+                memfile.write('\n  printf("Waiting...\\n");\n\n'
+                              '  // DO NOT DELETE THIS LINE:\n'
                               f'  MXC_Delay(SEC({debugwait})); '
                               '// Let debugger interrupt if needed\n')
         memfile.write('\n')
@@ -449,9 +451,9 @@ def main(
                               '  printf("Measuring system base power...\\n");\n'
                               '  SYS_START;\n')
                 if not riscv:
-                    memfile.write(f'  MXC_Delay(SEC({debugwait}));\n')
+                    memfile.write('  MXC_Delay(SEC(1));\n')
                 else:
-                    memfile.write(f'  MXC_TMR_Delay(MXC_TMR0, {debugwait * 1000000});\n')
+                    memfile.write('  MXC_TMR_Delay(MXC_TMR0, 1000000);\n')
                 memfile.write('  SYS_COMPLETE;\n')
 
             memfile.write('  // Reset all domains, restore power to CNN\n')
@@ -603,7 +605,8 @@ def main(
     if riscv is not None:
         if not riscv:
             if sleep:
-                memfile.write('  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=1\n')
+                memfile.write('  MXC_LP_ClearWakeStatus();\n'
+                              '  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=1\n')
             memfile.write('  __WFI(); // Let RISC-V run\n')
         elif embedded_code or tc.dev.MODERN_SIM:
             memfile.write('  // Signal the Cortex-M4\n'
