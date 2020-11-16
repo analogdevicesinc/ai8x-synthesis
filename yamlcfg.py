@@ -97,7 +97,7 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
     pool = [[1, 1]] * tc.dev.MAX_LAYERS
     pooling_enabled = [False] * tc.dev.MAX_LAYERS
     average = [0] * tc.dev.MAX_LAYERS
-    pool_stride = [[1, 1]] * tc.dev.MAX_LAYERS
+    pool_stride = [[None, None]] * tc.dev.MAX_LAYERS
     quantization = [None] * tc.dev.MAX_LAYERS
     bias_quantization = [8] * tc.dev.MAX_LAYERS
     output_shift = [None] * tc.dev.MAX_LAYERS
@@ -478,6 +478,12 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
 
     # Check all layers
     for ll, e in enumerate(operator):
+        # Warn when using default pool stride of 1, 1
+        if pool_stride[ll][0] is None:
+            if pooling_enabled[ll]:
+                print(f'WARNING: Using default pool stride of 1 in layer {ll}.')
+            pool_stride[ll] = [1, 1]
+
         # Check that pass-through does not use activation
         if e == op.NONE:
             if activation[ll] is not None:
