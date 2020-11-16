@@ -1953,13 +1953,19 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         )
 
         if operator[ll] == op.CONV1D:
-            assert out_size[0] == in_chan \
-                and out_size[1] == pooled_dim[ll][0] \
-                and pooled_dim[ll][1] == 1
+            if out_size[0] != in_chan \
+               or out_size[1] != pooled_dim[ll][0] or pooled_dim[ll][1] != 1:
+                eprint(f'Input dimensions do not match in layer {ll}. '
+                       f'Expected: {in_chan}x{pooled_dim[ll][0]}, '
+                       f'got {out_size[0]}x{out_size[1]}.')
+                sys.exit(1)
         else:
-            assert out_size[0] == in_chan \
-                and out_size[1] == pooled_dim[ll][0] \
-                and out_size[2] == pooled_dim[ll][1]
+            if out_size[0] != in_chan \
+               or out_size[1] != pooled_dim[ll][0] or out_size[2] != pooled_dim[ll][1]:
+                eprint(f'Input dimensions do not match in layer {ll}. '
+                       f'Expected: {in_chan}x{pooled_dim[ll][0]}x{pooled_dim[ll][1]}, '
+                       f'got {out_size[0]}x{out_size[1]}x{out_size[2]}.')
+                sys.exit(1)
 
         if operands[ll] > 1 and pool_first[ll]:
             data = run_eltwise(data, ll)
