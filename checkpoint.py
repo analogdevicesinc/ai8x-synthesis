@@ -69,7 +69,6 @@ def load(
     if arch and checkpoint['arch'].lower() != arch.lower():
         eprint(f"Network architecture of configuration file ({arch}) does not match "
                f"network architecture of checkpoint file ({checkpoint['arch']}).")
-        sys.exit(1)
 
     checkpoint_state = checkpoint['state_dict']
     layers = 0
@@ -131,20 +130,20 @@ def load(
                     if kernel_size[seq][0] != 1 or kernel_size[seq][1] != 1:
                         eprint(f'The `kernel_size` for the MLP layer {seq} should '
                                f'be set to 1x1 instead of '
-                               f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.')
+                               f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.', exit_code=None)
                         error_exit = True
                 elif len(w.shape) == 3:  # 1D
                     if kernel_size[seq][0] != w.shape[2] or kernel_size[seq][1] != 1:
                         eprint(f'The `kernel_size` for the 1D layer {seq} should '
                                f'be set to {w.shape[2]}x1 instead of '
-                               f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.')
+                               f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.', exit_code=None)
                         error_exit = True
                 elif len(w.shape) == 4:  # 2D
                     if kernel_size[seq][0] != w.shape[2] \
                        or kernel_size[seq][1] != w.shape[3]:
                         eprint(f'The `kernel_size` for the 2D layer {seq} should '
                                f'be set to {w.shape[2]}x{w.shape[3]} instead of '
-                               f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.')
+                               f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.', exit_code=None)
                         error_exit = True
 
                 w_count = np.prod(w.shape)
@@ -213,7 +212,6 @@ def load(
             elif have_fc_layer:
                 eprint('The network cannot have more than one fully connected software layer, '
                        'and it must be the output layer.')
-                sys.exit(1)
             elif fc_layer:
                 w = checkpoint_state[k].numpy().astype(np.int64)
                 assert w.min() >= -128 and w.max() <= 127

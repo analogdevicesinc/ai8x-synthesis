@@ -93,7 +93,8 @@ SHORT_LOG="--log-last-only"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-conv1x1 --config-file tests/test-conv1x1.yaml --device "$DEVICE" "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-cifar-conv1x1 --checkpoint-file tests/test-cifar10-1x1.pth.tar --config-file tests/test-ai85-cifar10-hwc-1x1.yaml --device "$DEVICE" "$@"
 
-./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-nonsquare --config-file tests/test-nonsquare.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-nonsquare --config-file tests/test-nonsquare.yaml --device "$DEVICE" --debug-computation "$@"
+./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-nonsquare --config-file tests/test-nonsquare.yaml --device "$DEVICE" --debug-computation --stop-after 0 "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-nonsquare-pool --config-file tests/test-nonsquare-pool.yaml --device "$DEVICE" "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-nonsquare-nonsquarepool --config-file tests/test-nonsquare-nonsquarepool.yaml --device "$DEVICE" "$@"
 
@@ -258,8 +259,6 @@ SHORT_LOG="--log-last-only"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fifostream-640-small --config-file tests/test-fifostream-640-small.yaml --device "$DEVICE" --fifo "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fifostream-640-small --config-file tests/test-fifostream-640-small.yaml --device "$DEVICE" --fifo --stop-after 0 "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fifostream-640-small --config-file tests/test-fifostream-640-small.yaml --device "$DEVICE" --fifo --stop-after 1 "$@"
-./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-nonsquare --config-file tests/test-nonsquare.yaml --device "$DEVICE" --debug-computation "$@"
-./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-nonsquare --config-file tests/test-nonsquare.yaml --device "$DEVICE" --debug-computation --stop-after 0 "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fifostream-pool-stride --config-file tests/test-fifostream-pool-stride.yaml --device "$DEVICE" --fifo --debug-computation --override-start 0x07 --override-rollover 0x38 --override-delta2 0x04 "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fifostream-pool-stride-hwc --config-file tests/test-fifostream-pool-stride-hwc.yaml --device "$DEVICE" --fifo --debug-computation --override-start 0x1a --override-rollover 0x1b "$@"
 
@@ -306,7 +305,7 @@ SHORT_LOG="--log-last-only"
 
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fifo-nonsquare --config-file tests/test-fifo-nonsquare.yaml --device "$DEVICE" --fifo --debug-computation "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fifo-hwc-nonsquare --config-file tests/test-fifo-hwc-nonsquare.yaml --device "$DEVICE" --fifo --debug-computation "$@"
-./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-csv-fastfifo-hwc-nonsquare --config-file tests/test-fifo-hwc-nonsquare.yaml --device "$DEVICE" --fifo --input-csv input.csv "$@"
+./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-csv-fifo-hwc-nonsquare --config-file tests/test-fifo-hwc-nonsquare.yaml --device "$DEVICE" --fifo --input-csv input.csv "$@"
 
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-riscv-fastfifo-hwc-nonsquare --config-file tests/test-fifo-hwc-nonsquare.yaml --device "$DEVICE" --fifo --riscv --no-riscv-cache --fast-fifo "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-riscv-csv-fastfifo-hwc-nonsquare --config-file tests/test-fifo-hwc-nonsquare.yaml --device "$DEVICE" --fifo --riscv --no-riscv-cache --fast-fifo --input-csv input.csv "$@"
@@ -348,7 +347,7 @@ SHORT_LOG="--log-last-only"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-deepsleep-riscv-csv-fastfifostream-notvga-hwc --config-file tests/test-fifostream-notvga64x48-hwc.yaml --device "$DEVICE" --fifo --mexpress --riscv --fast-fifo --input-csv input.csv --timeout 2500 --input-csv-period 180 --deepsleep --autogen None $SHORT_LOG "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-deepsleep-riscv-fastfifo-hwc-nonsquare --config-file tests/test-fifo-hwc-nonsquare.yaml --device "$DEVICE" --fifo --riscv --no-riscv-cache --fast-fifo --deepsleep --autogen None "$@"
 
-./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-verify-layers --config-file tests/test-layers.yaml --device "$DEVICE" --verify-writes --write-zero-registers "$@"
+./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-verify-layers --config-file tests/test-layers.yaml --device "$DEVICE" --verify-writes --write-zero-registers --timeout 60 "$@"
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-verify-cifar-bias --checkpoint-file tests/test-cifar10-bias.pth.tar --config-file tests/test-cifar10-hwc.yaml --device "$DEVICE" --verify-writes --compact-data --mexpress "$@"
 
 ./ai8xize.py --rtl --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-exclusivesram-riscv-csv-fastfifostream-notvga-hwc --config-file tests/test-fifostream-notvga40x30-hwc.yaml --device "$DEVICE" --fifo --mexpress --riscv --fast-fifo --input-csv input.csv --timeout 2500 --input-csv-period 180 --riscv-exclusive "$@"

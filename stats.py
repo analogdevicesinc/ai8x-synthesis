@@ -38,21 +38,27 @@ def sw_ops():
     return sw_macc + sw_comp
 
 
-def print_summary(
+def summary(
         factor=1,
         debug=False,
+        spaces=0,
 ):
     """
-    Print ops summary stats.
+    Return ops summary stats.
     """
-    print(f'Hardware: {factor * ops():,} ops ({factor * macc:,} macc; {factor * comp:,} '
-          f'comp; {factor * add:,} add; '
-          f'{factor * mul:,} mul; {factor * bitwise:,} bitwise)')
+    sp = ' ' * spaces
+    rv = sp + "SUMMARY OF OPS\n"
+
+    rv += f'{sp}Hardware: {factor * ops():,} ops ({factor * macc:,} macc; {factor * comp:,} ' \
+          f'comp; {factor * add:,} add; ' \
+          f'{factor * mul:,} mul; {factor * bitwise:,} bitwise)\n'
     if debug:
-        print(f'          True MACs: {factor * true_macc:,}')
+        rv += f'{sp}          True MACs: {factor * true_macc:,}\n'
     if sw_macc:
-        print(f'Software: {factor * sw_ops():,} ops ({factor * sw_macc:,} '
-              f'macc; {factor * sw_comp:,} comp)')
+        rv += f'{sp}Software: {factor * sw_ops():,} ops ({factor * sw_macc:,} ' \
+              f'macc; {factor * sw_comp:,} comp)\n'
+
+    return rv
 
 
 def calc_latency(

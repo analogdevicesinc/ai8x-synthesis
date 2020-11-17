@@ -32,7 +32,8 @@
  *
  * -------------------------------------------------------------------- */
 
-#include "tornadocnn.h"
+#include "mxc.h"
+#include "cnn.h"
 
 /**
  *  @ingroup groupNN

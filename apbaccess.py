@@ -8,7 +8,6 @@
 Routines to read and write the APB peripherals.
 """
 import os
-import sys
 
 import toplevel
 import tornadocnn as tc
@@ -56,11 +55,29 @@ class APB():
             mexpress=False,
             mem_output=False,
             mem_output_final=False,
+            apifile=None,
+            measure_energy=False,
+            timer=None,
+            pll=False,
+            boost=None,
+            forever=False,
+            fifo=False,
+            fail_indicator=False,
+            embedded_arm=False,
+            groups=None,
+            clock_trim=None,
+            oneshot=0,
+            softmax=False,
+            stopstart=False,
+            num_classes=None,
+            output_width=8,
+            bias=False,
     ):
         """
         Create an APB class object that writes to memfile.
         """
         self.memfile = memfile
+        self.apifile = apifile
         self.apb_base = apb_base
         self.verify_writes = verify_writes
         self.no_error_stop = no_error_stop
@@ -87,8 +104,23 @@ class APB():
         self.input_chan = input_chan
         self.sleep = sleep
         self.blocklevel = blocklevel
-        self.mem_output = mem_output
-        self.mem_output_final = mem_output_final
+        self.measure_energy = measure_energy
+        self.timer = timer
+        self.mexpress = mexpress
+        self.pll = pll
+        self.boost = boost
+        self.forever = forever
+        self.fifo = fifo
+        self.fail_indicator = fail_indicator
+        self.embedded_arm = embedded_arm
+        self.groups = groups
+        self.clock_trim = clock_trim
+        self.oneshot = oneshot
+        self.softmax = softmax
+        self.stopstart = stopstart
+        self.num_classes = num_classes
+        self.output_width = output_width
+        self.bias = bias
 
         self.data = 0
         self.num = 0
@@ -98,18 +130,23 @@ class APB():
         self.reads = 0
 
         self.data_mem = self.kernel_mem = self.output_data_mem = None
+
+        if embedded_arm or embedded_code:
+            return
+
+        procs = (tc.dev.P_NUMPRO + tc.dev.P_SHARED - 1) // tc.dev.P_SHARED
         if mem_output:
-            procs = max(tc.dev.P_NUMPRO // tc.dev.P_SHARED, 1)
-            self.data_mem = [[[[] for mem in range(tc.dev.INSTANCE_COUNT)]
-                              for proc in range(procs)]
-                             for group in range(tc.dev.P_NUMGROUPS)]
-            if not mexpress:
+            if not (compact_data or fifo or fast_fifo):
+                self.data_mem = [[[[] for mem in range(tc.dev.INSTANCE_COUNT)]
+                                  for proc in range(procs)]
+                                 for group in range(tc.dev.P_NUMGROUPS)]
+            if not (compact_weights or mexpress or verify_kernels):
                 self.kernel_mem = [[[[] for mem in range(tc.dev.MASK_INSTANCES)]
                                     for proc in range(tc.dev.P_NUMPRO)]
                                    for group in range(tc.dev.P_NUMGROUPS)]
         if mem_output_final:
             self.output_data_mem = [[[[] for mem in range(tc.dev.INSTANCE_COUNT)]
-                                     for proc in range(tc.dev.P_NUMPRO // tc.dev.P_SHARED)]
+                                     for proc in range(procs)]
                                     for group in range(tc.dev.P_NUMGROUPS)]
 
     def write_mem(
@@ -120,11 +157,12 @@ class APB():
         """
         Write used kernel memories and data memories to disk
         """
+        procs = (tc.dev.P_NUMPRO + tc.dev.P_SHARED - 1) // tc.dev.P_SHARED
         if self.data_mem is not None:
             target_dir = os.path.join(base_directory, test_name, 'data')
             os.makedirs(target_dir, exist_ok=True)
             for group in range(tc.dev.P_NUMGROUPS):
-                for proc in range(tc.dev.P_NUMPRO // tc.dev.P_SHARED):
+                for proc in range(procs):
                     for mem in range(tc.dev.INSTANCE_COUNT):
                         if self.data_mem[group][proc][mem]:
                             self.data_mem[group][proc][mem].sort()
@@ -156,7 +194,7 @@ class APB():
             target_dir = os.path.join(base_directory, test_name, 'data-expected')
             os.makedirs(target_dir, exist_ok=True)
             for group in range(tc.dev.P_NUMGROUPS):
-                for proc in range(tc.dev.P_NUMPRO // tc.dev.P_SHARED):
+                for proc in range(procs):
                     for mem in range(tc.dev.INSTANCE_COUNT):
                         if self.output_data_mem[group][proc][mem]:
                             self.output_data_mem[group][proc][mem].sort()
@@ -221,6 +259,7 @@ class APB():
             first_proc=0,
             comment='',
             rv=False,
+            api=False,
     ):  # pylint: disable=unused-argument
         """
         Verify that memory at address `addr` contains data `val`.
@@ -431,7 +470,7 @@ class APB():
                 + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16 + idx_x4 * 16
 
         if not verify_only:
-            if self.mem_output:
+            if self.kernel_mem is not None:
                 if idx_x4 < tc.dev.MASK_WIDTH_SMALL:
                     mem, offs = divmod(idx_x4,
                                        tc.dev.MASK_WIDTH_SMALL // tc.dev.MASK_INSTANCES_EACH)
@@ -462,16 +501,16 @@ class APB():
                     self.write(addr+8, 0, no_verify=True)
                 self.write(addr+12, 0, no_verify=True)  # Execute write
         if self.verify_writes or verify_only:
-            self.verify(addr, k[0] & 0xff)
+            self.verify(addr, k[0] & 0xff, api=True)
             if size != 1:
                 self.verify(addr+4, (k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 |
-                            (k[3] & 0xff) << 8 | k[4] & 0xff)
+                            (k[3] & 0xff) << 8 | k[4] & 0xff, api=True)
                 self.verify(addr+8, (k[5] & 0xff) << 24 | (k[6] & 0xff) << 16 |
-                            (k[7] & 0xff) << 8 | k[8] & 0xff)
+                            (k[7] & 0xff) << 8 | k[8] & 0xff, api=True)
             else:
-                self.verify(addr+4, 0)
-                self.verify(addr+8, 0)
-            self.verify(addr+12, 0)
+                self.verify(addr+4, 0, api=True)
+                self.verify(addr+8, 0, api=True)
+            self.verify(addr+12, 0, api=True)
 
     def check_overwrite(
             self,
@@ -482,8 +521,6 @@ class APB():
         """
         if self.mem[offs >> 2]:
             eprint(f'Overwriting location {offs:08x}', error=not self.no_error_stop)
-            if not self.no_error_stop:
-                sys.exit(1)
 
     def write_byte_flush(
             self,
@@ -540,6 +577,7 @@ class APB():
     def output(
             self,
             comment,
+            api=False,
     ):
         """
         Write the string `comment` to the output file without further interpretation.
@@ -547,7 +585,10 @@ class APB():
         if self.memfile is None:
             return
 
-        self.memfile.write(comment)
+        if api and self.apifile is not None:
+            self.apifile.write(comment)
+        else:
+            self.memfile.write(comment)
 
     def copyright_header(  # pylint: disable=no-self-use
             self,
@@ -560,10 +601,6 @@ class APB():
 
     def header(  # pylint: disable=no-self-use
             self,
-            embedded_arm=False,  # pylint: disable=unused-argument
-            fail_indicator=False,  # pylint: disable=unused-argument
-            measure_energy=False,  # pylint: disable=unused-argument
-            groups=None,  # pylint: disable=unused-argument
     ):
         """
         Write file headers.
@@ -571,26 +608,10 @@ class APB():
         """
         return
 
-    def verify_header(  # pylint: disable=no-self-use
+    def function_header(  # pylint: disable=no-self-use
             self,
-    ):
-        """
-        Write the header for the CNN verification function.
-        The base class does nothing.
-        """
-        return
-
-    def verify_footer(  # pylint: disable=no-self-use
-            self,
-    ):
-        """
-        Write the footer for the CNN verification function.
-        The base class does nothing.
-        """
-        return
-
-    def load_header(  # pylint: disable=no-self-use
-            self,
+            dest='api',  # pylint: disable=unused-argument
+            **kwargs,  # pylint: disable=unused-argument
     ):
         """
         Write the header for the CNN configuration loader function.
@@ -598,8 +619,10 @@ class APB():
         """
         return
 
-    def load_footer(  # pylint: disable=no-self-use
+    def function_footer(  # pylint: disable=no-self-use
             self,
+            dest='api',  # pylint: disable=unused-argument
+            **kwargs,  # pylint: disable=unused-argument
     ):
         """
         Write the footer for the CNN configuration loader function.
@@ -609,7 +632,6 @@ class APB():
 
     def main(  # pylint: disable=no-self-use
             self,
-            **kwargs,  # pylint: disable=unused-argument
     ):
         """
         Write the main function.
@@ -753,6 +775,7 @@ class APBBlockLevel(APB):
             input_csv_format=None,
             input_chan=None,
             sleep=False,
+            apifile=None,
     ):
         super().__init__(
             memfile,
@@ -801,6 +824,7 @@ class APBBlockLevel(APB):
             first_proc=0,
             comment='',
             rv=False,
+            api=False,
     ):  # pylint: disable=unused-argument
         """
         Verify that memory at address `addr` contains data `val`.
@@ -843,6 +867,7 @@ class APBBlockLevel(APB):
     def output(
             self,
             comment,
+            api=False,
     ):  # pylint: disable=unused-argument
         """
         Do nothing.
@@ -862,6 +887,7 @@ class APBDebug(APBBlockLevel):
             first_proc=0,
             comment='',
             rv=False,
+            api=False,
     ):  # pylint: disable=unused-argument
         """
         Verify that memory at address `addr` contains data `val`.
@@ -903,16 +929,17 @@ class APBTopLevel(APB):
         if base is None:
             addr += self.apb_base
 
-        if self.memfile is None:
+        mfile = self.apifile or self.memfile
+        if mfile is None:
             return
 
         if fifo is None:
-            self.memfile.write(f'{indent}*((volatile uint32_t *) 0x{addr:08x}) = '
-                               f'{val};{comment}\n')
+            mfile.write(f'{indent}*((volatile uint32_t *) 0x{addr:08x}) = '
+                        f'{val};{comment}\n')
             self.writes += 1
             if self.verify_writes and not no_verify:
-                self.memfile.write(f'{indent}if (*((volatile uint32_t *) 0x{addr:08x}) != {val}) '
-                                   'return 0;\n')
+                mfile.write(f'{indent}if (*((volatile uint32_t *) 0x{addr:08x}) != {val}) '
+                            'return CNN_FAIL;\n')
                 self.reads += 1
         else:
             if not self.fast_fifo:
@@ -951,7 +978,7 @@ class APBTopLevel(APB):
         The `write_data()` function is called for data memory only to allow memory-preloading
         in RTL simulation. For normal cases, it is equivalent to `write()`.
         """
-        if self.mem_output and fifo is None:
+        if self.data_mem is not None and fifo is None:
             group, proc, mem, offs = tc.dev.datainstance_from_addr(addr)
             self.data_mem[group][proc][mem].append((offs, f'{val:08x}'))
             return
@@ -967,16 +994,17 @@ class APBTopLevel(APB):
             first_proc=0,
             comment='',
             rv=False,
+            api=False,
     ):
         """
         Verify that memory at address `addr` contains data `val`.
-        If `rv` is `True`, do not immediately return 0, but just set the status word.
+        If `rv` is `True`, do not immediately return CNN_FAIL, but just set the status word.
         An optional `comment` can be added to the output.
         """
         assert val >= 0
         assert addr >= 0
 
-        if self.mem_output_final:
+        if self.output_data_mem is not None:
             group, proc, mem, offs = tc.dev.datainstance_from_addr(addr)
             self.output_data_mem[group][proc][mem].append((offs, f'{val:08x}'))
             return
@@ -1006,13 +1034,14 @@ class APBTopLevel(APB):
             mask = f' & 0x{mask:0{2*val_bytes}x}'
 
         if rv:
-            action = 'rv = 0;'
+            action = 'rv = CNN_FAIL;'
         else:
-            action = 'return 0;'
+            action = 'return CNN_FAIL;'
 
-        self.memfile.write(f'  if ((*((volatile uint32_t *) 0x{addr:08x}){mask})'
-                           f' != 0x{val:0{2*val_bytes}x}) '
-                           f'{action}{comment}\n')
+        mfile = self.apifile or self.memfile if api else self.memfile
+        mfile.write(f'  if ((*((volatile uint32_t *) 0x{addr:08x}){mask})'
+                    f' != 0x{val:0{2*val_bytes}x}) '
+                    f'{action}{comment}\n')
         self.reads += 1
 
     def wait(
@@ -1042,18 +1071,37 @@ class APBTopLevel(APB):
         """
         Write copyright headers.
         """
+        if self.apifile is not None:
+            toplevel.copyright_header(self.apifile)
         toplevel.copyright_header(self.memfile)
 
     def header(
             self,
-            embedded_arm=False,
-            fail_indicator=False,
-            measure_energy=False,
-            groups=None,
     ):
         """
         Write include files and forward definitions to .c file.
         """
+        if self.apifile is not None:
+            toplevel.header(
+                self.apifile,
+                self.apb_base,
+                embedded_code=self.embedded_code,
+                compact_weights=self.compact_weights,
+                compact_data=self.compact_data,
+                weight_filename=self.weight_filename,
+                sample_filename=self.sample_filename,
+                master=self.master,
+                verify_kernels=self.verify_kernels,
+                riscv=self.riscv,
+                camera=self.input_csv is not None,
+                embedded_arm=self.embedded_arm,
+                fail_indicator=self.fail_indicator,
+                measure_energy=self.measure_energy,
+                timer=self.timer,
+                groups=self.groups,
+                lib=True,
+            )
+
         toplevel.header(
             self.memfile,
             self.apb_base,
@@ -1066,63 +1114,50 @@ class APBTopLevel(APB):
             verify_kernels=self.verify_kernels,
             riscv=self.riscv,
             camera=self.input_csv is not None,
-            embedded_arm=embedded_arm,
-            fail_indicator=fail_indicator,
-            measure_energy=measure_energy,
-            groups=groups,
+            embedded_arm=self.embedded_arm,
+            fail_indicator=self.fail_indicator,
+            measure_energy=self.measure_energy,
+            timer=self.timer,
+            groups=self.groups,
+            lib=False if self.apifile is not None else None,
         )
 
-    def verify_header(
+    def function_header(
             self,
+            dest='api',
+            **kwargs,
     ):
         """
-        Write the header for the CNN verification function.
+        Write the header for a function.
         """
-        if self.memfile is None:
-            return
-        toplevel.verify_header(
-            self.memfile,
-            self.riscv_flash and not self.riscv_cache,
+        toplevel.function_header(
+            self.apifile or self.memfile if dest == 'api' else self.memfile,
+            riscv_flash=self.riscv_flash and not self.riscv_cache,
+            **kwargs,
         )
 
-    def verify_footer(
+    def function_footer(
             self,
+            dest='api',
+            **kwargs,
     ):
         """
-        Write the footer for the CNN verification function.
+        Write the footer for a function.
         """
-        if self.memfile is None:
-            return
-        toplevel.verify_footer(self.memfile)
-
-    def load_header(
-            self,
-    ):
-        """
-        Write the header for the CNN configuration loader function.
-        """
-        toplevel.load_header(
-            self.memfile,
-            self.riscv_flash and not self.riscv_cache,
+        toplevel.function_footer(
+            self.apifile or self.memfile if dest == 'api' else self.memfile,
+            **kwargs,
         )
-
-    def load_footer(
-            self,
-    ):
-        """
-        Write the footer for the CNN configuration loader function.
-        """
-        toplevel.load_footer(self.memfile, embedded_code=self.embedded_code)
 
     def main(
             self,
-            **kwargs,
     ):
         """
         Write the main function.
         """
         toplevel.main(
             self.memfile,
+            self.apifile,
             embedded_code=self.embedded_code,
             riscv=self.riscv,
             riscv_exclusive=self.riscv_exclusive,
@@ -1135,7 +1170,26 @@ class APBTopLevel(APB):
             camera_format=self.input_csv_format,
             channels=self.input_chan,
             sleep=self.sleep,
-            **kwargs,
+            unload=self.embedded_code,
+            load_kernels=self.kernel_mem is None,
+            compact_weights=self.compact_weights,
+            measure_energy=self.measure_energy,
+            timer=self.timer,
+            mexpress=self.mexpress,
+            pll=self.pll,
+            boost=self.boost,
+            forever=self.forever,
+            fifo=self.fifo,
+            groups=self.groups,
+            embedded_arm=self.embedded_arm,
+            clock_trim=self.clock_trim,
+            oneshot=self.oneshot,
+            softmax=self.softmax,
+            stopstart=self.stopstart,
+            num_classes=self.num_classes,
+            output_width=self.output_width,
+            bias=self.bias,
+            verify_kernels=self.verify_kernels,
         )
 
     def fc_layer(
@@ -1175,7 +1229,7 @@ class APBTopLevel(APB):
         Write the unload function. The layer to unload has the shape `input_shape`,
         and the optional `output_offset` argument can shift the output.
         """
-        unload.unload(self.memfile, self.apb_base, processor_map, input_shape,
+        unload.unload(self.apifile or self.memfile, self.apb_base, processor_map, input_shape,
                       output_offset, out_expand, out_expand_thresh, output_width,
                       pool=pool, pool_stride=pool_stride, device=self.device,
                       mlator=mlator, blocklevel=self.blocklevel)
@@ -1207,7 +1261,7 @@ class APBTopLevel(APB):
         """
         Switch clock source and divider.
         """
-        toplevel.select_clock(self.memfile, source, divider, comment)
+        toplevel.select_clock(self.apifile or self.memfile, source, divider, comment)
 
 
 def apbwriter(

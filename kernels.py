@@ -77,6 +77,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         blocklevel=False,
         legacy_kernels=False,
         calcx4=False,
+        api=False,
 ):
     """
     Stack `kernel` values and write them to C code (for `embedded_code` if `True` or
@@ -106,7 +107,6 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
 
     if calcx4 and not tc.dev.SUPPORT_CALCX4:
         eprint('--calcx4 is not supported on this device.')
-        sys.exit(1)
     assert not ((embedded_code or mexpress) and calcx4)  # FIXME Add support later
 
     for ll in range(start_layer, layers):
@@ -170,7 +170,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         if kern_offs[ll] + kern_len[ll] > tc.dev.mask_width(p):
             eprint(f'\nKernel memory exceeded at layer {ll}; offset: {kern_offs[ll]}, '
                    f'needed: {kern_len[ll]}.'
-                   '\n\nKernel map so far:')
+                   '\n\nKernel map so far:', exit_code=None)
             print_map(layers, kernel_map, print_fn=eprint_noprefix)
             sys.exit(1)
 
@@ -215,7 +215,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                 col = kern_offs[ll] + col_target
                                 if col >= tc.dev.mask_width(p):
                                     eprint(f'\nKernel memory exceeded in layer {ll}.'
-                                           '\n\nKernel map so far:')
+                                           '\n\nKernel map so far:', exit_code=None)
                                     print_map(layers, kernel_map, print_fn=eprint_noprefix)
                                     sys.exit(1)
 
@@ -321,9 +321,8 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         print('\nKernel map:')
         print_map(layers, kernel_map)
 
-    if verify or not (embedded_code or mexpress):
-        if verify:
-            apb.output('int verify_kernels(void)\n{\n')
+    if verify:
+        apb.function_header(function='verify_weights')
         # Write in-line
         for p in range(tc.dev.MAX_PROC):
             for col in range(0, tc.dev.mask_width(p)):
@@ -331,12 +330,23 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 if ll != _INVALID_VALUE:
                     k = kernel_data[p][col]
                     apb.write_kern(ll, p, col, k, verify_only=verify, calcx4=calcx4)
-        if verify:
-            apb.output('  return 1;\n}\n\n')
+        apb.function_footer()  # verify_weights()
+
+    if not (embedded_code or mexpress):
+        apb.function_header(function='load_weights')
+        # Write in-line
+        for p in range(tc.dev.MAX_PROC):
+            for col in range(0, tc.dev.mask_width(p)):
+                ll = kernel_map[p][col]
+                if ll != _INVALID_VALUE:
+                    k = kernel_data[p][col]
+                    apb.write_kern(ll, p, col, k, verify_only=verify, calcx4=calcx4)
+        apb.function_footer()  # load_weights()
+
     if embedded_code or mexpress:
         # Write kernels, combining layers and processors where possible to reduce the number
         # of constants and calls to memcpy.
-        apb.output('// Kernels:\n')
+        apb.output('// Kernels:\n', api)
 
         if not mexpress:
             for p in range(tc.dev.MAX_PROC):
@@ -408,19 +418,22 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                         p += 1
                         span += max_col[p] + 1 - min_col[p]
                     if riscv_flash:
-                        apb.output(rv.RISCV_FLASH)
-                    apb.output(f'static const uint32_t kernels_{start}[] = KERNELS_{start};\n')
+                        apb.output(rv.RISCV_FLASH, api)
+                    apb.output(f'static const uint32_t kernels_{start}[] = KERNELS_{start};\n',
+                               api)
                 p += 1
-            apb.output('\n')
+            apb.output('\n', api)
 
             # Generate code to load the weights using memcpy
-            apb.output('void memcpy_96to128(uint32_t *dst, const uint32_t *src, int n)\n{\n')
+            apb.function_header(prefix='', function='memcpy_96to128', return_type='void',
+                                arguments='uint32_t *dst, const uint32_t *src, int n')
             apb.output('  while (n-- > 0) {\n'
                        '    *dst++ = *src++;\n'
                        '    *dst++ = *src++;\n'
                        '    *dst++ = *src++;\n'
                        '    *dst++ = 0;  // Execute write\n'
-                       '  }\n}\n\n')
+                       '  }\n', api)
+            apb.function_footer(return_value='void')  # memcpy_96to128()
         else:
             # When using the express loader, gather all consecutive kernels for each processor
             # and pack them.
@@ -464,13 +477,13 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                             addr += 4
 
                     if riscv_flash:
-                        apb.output(rv.RISCV_FLASH)
-                    apb.output(f'static const uint32_t kernels_{p}[] = KERNELS_{p};\n')
+                        apb.output(rv.RISCV_FLASH, api)
+                    apb.output(f'static const uint32_t kernels_{p}[] = KERNELS_{p};\n', api)
                     k = None
-            apb.output('\n')
+            apb.output('\n', api)
 
         if not blocklevel:
-            apb.output('void load_kernels(void)\n{\n')
+            apb.function_header(function='load_weights')
             max_col = [-1] * tc.dev.MAX_PROC
             min_col = [tc.dev.MASK_WIDTH_LARGE if not legacy_kernels else 0] * tc.dev.MAX_PROC
             for p in range(0, tc.dev.MAX_PROC):
@@ -499,15 +512,15 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                     if not mexpress:
                         apb.output('  memcpy_96to128((uint32_t *)'
                                    f' 0x{addr + min_col[start] * 16:08x},'
-                                   f' kernels_{start}, {span});\n')
+                                   f' kernels_{start}, {span});\n', api)
                     else:
                         apb.output('  *((volatile uint8_t *)'
                                    f' 0x{addr + min_col[start] * 4 | 0x01:08x}) = 0x01; '
-                                   '// Set address\n')
+                                   '// Set address\n', api)
                         apb.output(f'  memcpy32((uint32_t *) 0x{addr:08x}, '
-                                   f'kernels_{start}, {(span * 9 + 3) // 4});\n')
+                                   f'kernels_{start}, {(span * 9 + 3) // 4});\n', api)
                 p += 1
 
-            apb.output('}\n\n')
+            apb.function_footer()  # load_weights()
 
     return kern_offs, kern_len

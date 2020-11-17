@@ -7,8 +7,6 @@
 """
 Tornado CNN hardware constants - AI84, AI85, AI87
 """
-import sys
-
 import devices
 from eprint import eprint
 
@@ -29,6 +27,9 @@ class Dev:
     MASK_INSTANCES = MASK_INSTANCES_EACH = 1
     C_SRAM_BASE = C_GROUP_OFFS = INSTANCE_SIZE = INSTANCE_COUNT = INSTANCE_WIDTH = 0
     MASK_WIDTH_SMALL = MASK_WIDTH_LARGE = P_NUMPRO = 0  # These will be overridden by child classes
+    IPO_SPEED = 100
+    APB_SPEED = IPO_SPEED // 2
+    PLL_SPEED = 0
 
     def mask_width(self, proc):
         """
@@ -70,6 +71,7 @@ class DevAI84(Dev):
     C_CNN_BASE = 0
 
     P_NUMGROUPS = 4
+    P_NUMGROUPS_ALL = P_NUMGROUPS
     P_NUMPRO = 16  # Processors per group
     P_SHARED = 4  # Processors sharing a data memory
     MAX_PROC = P_NUMPRO * P_NUMGROUPS
@@ -165,6 +167,7 @@ class DevAI85(Dev):
     C_FIFO_BASE = 0
     C_CNN_BASE = 0x100000
     P_NUMGROUPS = 4
+    P_NUMGROUPS_ALL = P_NUMGROUPS
     P_NUMPRO = 16  # Processors per group
     P_SHARED = 4  # Processors sharing a data memory
     MAX_PROC = P_NUMPRO * P_NUMGROUPS
@@ -283,6 +286,7 @@ class DevAI87(Dev):
     C_FIFO_BASE = 0
     C_CNN_BASE = 0x1000000
     P_NUMGROUPS = 4
+    P_NUMGROUPS_ALL = P_NUMGROUPS
     P_NUMPRO = 16  # Processors per group
     P_SHARED = 4  # Processors sharing a data memory
     MAX_PROC = P_NUMPRO * P_NUMGROUPS
@@ -410,6 +414,9 @@ class DevAI87(Dev):
     C_START = 4
     C_PAD = 2
 
+    # PLL Speed in MHz
+    PLL_SPEED = 240
+
     def __str__(self):
         return self.__class__.__name__
 
@@ -460,6 +467,5 @@ def get_device(
         d = DevCMSISNN(part)
     else:
         eprint(f'Unknown device code `{device}`')
-        sys.exit(1)
 
     return d

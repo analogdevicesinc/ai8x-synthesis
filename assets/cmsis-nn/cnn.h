@@ -5,6 +5,8 @@
 #include <arm_math.h>
 #include <arm_nnfunctions.h>
 
+#include "weights.h"
+
 arm_status
 arm_fully_connected_q7_q8p7_opt(const q7_t * pV,
                                 const q7_t * pM,
