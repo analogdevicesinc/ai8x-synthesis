@@ -99,8 +99,9 @@ class APB():
 
         self.data_mem = self.kernel_mem = self.output_data_mem = None
         if mem_output:
+            procs = max(tc.dev.P_NUMPRO // tc.dev.P_SHARED, 1)
             self.data_mem = [[[[] for mem in range(tc.dev.INSTANCE_COUNT)]
-                              for proc in range(tc.dev.P_NUMPRO // tc.dev.P_SHARED)]
+                              for proc in range(procs)]
                              for group in range(tc.dev.P_NUMGROUPS)]
             if not mexpress:
                 self.kernel_mem = [[[[] for mem in range(tc.dev.MASK_INSTANCES)]
