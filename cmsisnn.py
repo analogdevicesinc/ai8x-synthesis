@@ -522,8 +522,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     # Detect fully connected layers
                     if in_dim == [1, 1] and output_dim[ll] == [1, 1]:
                         c_file.write(f'  arm_fully_connected_q7({source}, '
-                                     f'weights_{ll}, {in_chan}, {output_chan[ll]}, 7, 7, '
-                                     f'bias_{ll}, {buffer1}, '
+                                     f'weights_{ll}, {in_chan}, {output_chan[ll]}, 7, '
+                                     f'{7 - output_shift[ll]}, bias_{ll}, {buffer1}, '
                                      'col_buffer);\n')
                     else:
                         fn = 'fast' if in_chan % 4 == 0 and output_chan[ll] % 2 == 0 \
@@ -534,7 +534,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                      f'{kernel_size[ll][0]}, '
                                      f'{padding[ll][0]}, '
                                      f'{stride[ll][0]}, '
-                                     f'bias_{ll}, 7, 7, {buffer1}, '
+                                     f'bias_{ll}, 7,  {7 - output_shift[ll]}, {buffer1}, '
                                      f'{output_dim[ll][0]}, '
                                      'col_buffer, NULL);\n')
                 else:
@@ -545,7 +545,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                  f'{padding[ll][1]}, {padding[ll][0]}, '
                                  f'{stride[ll][1]}, {stride[ll][0]},\n'
                                  '                                      '
-                                 f'bias_{ll}, 7, 7, {buffer1}, '
+                                 f'bias_{ll}, 7, {7 - output_shift[ll]}, {buffer1}, '
                                  f'{output_dim[ll][1]}, {output_dim[ll][0]}, '
                                  'col_buffer, NULL);\n')
 
