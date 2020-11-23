@@ -344,6 +344,10 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
 
         if 'stride' in ll:
             val = ll['stride']
+            if isinstance(val, list):
+                if val[0] != val[1]:
+                    error_exit('`stride` values must be equal in both dimensions', sequence)
+                val = val[0]
             if pooling_enabled[sequence]:
                 # Must use the default stride when pooling, otherwise stride can be set
                 if operator[sequence] == op.CONV2D and val != 1 \
