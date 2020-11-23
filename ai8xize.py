@@ -2244,7 +2244,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 )
 
             summary_stats = '/*\n' + \
-                            stats.summary(factor=repeat_layers, debug=debug, spaces=2) + \
+                            stats.summary(factor=repeat_layers, debug=debug, spaces=2,
+                                          weights=kernel, w_size=quantization, bias=bias) + \
                             '*/\n'
             apb.main()
             apb.output(summary_stats + '\n')
@@ -2856,7 +2857,8 @@ def main():
             args.legacy_test,
         )
 
-    print(stats.summary(factor=args.repeat_layers, debug=args.debug))
+    print(stats.summary(factor=args.repeat_layers, debug=args.debug,
+                        weights=weights, w_size=quantization, bias=bias))
 
 
 def signal_handler(
