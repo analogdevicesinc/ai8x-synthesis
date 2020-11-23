@@ -258,6 +258,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     if fast_fifo and not riscv:
         eprint('--fast-fifo requires --riscv')
 
+    if sleep and not riscv:
+        eprint('--deepsleep requires --riscv')
+
     processor_map_0 = processor_map[0]
     if fast_fifo_quad:
         processor_map[0] = processor_map_0 << 48 | processor_map_0 << 32 \
