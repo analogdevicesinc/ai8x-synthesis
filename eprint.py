@@ -33,7 +33,7 @@ def eprint(*args, error=True, prefix=True, exit_code=1, **kwargs):
 
         print(*args, file=sys.stderr, **kwargs)
 
-    if error and exit_code:
+    if error and exit_code is not None:
         sys.exit(error)
 
 

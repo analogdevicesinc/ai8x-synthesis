@@ -6,7 +6,7 @@
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
 ###################################################################################################
 """
-Load contents of a checkpoint files and save them in a format usable for AI84/AI85
+Load contents of a checkpoint files and save them in a quantized format.
 """
 import argparse
 from functools import partial
@@ -18,11 +18,10 @@ from distiller.apputils.checkpoint import get_contents_table  # pylint: disable=
 import tornadocnn as tc
 import yamlcfg
 from devices import device
+from eprint import wprint
 
 CONV_SCALE_BITS = 8
 CONV_DEFAULT_WEIGHT_BITS = 8
-FC_SCALE_BITS = 8
-FC_CLAMP_BITS = 8
 
 DEFAULT_SCALE = .85
 DEFAULT_STDDEV = 2.0
@@ -50,11 +49,6 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
 
     if arguments.verbose:
         print(get_contents_table(checkpoint))
-
-    if arguments.quantized:
-        if 'quantizer_metadata' not in checkpoint:
-            raise RuntimeError("\nNo quantizer_metadata in checkpoint file.")
-        del checkpoint['quantizer_metadata']
 
     if 'state_dict' not in checkpoint:
         raise RuntimeError("\nNo state_dict in checkpoint file.")
@@ -121,12 +115,12 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
     else:
         sat_fn = get_max_bit_shift
         checkpoint['extras']['clipping_method'] = 'MAX_BIT_SHIFT'
-    fc_sat_fn = get_const
 
     first = True
     layers = 0
     num_layers = len(params['quantization']) if params else None
     for _, k in enumerate(checkpoint_state.keys()):
+        first_layer = False
         param_levels = k.rsplit(sep='.', maxsplit=2)
         if len(param_levels) == 3:
             layer, operation, parameter = param_levels[0], param_levels[1], param_levels[2]
@@ -139,153 +133,102 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                 raise RuntimeError(f"\nParameter {k} is not zero.")
             del new_checkpoint_state[k]
         elif parameter == 'weight':
-            if not arguments.quantized:
-                module, _ = k.split(sep='.', maxsplit=1)
+            if num_layers and layers >= num_layers:
+                continue
 
-                if dev != 84:
-                    if num_layers and layers >= num_layers:
-                        continue
+            # Determine how many bits we have for the weights in this layer
+            clamp_bits = None
 
-                    # Determine how many bits we have for the weights in this layer
-                    clamp_bits = None
+            # First priority: Override via YAML specification
+            if params is not None and 'quantization' in params:
+                clamp_bits = params['quantization'][layers]
 
-                    # First priority: Override via YAML specification
-                    if params is not None and 'quantization' in params:
-                        clamp_bits = params['quantization'][layers]
+            # Second priority: Saved in checkpoint file
+            if clamp_bits is None:
+                weight_bits_name = '.'.join([layer, 'weight_bits'])
+                if weight_bits_name in checkpoint_state:
+                    layer_weight_bits = int(unwrap(checkpoint_state[weight_bits_name]))
+                    if layer_weight_bits != 0:
+                        clamp_bits = layer_weight_bits
 
-                    # Second priority: Saved in checkpoint file
-                    if clamp_bits is None:
-                        weight_bits_name = '.'.join([layer, 'weight_bits'])
-                        if weight_bits_name in checkpoint_state:
-                            layer_weight_bits = int(unwrap(checkpoint_state[weight_bits_name]))
-                            if layer_weight_bits != 0:
-                                clamp_bits = layer_weight_bits
-
-                    # Third priority: --qat-weight-bits or default
-                    if clamp_bits is None:
-                        if arguments.qat_weight_bits is not None:
-                            clamp_bits = arguments.qat_weight_bits
-                        else:
-                            clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Default to 8 bits
-
-                    factor = 2**(clamp_bits-1) * sat_fn(checkpoint_state[k])
-                    lower_bound = 0
-                    if first and arguments.clip_mode is not None:
-                        factor /= 2.  # The input layer is [-0.5, +0.5] -- compensate
-                        first = False
-                elif module != 'fc':
-                    if num_layers and layers >= num_layers:
-                        continue
-                    clamp_bits = None
-                    if params is not None:
-                        clamp_bits = params['quantization'][layers]
-                    if clamp_bits is None:
-                        clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Default to 8 bits
-                    factor = 2**(clamp_bits-1) * sat_fn(checkpoint_state[k])
-                    lower_bound = 0
-                    if first:
-                        factor /= 2.  # The input layer is [-0.5, +0.5] -- compensate
-                        first = False
+            # Third priority: --qat-weight-bits or default
+            if clamp_bits is None:
+                if arguments.qat_weight_bits is not None:
+                    clamp_bits = arguments.qat_weight_bits
                 else:
-                    clamp_bits = arguments.fc
-                    lower_bound = 1  # Accomodate ARM q15_t data type when clamping
-                    factor = 2**(clamp_bits-1) * fc_sat_fn(checkpoint_state[k])
+                    clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Default to 8 bits
 
+            factor = 2**(clamp_bits-1) * sat_fn(checkpoint_state[k])
+            lower_bound = 0
+            if first and arguments.clip_mode is not None:
+                factor /= 2.  # The input layer is [-0.5, +0.5] -- compensate
+                first_layer = True
+                first = False
+
+            if arguments.verbose:
+                print(k, 'avg_max:', unwrap(avg_max(checkpoint_state[k])),
+                      'max:', unwrap(max_max(checkpoint_state[k])),
+                      'mean:', unwrap(checkpoint_state[k].mean()),
+                      'factor:', unwrap(factor),
+                      'bits:', clamp_bits)
+            weights = factor * checkpoint_state[k]
+
+            # Ensure it fits and is an integer
+            weights = weights.add(.5).floor().clamp(min=-(2**(clamp_bits-1)-lower_bound),
+                                                    max=2**(clamp_bits-1)-1)
+
+            # Store modified weight/bias back into model
+            new_checkpoint_state[k] = weights
+
+            # Set weight_bits
+            weight_bits_name = '.'.join([layer, 'weight_bits'])
+            if weight_bits_name not in new_checkpoint_state:
+                new_checkpoint_state[weight_bits_name] = \
+                    torch.Tensor([CONV_DEFAULT_WEIGHT_BITS])
+                if new_masks_dict is not None:
+                    new_masks_dict[weight_bits_name] = torch.Tensor([CONV_DEFAULT_WEIGHT_BITS])
+
+            # Is there a bias for this layer? Use the same factor as for weights.
+            bias_name = '.'.join([layer, operation, 'bias'])
+            if bias_name in checkpoint_state:
+                clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Always 8 bits
                 if arguments.verbose:
-                    print(k, 'avg_max:', unwrap(avg_max(checkpoint_state[k])),
-                          'max:', unwrap(max_max(checkpoint_state[k])),
-                          'mean:', unwrap(checkpoint_state[k].mean()),
+                    print(bias_name, 'avg_max:', unwrap(avg_max(checkpoint_state[bias_name])),
+                          'max:', unwrap(max_max(checkpoint_state[bias_name])),
+                          'mean:', unwrap(checkpoint_state[bias_name].mean()),
                           'factor:', unwrap(factor),
                           'bits:', clamp_bits)
-                weights = factor * checkpoint_state[k]
+                weights = factor * checkpoint_state[bias_name]
 
                 # Ensure it fits and is an integer
                 weights = weights.add(.5).floor().clamp(min=-(2**(clamp_bits-1)-lower_bound),
                                                         max=2**(clamp_bits-1)-1)
 
+                # Save conv biases so PyTorch can still use them to run a model. This needs
+                # to be reversed before loading the weights into the AI84/AI85.
+                # When multiplying data with weights, 1.0 * 1.0 corresponds to 128 * 128 and
+                # we divide the output by 128 to compensate. The bias therefore needs to be
+                # multiplied by 128. This depends on the data width, not the weight width,
+                # and is therefore always 128.
+                weights *= 2**(tc.dev.ACTIVATION_BITS-1)
+
+                if first_layer:  # Never True for QAT
+                    weights *= 2
+
                 # Store modified weight/bias back into model
-                new_checkpoint_state[k] = weights
+                new_checkpoint_state[bias_name] = weights
 
-                # Set weight_bits
-                weight_bits_name = '.'.join([layer, 'weight_bits'])
-                if weight_bits_name not in new_checkpoint_state:
-                    new_checkpoint_state[weight_bits_name] = \
-                        torch.Tensor([CONV_DEFAULT_WEIGHT_BITS])
-                    if new_masks_dict is not None:
-                        new_masks_dict[weight_bits_name] = torch.Tensor([CONV_DEFAULT_WEIGHT_BITS])
+            # Set output shift
+            out_shift_name = '.'.join([layer, 'output_shift'])
+            out_shift = torch.Tensor([-1 * get_max_bit_shift(checkpoint_state[k], True)])
+            if first:
+                out_shift -= 1
+                first = False
+            new_checkpoint_state[out_shift_name] = out_shift
+            if new_masks_dict is not None:
+                new_masks_dict[out_shift_name] = out_shift
 
-                # Is there a bias for this layer? Use the same factor as for weights.
-                bias_name = '.'.join([layer, operation, 'bias'])
-                if bias_name in checkpoint_state:
-                    clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Always 8 bits
-                    if arguments.verbose:
-                        print(bias_name, 'avg_max:', unwrap(avg_max(checkpoint_state[bias_name])),
-                              'max:', unwrap(max_max(checkpoint_state[bias_name])),
-                              'mean:', unwrap(checkpoint_state[bias_name].mean()),
-                              'factor:', unwrap(factor),
-                              'bits:', clamp_bits)
-                    weights = factor * checkpoint_state[bias_name]
-
-                    # The scale is different for AI84, and this has to happen before clamping.
-                    if dev == 84 and module != 'fc':
-                        weights *= 2**(clamp_bits-1)
-
-                    # Ensure it fits and is an integer
-                    weights = weights.add(.5).floor().clamp(min=-(2**(clamp_bits-1)-lower_bound),
-                                                            max=2**(clamp_bits-1)-1)
-
-                    # Save conv biases so PyTorch can still use them to run a model. This needs
-                    # to be reversed before loading the weights into the AI84/AI85.
-                    # When multiplying data with weights, 1.0 * 1.0 corresponds to 128 * 128 and
-                    # we divide the output by 128 to compensate. The bias therefore needs to be
-                    # multiplied by 128. This depends on the data width, not the weight width,
-                    # and is therefore always 128.
-                    if dev != 84:
-                        weights *= 2**(tc.dev.ACTIVATION_BITS-1)
-
-                    if first:
-                        weights *= 2
-
-                    # Store modified weight/bias back into model
-                    new_checkpoint_state[bias_name] = weights
-
-                # Set output shift
-                out_shift_name = '.'.join([layer, 'output_shift'])
-                out_shift = torch.Tensor([-1 * get_max_bit_shift(checkpoint_state[k], True)])
-                if first:
-                    out_shift -= 1
-                    first = False
-                new_checkpoint_state[out_shift_name] = out_shift
-                if new_masks_dict is not None:
-                    new_masks_dict[out_shift_name] = out_shift
-            else:
-                # Work on a pre-quantized network -- this code is old and probably doesn't work
-                # anymore
-                module, st = operation.rsplit('.', maxsplit=1)
-                if st in ['wrapped_module']:
-                    weights = checkpoint_state[k]
-                    scale = module + '.' + parameter[0] + '_scale'
-                    (scale_bits, clamp_bits) = (CONV_SCALE_BITS, tc.dev.DEFAULT_WEIGHT_BITS) \
-                        if dev != 84 or module != 'fc' else (FC_SCALE_BITS, FC_CLAMP_BITS)
-                    fp_scale = checkpoint_state[scale]
-                    if dev != 84 or module not in ['fc']:
-                        # print("Factor in:", fp_scale, "bits", scale_bits, "out:",
-                        #       pow2_round(fp_scale, scale_bits))
-                        weights *= fp_scale.clamp(min=1, max=2**scale_bits-1).round()
-                        # Accomodate Arm q15_t/q7_t datatypes
-                        weights = weights.clamp(min=-(2**(clamp_bits-1)),
-                                                max=2**(clamp_bits-1)-1).round()
-                    else:
-                        weights = torch.round(weights * fp_scale)
-                        weights = weights.clamp(min=-(2**(clamp_bits-1)-1),
-                                                max=2**(clamp_bits-1)-1).round()
-
-                    new_checkpoint_state[module + '.' + parameter] = weights
-                    del new_checkpoint_state[k]
-                    del new_checkpoint_state[scale]
-
-            if dev != 84 or module != 'fc':
-                layers += 1
+            layers += 1
         elif parameter in ['base_b_q']:
             del new_checkpoint_state[k]
         elif parameter == 'adjust_output_shift':
@@ -299,23 +242,12 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Checkpoint to AI8X Quantization')
+    parser = argparse.ArgumentParser(description='Checkpoint to MAX78000 Quantization')
     parser.add_argument('input', help='path to the checkpoint file')
     parser.add_argument('output', help='path to the output file')
     parser.add_argument('-c', '--config-file', metavar='S',
                         help="optional YAML configuration file containing layer configuration")
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument('--ai85', action='store_const', const=85, dest='device',
-                       help="enable AI85 features (default: AI84)")
-    group.add_argument('--ai87', action='store_const', const=87, dest='device',
-                       help="enable AI87 features (default: AI84)")
-    group.add_argument('--device', type=device, metavar='N',
-                       help="set device (default: 84)")
-    parser.add_argument('-f', '--fc', type=int, default=FC_CLAMP_BITS, metavar='N',
-                        help=f'set number of bits for the fully connnected layers '
-                             f'(default: {FC_CLAMP_BITS})')
-    parser.add_argument('-q', '--quantized', action='store_true', default=False,
-                        help='work on quantized checkpoint (deprecated)')
+    parser.add_argument('--device', type=device, metavar='N', help="set device", required=True)
     parser.add_argument('--clip-method', default=None, dest='clip_mode',
                         choices=['AVGMAX', 'MAX', 'STDDEV', 'SCALE'],
                         help='disable quantization-aware training (QAT) information and choose '
@@ -332,16 +264,11 @@ if __name__ == '__main__':
                              f'(default: {DEFAULT_STDDEV:.2f})')
     args = parser.parse_args()
 
-    # Configure device
-    if not args.device:
-        args.device = 84
     if args.clip_mode == 'SCALE' and not args.scale:
-        print('WARNING: Using the default scale factor of '
-              f'{DEFAULT_SCALE:.2f}.\n')
+        wprint(f'Using the default scale factor of {DEFAULT_SCALE:.2f}.\n')
         args.scale = DEFAULT_SCALE
     if args.clip_mode == 'STDDEV' and not args.stddev:
-        print('WARNING: Using the default number of standard deviations of '
-              f'{DEFAULT_STDDEV:.2f}.\n')
+        wprint(f'Using the default number of standard deviations of {DEFAULT_STDDEV:.2f}.\n')
         args.stddev = DEFAULT_STDDEV
     tc.dev = tc.get_device(args.device)
 
