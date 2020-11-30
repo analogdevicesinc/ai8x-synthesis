@@ -120,7 +120,6 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
     layers = 0
     num_layers = len(params['quantization']) if params else None
     for _, k in enumerate(checkpoint_state.keys()):
-        first_layer = False
         param_levels = k.rsplit(sep='.', maxsplit=2)
         if len(param_levels) == 3:
             layer, operation, parameter = param_levels[0], param_levels[1], param_levels[2]
@@ -162,7 +161,6 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
             lower_bound = 0
             if first and arguments.clip_mode is not None:
                 factor /= 2.  # The input layer is [-0.5, +0.5] -- compensate
-                first_layer = True
                 first = False
 
             if arguments.verbose:
@@ -200,10 +198,6 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                           'bits:', clamp_bits)
                 weights = factor * checkpoint_state[bias_name]
 
-                # Ensure it fits and is an integer
-                weights = weights.add(.5).floor().clamp(min=-(2**(clamp_bits-1)-lower_bound),
-                                                        max=2**(clamp_bits-1)-1)
-
                 # Save conv biases so PyTorch can still use them to run a model. This needs
                 # to be reversed before loading the weights into the AI84/AI85.
                 # When multiplying data with weights, 1.0 * 1.0 corresponds to 128 * 128 and
@@ -212,8 +206,12 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                 # and is therefore always 128.
                 weights *= 2**(tc.dev.ACTIVATION_BITS-1)
 
-                if first_layer:  # Never True for QAT
-                    weights *= 2
+                if first:  # Only True for QAT
+                    weights *= 2.  # Multiply first layer by 2. FIXME: Address this in DataLoader
+
+                # Ensure it fits and is an integer
+                weights = weights.add(.5).floor().clamp(min=-(2**(clamp_bits-1)-lower_bound),
+                                                        max=2**(clamp_bits-1)-1)
 
                 # Store modified weight/bias back into model
                 new_checkpoint_state[bias_name] = weights
