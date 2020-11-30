@@ -158,7 +158,6 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                     clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Default to 8 bits
 
             factor = 2**(clamp_bits-1) * sat_fn(checkpoint_state[k])
-            lower_bound = 0
             if first and arguments.clip_mode is not None:
                 factor /= 2.  # The input layer is [-0.5, +0.5] -- compensate
                 first = False
@@ -172,10 +171,10 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
             weights = factor * checkpoint_state[k]
 
             # Ensure it fits and is an integer
-            weights = weights.add(.5).floor().clamp(min=-(2**(clamp_bits-1)-lower_bound),
+            weights = weights.add(.5).floor().clamp(min=-(2**(clamp_bits-1)),
                                                     max=2**(clamp_bits-1)-1)
 
-            # Store modified weight/bias back into model
+            # Store modified weight back into model
             new_checkpoint_state[k] = weights
 
             # Set weight_bits
@@ -196,7 +195,7 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                           'mean:', unwrap(checkpoint_state[bias_name].mean()),
                           'factor:', unwrap(factor),
                           'bits:', clamp_bits)
-                weights = factor * checkpoint_state[bias_name]
+                bias = factor * checkpoint_state[bias_name]
 
                 # Save conv biases so PyTorch can still use them to run a model. This needs
                 # to be reversed before loading the weights into the AI84/AI85.
@@ -204,17 +203,17 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                 # we divide the output by 128 to compensate. The bias therefore needs to be
                 # multiplied by 128. This depends on the data width, not the weight width,
                 # and is therefore always 128.
-                weights *= 2**(tc.dev.ACTIVATION_BITS-1)
+                bias *= 2**(tc.dev.ACTIVATION_BITS-1)
 
                 if first:  # Only True for QAT
-                    weights *= 2.  # Multiply first layer by 2. FIXME: Address this in DataLoader
+                    bias *= 2.  # Multiply first layer by 2. FIXME: Address this in DataLoader
 
                 # Ensure it fits and is an integer
-                weights = weights.add(.5).floor().clamp(min=-(2**(clamp_bits-1)-lower_bound),
-                                                        max=2**(clamp_bits-1)-1)
+                bias = bias.add(.5).floor().clamp(min=-(2**(clamp_bits+tc.dev.ACTIVATION_BITS-2)),
+                                                  max=2**(clamp_bits+tc.dev.ACTIVATION_BITS-2)-1)
 
-                # Store modified weight/bias back into model
-                new_checkpoint_state[bias_name] = weights
+                # Store modified bias back into model
+                new_checkpoint_state[bias_name] = bias
 
             # Set output shift
             out_shift_name = '.'.join([layer, 'output_shift'])
