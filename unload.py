@@ -314,7 +314,7 @@ def verify(
                         this_map >>= 1
 
                 # Get the offset of the first output byte/word of 4
-                offs = tc.dev.C_SRAM_BASE + out_offset - (write_gap << 2) + \
+                offs = tc.dev.C_SRAM_BASE + out_offset + \
                     (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
                       (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
                      (doffs * (write_gap + 1)) * width + expand * out_size) * 4
