@@ -2525,7 +2525,6 @@ def main():
     activation = params['activation'][:layers]
     conv_groups = params['conv_groups'][:layers]
     write_gap = params['write_gap'][:layers]
-    pooling_enabled = params['pooling_enabled'][:layers]
 
     # Command line override
     if args.input_offset is not None:
