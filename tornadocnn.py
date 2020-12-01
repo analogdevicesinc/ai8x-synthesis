@@ -23,6 +23,7 @@ class Dev:
     SUPPORT_GCFR = False
     SUPPORT_PIPELINE = False
     SUPPORT_PLL = False
+    REQUIRE_REG_CLEAR = False
     MODERN_SIM = False
     MASK_INSTANCES = MASK_INSTANCES_EACH = 1
     C_SRAM_BASE = C_GROUP_OFFS = INSTANCE_SIZE = INSTANCE_COUNT = INSTANCE_WIDTH = 0
@@ -54,88 +55,6 @@ class Dev:
 
     def __init__(self, part_no):
         self.part_no = part_no
-
-    def __str__(self):
-        return self.__class__.__name__
-
-
-class DevAI84(Dev):
-    """
-    AI84 hardware constants
-    """
-    APB_BASE = 0x50100000
-    MAX_LAYERS = 32
-    MAX_STREAM_LAYERS = None
-    MAX_START_LAYER = 0
-    C_CNN = 4
-    C_CNN_BASE = 0
-
-    P_NUMGROUPS = 4
-    P_NUMGROUPS_ALL = P_NUMGROUPS
-    P_NUMPRO = 16  # Processors per group
-    P_SHARED = 4  # Processors sharing a data memory
-    MAX_PROC = P_NUMPRO * P_NUMGROUPS
-    MAX_ROW_COL = 256
-
-    # Per-layer registers
-    LREG_RCNT = 0
-    LREG_CCNT = 1
-    LREG_RFU = 2
-    LREG_PRCNT = 3
-    LREG_PCCNT = 4
-    LREG_STRIDE = 5
-    LREG_WPTR_BASE = 6
-    LREG_WPTR_OFFS = 7
-    LREG_RPTR_BASE = 8
-    LREG_LCTL = 9
-    LREG_MCNT = 10
-    LREG_TPTR = 11
-    LREG_ENA = 12
-    MAX_LREG = LREG_ENA
-
-    MAX_PTR_BITS = 17
-    MAX_TPTR_BITS = 12
-
-    # Global registers
-    REG_CTL = 0
-    REG_SRAM = 1
-    REG_LCNT_MAX = 2
-
-    READY_SEL = 0x03
-    PIPELINE_READY_SEL = READY_SEL
-
-    DEFAULT_WEIGHT_BITS = 8
-    ACTIVATION_BITS = 8
-
-    TRAM_SIZE = 256
-    TRAM_OFFS = 256
-    BIAS_SIZE = 256
-    MASK_WIDTH_SMALL = 128
-    MASK_WIDTH_LARGE = 128
-    MASK_OFFS = 128
-    MCNT_SAD_OFFS = 8
-    MCNT_MAX_OFFS = 0
-
-    C_TRAM_BASE = C_CNN_BASE + 0x800
-    C_MRAM_BASE = C_CNN_BASE + 0x4800
-    C_BRAM_BASE = C_CNN_BASE + 0xC800
-    C_SRAM_BASE = C_CNN_BASE + 0x10000
-
-    C_GROUP_OFFS = 0x100000
-
-    INSTANCE_SIZE = INSTANCE_WIDTH = 1024  # x32
-    INSTANCE_SHIFT = 12
-    WRITE_PTR_SHIFT = 12
-    MEM_SIZE = INSTANCE_SIZE * P_NUMPRO * P_NUMGROUPS // P_SHARED  # x32
-    MAX_CHANNELS = MAX_PROC
-
-    FRAME_SIZE_MAX = 2**14  # x * y * multipass
-
-    BIAS_DIV = 1
-
-    # Cycles
-    C_START = 4
-    C_POOL = 3
 
     def __str__(self):
         return self.__class__.__name__
@@ -309,10 +228,12 @@ class DevAI87(Dev):
     LREG_RPTR_BASE = 11
     LREG_LCTL = 12
     LREG_LCTL2 = 13
-    LREG_MCNT = 14
-    LREG_TPTR = 15
-    LREG_ENA = 16
-    LREG_POST = 17
+    LREG_MCNT1 = 14
+    LREG_MCNT2 = 15
+    LREG_OCHAN = 16
+    LREG_TPTR = 17
+    LREG_ENA = 18
+    LREG_POST = 19
     LREG_RFU = None
     MAX_LREG = LREG_POST
     LREG_STREAM1 = 0x2000
@@ -364,9 +285,6 @@ class DevAI87(Dev):
     MASK_WIDTH_SMALL = MASK_INSTANCES_EACH * 1024
     MASK_WIDTH_LARGE = MASK_WIDTH_SMALL + MASK_INSTANCES_EACH * 256
     MASK_OFFS = 8192
-    MCNT_SAD_OFFS = 16
-    MCNT_MAX_OFFS = 0
-    OCHAN_CNT_OFFS = 17
     RD_AHEAD_OFFS = 17
     CPRIME_MAX_OFFS = 18
     RPRIME_MAX_OFFS = 22
@@ -403,6 +321,7 @@ class DevAI87(Dev):
     SUPPORT_CALCX4 = True
     SUPPORT_PIPELINE = True
     SUPPORT_PLL = True
+    REQUIRE_REG_CLEAR = True
 
     SUPPORT_GCFR = True
     MODERN_SIM = True
@@ -457,9 +376,7 @@ def get_device(
     part = devices.partnum(device)
     print('Configuring device:', part)
 
-    if device == 84:
-        d = DevAI84(part)
-    elif device == 85:
+    if device == 85:
         d = DevAI85(part)
     elif device == 87:
         d = DevAI87(part)

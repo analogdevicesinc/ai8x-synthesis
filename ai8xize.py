@@ -104,7 +104,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         write_zero_regs=False,
         weight_filename=None,
         sample_filename=None,
-        device=84,
+        device=85,
         init_tram=False,
         avg_pool_rounding=False,
         fifo=False,
@@ -729,10 +729,21 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             print('\nGlobal registers:')
             print('-----------------')
 
+        if tc.dev.REQUIRE_REG_CLEAR:
+            for group in range(tc.dev.P_NUMGROUPS):
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 7,
+                              verbose, comment=' // Clear registers')
+            for group in range(tc.dev.P_NUMGROUPS):
+                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 25, 1 << 25,
+                             comment=' // Wait for clear')
+            for group in range(tc.dev.P_NUMGROUPS):
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
+                              verbose, comment=' // Reset BIST', force_write=True)
+            apb.output('\n', embedded_code)
+
         # Reset
-        if device != 84:
-            apb.write_fifo_ctl(tc.dev.AON_CTL, tc.dev.AON_READY_SEL,
-                               verbose, comment=' // AON control', force_write=True)
+        apb.write_fifo_ctl(tc.dev.AON_CTL, tc.dev.AON_READY_SEL,
+                           verbose, comment=' // AON control', force_write=True)
 
         # Disable completely unused groups
         for group in range(tc.dev.P_NUMGROUPS):
@@ -761,8 +772,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             val = tc.dev.READY_SEL << 1
             if fifo:
                 val |= 1 << 15
-            if device != 84:
-                val |= 1 << 3  # Enable clocks
+            val |= 1 << 3  # Enable clocks
             if mexpress:
                 val |= 1 << 20
             apb.write_ctl(group, tc.dev.REG_CTL, val,
@@ -775,7 +785,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             apb.write_ctl(group, tc.dev.REG_LCNT_MAX, val,
                           verbose, comment=' // Layer count')
 
-        if device != 84 and zero_sram:
+        if zero_sram:
             for group in range(tc.dev.P_NUMGROUPS):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 0,
                               verbose, comment=' // Data SRAM BIST')
@@ -896,12 +906,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             print(f'Flatten             = {flatten}')
             print('Processor map       = [',
                   ', '.join('0x{:016x}'.format(k) for k in processor_map), ']', sep='',)
-            if device != 84:
-                print(f'Input expansion     = {in_expand}')
-                print(f'Expansion threshold = {in_expand_thresh}')
-                print('Element-wise op     = [',
-                      ', '.join(op.string(k, elt=True) for k in eltwise), ']', sep='',)
-                print(f'Operand expansion   = {operands}')
+            print(f'Input expansion     = {in_expand}')
+            print(f'Expansion threshold = {in_expand_thresh}')
+            print('Element-wise op     = [',
+                  ', '.join(op.string(k, elt=True) for k in eltwise), ']', sep='',)
+            print(f'Operand expansion   = {operands}')
 
             print('Input offsets       = [',
                   ', '.join('0x{:04x}'.format(k) for k in in_offset), ']', sep='',)
@@ -910,10 +919,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             print(f'Output channels     = {output_chan}')
             print('Output processors   = [',
                   ', '.join('0x{:016x}'.format(k) for k in output_processor_map), ']', sep='',)
-            if device != 84:
-                print(f'Output expansion    = {out_expand}')
-                print(f'Expansion threshold = {out_expand_thresh}')
-                print(f'Output data bits    = {output_width}')
+            print(f'Output expansion    = {out_expand}')
+            print(f'Expansion threshold = {out_expand_thresh}')
+            print(f'Output data bits    = {output_width}')
             print('Output offsets      = [',
                   ', '.join('0x{:04x}'.format(k) for k in out_offset), ']', sep='',)
 
@@ -921,10 +929,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
             print(f'Kernel offsets      = {kern_offs}')
             print(f'Kernel lengths      = {kern_len}')
-            if device != 84:
-                print(f'Kernel dimensions   = {kernel_size}')
-                print(f'Kernel size (bits)  = {quantization}')
-                print(f'Output shift        = {output_shift}')
+            print(f'Kernel dimensions   = {kernel_size}')
+            print(f'Kernel size (bits)  = {quantization}')
+            print(f'Output shift        = {output_shift}')
             print('Operator            = [',
                   ', '.join(op.string(k) for k in operator), ']', sep='',)
             print(f'Stride              = {stride}')
@@ -1008,99 +1015,78 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_NXTLYR, val,
                                        verbose, comment=' // Next Layer')
 
-                    if device == 84 and operator[ll] == op.CONV1D:
-                        # For 1D convolutions on AI84, the column count is always 3, and the
-                        # row count is divided by 3. Padding is divided by 3.
-                        val = (padding[ll][0] // 3 << 8) \
-                               | (input_dim[ll][0] + 2*padding[ll][0]) // 3 - 1
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_RCNT, val,
-                                       verbose, comment=' // Rows')
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_CCNT, 2,
-                                       verbose, comment=' // Columns')
+                    # Configure row count
+                    if flatten[ll]:
+                        in_row = pool[ll][0]
+                        in_col = pool[ll][1]
                     else:
-                        # Configure row count
-                        # [9:0]   maxcount: lower 8 bits = total of width + pad - 1
-                        # [17:16] pad: 2 bits pad
-                        if flatten[ll]:
-                            in_row = pool[ll][0]
-                            in_col = pool[ll][1]
+                        if operator[ll] == op.CONVTRANSPOSE2D:
+                            in_row = stride[ll][0] * input_dim[ll][0]
+                            in_col = stride[ll][1] * input_dim[ll][1]
                         else:
-                            if operator[ll] == op.CONVTRANSPOSE2D:
-                                in_row = stride[ll][0] * input_dim[ll][0]
-                                in_col = stride[ll][1] * input_dim[ll][1]
-                            else:
-                                in_row = input_dim[ll][0]
-                                in_col = input_dim[ll][1]
-                        if hasattr(tc.dev, 'CNT_DIFF_OFFS'):
-                            diff = (in_row - ((in_row - pool[ll][0])
-                                              // pool_stride[ll][0]) * pool_stride[ll][0])
-                            val = in_row - diff  # Stop row, 0-based
-                            assert val < 2**tc.dev.MAX_CNT_BITS
+                            in_row = input_dim[ll][0]
+                            in_col = input_dim[ll][1]
+                    if hasattr(tc.dev, 'CNT_DIFF_OFFS'):
+                        diff = (in_row - ((in_row - pool[ll][0])
+                                          // pool_stride[ll][0]) * pool_stride[ll][0])
+                        val = in_row - diff  # Stop row, 0-based
+                        assert val < 2**tc.dev.MAX_CNT_BITS
 
-                            # Stop column
-                            if operator[ll] == op.CONV1D:
-                                diff = 1
-                            else:
-                                diff = (in_col - ((in_col - pool[ll][1])
-                                                  // pool_stride[ll][1]) * pool_stride[ll][1])
-                            diff = (diff + (pool_stride[ll][0] - 1) * in_col) \
-                                * operands[ll] * in_expand[ll]  # Bytes to next starting element
-
-                            val |= diff << tc.dev.CNT_DIFF_OFFS
-                            if padding[ll][0] > 0:
-                                assert padding[ll][0] - 1 < 2**2
-                                val |= 1 << tc.dev.PAD_ENA_OFFS
-                                val |= padding[ll][0] - 1 << tc.dev.PAD_CNT_OFFS
+                        # Stop column
+                        if operator[ll] == op.CONV1D:
+                            diff = 1
                         else:
-                            val = in_row - 1
-                            assert padding[ll][0] < 2**2
-                            assert val + 2*padding[ll][0] < 2**tc.dev.MAX_CNT_BITS
-                            val |= padding[ll][0] << tc.dev.PAD_CNT_OFFS
-                            val += 2*padding[ll][0]
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_RCNT, val,
-                                       verbose, comment=' // Rows')
-
-                        # Configure column count (evaluates to 0 for 1D convolutions)
-                        # [9:0]   width including padding - 1
-                        # [17:16] pad count (0 = no pad, 1 = half pad, 2 = full pad)
-                        if hasattr(tc.dev, 'CNT_DIFF_OFFS'):
-                            # Calculate last pooling fetch before advancing to next row
                             diff = (in_col - ((in_col - pool[ll][1])
                                               // pool_stride[ll][1]) * pool_stride[ll][1])
-                            val = in_col - diff
-                            assert val < 2**tc.dev.MAX_CNT_BITS
-                            val |= diff << tc.dev.CNT_DIFF_OFFS
-                            if padding[ll][1] > 0:
-                                assert padding[ll][1] - 1 < 2**2
-                                val |= 1 << tc.dev.PAD_ENA_OFFS
-                                val |= padding[ll][1] - 1 << tc.dev.PAD_CNT_OFFS
-                        else:
-                            val = in_col - 1
-                            assert padding[ll][1] < 2**2
-                            assert val + 2 * padding[ll][1] < 2**tc.dev.MAX_CNT_BITS
-                            val |= padding[ll][1] << tc.dev.PAD_CNT_OFFS
-                            val += 2 * padding[ll][1]
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_CCNT, val,
-                                       verbose, comment=' // Columns')
+                        diff = (diff + (pool_stride[ll][0] - 1) * in_col) \
+                            * operands[ll] * in_expand[ll]  # Bytes to next starting element
+
+                        val |= diff << tc.dev.CNT_DIFF_OFFS
+                        if padding[ll][0] > 0:
+                            assert padding[ll][0] - 1 < 2**2
+                            val |= 1 << tc.dev.PAD_ENA_OFFS
+                            val |= padding[ll][0] - 1 << tc.dev.PAD_CNT_OFFS
+                    else:
+                        val = in_row - 1
+                        assert padding[ll][0] < 2**2
+                        assert val + 2*padding[ll][0] < 2**tc.dev.MAX_CNT_BITS
+                        val |= padding[ll][0] << tc.dev.PAD_CNT_OFFS
+                        val += 2*padding[ll][0]
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_RCNT, val,
+                                   verbose, comment=' // Rows')
+
+                    # Configure column count (evaluates to 0 for 1D convolutions)
+                    if hasattr(tc.dev, 'CNT_DIFF_OFFS'):
+                        # Calculate last pooling fetch before advancing to next row
+                        diff = (in_col - ((in_col - pool[ll][1])
+                                          // pool_stride[ll][1]) * pool_stride[ll][1])
+                        val = in_col - diff
+                        assert val < 2**tc.dev.MAX_CNT_BITS
+                        val |= diff << tc.dev.CNT_DIFF_OFFS
+                        if padding[ll][1] > 0:
+                            assert padding[ll][1] - 1 < 2**2
+                            val |= 1 << tc.dev.PAD_ENA_OFFS
+                            val |= padding[ll][1] - 1 << tc.dev.PAD_CNT_OFFS
+                    else:
+                        val = in_col - 1
+                        assert padding[ll][1] < 2**2
+                        assert val + 2 * padding[ll][1] < 2**tc.dev.MAX_CNT_BITS
+                        val |= padding[ll][1] << tc.dev.PAD_CNT_OFFS
+                        val += 2 * padding[ll][1]
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_CCNT, val,
+                                   verbose, comment=' // Columns')
 
                     # Configure pooling row count
                     val = pool[ll][0]-1
-                    if device == 84 and pool[ll][0] == 1:
-                        val = 1
-                    else:
-                        val = pool[ll][0]-1
-                        assert val < 2**4
+                    assert val < 2**4
                     if hasattr(tc.dev, 'CNT_INC_OFFS'):
                         val |= 0 << tc.dev.CNT_INC_OFFS  # FIXME
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PRCNT, val,
                                    verbose, comment=' // Pooling rows')
 
                     # Configure pooling column count
-                    if device == 84 and pool[ll][1] == 1:
-                        val = 1
-                    else:
-                        val = pool[ll][1]-1
-                        assert val < 2**4
+                    val = pool[ll][1]-1
+                    assert val < 2**4
                     if hasattr(tc.dev, 'CNT_INC_OFFS'):
                         val |= 0 << tc.dev.CNT_INC_OFFS  # FIXME
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PCCNT, val,
@@ -1113,8 +1099,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         val = pool_stride[ll][0]-1
                     else:
                         val = stride[ll][0]-1
-                    if device == 84 and operator[ll] == op.CONV1D:
-                        val //= 3
                     assert val < 2**4
                     if hasattr(tc.dev, 'MP_STRIDE_OFFS'):  # Multipass stride
                         val |= pool_stride[ll][0] * operands[ll] * in_expand[ll] \
@@ -1148,46 +1132,31 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_BASE, val,
                                    verbose, comment=' // SRAM write ptr')
 
-                    if device == 84:
-                        # Configure write pointer mask offset count
-                        # [15:0]  Timeslot offset
-                        #         [11:0]  12 bits for memory - word address every time
-                        #                 we reach limit
-                        #         [13:12] instance in group
-                        #         [15:14] by-16 group
-                        # [31:16] Mask offset (0x10000000, required when writing more than 4 masks)
-                        if input_chan[ll] * kern_len[ll] > 4:
-                            val = 1 << tc.dev.INSTANCE_SHIFT + 16
+                    # Write Pointer Timeslot Offset Register
+                    # Used for 1x1 convolution, and pooling without convolution
+                    if operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]:
+                        val = 1 if conv_groups[ll] == 1 else 0
+                    elif operator[ll] == op.NONE:
+                        if popcount(processor_map[ll]) > 4 \
+                           or operands[ll] > 1 and in_expand[ll] > 1:
+                            val = tc.dev.INSTANCE_SIZE * 4
                         else:
-                            val = 0
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_OFFS, val,
-                                       verbose, comment=' // Mask offset count')
+                            val = tc.dev.INSTANCE_SIZE
                     else:
-                        # [15:0] Write Pointer Timeslot Offset Register
-                        # Used for 1x1 convolution, and pooling without convolution
-                        if operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]:
-                            val = 1 if conv_groups[ll] == 1 else 0
-                        elif operator[ll] == op.NONE:
-                            if popcount(processor_map[ll]) > 4 \
-                               or operands[ll] > 1 and in_expand[ll] > 1:
-                                val = tc.dev.INSTANCE_SIZE * 4
-                            else:
-                                val = tc.dev.INSTANCE_SIZE
-                        else:
-                            val = 0
-                        assert val < 2**tc.dev.MAX_PTR_BITS
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_TOFFS, val,
-                                       verbose, comment=' // Write ptr time slot offs')
+                        val = 0
+                    assert val < 2**tc.dev.MAX_PTR_BITS
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_TOFFS, val,
+                                   verbose, comment=' // Write ptr time slot offs')
 
-                        # [15:0] Write Pointer Mask Offset Register
-                        val = 1 << tc.dev.WRITE_PTR_SHIFT
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_MOFFS, val,
-                                       verbose, comment=' // Write ptr mask offs')
+                    # [15:0] Write Pointer Mask Offset Register
+                    val = 1 << tc.dev.WRITE_PTR_SHIFT
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_MOFFS, val,
+                                   verbose, comment=' // Write ptr mask offs')
 
-                        # [15:0] Write Pointer Multi-Pass Channel Offset Register
-                        val = output_width[ll] // 8
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_CHOFFS, val,
-                                       verbose, comment=' // Write ptr multi-pass channel offs')
+                    # [15:0] Write Pointer Multi-Pass Channel Offset Register
+                    val = output_width[ll] // 8
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_CHOFFS, val,
+                                   verbose, comment=' // Write ptr multi-pass channel offs')
 
                     # Configure sram read ptr count -- read ptr is local
                     # Source address must match write pointer of previous layer (minus global
@@ -1197,19 +1166,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                    verbose, comment=' // SRAM read ptr')
 
                     # Configure per-layer control
-                    # [3:0] s_slave: enable the by-4 group within the by-16 mask RAM to slave
-                    #                to first input volume; also enable timeslot
-                    # [4]   m_slave: slaves to 16x masters
-                    # [5]   master: sums all 16 processor outputs (vs 4 sums)
-                    # [6]   parallel: equals CHW/big data (per layer control)
-                    # [7]   pool_enable
-                    # [8]   maxpool_enable
-                    # [9]   activation_enable
-                    # [10]  cpad_only (column pad only, no row pad) for parallel processing
-                    # [11]  sramlsrc: global/local output SRAM data memory input select
-                    # [15:12] cnnsiena: enable externally sourced summed values from other
-                    #         processors
-                    # [16]  bigdwrt (AI85 only) Enables 32-bit output
                     val = (0x200 if activation[ll] == op.ACT_RELU else 0) | \
                           (0x100 if not pool_average[ll] else 0) | \
                           (0x80 if pool[ll][0] > 1 or pool[ll][1] > 1 else 0) | \
@@ -1218,7 +1174,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     if not local_source:
                         val |= 0x800
 
-                    if device != 84 and output_width[ll] != 8:
+                    if output_width[ll] != 8:
                         val |= 1 << 16
 
                     if (ll != 0 or not fast_fifo_quad) \
@@ -1244,93 +1200,70 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_LCTL, val,
                                    verbose, comment=' // Layer control')
 
-                    if device != 84:
-                        flatten_prod = 0
-                        # [3:0]  inpchexp[3:0]
-                        # [7:4]  wptr_inc[3:0]
-                        # [16:8] xpch_max[8:0] Selects the maximum channel processor number used
-                        #                      in channel expansion mode (bottom 3 are for bits)
-                        if flatten[ll]:
-                            # Store all bits, top programmed in post processing register
-                            flatten_prod = \
-                                in_expand[ll] * pooled_dim[ll][0] * pooled_dim[ll][1] - 1
-                            in_exp = flatten_prod % 2**4
-                        else:
-                            in_exp = in_expand[ll] - 1
+                    flatten_prod = 0
+                    if flatten[ll]:
+                        # Store all bits, top programmed in post processing register
+                        flatten_prod = \
+                            in_expand[ll] * pooled_dim[ll][0] * pooled_dim[ll][1] - 1
+                        in_exp = flatten_prod % 2**4
+                    else:
+                        in_exp = in_expand[ll] - 1
 
-                        assert in_exp < 2**4  # Cannot have more than 4 bits
+                    assert in_exp < 2**4  # Cannot have more than 4 bits
 
-                        val = (fls(output_processor_map[ll])
-                               - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) \
-                            * quantization[ll] << 8 \
-                            | in_exp
-                        if operator[ll] != op.NONE:
-                            wptr_skip = out_expand[ll] * (write_gap[ll] + 1)
-                            assert wptr_skip <= 2**4  # Cannot have more than 4 bits (+1)
-                            val |= (wptr_skip - 1) << 4
-                        else:
-                            assert write_gap[ll] + 1 <= 2**4  # Cannot have more than 4 bits (+1)
-                            val |= write_gap[ll] << 4
-                        if hasattr(tc.dev, 'OCHAN_CNT_OFFS'):
-                            if operator[ll] != op.NONE:
-                                in_exp = in_expand[ll]
-                                if flatten[ll]:
-                                    in_exp *= pooled_dim[ll][0] * pooled_dim[ll][1]
-                                ochan = ((((fls(output_processor_map[ll])
-                                            - (ffs(output_processor_map[ll])
-                                               & ~(tc.dev.P_SHARED-1))) + 1)
-                                          * quantization[ll]) * out_expand[ll] * in_exp
-                                         - quantization[ll]) // quantization[ll]
-                                if calcx4:
-                                    ochan //= 4
-                                if ochan > 0:
-                                    val |= ochan - 1 << tc.dev.OCHAN_CNT_OFFS
-                            elif tscnt_max > 0:
-                                val |= tscnt_max - 1 << tc.dev.OCHAN_CNT_OFFS
+                    val = (fls(output_processor_map[ll])
+                           - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) \
+                        * quantization[ll] << 8 \
+                        | in_exp
+                    if operator[ll] != op.NONE:
+                        wptr_skip = out_expand[ll] * (write_gap[ll] + 1)
+                        assert wptr_skip <= 2**4  # Cannot have more than 4 bits (+1)
+                        val |= (wptr_skip - 1) << 4
+                    else:
+                        assert write_gap[ll] + 1 <= 2**4  # Cannot have more than 4 bits (+1)
+                        val |= write_gap[ll] << 4
 
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_LCTL2, val,
-                                       verbose, comment=' // Layer control 2')
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_LCTL2, val,
+                                   verbose, comment=' // Layer control 2')
 
                     # Configure mask count
                     # Restriction: Every one of the mask memories will have to start from same
                     # offset
-                    # AI84:
-                    # [6:0]   Max count (output channels)
-                    # [7]     RFU
-                    # [14:8]  Starting address for group of 16
-                    # [15]    RFU
-                    # [23:16] Bias pointer starting address
-                    # [24]    Bias enable
-                    # [31:25] RFU
-                    # AI85:
-                    # [15:0]  Max count (output channels)
-                    # [31:16] Starting address for group of 16
-                    if device == 84:
-                        val = kern_offs[ll] << tc.dev.MCNT_SAD_OFFS \
-                            | (kern_len[ll] << tc.dev.MCNT_MAX_OFFS) - 1
-                        if group == bias_group[ll]:
-                            # Enable bias only for one group
-                            val |= 0x1000000 | bias_offs[ll] << 16
-                    else:
-                        oned_sad = 0
-                        if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
-                            in_exp = in_expand[ll]
-                            if flatten[ll]:
-                                in_exp *= pooled_dim[ll][0] * pooled_dim[ll][1]
-                            kl = (((fls(output_processor_map[ll])
-                                    - (ffs(output_processor_map[ll])
-                                       & ~(tc.dev.P_SHARED-1))) + 1)
-                                  * quantization[ll]) * out_expand[ll] * in_exp - quantization[ll]
-                            if ll == 0 and fast_fifo_quad or calcx4:
-                                if calcx4:
-                                    kl += quantization[ll]
-                                kl = (kl + 3) // 4  # FIXME: Handle fast_fifo_quad and calcx4
-                                if calcx4:
-                                    kl -= quantization[ll]
-                            koffs, oned_sad = divmod(9 * kern_offs[ll],
-                                                     kernel_size[ll][0] * kernel_size[ll][1])
-                            koffs *= 8
+                    oned_sad = 0
+                    if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
+                        in_exp = in_expand[ll]
+                        if flatten[ll]:
+                            in_exp *= pooled_dim[ll][0] * pooled_dim[ll][1]
+                        kl = (((fls(output_processor_map[ll])
+                                - (ffs(output_processor_map[ll])
+                                   & ~(tc.dev.P_SHARED-1))) + 1)
+                              * quantization[ll]) * out_expand[ll] * in_exp - quantization[ll]
+                        if ll == 0 and fast_fifo_quad or calcx4:
+                            if calcx4:
+                                kl += quantization[ll]
+                            kl = (kl + 3) // 4  # FIXME: Handle fast_fifo_quad and calcx4
+                            if calcx4:
+                                kl -= quantization[ll]
+                        koffs, oned_sad = divmod(9 * kern_offs[ll],
+                                                 kernel_size[ll][0] * kernel_size[ll][1])
+                        koffs *= 8
 
+                    if hasattr(tc.dev, 'LREG_MCNT1'):
+                        if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
+                            assert koffs < 2**19
+                            assert kl + koffs < 2**19
+                            apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT1, kl + koffs,
+                                           verbose, comment=' // Mask count')
+                            apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT2, koffs,
+                                           verbose, comment=' // Mask offset')
+                        else:
+                            assert operator[ll] == op.NONE
+                            val = (out_expand[ll] - 1) * 8
+                            assert val < 2**19
+                            apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT2, val,
+                                           verbose, comment=' // Mask offset')
+                    else:
+                        if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
                             assert koffs < 2**16
                             assert kl + koffs < 2**16
                             # kern_offs is always bytes
@@ -1340,48 +1273,50 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             assert operator[ll] == op.NONE
                             val = (out_expand[ll] - 1) * 8
                             assert val < 2**16
-                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT, val,
-                                   verbose, comment=' // Mask offset and count')
+                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT, val,
+                                       verbose, comment=' // Mask offset and count')
 
-                    if device != 84:
-                        #   [3:0] tscnt_max[3:0]      Maximum timeslot count register
-                        #   [7:4] oned_sad[3:0]       Start mask address (offset within 9 byte
-                        #                             mask)
-                        #  [11:8] oned_width[3:0]     1D mask width (0-9). Width > 0 enables 1D.
-                        #    [12] oned_iena           Input data is 1-dimensional
-                        #    [13] ewise_ena           Enable element-wise operation
-                        # [17:14] ewise_fun           Elementwise function select
-                        #         .3   - Enables 2D convolution of the ewise result.
-                        #                Standard 2D processing applies.
-                        #         .2   - Enables pre-pooling of the input data before element-wise
-                        #                operation.
-                        #         .1/0 - 2'b00 = add
-                        #                2'b01 = subtract
-                        #                2'b10 = bitwise XOR
-                        #                2'b11 = bitwise OR.
-                        # [21:18] ewise_cnt           Element wise operand count
+                    if hasattr(tc.dev, 'LREG_OCHAN'):
+                        val = 0
+                        if operator[ll] != op.NONE:
+                            in_exp = in_expand[ll]
+                            if flatten[ll]:
+                                in_exp *= pooled_dim[ll][0] * pooled_dim[ll][1]
+                            ochan = ((((fls(output_processor_map[ll])
+                                        - (ffs(output_processor_map[ll])
+                                           & ~(tc.dev.P_SHARED-1))) + 1)
+                                      * quantization[ll]) * out_expand[ll] * in_exp
+                                     - quantization[ll]) // quantization[ll]
+                            if calcx4:
+                                ochan //= 4
+                            if ochan > 0:
+                                val = ochan - 1
+                        elif tscnt_max > 0:
+                            val = tscnt_max - 1
+                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_OCHAN, val,
+                                       verbose, comment=' // Output channel count')
 
-                        val = tscnt_max
-                        assert 0 <= val < 2**4
-                        if operator[ll] == op.CONV1D:
-                            val |= kernel_size[ll][0] << 8 | 1 << 12
-                            assert kernel_size[ll][0] < 2**4
-                        elif (operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]
-                              or operator[ll] == op.NONE and operands[ll] == 1):
-                            val |= 1 << 8
-                        if operands[ll] > 1:
-                            val |= \
-                                1 << 13 | op.eltwise_fn(eltwise[ll]) << 14 | operands[ll] - 1 << 18
-                            if (pool[ll][0] > 1 or pool[ll][1] > 1) \
-                               and pool_first[ll]:
-                                val |= 1 << 16
-                            if operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D]:
-                                val |= 1 << 17
-                        assert 0 <= oned_sad < 2**4
-                        val |= oned_sad << 4
+                    val = tscnt_max
+                    assert 0 <= val < 2**4
+                    if operator[ll] == op.CONV1D:
+                        val |= kernel_size[ll][0] << 8 | 1 << 12
+                        assert kernel_size[ll][0] < 2**4
+                    elif (operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]
+                          or operator[ll] == op.NONE and operands[ll] == 1):
+                        val |= 1 << 8
+                    if operands[ll] > 1:
+                        val |= \
+                            1 << 13 | op.eltwise_fn(eltwise[ll]) << 14 | operands[ll] - 1 << 18
+                        if (pool[ll][0] > 1 or pool[ll][1] > 1) \
+                           and pool_first[ll]:
+                            val |= 1 << 16
+                        if operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D]:
+                            val |= 1 << 17
+                    assert 0 <= oned_sad < 2**4
+                    val |= oned_sad << 4
 
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_ONED, val,
-                                       verbose, comment=' // 1D')
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_ONED, val,
+                                   verbose, comment=' // 1D')
 
                     # Configure tram pointer max
                     if operator[ll] == op.CONV1D or \
@@ -1404,67 +1339,60 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_TPTR, val,
                                    verbose, comment=' // TRAM ptr max')
 
-                    if device != 84:
-                        # Compensate for the smaller weights by adjusting the output shift
-                        if quantization[ll] == 1:
-                            val = 1 << 22
-                        elif quantization[ll] == 2:
-                            val = 2 << 22
-                        elif quantization[ll] == 4:
-                            val = 3 << 22
+                    # Compensate for the smaller weights by adjusting the output shift
+                    if quantization[ll] == 1:
+                        val = 1 << 22
+                    elif quantization[ll] == 2:
+                        val = 2 << 22
+                    elif quantization[ll] == 4:
+                        val = 3 << 22
+                    else:
+                        assert quantization[ll] == 8
+                        val = 0  # Do not shift
+                    # Scale Control - bit 4 determines shift direction (1>>,0<<),
+                    # bits[3:0] determine magnitude
+                    assert operator[ll] != op.NONE or output_shift[ll] == 0
+                    if output_shift[ll] < 0:
+                        val |= (-output_shift[ll] | 2**4) << 13
+                    else:
+                        val |= output_shift[ll] << 13
+
+                    # [24] ts_ena
+                    # [25] onexone_ena
+
+                    if group == bias_group[ll]:
+                        # Enable bias only for one group
+                        assert bias_offs[ll] < 2**12
+                        val |= 1 << 12 | bias_offs[ll]
+
+                    if operator[ll] == op.NONE:
+                        if operands[ll] == 1:
+                            val |= 3 << 24
                         else:
-                            assert quantization[ll] == 8
-                            val = 0  # Do not shift
-                        # Scale Control - bit 4 determines shift direction (1>>,0<<),
-                        # bits[3:0] determine magnitude
-                        assert operator[ll] != op.NONE or output_shift[ll] == 0
-                        if output_shift[ll] < 0:
-                            val |= (-output_shift[ll] | 2**4) << 13
-                        else:
-                            val |= output_shift[ll] << 13
+                            val |= 1 << 24
 
-                        # [24] ts_ena
-                        # [25] onexone_ena
+                    if activation[ll] == op.ACT_ABS:
+                        val |= 1 << 26
 
-                        if group == bias_group[ll]:
-                            # Enable bias only for one group
-                            assert bias_offs[ll] < 2**12
-                            val |= 1 << 12 | bias_offs[ll]
+                    if flatten_prod >= 2**4:
+                        val |= 1 << 27 | (flatten_prod >> 4) << 18  # flatten_ena, xpmp_cnt
 
-                        if operator[ll] == op.NONE:
-                            if operands[ll] == 1:
-                                val |= 3 << 24
-                            else:
-                                val |= 1 << 24
+                    if operator[ll] == op.CONVTRANSPOSE2D:
+                        val |= 1 << 28
 
-                        if activation[ll] == op.ACT_ABS:
-                            val |= 1 << 26
+                    if conv_groups[ll] > 1:
+                        val |= 1 << 30 | 1 << 24  # depthwise_ena, ts_ena
 
-                        if flatten_prod >= 2**4:
-                            val |= 1 << 27 | (flatten_prod >> 4) << 18  # flatten_ena, xpmp_cnt
+                    if calcx4:
+                        val |= 1 << 29
 
-                        if operator[ll] == op.CONVTRANSPOSE2D:
-                            val |= 1 << 28
+                    if rd_ahead and in_expand[ll] > 1:
+                        val |= 1 << 31  # tcalc
 
-                        if conv_groups[ll] > 1:
-                            val |= 1 << 30 | 1 << 24  # depthwise_ena, ts_ena
-
-                        if calcx4:
-                            val |= 1 << 29
-
-                        if rd_ahead and in_expand[ll] > 1:
-                            val |= 1 << 31  # tcalc
-
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_POST, val,
-                                       verbose, comment=' // Post processing register')
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_POST, val,
+                                   verbose, comment=' // Post processing register')
 
                     # Configure mask and processor enables
-                    # [15:0]  processor enable
-                    # [31:16] mask enable
-                    # When the input data is sourced from 16 independent byte streams, all 16
-                    # processors and compute elements need to be enabled.  If there were only 4
-                    # input channels, 0x000f000f would be correct.
-                    #
                     # Enable at most 16 processors and masks
                     val = (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO
                     if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
@@ -1507,23 +1435,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM2, val,
                                        verbose, comment=' // Stream processing delta')
                     elif ll > 0 and streaming[ll]:
-                        # [13:0]:  strm_isval[13:0]  Per stream start count - based on previous
-                        #                            layer tptr_inc count
-                        # Start count - defines the current layer rcnt (TRAM shift count) that
-                        # triggers processing of the next layer
-
-                        # [16:12]: strm_dsval1[4:0]  Per stream in-row delta count - based on
-                        #                            previous layer tptr_inc count
-                        # [31:20]: strm_dsval2[11:0] Per stream multi-row delta count - based on
-                        #                            previous layer tptr_inc count
-                        #
-                        # Delta1 count - defines the current layer count once the start count is
-                        # triggered that enables incremental layer processing.  This count is
-                        # used when layer processing is contained within a single row.
-                        # Delta2 count - defines the current layer count once the start count is
-                        # triggered that enables incremental layer processing.  This count is
-                        # used when layer processing spans multiple rows.
-
                         # Start: Prior layer's padded pooled row width * prior layer's kernel
                         # height + prior layer's kernel width + prior layer's pad
                         stream_start = (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
@@ -1543,8 +1454,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM1, stream_start,
                                        verbose, comment=' // Stream processing start')
-                        # [3:0]:   strm_invol[3:0]   Per stream invol offset - based on stream
-                        #                            count
+                        # strm_invol[3:0]   Per stream invol offset - based on stream count
                         val = sum(in_expand[:ll])
                         assert val < 2**4
                         val |= delta2 << 16 | delta1 << 4
@@ -1660,28 +1570,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             apb.output('\n', embedded_code)
 
             # FIFO control
-            # [1:0] rdy_sel[1:0]        Sets the number of wait states added to the APB access.
-            # [4:2] fthres[2:0]         FIFO almost full threshold. If the difference between the
-            #                           write and read pointer exceeds this number of bytes, the
-            #                           almost full flag is set.
-            # [9:7] ethres[2:0]         FIFO almost empty threshold. If the difference between the
-            #                           write and read pointer falls below this number of bytes,
-            #                           the almost empty flag is set.
-            # [11] fifo_cpl             Setting this bit forces the FIFO to operate in lock-step.
-            #                           Data available status is dependent on all FIFO having
-            #                           identical write pointer values.
-            # [15:12] fifo_ena          Per FIFO enable. A logic 1 enables the FIFO. Unused FIFOs
-            #                           must be disabled.
-            # [19:16] full_iena         FIFO full interrupt enable. Logic '1' enables the interrupt
-            #                           request based on the fifo full flag.
-            # [23:20] empty_iena        FIFO empty interrupt enable. Logic '1' enables the
-            #                            interrupt request based on the fifo empty flag.
-            # [27:24] almost_full_iena  FIFO almost full interrupt enable. Logic '1' enables the
-            #                           interrupt request based on the fifo almost full threshold
-            #                           flag.
-            # [31:28] almost_empty_iena FIFO almost empty interrupt enable. Logic '1' enables the
-            #                           interrupt request based on the fifo almost empty threshold
-            #                           flag.
             if not fast_fifo:
                 val = 0x02 << 2 | 0x02 << 7 | 1 << 11 | tc.dev.FIFO_READY_SEL
                 for i in range(input_chan[0]):
@@ -1696,36 +1584,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 apb.write_fast_fifo_ctl(tc.dev.FAST_FIFO_CR, val,
                                         verbose, comment=' // Fast FIFO control')
 
-        # [0]     enable
-        # [2:1]   rdy_sel  (wait states - set to max)
-        # [3]     clock_ena
-        # [4]     calcmax
-        # [5]     poolena
-        # [6]     bigdata
-        # [7]     actena
-        # [8]     one-shot (stop after single layer)
-        # [10:9]  ext_sync[1:0] (slave to other group)
-        # [11]    ext_sync[2] (external slave)
-        # [12]    irq
-        # [13]    pool_rnd
-        # [14]    strm_ena - cnn_ctl register bit 14. Master stream processor enable. Layers are
-        #         processed up to the first layer with a zero start count value. After the last
-        #         stream layer (non-zero start and delta >> values) processing is complete,
-        #         standard processing follows for the remaining layers.
-        # [15]    fifo_ena
-        # [16]    mlat_ena
-        # [18:17] mlat_sel
-        # [19]    lil_buf - enables ifrm and frm_max
-        # [20]    mexpress = Enable loading of the mask memories using packed data. A change in
-        #         state of the two lsb of the address trigger a reload of the address counter.
-        # [21]    simple1b - Enable simple logic for 1 bit weights.
-        # [22]    ffifoena - Fast FIFO enable.  Enables the datapath between the ME17x
-        #         synch/asynch FIFO and the CNN
-        # [23]    fifogrp - Enables sending all "little data" channels to the first 4 processors.
-        #         When this bit is not set, each byte of FIFO data is directed to the first little
-        #         data channel of each x16 processor.
-        # [26:24] fclk_dly[2:0] - Selects the clock delay of the fast FIFO clock relative to the
-        #         primary CNN clock.
         val = 1 << 14 if any(streaming) else 0
         if avg_pool_rounding:
             val |= 1 << 13
@@ -1733,8 +1591,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             val |= 1 << 11
         if fifo and any(streaming):
             val |= 1 << 19
-        if device != 84:
-            val |= 1 << 3  # Enable clocks
+        val |= 1 << 3  # Enable clocks
         if mexpress:
             val |= 1 << 20
         if simple1b:
@@ -2433,18 +2290,6 @@ def main():
     if any(p < 0 or p > 4*tc.dev.MEM_SIZE for p in params['output_offset']):
         eprint('Unsupported value for `out_offset` in YAML configuration.')
 
-    if args.device == 84:
-        if any(q != 8 for q in params['quantization']):
-            eprint('All quantization configuration values must be 8 for AI84.')
-
-        if any(p0 != 1 and p0 & 1 != 0 or p0 < 0 or p0 > 4 or p1 != 1 and p1 & 1 != 0
-               or p1 < 0 or p1 > 4 for [p0, p1] in params['pool']):
-            eprint('Unsupported value for `max_pool`/`avg_pool` for AI84 in YAML configuration.')
-
-        if any(p0 == 3 or p0 < 0 or p0 > 4
-               or p1 == 3 or p1 < 0 or p1 > 4 for [p0, p1] in params['pool_stride']):
-            eprint('Unsupported value for `pool_stride` in YAML configuration.')
-
     if any(q != 8 for q in params['bias_quantization']):
         eprint('All bias quantization configuration values must be 8.')
 
@@ -2646,17 +2491,9 @@ def main():
         else:
             # We don't have to consider padding for the width calculation,
             # since padding has to be a multiple of 3 and we check for that.
-            if args.device == 84:
-                if pooled_size[0] % 3 != 0:
-                    eprint(f'{op.string(operator[ll])} in layer {ll} requires a multiple of 3 for'
-                           f'the pooled input length (currently {pooled_size[0]}).')
-                if padding[ll][0] % 3 != 0:
-                    eprint(f'{op.string(operator[ll])} in layer {ll} requires a multiple of 3 for '
-                           f'`pad` (currently set to {padding[ll][0]}).')
-            else:
-                if padding[ll][0] >= 3 and args.device != devices.CMSISNN:
-                    eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
-                           f'(currently set to {padding[ll][0]}).')
+            if padding[ll][0] >= 3 and args.device != devices.CMSISNN:
+                eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
+                       f'(currently set to {padding[ll][0]}).')
             output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
                                2 * padding[ll][0]) // stride[ll][0] + 1,
                               1]
