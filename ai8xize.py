@@ -2634,6 +2634,9 @@ def main():
             else:  # Element-wise
                 output_dim[ll] = [pooled_size[0], pooled_size[1]]
             if flatten[ll]:
+                if pooled_dim[ll][0] * pooled_dim[ll][1] > 256:
+                    eprint(f'`flatten` in layer {ll} exceeds supported input dimensions '
+                           f'({pooled_dim[ll][0]} * {pooled_dim[ll][1]} > 256)).')
                 output_dim[ll] = [1, 1]
                 input_channels[ll] //= pooled_dim[ll][0] * pooled_dim[ll][1]
                 assert input_channels[ll] > 0
