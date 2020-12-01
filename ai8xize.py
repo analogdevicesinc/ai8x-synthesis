@@ -310,14 +310,16 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         in_size = input_dim[ll][0] * input_dim[ll][1] * in_expand[ll] * operands[ll] \
             * (1 if big_data[ll] else 4)
         if not streaming[ll] and in_size + in_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
-            eprint(f'Layer {ll}: {1 if big_data[ll] else 4}-channel input size {in_size} '
+            eprint(f'Layer {ll}: {1 if big_data[ll] else 4}-channel {input_dim[ll][0]}x'
+                   f'{input_dim[ll][1]} input (size {in_size}) '
                    f'with input offset 0x{in_offset[ll]:04x} and expansion {in_expand[ll]}x '
                    f'exceeds data memory instance size of {tc.dev.INSTANCE_WIDTH*16}.')
         out_size = output_dim[ll][0] * output_dim[ll][1] * out_expand[ll] \
             * 4 * output_width[ll] // 8
         if (not streaming[ll] or ll == layers - 1) \
            and out_size + out_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
-            eprint(f'Layer {ll}: 4-channel, {output_width[ll]}-bit output size {out_size} '
+            eprint(f'Layer {ll}: 4-channel, {output_width[ll]}-bit {output_dim[ll][0]}x'
+                   f'{output_dim[ll][1]} output (size {out_size}) '
                    f'with output offset 0x{out_offset[ll]:04x} and expansion {out_expand[ll]}x '
                    f'exceeds data memory instance size of {tc.dev.INSTANCE_WIDTH*16}.')
 
@@ -1105,10 +1107,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                    verbose, comment=' // Pooling columns')
 
                     # Configure pooling stride count
-                    if pool[ll][0] > 1 or pool[ll][1] > 1:
-                        val = pool_stride[ll][0]-1
-                    elif operator[ll] == op.CONVTRANSPOSE2D:
+                    if operator[ll] == op.CONVTRANSPOSE2D:
                         val = 0
+                    elif pool_stride[ll][0] > 1:
+                        val = pool_stride[ll][0]-1
                     else:
                         val = stride[ll][0]-1
                     if device == 84 and operator[ll] == op.CONV1D:
@@ -1210,7 +1212,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     # [16]  bigdwrt (AI85 only) Enables 32-bit output
                     val = (0x200 if activation[ll] == op.ACT_RELU else 0) | \
                           (0x100 if not pool_average[ll] else 0) | \
-                          (0x80 if pool[ll][0] > 1 or pool[ll][1] > 1 else 0) | \
+                          (0x80 if pool_stride[ll][0] > 1 or pool_stride[ll][1] > 1 else 0) | \
                           (0x40 if big_data[ll] else 0) | \
                           (0x20)
                     if not local_source:
@@ -1370,7 +1372,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         if operands[ll] > 1:
                             val |= \
                                 1 << 13 | op.eltwise_fn(eltwise[ll]) << 14 | operands[ll] - 1 << 18
-                            if (pool[ll][0] > 1 or pool[ll][1] > 1) and pool_first[ll]:
+                            if (pool_stride[ll][0] > 1 or pool_stride[ll][1] > 1) \
+                               and pool_first[ll]:
                                 val |= 1 << 16
                             if operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D]:
                                 val |= 1 << 17
@@ -2522,6 +2525,7 @@ def main():
     activation = params['activation'][:layers]
     conv_groups = params['conv_groups'][:layers]
     write_gap = params['write_gap'][:layers]
+    pooling_enabled = params['pooling_enabled'][:layers]
 
     # Command line override
     if args.input_offset is not None:
@@ -2588,22 +2592,19 @@ def main():
                 input_dim[ll] = auto_input_dim[ll]
             else:
                 input_dim[ll] = conf_input_dim[ll]
-        if pool[ll][0] > 1 or pool[ll][1] > 1:
-            if operator[ll] != op.CONV1D:
-                if pool_stride[ll][0] != pool_stride[ll][1]:
-                    eprint(f'{op.string(operator[ll])} in layer {ll} does not support non-square '
-                           f'pooling stride (currently set to '
-                           f'{pool_stride[ll][0]}x{pool_stride[ll][1]}).')
-                pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])
-                               // pool_stride[ll][0],
-                               (input_dim[ll][1] + pool_stride[ll][1] - pool[ll][1])
-                               // pool_stride[ll][1]]
-            else:
-                pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])
-                               // pool_stride[ll][0],
-                               1]
+        if operator[ll] != op.CONV1D:
+            if pool_stride[ll][0] != pool_stride[ll][1]:
+                eprint(f'{op.string(operator[ll])} in layer {ll} does not support non-square '
+                       f'pooling stride (currently set to '
+                       f'{pool_stride[ll][0]}x{pool_stride[ll][1]}).')
+            pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])
+                           // pool_stride[ll][0],
+                           (input_dim[ll][1] + pool_stride[ll][1] - pool[ll][1])
+                           // pool_stride[ll][1]]
         else:
-            pooled_size = input_dim[ll]
+            pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])
+                           // pool_stride[ll][0],
+                           1]
 
         pooled_dim[ll] = pooled_size
         if any(dim == 0 for dim in pooled_dim[ll]):
