@@ -159,20 +159,21 @@ def header(
             else:
                 function_header(memfile, prefix='', function='CNN_IRQHandler',
                                 return_type='void __attribute__((interrupt("machine")))')
+            memfile.write('  // Acknowledge interrupt to all groups\n')
+            for _, group in enumerate(groups):
+                addr = tc.dev.APB_BASE + tc.ctl_addr(group, tc.dev.REG_CTL)
+                memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ~((1<<12) | 1);\n')
+            memfile.write('\n')
             if embedded_code and not measure_energy:
                 memfile.write('  CNN_COMPLETE; // Signal that processing is complete\n')
             memfile.write('#ifdef CNN_INFERENCE_TIMER\n'
                           '  cnn_time = MXC_TMR_SW_Stop(CNN_INFERENCE_TIMER);\n'
                           '#else\n'
                           '  cnn_time = 1;\n'
-                          '#endif\n\n')
-            memfile.write('  // Acknowledge interrupt to all groups\n')
-            for _, group in enumerate(groups):
-                addr = tc.dev.APB_BASE + tc.ctl_addr(group, tc.dev.REG_CTL)
-                memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ~((1<<12) | 1);\n')
+                          '#endif\n')
             if riscv:
-                memfile.write('  NVIC_ClearPendingIRQ(CNN_IRQn);\n')
-                memfile.write('  NVIC_ClearPendingEVENT(CNN_IRQn);\n')
+                memfile.write('\n  NVIC_ClearPendingIRQ(CNN_IRQn);\n'
+                              '  NVIC_ClearPendingEVENT(CNN_IRQn);\n')
             function_footer(memfile, return_value='void')  # ISR()
         else:
             function_header(memfile, function='wait', return_type='void')
