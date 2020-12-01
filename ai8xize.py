@@ -1212,7 +1212,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     # [16]  bigdwrt (AI85 only) Enables 32-bit output
                     val = (0x200 if activation[ll] == op.ACT_RELU else 0) | \
                           (0x100 if not pool_average[ll] else 0) | \
-                          (0x80 if pool_stride[ll][0] > 1 or pool_stride[ll][1] > 1 else 0) | \
+                          (0x80 if pool[ll][0] > 1 or pool[ll][1] > 1 else 0) | \
                           (0x40 if big_data[ll] else 0) | \
                           (0x20)
                     if not local_source:
@@ -1372,7 +1372,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         if operands[ll] > 1:
                             val |= \
                                 1 << 13 | op.eltwise_fn(eltwise[ll]) << 14 | operands[ll] - 1 << 18
-                            if (pool_stride[ll][0] > 1 or pool_stride[ll][1] > 1) \
+                            if (pool[ll][0] > 1 or pool[ll][1] > 1) \
                                and pool_first[ll]:
                                 val |= 1 << 16
                             if operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D]:
