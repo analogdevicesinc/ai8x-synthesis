@@ -188,6 +188,8 @@ def get_parser():
                        help="set the rd_ahead bit (default: false)")
     group.add_argument('--calcx4', dest='calcx4', action='store_true', default=False,
                        help="rearrange kernels and set the calcx4 bit (default: false)")
+    group.add_argument('--weight-start', type=int, metavar='N', default=0,
+                       help="specify start offset for weights (debug, default: 0)")
 
     # RTL sim
     group = parser.add_argument_group('RTL simulation')

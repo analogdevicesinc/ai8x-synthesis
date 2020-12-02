@@ -78,6 +78,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         legacy_kernels=False,
         calcx4=False,
         api=False,
+        start_offs=0,
 ):
     """
     Stack `kernel` values and write them to C code (for `embedded_code` if `True` or
@@ -91,7 +92,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     """
     # Kernels: Stack kernels; write only the kernels needed
     proc_kern_max = [0] * tc.dev.MAX_PROC
-    kern_offs = [0] * layers
+    kern_offs = [start_offs] * layers
     kern_len = [0] * layers
     kernel_map = np.full((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE),
                          _INVALID_VALUE, dtype=np.int64)

@@ -165,6 +165,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         calcx4=False,
         rtl_preload=False,
         result_output=False,
+        weight_start=0,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -677,6 +678,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 legacy_kernels=legacy_kernels,
                 calcx4=calcx4,
                 api=embedded_code,
+                start_offs=weight_start,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
                 verbose,
@@ -870,6 +872,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 block_mode,
                 legacy_kernels=legacy_kernels,
                 calcx4=calcx4,
+                start_offs=weight_start,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
                 verbose,
@@ -2643,6 +2646,7 @@ def main():
             args.calcx4,
             args.rtl_preload,
             args.result_output,
+            args.weight_start,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(
