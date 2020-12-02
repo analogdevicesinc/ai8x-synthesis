@@ -733,14 +733,17 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
         if tc.dev.REQUIRE_REG_CLEAR:
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 7,
-                              verbose, comment=' // Clear registers')
+                if group in groups_used:
+                    apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 7,
+                                  verbose, comment=' // Clear registers')
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 25, 1 << 25,
-                             comment=' // Wait for clear')
+                if group in groups_used:
+                    apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 25, 1 << 25,
+                                 comment=' // Wait for clear')
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
-                              verbose, comment=' // Reset BIST', force_write=True)
+                if group in groups_used:
+                    apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
+                                  verbose, comment=' // Reset BIST', force_write=True)
             apb.output('\n', embedded_code)
 
         # Reset
