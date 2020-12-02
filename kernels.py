@@ -112,8 +112,8 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
 
     for ll in range(start_layer, layers):
         if operator[ll] not in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
-            kern_len[ll] = 0
-            kern_offs[ll] = 0
+            assert kern_len[ll] == 0
+            assert kern_offs[ll] == start_offs
             continue
 
         if flatten[ll]:
