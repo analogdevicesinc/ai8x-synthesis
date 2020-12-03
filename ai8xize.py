@@ -35,7 +35,7 @@ import tornadocnn as tc
 import yamlcfg
 from eprint import eprint, wprint
 from simulate import (conv1d_layer, conv2d_layer, convtranspose2d_layer, eltwise_layer,
-                      linear_layer, passthrough_layer, pooling_layer, show_data)
+                      linear_layer, passthrough_layer, pooling_layer, print_data, show_data)
 from utils import ffs, fls, popcount
 
 
@@ -1211,7 +1211,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         # Store all bits, top programmed in post processing register
                         flatten_prod = \
                             in_expand[ll] * pooled_dim[ll][0] * pooled_dim[ll][1] - 1
-                        in_exp = flatten_prod % 2**4
+                        in_exp = flatten_prod & 0x0f  # Lower 4 bits only
                     else:
                         in_exp = in_expand[ll] - 1
 
@@ -1842,7 +1842,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 in_chan *= pooled_dim[ll][0] * pooled_dim[ll][1]
                 data = data.reshape(in_chan, 1, 1)
                 if verbose:
-                    print(f"FLATTEN TO {in_chan}x1x1...\n")
+                    print_data(
+                        verbose,
+                        f'FLATTEN TO {in_chan}x1x1',
+                        data,
+                        data.shape,
+                        in_expand[ll],
+                        in_chan,
+                    )
 
             out_buf, out_size = conv2d_layer(
                 ll,

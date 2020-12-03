@@ -83,6 +83,8 @@ for _, _, fnames in sorted(os.walk('data-expected')):
 
                     # print(f'Found address {addr:04x}, val {val:08x}, comp {result:08x}')
                     if result != val:
+                        if failures == 0:
+                            print(f'Before this failure, {matches} values were correct.')
                         print(f'ERROR: Data mismatch at address {addr:04x} in '
                               f'file data-output/{outname}. Expected: {val:04x}, '
                               f'got {result:08x}!', file=sys.stderr)

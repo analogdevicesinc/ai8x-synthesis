@@ -436,3 +436,7 @@ SHORT_LOG="--log-last-only"
 ./ai8xize.py --rtl-preload --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-burnin_64x80x128 --config-file tests/test-burnin_64x80x128.yaml --device "$DEVICE" --compact-data --mexpress --max-checklines 4096 --timeout 60 $SHORT_LOG "$@"
 
 ./ai8xize.py --rtl-preload --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-weightstart-cifar-conv1x1 --checkpoint-file tests/test-cifar10-1x1.pth.tar --config-file tests/test-ai85-cifar10-hwc-1x1.yaml --weight-start 3940 --device "$DEVICE" "$@"
+
+./ai8xize.py --rtl-preload --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant2 --config-file tests/test-flatten-fc-quant2.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl-preload --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant8 --config-file tests/test-flatten-fc-quant8.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl-preload --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mlpflatten768to100-quant2 --config-file tests/test-mlpflatten768to100-quant2.yaml --device "$DEVICE" "$@"
