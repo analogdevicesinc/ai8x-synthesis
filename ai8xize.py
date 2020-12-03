@@ -358,6 +358,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         if flatten[ll] and operator[ll] == op.NONE:
             eprint(f'Layer {ll}: `flatten` is not compatible with passthrough layers.')
 
+        if flatten[ll] and (pool[ll][0] > 1 or pool[ll][1] > 1):
+            eprint(f'Layer {ll}: `flatten` is not compatible with pooling.')
+
         if conv_groups[ll] > 1:
             if not tc.dev.SUPPORT_DEPTHWISE:
                 eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) > 1 are not supported'
