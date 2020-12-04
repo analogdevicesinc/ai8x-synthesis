@@ -223,6 +223,7 @@ def verify(
         stream=None,
         max_count=None,
         write_gap=0,
+        layers=0,
 ):
     """
     Verify HWC memory from AI8X, writing C or mem code using the `verify_fn` function.
@@ -345,6 +346,7 @@ def verify(
                                 comment=f' // {row},{col},{this_c}-{this_c+num_bytes-1}',
                                 num_bytes=num_bytes,
                                 first_proc=ffs(next_layer_map >> proc) % 4,
+                                data=ll == layers,
                             )
                     else:
                         for i in range(min(num_bytes, out_size)):
@@ -365,6 +367,7 @@ def verify(
                                     val[i],
                                     rv=False,
                                     comment=f' // {row},{col},{this_c+i}',
+                                    data=ll == layers,
                                 )
                             offs += out_size
                     count += 1
@@ -455,6 +458,7 @@ def verify(
                             rv=False,
                             comment=f' // {row},{col}-{col+num_bytes-1},{c}',
                             num_bytes=num_bytes,
+                            data=ll == layers,
                         )
 
                         read_addr = source + 4

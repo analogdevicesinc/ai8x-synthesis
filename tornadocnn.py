@@ -46,9 +46,9 @@ class Dev:
         addr -= self.C_SRAM_BASE
         group = addr // self.C_GROUP_OFFS
         addr %= self.C_GROUP_OFFS
-        proc = (addr // (self.INSTANCE_SIZE*16))
+        proc = addr // (self.INSTANCE_SIZE*16)
         addr %= self.INSTANCE_SIZE*16
-        addr //= 4
+        addr //= 4  # Switch to 32-bit word address
         mem = addr // (self.INSTANCE_WIDTH * 4 // self.INSTANCE_COUNT)
         addr %= self.INSTANCE_WIDTH * 4 // self.INSTANCE_COUNT
         return group, proc, mem, addr

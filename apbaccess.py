@@ -260,6 +260,7 @@ class APB():
             comment='',
             rv=False,
             api=False,
+            data=False,
     ):  # pylint: disable=unused-argument
         """
         Verify that memory at address `addr` contains data `val`.
@@ -341,6 +342,7 @@ class APB():
             debug=False,
             force_write=False,
             comment='',
+            no_verify=False,
     ):
         """
         Set global control register `reg` in group `group` to value `val`.
@@ -352,7 +354,7 @@ class APB():
             comment += ' *'
         addr = tc.ctl_addr(group, reg)
         if force_write or val != 0 or self.write_zero_regs:
-            self.write(addr, val, comment)
+            self.write(addr, val, comment, no_verify=no_verify)
         if debug:
             reg = f'{reg:02}'
             print(f'R{reg:<5}({addr:08x}): {val:08x}{comment}')
@@ -700,6 +702,7 @@ class APB():
             mlator=False,
             max_count=None,
             write_gap=0,
+            layers=0,
     ):
         """
         Write a verification function. The layer to unload has the shape `input_shape`,
@@ -727,6 +730,7 @@ class APB():
             stream=self.memfile,
             max_count=max_count,
             write_gap=write_gap,
+            layers=layers,
         )
 
     def output_define(  # pylint: disable=no-self-use
@@ -825,6 +829,7 @@ class APBBlockLevel(APB):
             comment='',
             rv=False,
             api=False,
+            data=False,
     ):  # pylint: disable=unused-argument
         """
         Verify that memory at address `addr` contains data `val`.
@@ -888,6 +893,7 @@ class APBDebug(APBBlockLevel):
             comment='',
             rv=False,
             api=False,
+            data=False,
     ):  # pylint: disable=unused-argument
         """
         Verify that memory at address `addr` contains data `val`.
@@ -995,6 +1001,7 @@ class APBTopLevel(APB):
             comment='',
             rv=False,
             api=False,
+            data=False,
     ):
         """
         Verify that memory at address `addr` contains data `val`.
@@ -1004,7 +1011,7 @@ class APBTopLevel(APB):
         assert val >= 0
         assert addr >= 0
 
-        if self.output_data_mem is not None:
+        if self.output_data_mem is not None and data:
             group, proc, mem, offs = tc.dev.datainstance_from_addr(addr)
             self.output_data_mem[group][proc][mem].append((offs, f'{val:08x}'))
             return

@@ -735,18 +735,18 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             print('-----------------')
 
         if tc.dev.REQUIRE_REG_CLEAR:
-            for group in range(tc.dev.P_NUMGROUPS):
-                if group in groups_used:
-                    apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 7,
-                                  verbose, comment=' // Clear registers')
-            for group in range(tc.dev.P_NUMGROUPS):
-                if group in groups_used:
-                    apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 25, 1 << 25,
-                                 comment=' // Wait for clear')
-            for group in range(tc.dev.P_NUMGROUPS):
-                if group in groups_used:
-                    apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
-                                  verbose, comment=' // Reset BIST', force_write=True)
+            for _, group in enumerate(groups_used):
+                apb.write_ctl(group, tc.dev.REG_CTL, 1 << 3 | tc.dev.READY_SEL << 1,
+                              verbose, comment=' // Enable clocks', no_verify=True)
+            for _, group in enumerate(groups_used):
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 7,
+                              verbose, comment=' // Clear registers', no_verify=True)
+            for _, group in enumerate(groups_used):
+                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 25, 1 << 25,
+                             comment=' // Wait for clear')
+            for _, group in enumerate(groups_used):
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
+                              verbose, comment=' // Reset BIST', force_write=True, no_verify=True)
             apb.output('\n', embedded_code)
 
         # Reset
@@ -2057,6 +2057,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 mlator=mlator if ll == layers-1 else False,
                 max_count=max_count,
                 write_gap=write_gap[ll],
+                layers=layers,
             )
             apb.function_footer(dest='wrapper')  # check_output()
         finally:
