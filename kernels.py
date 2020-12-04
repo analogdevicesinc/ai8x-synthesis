@@ -204,10 +204,13 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                     this_mask = this_map & proc_mask
                     this_map >>= qfactor
 
+                    in_ch = input_chan[ll]
+                    if flatten[ll]:
+                        in_ch *= qfactor
                     if ll == 0 and quad:
-                        src_offs = ch + (m - p // 16) * input_chan[ll]
+                        src_offs = ch + (m - p // 16) * in_ch
                     else:
-                        src_offs = ch + m * input_chan[ll]
+                        src_offs = ch + m * in_ch
                     if ll > 0 or not quad or (m % 4 == p // 16):
                         for ie in range(in_expand[ll]):
                             mask = this_mask
@@ -237,23 +240,9 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                             if src_offs < len(kernel_reshaped):
                                 if not flatten[ll]:
                                     k = np.zeros_like(kernel_reshaped[src_offs].flatten())
-                                    for i in range(qfactor):
-                                        if m < output_chan[ll]:
-                                            # Cycle through phases
-                                            idx = n + ie * qfactor
-                                            koffs = src_offs + (idx % in_expand[ll]) \
-                                                * in_expand_thresh[ll] \
-                                                + (idx // in_expand[ll]) \
-                                                * input_chan[ll]
-                                            if koffs < len(kernel_reshaped):
-                                                this_kern = kernel_reshaped[koffs].flatten() \
-                                                    & (2**quantization[ll]-1)
-                                                k |= this_kern << (i * quantization[ll])
-                                            n += 1
-                                        mask >>= 1
                                 else:
-                                    kl = (len(kernel_reshaped[src_offs]) + qfactor - 1) // qfactor
-                                    k = np.zeros(kl, dtype=np.int64)
+                                    k = np.empty((0), dtype=np.int64)
+                                for i in range(qfactor):
                                     if m < output_chan[ll]:
                                         # Cycle through phases
                                         idx = n + ie * qfactor
@@ -262,29 +251,32 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                             + (idx // in_expand[ll]) \
                                             * input_chan[ll]
                                         if koffs < len(kernel_reshaped):
-                                            this_kern = kernel_reshaped[koffs].flatten()
-                                            if len(this_kern) % qfactor != 0:
-                                                this_kern = np.append(
-                                                    this_kern,
-                                                    np.zeros(
-                                                        qfactor - len(this_kern) % qfactor,
-                                                        dtype=np.int64
-                                                    )
-                                                )
-                                            for i in range(qfactor):
-                                                k |= ((this_kern[i::qfactor]
-                                                       & (2**quantization[ll]-1))) \
-                                                    << (i * quantization[ll])
+                                            this_kern = kernel_reshaped[koffs].flatten() \
+                                                & (2**quantization[ll]-1)
+                                            if not flatten[ll]:
+                                                k |= this_kern << (i * quantization[ll])
+                                            else:
+                                                k = np.append(k, this_kern)
                                         n += 1
-                                        mask >>= 1
+                                    mask >>= 1
                                 if debug:
                                     with np.printoptions(formatter={'int': '{0:02x}'.format}):
                                         print(f'Layer {ll} processor {p} channel '
                                               f'{ch + ie * in_expand_thresh[ll]} m[{m}..{m+n-1}] '
                                               f'of {output_chan[ll]}: {k}')
-
                                 if flatten[ll]:
-                                    for _, e in enumerate(k):
+                                    if len(k) % qfactor != 0:
+                                        k = np.append(
+                                            k,
+                                            np.zeros(
+                                                qfactor - len(k) % qfactor,
+                                                dtype=np.int64,
+                                            ),
+                                        )
+                                    for i in range(0, len(k) // qfactor):
+                                        e = 0
+                                        for j in range(qfactor):
+                                            e |= k[i * qfactor + j] << (j * quantization[ll])
                                         col_target = add_kernel_data(ll, p, col_target, e)
                                 else:
                                     for i in range(ksize):
