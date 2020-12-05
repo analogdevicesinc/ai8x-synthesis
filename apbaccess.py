@@ -191,6 +191,7 @@ class APB():
                                     f.write(f'@{addr:04x} {val}\n')
 
         if self.output_data_mem is not None:
+            os.makedirs(os.path.join(base_directory, test_name, 'data-output'), exist_ok=True)
             target_dir = os.path.join(base_directory, test_name, 'data-expected')
             os.makedirs(target_dir, exist_ok=True)
             for group in range(tc.dev.P_NUMGROUPS):
