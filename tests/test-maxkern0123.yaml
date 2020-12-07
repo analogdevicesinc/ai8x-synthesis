@@ -14,6 +14,7 @@ layers:
   op: conv2d
 - pad: 1
   in_channels: 1
+  in_skip: 15
   activate: ReLU
   out_offset: 0x0
   processors: 0x0000000000000001
@@ -21,6 +22,7 @@ layers:
   op: conv2d
 - pad: 1
   in_channels: 1
+  in_skip: 15
   activate: ReLU
   out_offset: 0x2000
   processors: 0x0000000000000001
@@ -28,6 +30,7 @@ layers:
   op: conv2d
 - pad: 1
   in_channels: 1
+  in_skip: 15
   activate: ReLU
   out_offset: 0x0
   processors: 0x0000000000000001
@@ -35,6 +38,7 @@ layers:
   op: conv2d
 - pad: 1
   in_channels: 1
+  in_skip: 15
   activate: ReLU
   out_offset: 0x2000
   processors: 0x0000000000000001
@@ -42,6 +46,7 @@ layers:
   op: conv2d
 # Group 1
 - pad: 1
+  in_skip: 15
   activate: ReLU
   out_offset: 0x0
   processors: 0x0000000000010000
@@ -49,6 +54,7 @@ layers:
   op: conv2d
 - pad: 1
   in_channels: 1
+  in_skip: 15
   activate: ReLU
   out_offset: 0x2000
   processors: 0x0000000000010000
@@ -56,6 +62,7 @@ layers:
   op: conv2d
 - pad: 1
   in_channels: 1
+  in_skip: 15
   activate: ReLU
   out_offset: 0x0
   processors: 0x0000000000010000
@@ -63,6 +70,7 @@ layers:
   op: conv2d
 - pad: 1
   in_channels: 1
+  in_skip: 15
   activate: ReLU
   out_offset: 0x2000
   processors: 0x0000000000010000
@@ -70,6 +78,7 @@ layers:
   op: conv2d
 - pad: 1
   in_channels: 1
+  in_skip: 15
   activate: ReLU
   out_offset: 0x0
   processors: 0x0000000000010000
@@ -77,6 +86,7 @@ layers:
   op: conv2d
 # Group 2
 - pad: 1
+  in_skip: 15
   activate: ReLU
   out_offset: 0x2000
   processors: 0x0000000100000000
@@ -84,6 +94,7 @@ layers:
   op: conv2d
 - pad: 1
   in_channels: 1
+  in_skip: 15
   activate: ReLU
   out_offset: 0x0
   processors: 0x0000000100000000
@@ -91,6 +102,7 @@ layers:
   op: conv2d
 - pad: 1
   in_channels: 1
+  in_skip: 15
   activate: ReLU
   out_offset: 0x2000
   processors: 0x0000000100000000
@@ -98,6 +110,7 @@ layers:
   op: conv2d
 - pad: 1
   in_channels: 1
+  in_skip: 15
   activate: ReLU
   out_offset: 0x0
   processors: 0x0000000100000000
@@ -105,6 +118,7 @@ layers:
   op: conv2d
 - pad: 1
   in_channels: 1
+  in_skip: 15
   activate: ReLU
   out_offset: 0x2000
   processors: 0x0000000100000000
@@ -112,6 +126,7 @@ layers:
   op: conv2d
 # Group 3
 - pad: 1
+  in_skip: 15
   activate: ReLU
   out_offset: 0x0
   processors: 0x0001000000000000
@@ -119,6 +134,7 @@ layers:
   op: conv2d
 - pad: 1
   in_channels: 1
+  in_skip: 15
   activate: ReLU
   out_offset: 0x2000
   processors: 0x0001000000000000
@@ -126,6 +142,7 @@ layers:
   op: conv2d
 - pad: 1
   in_channels: 1
+  in_skip: 15
   activate: ReLU
   out_offset: 0x0
   processors: 0x0001000000000000
@@ -133,6 +150,7 @@ layers:
   op: conv2d
 - pad: 1
   in_channels: 1
+  in_skip: 15
   activate: ReLU
   out_offset: 0x2000
   processors: 0x0001000000000000
@@ -140,6 +158,7 @@ layers:
   op: conv2d
 - pad: 1
   in_channels: 1
+  in_skip: 15
   activate: ReLU
   out_offset: 0x0
   processors: 0x0001000000000000

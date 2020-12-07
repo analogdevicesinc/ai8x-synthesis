@@ -83,6 +83,7 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
     output_map = [None] * tc.dev.MAX_LAYERS
     input_offset = [None] * tc.dev.MAX_LAYERS
     input_chan = [None] * tc.dev.MAX_LAYERS
+    input_skip = [0] * tc.dev.MAX_LAYERS
     input_dim = [None] * tc.dev.MAX_LAYERS
     output_chan = [None] * tc.dev.MAX_LAYERS
     # All other variables are initialized with the default values
@@ -115,10 +116,10 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
     sequence = 0
     for ll in cfg['layers']:
         if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'conv_groups',
-                               'groups', 'in_channels', 'in_dim', 'in_sequences', 'in_offset',
-                               'kernel_size', 'pool_stride', 'out_channels', 'out_offset',
-                               'activate', 'activation', 'data_format', 'eltwise', 'flatten',
-                               'op', 'operands', 'operation', 'operator',
+                               'groups', 'in_channels', 'in_dim', 'in_sequences', 'in_skip',
+                               'in_offset', 'kernel_size', 'pool_stride', 'out_channels',
+                               'out_offset', 'activate', 'activation', 'data_format', 'eltwise',
+                               'flatten', 'op', 'operands', 'operation', 'operator',
                                'output_processors', 'output_width', 'output_shift',
                                'pool_first', 'processors', 'pad', 'quantization',
                                'sequence', 'streaming', 'stride', 'write_gap'])):
@@ -194,6 +195,8 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
             if isinstance(ll['in_dim'], list) and len(ll['in_dim']) > 2:
                 error_exit('`in_dim` must not exceed two dimensions', sequence)
             input_dim[sequence] = ll['in_dim']
+        if 'in_skip' in ll:
+            input_skip[sequence] = ll['in_skip']
         if 'in_offset' in ll:
             input_offset[sequence] = ll['in_offset']
         if 'out_channels' in ll:
@@ -419,6 +422,7 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
             del pool[ll]
             del pool_stride[ll]
             del input_chan[ll]
+            del input_skip[ll]
             del input_dim[ll]
             del input_offset[ll]
             del output_chan[ll]
@@ -507,6 +511,7 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
     settings['pooling_enabled'] = pooling_enabled
     settings['pool_stride'] = pool_stride
     settings['input_chan'] = input_chan
+    settings['input_skip'] = input_skip
     settings['input_dim'] = input_dim
     settings['input_offset'] = input_offset
     settings['output_chan'] = output_chan

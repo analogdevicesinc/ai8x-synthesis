@@ -86,6 +86,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         eltwise,
         pool_first,
         in_sequences,
+        input_skip,
         input_filename,
         output_filename,
         c_filename,
@@ -369,6 +370,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) must be equal to the'
                        f' number of input channels ({input_chan[ll]}), and output '
                        f' channels ({output_chan[ll]}) must be equal to input channels.')
+
+        if input_skip[ll] != 0 and not hasattr(tc.dev, 'MP_STRIDE_OFFS'):
+            eprint(f'Layer {ll}: `in_skip` must be 0 for this device.')
 
     # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
     test_name = prefix
@@ -753,12 +757,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         apb.write_fifo_ctl(tc.dev.AON_CTL, tc.dev.AON_READY_SEL,
                            verbose, comment=' // AON control', force_write=True)
 
-        # Disable completely unused groups
-        for group in range(tc.dev.P_NUMGROUPS):
-            if group not in groups_used:
-                apb.write_ctl(group, tc.dev.REG_CTL, 0,
-                              verbose, comment=f' // Disable group {group}')
-
         # Configure global control registers for used groups
         for _, group in enumerate(groups_used):
             if init_tram:
@@ -911,6 +909,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 print(f'Layer repeat count  = {repeat_layers}')
             print(f'Input dimensions    = {input_dim}')
             print(f'Input channels      = {input_chan}')
+            if any(s > 0 for s in input_skip):
+                print(f'Input skip          = {input_skip}')
             print(f'Convolution groups  = {conv_groups}')
             print(f'Flatten             = {flatten}')
             print('Processor map       = [',
@@ -1047,8 +1047,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         else:
                             diff = (in_col - ((in_col - pool[ll][1])
                                               // pool_stride[ll][1]) * pool_stride[ll][1])
+                        # Bytes to next starting element
                         diff = (diff + (pool_stride[ll][0] - 1) * in_col) \
-                            * operands[ll] * in_expand[ll]  # Bytes to next starting element
+                            * (input_skip[ll] + 1) * operands[ll] * in_expand[ll]
 
                         val |= diff << tc.dev.CNT_DIFF_OFFS
                         if padding[ll][0] > 0:
@@ -1111,7 +1112,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     assert val < 2**4
                     if hasattr(tc.dev, 'MP_STRIDE_OFFS'):  # Multipass stride
                         val |= pool_stride[ll][0] * operands[ll] * in_expand[ll] \
-                            << tc.dev.MP_STRIDE_OFFS
+                            * (input_skip[ll] + 1) << tc.dev.MP_STRIDE_OFFS
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STRIDE, val,
                                    verbose, comment=' // Stride')
 
@@ -2357,6 +2358,7 @@ def main():
     processor_map = processor_map[:layers]
 
     input_channels = input_channels[:layers]
+    input_skip = params['input_skip'][:layers]
     output_channels = output_channels[:layers]
     output_offset = params['output_offset'][:layers]
     conf_input_dim = params['input_dim'][:layers]
@@ -2581,6 +2583,7 @@ def main():
             eltwise,
             pool_first,
             in_sequences,
+            input_skip,
             args.input_filename,
             args.output_filename,
             args.c_filename,
