@@ -10,8 +10,8 @@ Command line parser for Tornado CNN
 import argparse
 
 import camera
-import devices
 from devices import device
+from eprint import wprint
 
 
 def get_parser():
@@ -28,9 +28,6 @@ def get_parser():
                         help="set device to MAX78000")
     mgroup.add_argument('--device', type=device, metavar='device-name',
                         help="set device")
-    mgroup.add_argument('--cmsis-software-nn', action='store_const',
-                        const=devices.CMSISNN, dest='device',
-                        help="create code for an Arm CMSIS-NN software network (unsupported)")
 
     # Hardware features
     group = parser.add_argument_group('Hardware features')
@@ -81,27 +78,28 @@ def get_parser():
                        help="use express kernel loading (default: false)")
     group.add_argument('--mlator', action='store_true', default=False,
                        help="use hardware to swap output bytes (default: false)")
-    mgroup = group.add_mutually_exclusive_group()
-    mgroup.add_argument('-f', '--fc-layer', action='store_true', default=False,
-                        help="add unload, a fully connected classification layer, and softmax"
-                             "in software (default: false; AI85 uses hardware)")
-    mgroup.add_argument('--unload', action='store_true', default=False,
-                        help="add a 'cnn_unload()' function (default: false)")
-    mgroup.add_argument('--softmax', action='store_true', default=False,
-                        help="add unload and software softmax functions (default: false)")
+    group.add_argument('--softmax', action='store_true', default=False,
+                       help="add software softmax function (default: false)")
+    group.add_argument('--unload', action='store_true', default=None,
+                       help="legacy argument - ignored")
     group.add_argument('--boost', metavar='S', default=None,
                        help="dot-separated port and pin that is turned on during CNN run to "
                             "boost the power supply, e.g. --boost 2.5 (default: None)")
     group.add_argument('--start-layer', type=int, metavar='N', default=0,
                        help="set starting layer (default: 0)")
-    group.add_argument('--energy', action='store_true', default=False,
-                       help="insert instrumentation code for energy measurement")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('--timer', type=int, metavar='N',
+                        help="use timer to time the inference (default: off, supply timer number)")
+    mgroup.add_argument('--energy', action='store_true', default=False,
+                        help="insert instrumentation code for energy measurement")
 
     # File names
     group = parser.add_argument_group('File names')
     group.add_argument('--c-filename', metavar='S',
                        help="C file name base (RTL sim default: 'test' -> 'test.c', "
                             "otherwise 'main' -> 'main.c')")
+    group.add_argument('--api-filename', metavar='S', default='cnn.c',
+                       help="C library file name (default: 'cnn.c', 'none' to disable)")
     group.add_argument('--weight-filename', metavar='S', default='weights.h',
                        help="weight header file name (default: 'weights.h')")
     group.add_argument('--sample-filename', metavar='S', default='sampledata.h',
@@ -190,6 +188,8 @@ def get_parser():
                        help="set the rd_ahead bit (default: false)")
     group.add_argument('--calcx4', dest='calcx4', action='store_true', default=False,
                        help="rearrange kernels and set the calcx4 bit (default: false)")
+    group.add_argument('--weight-start', type=int, metavar='N', default=0,
+                       help="specify start offset for weights (debug, default: 0)")
 
     # RTL sim
     group = parser.add_argument_group('RTL simulation')
@@ -361,5 +361,12 @@ def get_parser():
         args.riscv_flash = args.riscv
     if args.riscv_cache is None:
         args.riscv_cache = args.riscv
+
+    if args.unload:
+        wprint('--unload is no longer needed, and is ignored.')
+
+    # Set disabled legacy arguments
+    args.fc_layer = False
+    args.unload = False
 
     return args

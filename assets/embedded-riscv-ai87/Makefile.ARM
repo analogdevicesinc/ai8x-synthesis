@@ -70,19 +70,9 @@ SRCS  = main.c
 
 # Where to find source files for this test
 VPATH  = .
-ifeq "$(MAXIM_PATH)" ""
-VPATH += ../Common/
-else
-VPATH += /$(subst \,/,$(subst :,,$(MAXIM_PATH))/Examples/$(TARGET)/CNN/Common/)
-endif
 VPATH += $(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source
 # Where to find header files for this test
 IPATH  = .
-ifeq "$(MAXIM_PATH)" ""
-IPATH += ../Common/
-else
-IPATH += /$(subst \,/,$(subst :,,$(MAXIM_PATH))/Examples/$(TARGET)/CNN/Common/)
-endif
 
 PROJ_CFLAGS+=-DARM_MATH_CM4
 
@@ -90,7 +80,7 @@ PROJ_CFLAGS+=-DARM_MATH_CM4
 PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE
 
 # Enable all warnings
-PROJ_CFLAGS+=-Wall
+PROJ_CFLAGS+=-Wall -Wcast-align
 # Specify the target revision to override default
 # "A2" in ASCII
 # TARGET_REV=0x4132

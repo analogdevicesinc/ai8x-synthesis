@@ -7,10 +7,9 @@
 """
 Unload AI8X HWC memory into standard representation.
 """
-import sys
-
+import toplevel
 import tornadocnn as tc
-from eprint import eprint
+from eprint import eprint, wprint
 from utils import ffs, popcount
 
 
@@ -40,20 +39,17 @@ def unload(
     """
     assert not blocklevel or not mlator
 
-    memfile.write('// Custom unload for this network:\n'
-                  f'// {output_width}-bit data, shape: {input_shape}\n'
-                  f'void cnn_unload(uint{output_width}_t *out_buf)\n'
-                  '{\n'
-                  '  volatile uint32_t *addr;\n')
+    memfile.write('// Custom unload for this network: '
+                  f'{output_width}-bit data, shape: {input_shape}\n')
+    toplevel.function_header(memfile, function='unload',
+                             arguments=f'uint32_t *out_buf{"32" if output_width != 32 else ""}')
+    memfile.write('  volatile uint32_t *addr;\n')
     if output_width != 32:
+        memfile.write(f'  uint{output_width}_t *out_buf = (uint{output_width}_t *) out_buf32;\n')
         if input_shape[1] * input_shape[2] == 1:
-            memfile.write('  uint32_t val;\n')
+            memfile.write('  uint32_t val;\n\n')
         else:
-            memfile.write('  uint32_t val, offs;\n')
-    if mlator:
-        memfile.write('  uint32_t *out_buf32 = (uint32_t *) out_buf;\n\n')
-    else:
-        memfile.write('\n')
+            memfile.write('  uint32_t val, offs;\n\n')
 
     coffs_start = ffs(processor_map) & ~(tc.dev.P_SHARED-1)
     coffs = coffs_start
@@ -185,7 +181,7 @@ def unload(
                                           ' // Prime\n')
 
                         # FIXME: Do not write more than `num_bytes = min(4, input_shape[2] - col)`
-                        memfile.write('  out_buf32[offs++] = *mlat;'
+                        memfile.write(f'  out_buf{"32" if out_size != 32 else ""}[offs++] = *mlat;'
                                       f' // {this_c},{row},{col}-{col+3}\n')
                         read_addr = source + 4
                         write_addr = target + 4
@@ -202,7 +198,7 @@ def unload(
         c += popcount(next_layer_map & 0x0f)
         next_layer_map >>= 4
 
-    memfile.write('}\n\n')
+    toplevel.function_footer(memfile)  # unload()
 
 
 def verify(
@@ -227,6 +223,7 @@ def verify(
         stream=None,
         max_count=None,
         write_gap=0,
+        layers=0,
 ):
     """
     Verify HWC memory from AI8X, writing C or mem code using the `verify_fn` function.
@@ -259,8 +256,6 @@ def verify(
                    f'input at offset 0x{target_offs:08x} that was created by '
                    f'{old_layer}, CHW={old_c},{old_row},{old_col}.',
                    error=not no_error_stop)
-            if not no_error_stop:
-                sys.exit(1)
         # Check we're not overflowing the data memory
         if (not overwrite_ok) and out_map is not None and out_map[target_offs >> 2] is not None:
             old_ll, old_c, old_row, old_col, old_val = out_map[target_offs >> 2]
@@ -269,8 +264,6 @@ def verify(
                    f'offset 0x{target_offs:08x}. Previous write by '
                    f'layer {old_ll},CHW={old_c},{old_row},{old_col} with value 0x{old_val:08x}.',
                    error=not no_error_stop)
-            if not no_error_stop:
-                sys.exit(1)
 
     # Start at the instance of the first active output processor/channel
     coffs_start = ffs(processor_map) & ~(tc.dev.P_SHARED-1)
@@ -281,7 +274,7 @@ def verify(
 
     if not mlator or out_size > 1:
         if mlator:
-            eprint('ignoring --mlator for 32-bit output', error=False)
+            wprint('ignoring --mlator for 32-bit output.')
 
         for doffs in range(input_shape[1] * input_shape[2]):
             row, col = divmod(doffs, input_shape[2])
@@ -322,7 +315,7 @@ def verify(
                         this_map >>= 1
 
                 # Get the offset of the first output byte/word of 4
-                offs = tc.dev.C_SRAM_BASE + out_offset - (write_gap << 2) + \
+                offs = tc.dev.C_SRAM_BASE + out_offset + \
                     (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
                       (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
                      (doffs * (write_gap + 1)) * width + expand * out_size) * 4
@@ -353,6 +346,7 @@ def verify(
                                 comment=f' // {row},{col},{this_c}-{this_c+num_bytes-1}',
                                 num_bytes=num_bytes,
                                 first_proc=ffs(next_layer_map >> proc) % 4,
+                                data=ll == layers - 1,
                             )
                     else:
                         for i in range(min(num_bytes, out_size)):
@@ -373,6 +367,7 @@ def verify(
                                     val[i],
                                     rv=False,
                                     comment=f' // {row},{col},{this_c+i}',
+                                    data=ll == layers - 1,
                                 )
                             offs += out_size
                     count += 1
@@ -463,6 +458,7 @@ def verify(
                             rv=False,
                             comment=f' // {row},{col}-{col+num_bytes-1},{c}',
                             num_bytes=num_bytes,
+                            data=ll == layers - 1,
                         )
 
                         read_addr = source + 4

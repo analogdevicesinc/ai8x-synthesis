@@ -34,7 +34,8 @@ layers:
   operation: fc  # fc1()
   stride: 1
   quantization: 2
-  activation: ReLU
+  activation: None
+  output_shift: -8
 - out_offset: 0x0000
   processors: 0xffffffffffffffff
   operation: fc  # out()

@@ -7,6 +7,9 @@
 """
 Statistics for the pure Python computation modules
 """
+import operator
+from functools import reduce
+
 import tornadocnn as tc
 
 macc = 0  # Hardware multiply-accumulates (Conv2D, etc.)
@@ -38,21 +41,49 @@ def sw_ops():
     return sw_macc + sw_comp
 
 
-def print_summary(
+def summary(
         factor=1,
         debug=False,
+        spaces=0,
+        weights=None,
+        w_size=None,
+        bias=None,
 ):
     """
-    Print ops summary stats.
+    Return ops summary and weight usage statistics.
     """
-    print(f'Hardware: {factor * ops():,} ops ({factor * macc:,} macc; {factor * comp:,} '
-          f'comp; {factor * add:,} add; '
-          f'{factor * mul:,} mul; {factor * bitwise:,} bitwise)')
+    sp = ' ' * spaces
+    rv = sp + "SUMMARY OF OPS\n"
+
+    rv += f'{sp}Hardware: {factor * ops():,} ops ({factor * macc:,} macc; {factor * comp:,} ' \
+          f'comp; {factor * add:,} add; ' \
+          f'{factor * mul:,} mul; {factor * bitwise:,} bitwise)\n'
     if debug:
-        print(f'          True MACs: {factor * true_macc:,}')
+        rv += f'{sp}          True MACs: {factor * true_macc:,}\n'
     if sw_macc:
-        print(f'Software: {factor * sw_ops():,} ops ({factor * sw_macc:,} '
-              f'macc; {factor * sw_comp:,} comp)')
+        rv += f'{sp}Software: {factor * sw_ops():,} ops ({factor * sw_macc:,} ' \
+              f'macc; {factor * sw_comp:,} comp)\n'
+
+    if weights is not None and hasattr(tc.dev, 'BIAS_SIZE'):
+        kmem_used = 0
+        kmem = sum(tc.dev.mask_width(proc) * 9 for proc in range(tc.dev.MAX_PROC))
+        for i, e in enumerate(weights):
+            if e is not None:
+                kmem_used += reduce(operator.mul, e.shape) * w_size[i] // 8
+        rv += f"\n{sp}RESOURCE USAGE\n" \
+              f'{sp}Weight memory: {kmem_used:,} bytes out of {kmem:,} bytes total ' \
+              f'({kmem_used * 100.0 / kmem:.0f}%)\n'
+
+        bmem_used = 0
+        bmem = tc.dev.BIAS_SIZE * tc.dev.P_NUMGROUPS
+        if bias is not None:
+            for _, e in enumerate(bias):
+                if e is not None:
+                    bmem_used += len(e)
+        rv += f'{sp}Bias memory:   {bmem_used:,} bytes out of {bmem:,} bytes total ' \
+              f'({bmem_used * 100.0 / bmem:.0f}%)\n'
+
+    return rv
 
 
 def calc_latency(

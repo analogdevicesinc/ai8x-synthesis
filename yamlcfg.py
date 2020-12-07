@@ -7,14 +7,12 @@
 """
 YAML Configuration Routines
 """
-import sys
-
 import yaml
 
 import devices
 import op
 import tornadocnn as tc
-from eprint import eprint
+from eprint import eprint, wprint
 
 DEFAULT_2D_KERNEL = [3, 3]
 DEFAULT_1D_KERNEL = [9, 1]
@@ -41,13 +39,11 @@ class UniqueKeyLoader(yaml.Loader):
             except TypeError as exc:
                 eprint(f'Found unacceptable key {exc} {key_node.start_mark} '
                        f'while constructing a mapping {node.start_mark}')
-                sys.exit(1)
 
             # check for duplicate keys
             if key in mapping:
                 eprint(f'Found duplicate key {key} '
                        f'while constructing a mapping{node.start_mark}')
-                sys.exit(1)
             value = self.construct_object(value_node, deep=deep)
             mapping[key] = value
 
@@ -68,7 +64,6 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
         Print error message `message` for layer sequence `sequence` and exit.
         """
         eprint(f'{message} (found in layer sequence {sequence} in YAML configuration).')
-        sys.exit(1)
 
     # Load configuration file
     with open(config_file) as cfg_file:
@@ -77,12 +72,10 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
 
     if bool(set(cfg) - set(['bias', 'dataset', 'layers', 'output_map', 'arch', 'weights'])):
         eprint(f'Configuration file {config_file} contains unknown key(s).')
-        sys.exit(1)
 
     if 'layers' not in cfg or 'arch' not in cfg or 'dataset' not in cfg:
         eprint(f'Configuration file {config_file} does not contain '
                f'`layers`, `arch`, or `dataset`.')
-        sys.exit(1)
 
     # These are initialized with 'None'. Use this to see whether a layer was configured,
     # will be auto-initialized to previous layer's value or a default.
@@ -130,7 +123,6 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
                                'pool_first', 'processors', 'pad', 'quantization',
                                'sequence', 'streaming', 'stride', 'write_gap'])):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
-            sys.exit(1)
 
         if 'sequence' in ll:
             sequence = ll['sequence']  # Override sequence information
@@ -209,8 +201,8 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
         if 'out_offset' in ll:
             output_offset[sequence] = ll['out_offset']
         else:
-            print('WARNING: Defaulting to `out_offset = 0` for '
-                  f'layer sequence {sequence} in YAML configuration.')
+            wprint('Defaulting to `out_offset = 0` for '
+                   f'layer sequence {sequence} in YAML configuration.')
 
         if 'activate' in ll or 'activation' in ll:
             key = 'activate' if 'activate' in ll else 'activation'
@@ -222,7 +214,6 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
                 activation[sequence] = None
             else:
                 error_exit(f'Unknown value "{ll[key]}" for `{key}`', sequence)
-                sys.exit(1)
 
         if 'convolution' in ll or 'operation' in ll or 'op' in ll or 'operator' in ll:
             key = 'convolution' if 'convolution' in ll else \
@@ -266,10 +257,9 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
                 padding[sequence] = [0, 0]
             else:
                 error_exit(f'Unknown value "{ll[key]}" for `{key}`', sequence)
-                sys.exit(1)
         else:
-            print('WARNING: Defaulting to `op: Conv2d` for '
-                  f'layer sequence {sequence} in YAML configuration.')
+            wprint('Defaulting to `op: Conv2d` for '
+                   f'layer sequence {sequence} in YAML configuration.')
 
         if 'pad' in ll:
             val = ll['pad']
@@ -293,7 +283,6 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
                 operands[sequence] = 2
             else:
                 error_exit(f'Unknown value "{ll["eltwise"]}" for `eltwise`', sequence)
-                sys.exit(1)
 
         if 'pool_first' in ll:
             val = ll['pool_first']
@@ -355,6 +344,10 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
 
         if 'stride' in ll:
             val = ll['stride']
+            if isinstance(val, list):
+                if val[0] != val[1]:
+                    error_exit('`stride` values must be equal in both dimensions', sequence)
+                val = val[0]
             if pooling_enabled[sequence]:
                 # Must use the default stride when pooling, otherwise stride can be set
                 if operator[sequence] == op.CONV2D and val != 1 \
@@ -481,7 +474,7 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
         # Warn when using default pool stride of 1, 1
         if pool_stride[ll][0] is None:
             if pooling_enabled[ll]:
-                print(f'WARNING: Using default pool stride of 1 in layer {ll}.')
+                wprint(f'Using default pool stride of 1 in layer {ll}.')
             pool_stride[ll] = [1, 1]
 
         # Check that pass-through does not use activation

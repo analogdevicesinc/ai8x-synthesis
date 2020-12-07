@@ -10,7 +10,7 @@ Toplevel C file structure generation
 import rv
 import tornadocnn as tc
 from armx4weights import convert_to_x4_q7_weights
-from eprint import eprint
+from eprint import wprint
 
 COPYRIGHT = \
     '/*******************************************************************************\n' \
@@ -68,12 +68,14 @@ def header(
         sample_filename='sampledata.h',
         master=False,
         verify_kernels=False,
-        riscv=False,
+        riscv=False,  # Tri-state: None/False/True
         camera=False,
         embedded_arm=False,
         fail_indicator=False,
         measure_energy=False,
+        timer=None,  # pylint: disable=unused-argument
         groups=None,
+        lib=False,  # Tri-state: None/False/True
 ):
     """
     Write include files and forward definitions to .c file handle `memfile`.
@@ -88,15 +90,18 @@ def header(
     if not cmsis_nn:
         if embedded_code or embedded_arm:
             memfile.write('#include "mxc.h"\n')
-            if tc.dev.SUPPORT_GCFR:
-                memfile.write('#include "gcfr_regs.h"\n')
-            else:
-                memfile.write('#include "bbfc_regs.h"\n')
-            if riscv is not None:
+            if lib is None or lib:
+                if tc.dev.SUPPORT_GCFR:
+                    memfile.write('#include "gcfr_regs.h"\n')
+                else:
+                    memfile.write('#include "bbfc_regs.h"\n')
+            if riscv is not None and not lib:
                 memfile.write('#include "fcr_regs.h"\n'
                               '#include "sema_regs.h"\n')
         else:
             if tc.dev.MODERN_SIM:
+                if camera:
+                    memfile.write('#include "cameraif_regs.h"\n')
                 memfile.write('#include "mxc_device.h"\n'
                               '#include "mxc_delay.h"\n'
                               '#include "mxc_assert.h"\n'
@@ -111,22 +116,27 @@ def header(
                       '#define NUM_DATA_WORDS 4\n'
                       '#include "pcif.c"\n')
     if embedded_code:
-        memfile.write('#include "tornadocnn.h"\n')
-    if embedded_code or compact_weights:
-        memfile.write(f'#include "{weight_filename}"\n')
-    if embedded_code or compact_data:
+        memfile.write('#include "cnn.h"\n')
+    if lib is True or lib is None:
+        if embedded_code or compact_weights:
+            memfile.write(f'#include "{weight_filename}"\n')
+    if not lib and (embedded_code or compact_data):
         memfile.write(f'#include "{sample_filename}"\n')
     memfile.write('\n')
 
-    if embedded_arm:
+    if not (embedded_code or embedded_arm):
+        memfile.write('#define CNN_FAIL 0\n'
+                      '#define CNN_OK 1\n\n')
+
+    if not lib and embedded_arm:
         memfile.write('extern volatile void const *__FlashStart_; // Defined in linker file\n\n')
 
-    if not cmsis_nn and (riscv is None or riscv):
+    if not lib and not cmsis_nn and (riscv is None or riscv):
         if embedded_code or tc.dev.MODERN_SIM:
             memfile.write('volatile uint32_t cnn_time; // Stopwatch\n\n')
 
         if embedded_code:
-            memfile.write('void fail(void)\n{\n')
+            function_header(memfile, prefix='', function='fail', return_type='void')
 
             if fail_indicator:
                 memfile.write('  mxc_gpio_cfg_t gpio_out;\n')
@@ -138,72 +148,106 @@ def header(
                 memfile.write('  MXC_GPIO_OutSet(gpio_out.port, gpio_out.mask);\n\n')
 
             memfile.write('  printf("\\n*** FAIL ***\\n\\n");\n')
-            memfile.write('  while (1);\n}\n\n')
+            memfile.write('  while (1);\n')
+            function_footer(memfile, return_value='void')  # fail()
 
+    if (lib is None or lib) and not cmsis_nn and (riscv is None or riscv):
         if embedded_code or tc.dev.MODERN_SIM:
             if not riscv:
-                memfile.write('void CNN_ISR(void)\n{\n')
+                function_header(memfile, prefix='', function='CNN_ISR',
+                                return_type='void')
             else:
-                memfile.write('void __attribute__((interrupt("machine"))) '
-                              'CNN_IRQHandler(void)\n{\n')
-            if embedded_code:
-                memfile.write('  CNN_COMPLETE; // Signal that processing is complete\n')
-                if not measure_energy:
-                    memfile.write('  cnn_time = MXC_TMR_SW_Stop(MXC_TMR0);\n\n')
-            if not embedded_code or measure_energy:
-                memfile.write('  cnn_time = 1;\n\n')
+                function_header(memfile, prefix='', function='CNN_IRQHandler',
+                                return_type='void __attribute__((interrupt("machine")))')
             memfile.write('  // Acknowledge interrupt to all groups\n')
             for _, group in enumerate(groups):
                 addr = tc.dev.APB_BASE + tc.ctl_addr(group, tc.dev.REG_CTL)
-                memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ~(1<<12);\n')
+                memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ~((1<<12) | 1);\n')
+            memfile.write('\n')
+            if embedded_code and not measure_energy:
+                memfile.write('  CNN_COMPLETE; // Signal that processing is complete\n')
+            memfile.write('#ifdef CNN_INFERENCE_TIMER\n'
+                          '  cnn_time = MXC_TMR_SW_Stop(CNN_INFERENCE_TIMER);\n'
+                          '#else\n'
+                          '  cnn_time = 1;\n'
+                          '#endif\n')
             if riscv:
-                memfile.write('  NVIC_ClearPendingIRQ(CNN_IRQn);\n')
-                memfile.write('  NVIC_ClearPendingEVENT(CNN_IRQn);\n')
-            memfile.write('}\n\n')
+                memfile.write('\n  NVIC_ClearPendingIRQ(CNN_IRQn);\n'
+                              '  NVIC_ClearPendingEVENT(CNN_IRQn);\n')
+            function_footer(memfile, return_value='void')  # ISR()
         else:
-            memfile.write('void cnn_wait(void)\n{\n'
-                          '  while ((*((volatile uint32_t *) '
-                          f'0x{apb_base + tc.dev.C_CNN_BASE:08x}) & (1<<12)) != 1<<12) ;\n'
-                          '}\n\n')
+            function_header(memfile, function='wait', return_type='void')
+            memfile.write('  while ((*((volatile uint32_t *) '
+                          f'0x{apb_base + tc.dev.C_CNN_BASE:08x}) & (1<<12)) != 1<<12) ;\n')
+            function_footer(memfile, return_value='void')  # wait()
 
-    if master is not False:
+    if master is not False and (lib is None or lib):
         addr = apb_base + tc.ctl_addr(master, tc.dev.REG_CTL)
 
-        memfile.write('void cnn_restart(void)\n{\n')
-        memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) |= 1; '
+        function_header(memfile, function='continue')
+        memfile.write('  cnn_time = 0;\n\n'
+                      f'  *((volatile uint32_t *) 0x{addr:08x}) |= 1; '
                       f'// Re-enable group {master}\n')
-        memfile.write('}\n\n')
+        function_footer(memfile)  # continue()
 
-        memfile.write('void cnn_stop(void)\n{\n')
+        function_header(memfile, function='stop')
         memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ~1; '
                       f'// Disable group {master}\n')
-        memfile.write('}\n\n')
+        function_footer(memfile)  # stop()
 
 
-def load_header(
+def function_header(
         memfile,
         riscv_flash=False,
+        function='configure',
+        arguments='void',
+        return_type='int',
+        prefix='cnn_',
 ):
     """
-    Write the header for the CNN configuration loader function to `memfile`.
+    Write the header for the a function to `memfile`. Optionally add the RV32 Flash attribute
+    when `riscv_flash`. The function name is composed from `prefix` (default: 'cnn') and
+    `function_name`, the return type is `return_type` (default: 'int').
     """
+    if memfile is None:
+        return
     if riscv_flash:
         memfile.write(rv.RISCV_FLASH)
-    memfile.write('int cnn_load(void)\n{\n')
+    memfile.write(f'{return_type} {prefix}{function}({arguments})\n{{\n')
 
 
-def load_footer(
+def function_footer(
         memfile,
-        embedded_code=False,  # pylint: disable=unused-argument
+        return_value='CNN_OK',
 ):
     """
-    Write the footer for the CNN configuration loader function to `memfile`.
+    Write the footer for a function to `memfile`, either returning `return_value` or nothing
+    when `return_value` is 'void'.
     """
-    memfile.write('\n  return 1;\n}\n\n')
+    if memfile is None:
+        return
+    if return_value != 'void':
+        memfile.write(f'\n  return {return_value};\n')
+    memfile.write('}\n\n')
+
+
+def write_ml_data(
+        memfile,
+        output_width,
+):
+    """
+    Write the ml_data variable with `output_width` to `memfile`.
+    """
+    if output_width != 32:
+        memfile.write('static int32_t ml_data32[(CNN_NUM_OUTPUTS + '
+                      f'{32 // output_width - 1}) / {32 // output_width}];\n')
+    else:
+        memfile.write('static int32_t ml_data[CNN_NUM_OUTPUTS];\n')
 
 
 def main(
         memfile,
+        apifile,
         classification_layer=False,
         unload=False,
         softmax=False,
@@ -222,47 +266,58 @@ def main(
         channels=None,
         sleep=False,
         output_width=8,
-        num_classes=None,
+        num_classes=None,  # pylint: disable=unused-argument
         clock_trim=None,
         embedded_arm=False,
         groups=None,
         boost=None,
         forever=False,
         fifo=False,
-        mexpress=False,
+        mexpress=False,  # pylint: disable=unused-argument
         measure_energy=False,
+        timer=None,  # pylint: disable=unused-argument
         pll=False,
+        bias=False,
+        verify_kernels=False,
+        load_kernels=True,
+        compact_weights=False,  # pylint: disable=unused-argument
 ):
     """
     Write the main function (including an optional call to the fully connected layer if
     `classification_layer` is `True`) to `memfile`.
     """
+    mfile = apifile or memfile
+
     assert groups is not None
     mask = 0
     for _, group in enumerate(groups):
         mask |= 1 << group
-    unmask = ~mask & ((1 << tc.dev.P_NUMGROUPS) - 1)
+    unmask = ~mask & ((1 << tc.dev.P_NUMGROUPS_ALL) - 1)
 
     if softmax and output_width == 8:
-        eprint('--softmax should only be used with `output_width: 32`', error=False)
+        wprint('--softmax should only be used with `output_width: 32`.')
 
-    if unload:
-        memfile.write(f'#define NUM_OUTPUTS {num_classes}\n')
-        memfile.write(f'static int{output_width}_t ml_data[NUM_OUTPUTS];\n\n')
+    if unload and not softmax:
+        write_ml_data(memfile, output_width)
+        memfile.write('\n')
 
     if riscv is not None and not riscv and (embedded_arm or tc.dev.MODERN_SIM):
-        memfile.write('void WakeISR(void)\n'
-                      '{\n'
-                      '  MXC_SEMA->irq0 = MXC_F_SEMA_IRQ0_EN & ~MXC_F_SEMA_IRQ0_CM4_IRQ;\n'
-                      '}\n\n')
+        function_header(memfile, prefix='', function='WakeISR', return_type='void')
+        memfile.write('  MXC_SEMA->irq0 = MXC_F_SEMA_IRQ0_EN & ~MXC_F_SEMA_IRQ0_CM4_IRQ;\n')
+        function_footer(memfile, return_value='void')  # WakeISR()
 
-    memfile.write('int main(void)\n{\n')
+    function_header(memfile, prefix='', function='main')
     if clock_trim is not None and not riscv:
         memfile.write('  uint32_t trim;\n')
-    if embedded_code and (classification_layer or softmax) or oneshot > 0:
+    if embedded_code and (classification_layer or softmax) or oneshot > 0 or measure_energy:
         memfile.write('  int i;\n')
-    if embedded_code and (classification_layer or softmax):
+    if embedded_code and not forever and (classification_layer or softmax):
         memfile.write('  int digs, tens;\n')
+        if output_width != 32:
+            memfile.write(f'int{output_width}_t *ml_data = '
+                          f'(int{output_width}_t *) ml_data32;\n')
+    if embedded_code and (classification_layer or softmax) or oneshot > 0:
+        memfile.write('\n')
 
     bbfc = 'BBFC' if not tc.dev.SUPPORT_GCFR else 'GCFR'
 
@@ -272,7 +327,7 @@ def main(
                 memfile.write('  icache_enable();\n\n')
                 memfile.write('  SYS_ClockEnable(SYS_PERIPH_CLOCK_AI);\n')
             else:
-                memfile.write('\n  MXC_ICC_Enable(MXC_ICC0); // Enable cache\n\n')
+                memfile.write('  MXC_ICC_Enable(MXC_ICC0); // Enable cache\n\n')
                 if clock_trim is not None:
                     memfile.write('  // Manual clock trim override:\n')
                     memfile.write('  *((volatile uint32_t *) 0x40000c00) = 1; '
@@ -298,16 +353,11 @@ def main(
                     memfile.write('  *((volatile uint32_t *) 0x40000c00) = 0; '
                                   '// Clear TME\n\n')
 
-                if not measure_energy:
-                    memfile.write('  // Switch to 100 MHz clock\n'
-                                  '  MXC_SYS_Clock_Select(MXC_SYS_CLOCK_IPO);\n')
-                    if pll:
-                        memfile.write('  MXC_GCR->ito_ctrl |= MXC_F_GCR_ITO_CTRL_EN;'
-                                      ' // Enable PLL (ITO)\n')
-                else:
-                    memfile.write('  MXC_SYS_ClockSourceEnable(MXC_SYS_CLOCK_IBRO);\n'
-                                  '  // Switch to 7.37 MHz clock\n'
-                                  '  MXC_SYS_Clock_Select(MXC_SYS_CLOCK_IBRO);\n')
+                memfile.write(f'  // Switch to {tc.dev.IPO_SPEED} MHz clock\n'
+                              '  MXC_SYS_Clock_Select(MXC_SYS_CLOCK_IPO);\n')
+                if pll:
+                    memfile.write('  MXC_GCR->ito_ctrl |= MXC_F_GCR_ITO_CTRL_EN;'
+                                  ' // Enable PLL (ITO)\n')
                 memfile.write('  SystemCoreClockUpdate();\n')
         else:
             memfile.write('  icache_enable();\n\n')
@@ -426,26 +476,29 @@ def main(
             mode = '8'  # Default
             comment = '888'
         memfile.write(f'  // Enable {comment} format single image in external timing mode\n')
-        memfile.write('  MXC_CAMERAIF0->ctrl = MXC_S_CAMERAIF_CTRL_READ_MODE_SINGLE_IMG +\n'
-                      f'                        MXC_S_CAMERAIF_CTRL_DATA_WIDTH_{mode}BIT +\n'
-                      '                        MXC_S_CAMERAIF_CTRL_DS_TIMING_EN_DIS +\n'
-                      '                        MXC_S_CAMERAIF_CTRL_PCIF_SYS_EN_EN')
-        if channels == 3:
-            memfile.write(' +\n                        (1<<30);\n\n')
+        if not tc.dev.MODERN_SIM:
+            memfile.write('  MXC_CAMERAIF0->ctrl = MXC_S_CAMERAIF_CTRL_READ_MODE_SINGLE_IMG +\n'
+                          f'                        MXC_S_CAMERAIF_CTRL_DATA_WIDTH_{mode}BIT +\n'
+                          '                        MXC_S_CAMERAIF_CTRL_DS_TIMING_EN_DIS +\n'
+                          '                        MXC_S_CAMERAIF_CTRL_PCIF_SYS_EN_EN')
+            if channels == 3:
+                memfile.write(' +\n                        (1<<30);\n\n')
+            else:
+                memfile.write(';\n\n')
         else:
-            memfile.write(';\n\n')
+            memfile.write('  MXC_PCIF->ctrl = MXC_S_CAMERAIF_CTRL_READ_MODE_SINGLE_IMG +\n'
+                          f'                   MXC_S_CAMERAIF_CTRL_DATA_WIDTH_{mode}BIT +\n'
+                          '                   MXC_F_CAMERAIF_CTRL_DS_TIMING_EN +\n'
+                          '                   MXC_F_CAMERAIF_CTRL_PCIF_SYS')
+            if channels == 3:
+                memfile.write(' +\n                   MXC_F_CAMERAIF_CTRL_THREE_CH_EN;\n\n')
+            else:
+                memfile.write(';\n\n')
 
     if riscv is None or riscv:
         if embedded_code or tc.dev.MODERN_SIM:
             if measure_energy:
-                memfile.write('  // Disable CNN clock\n'
-                              '  MXC_SYS_ClockDisable(MXC_SYS_PERIPH_CLOCK_CNN);\n'
-                              '  // Disable power to CNN\n'
-                              f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n'
-                              f'  MXC_{bbfc}->reg1 = 0x0; // Mask memory\n'
-                              f'  MXC_{bbfc}->reg0 = 0x0; // Power\n'
-                              f'  MXC_{bbfc}->reg2 = 0xf; // Iso\n'
-                              f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n'
+                memfile.write('  cnn_disable(); // Disable clock and power to CNN\n'
                               '  // Enable primary clock\n'
                               '  MXC_SYS_ClockSourceEnable(MXC_SYS_CLOCK_IPO);\n\n'
                               '  printf("Measuring system base power...\\n");\n'
@@ -456,67 +509,163 @@ def main(
                     memfile.write('  MXC_TMR_Delay(MXC_TMR0, 1000000);\n')
                 memfile.write('  SYS_COMPLETE;\n')
 
-            memfile.write('  // Reset all domains, restore power to CNN\n')
-            memfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
-            memfile.write(f'  MXC_{bbfc}->reg1 = 0x{mask:01x}; // Mask memory\n')
-            memfile.write(f'  MXC_{bbfc}->reg0 = 0x{mask:01x}; // Power\n')
-            memfile.write(f'  MXC_{bbfc}->reg2 = 0x{unmask:01x}; // Iso\n')
-            memfile.write(f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n\n')
+            if embedded_code and apifile is not None:
+                memfile.write('  // Enable peripheral, enable CNN interrupt, turn on CNN clock\n'
+                              f'  // CNN clock: {tc.dev.PLL_SPEED if pll else tc.dev.APB_SPEED} '
+                              'MHz div 1\n'
+                              '  cnn_enable(MXC_S_GCR_PCLKDIV_CNNCLKSEL_'
+                              f'{"ITO" if pll else "PCLK"}, MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1);\n')
+                function_header(apifile, function='enable',
+                                arguments='uint32_t clock_source, uint32_t clock_divider')
 
-            if not measure_energy:
-                select_clock(memfile, 'PCLK', 'DIV1', 'CNN clock: 0.5*100 MHz div 1')
+            mfile.write('  // Reset all domains, restore power to CNN\n')
+            mfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
+            mfile.write(f'  MXC_{bbfc}->reg1 = 0x{mask:01x}; // Mask memory\n')
+            mfile.write(f'  MXC_{bbfc}->reg0 = 0x{mask:01x}; // Power\n')
+            mfile.write(f'  MXC_{bbfc}->reg2 = 0x{unmask:01x}; // Iso\n')
+            mfile.write(f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n\n')
+
+            if embedded_code and apifile is not None:
+                if tc.dev.SUPPORT_PLL:
+                    mfile.write('  if (clock_source == MXC_F_GCR_PCLKDIV_CNNCLKSEL_ITO)\n  ')
+                    mfile.write('  while ((MXC_GCR->ito_ctrl & MXC_F_GCR_ITO_CTRL_RDY) != '
+                                'MXC_F_GCR_ITO_CTRL_RDY) ; // Wait for PLL\n')
+                mfile.write('  MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
+                            '~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | MXC_F_GCR_PCLKDIV_CNNCLKSEL))\n'
+                            '                     | clock_divider | clock_source;\n')
             else:
-                select_clock(memfile, 'PCLK', 'DIV8', 'CNN clock: 0.5*7.37 MHz div 8')
-            memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CNN); '
-                          '// Enable CNN clock\n')
+                select_clock(mfile, 'PCLK', 'DIV1', 'CNN clock: APB div 1')
+
+            mfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CNN); '
+                        '// Enable CNN clock\n\n')
+
             if not riscv:
-                memfile.write('\n  NVIC_SetVector(CNN_IRQn, CNN_ISR); '
-                              '// Set CNN complete vector\n')
+                mfile.write('  NVIC_SetVector(CNN_IRQn, CNN_ISR); '
+                            '// Set CNN complete vector\n')
             else:
-                memfile.write('\n  // Set CNN complete vector\n'
-                              '  __enable_irq();\n'
-                              '  NVIC_EnableIRQ(CNN_IRQn);\n'
-                              '  NVIC_EnableEVENT(CNN_IRQn);\n')
-            if boost is not None:
-                memfile.write(f'\n  // Configure P{boost[0]}.{boost[1]}, '
-                              'turn on the CNN Boost\n')
-                memfile.write('  mxc_gpio_cfg_t gpio_out;\n')
-                memfile.write(f'  gpio_out.port = MXC_GPIO{boost[0]};\n')
-                memfile.write(f'  gpio_out.mask = MXC_GPIO_PIN_{boost[1]};\n')
-                memfile.write('  gpio_out.pad = MXC_GPIO_PAD_NONE;\n')
-                memfile.write('  gpio_out.func = MXC_GPIO_FUNC_OUT;\n')
-                memfile.write('  MXC_GPIO_Config(&gpio_out);\n')
-                memfile.write('  MXC_GPIO_OutSet(gpio_out.port, gpio_out.mask);\n')
+                mfile.write('  // Set CNN complete vector\n'
+                            '  __enable_irq();\n'
+                            '  NVIC_EnableIRQ(CNN_IRQn);\n'
+                            '  NVIC_EnableEVENT(CNN_IRQn);\n')
+
+            if embedded_code and apifile is not None:
+                function_footer(apifile)  # enable()
+                function_header(apifile, function='boost_enable',
+                                arguments='mxc_gpio_regs_t *port, uint32_t pin')
+
+            if boost is not None or apifile is not None:
+                if boost and apifile is None:
+                    memfile.write(f'\n  // Configure P{boost[0]}.{boost[1]}, '
+                                  'turn on the CNN Boost\n')
+                mfile.write('  mxc_gpio_cfg_t gpio_out;\n')
+                if boost and apifile is None:
+                    memfile.write(f'  gpio_out.port = MXC_GPIO{boost[0]};\n')
+                    memfile.write(f'  gpio_out.mask = MXC_GPIO_PIN_{boost[1]};\n')
+                else:
+                    mfile.write('  gpio_out.port = port;\n')
+                    mfile.write('  gpio_out.mask = pin;\n')
+                    if boost:
+                        memfile.write(f'  cnn_boost_enable(MXC_GPIO{boost[0]}, '
+                                      f'MXC_GPIO_PIN_{boost[1]}); // Turn on the boost circuit\n')
+                mfile.write('  gpio_out.pad = MXC_GPIO_PAD_NONE;\n')
+                mfile.write('  gpio_out.func = MXC_GPIO_FUNC_OUT;\n')
+                mfile.write('  MXC_GPIO_Config(&gpio_out);\n')
+                mfile.write('  MXC_GPIO_OutSet(gpio_out.port, gpio_out.mask);\n')
+
+            if embedded_code and apifile is not None:
+                function_footer(apifile)  # boost_enable() or enable()
+
             memfile.write('\n')
 
         if embedded_code:
-            memfile.write('  printf("\\n*** CNN Inference Test ***\\n");\n\n')
+            memfile.write('  printf("\\n*** CNN Inference Test ***\\n");\n\n'
+                          '  cnn_init(); // Bring state machine into consistent state\n')
+            if measure_energy:
+                if pll:
+                    select_clock(memfile, 'ITO', 'DIV1', 'Switch CNN clock to PLL (ITO)')
 
-        if embedded_code:
-            memfile.write('  if (!cnn_load()) fail();\n')
+                memfile.write('\n  printf("Measuring weight loading...\\n");\n'
+                              '  CNN_START;\n'
+                              '  for (i = 0; i < 100; i++)\n'
+                              '    cnn_load_weights(); // Load kernels\n'
+                              '  CNN_COMPLETE;\n\n'
+                              '  printf("Measuring input loading...\\n");\n'
+                              '  MXC_TMR_Delay(MXC_TMR0, 500000);\n'
+                              '  CNN_START;\n'
+                              '  for (i = 0; i < 100; i++)\n'
+                              '    load_input(); // Load data input\n'
+                              '  CNN_COMPLETE;\n\n')
+            else:
+                memfile.write('  cnn_load_weights(); // Load kernels\n')
+            if verify_kernels:
+                memfile.write('  if (cnn_verify_weights() != CNN_OK) fail();\n')
+            if bias:
+                memfile.write('  cnn_load_bias();\n')
+            else:
+                memfile.write('  // cnn_load_bias(); // Not used in this network\n')
+            memfile.write('  cnn_configure(); // Configure state machine\n')
+            if not measure_energy:
+                if not fifo:
+                    memfile.write('  load_input(); // Load data input\n')
+                memfile.write('  cnn_start(); // Start CNN processing\n')
+                if fifo:
+                    memfile.write('  load_input(); // Load data input via FIFO\n')
+            memfile.write('\n')
         else:
-            memfile.write('  if (!cnn_load()) { fail(); pass(); return 0; }\n')
+            memfile.write('  cnn_init(); // Bring state machine into consistent state\n')
+            if load_kernels:
+                memfile.write('  cnn_load_weights(); // Load kernels\n')
+            else:
+                memfile.write('  // Kernels are pre-loaded\n')
+            if verify_kernels:
+                memfile.write('  if (cnn_verify_weights() != CNN_OK) { fail(); pass(); '
+                              'return 0; }\n')
+            if bias:
+                memfile.write('  cnn_load_bias();\n')
+            else:
+                memfile.write('  // No bias values\n')
+            memfile.write('  if (cnn_configure() != CNN_OK) { fail(); pass(); return 0; }\n')
 
         if stopstart:
             memfile.write('\n  cnn_stop();\n')
-            memfile.write('  cnn_restart();\n\n')
+            memfile.write('  cnn_continue();\n\n')
 
-        if embedded_code or tc.dev.MODERN_SIM:
-            memfile.write('  while (cnn_time == 0)\n')
-            if not riscv:
-                memfile.write('    __WFI(); // Wait for CNN\n\n')
+        if not measure_energy:
+            if embedded_code or tc.dev.MODERN_SIM:
+                memfile.write('  while (cnn_time == 0)\n')
+                if not riscv:
+                    memfile.write('    __WFI(); // Wait for CNN\n\n')
+                else:
+                    memfile.write('    asm volatile("wfi"); // Wait for CNN\n\n')
             else:
-                memfile.write('    asm volatile("wfi"); // Wait for CNN\n\n')
+                memfile.write('  cnn_wait();\n\n')
         else:
-            memfile.write('  cnn_wait();\n\n')
+            memfile.write('  printf("Measuring input load + inference...\\n");\n'
+                          '  MXC_TMR_Delay(MXC_TMR0, 500000);\n'
+                          '  CNN_START; // Allow capture of processing time\n'
+                          '  for (i = 0; i < 100; i++) {\n')
+            if not fifo:
+                memfile.write('    load_input(); // Load data input\n')
+            memfile.write('    cnn_start(); // Run inference\n')
+            if fifo:
+                memfile.write('    load_input(); // Load data input via FIFO\n')
+            memfile.write('    while (cnn_time == 0)\n')
+            if not riscv:
+                memfile.write('      __WFI(); // Wait for CNN\n')
+            else:
+                memfile.write('      asm volatile("wfi"); // Wait for CNN\n')
+            memfile.write('  }\n'
+                          '  CNN_COMPLETE;\n\n')
+
         if oneshot > 0:
             memfile.write(f'  for (i = 0; i < {oneshot}; i++) {{\n')
-            memfile.write('    cnn_restart();\n')
+            memfile.write('    cnn_continue();\n')
             if embedded_code or tc.dev.MODERN_SIM:
+                memfile.write('    while (cnn_time == 0)\n')
                 if not riscv:
-                    memfile.write('    __WFI();\n')
+                    memfile.write('      __WFI(); // Wait for CNN\n')
                 else:
-                    memfile.write('    asm volatile("wfi");\n')
+                    memfile.write('      asm volatile("wfi"); // Wait for CNN\n')
             else:
                 memfile.write('    cnn_wait();\n')
             memfile.write('  }\n\n')
@@ -525,80 +674,84 @@ def main(
             select_clock(memfile, 'PCLK', 'DIV1', 'Switch CNN clock and disable PLL')
             memfile.write('  MXC_GCR->ito_ctrl &= ~MXC_F_GCR_ITO_CTRL_EN;\n\n')
 
-        if not forever and boost is not None:
-            memfile.write('  // Turn off the CNN Boost\n')
-            memfile.write('  MXC_GPIO_OutClr(gpio_out.port, gpio_out.mask);\n\n')
+        if embedded_code and apifile is not None:
+            function_header(apifile, function='boost_disable',
+                            arguments='mxc_gpio_regs_t *port, uint32_t pin')
+            mfile.write('  mxc_gpio_cfg_t gpio_out;\n')
+            mfile.write('  gpio_out.port = port;\n')
+            mfile.write('  gpio_out.mask = pin;\n')
+            mfile.write('  gpio_out.pad = MXC_GPIO_PAD_NONE;\n')
+            mfile.write('  gpio_out.func = MXC_GPIO_FUNC_OUT;\n')
+            mfile.write('  MXC_GPIO_Config(&gpio_out);\n')
+            mfile.write('  MXC_GPIO_OutSet(gpio_out.port, gpio_out.mask);\n')
+            function_footer(apifile)  # boost_disable()
 
-        memfile.write('  if (!cnn_check()) fail();\n')
+        if not forever and boost is not None:
+            if apifile is None:
+                memfile.write('  // Turn off the CNN Boost\n')
+                memfile.write('  MXC_GPIO_OutClr(gpio_out.port, gpio_out.mask);\n\n')
+            else:
+                memfile.write(f'  cnn_boost_disable(MXC_GPIO{boost[0]}, '
+                              f'MXC_GPIO_PIN_{boost[1]}); // Turn off the boost circuit\n\n')
+
+        memfile.write('  if (check_output() != CNN_OK) fail();\n')
         if classification_layer or softmax:
-            memfile.write(f'  if (!{"softmax" if softmax else "fc"}_layer()) fail();\n')
+            memfile.write(f'  {"softmax" if softmax else "fc"}_layer();\n')
         elif unload:
-            memfile.write(f'  cnn_unload((uint{output_width}_t *) ml_data);\n')
+            memfile.write('  cnn_unload((uint32_t *) '
+                          f'ml_data{"32" if output_width != 32 else ""});\n')
         if classification_layer:
-            memfile.write('  if (!fc_verify()) fail();\n')
+            memfile.write('  if (fc_verify() != CNN_OK) fail();\n')
 
         if embedded_code:
-            memfile.write('\n  printf("\\n*** PASS ***\\n\\n");\n\n')
-            if not measure_energy:
-                memfile.write(f'  printf("Approximate {"data loading and " if fifo else ""}')
-                memfile.write('inference time: %d us\\n\\n", cnn_time);\n\n')
-            else:
+            memfile.write('\n  printf("\\n*** PASS ***\\n\\n");\n\n'
+                          '#ifdef CNN_INFERENCE_TIMER\n'
+                          f'  printf("Approximate {"data loading and " if fifo else ""}'
+                          'inference time: %d us\\n\\n", cnn_time);\n'
+                          '#endif\n\n')
+            if measure_energy:
                 memfile.write('  printf("See monitor display for inference energy.\\n\\n");\n\n')
 
         if not forever:
+            if embedded_code and apifile is not None:
+                memfile.write('  cnn_disable(); // Shut down CNN clock, disable peripheral\n\n')
+                function_header(apifile, function='disable')
             if embedded_code or tc.dev.MODERN_SIM:
-                memfile.write('  // Disable CNN clock\n'
-                              '  MXC_SYS_ClockDisable(MXC_SYS_PERIPH_CLOCK_CNN);\n')
-            memfile.write('  // Disable power to CNN\n')
-            memfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
-            memfile.write(f'  MXC_{bbfc}->reg1 = 0x0; // Mask memory\n')
-            memfile.write(f'  MXC_{bbfc}->reg0 = 0x0; // Power\n')
-            memfile.write(f'  MXC_{bbfc}->reg2 = 0xf; // Iso\n')
-            memfile.write(f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n\n')
+                mfile.write('  // Disable CNN clock\n'
+                            '  MXC_SYS_ClockDisable(MXC_SYS_PERIPH_CLOCK_CNN);\n\n')
+            mfile.write('  // Disable power to CNN\n')
+            mfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
+            mfile.write(f'  MXC_{bbfc}->reg1 = 0x0; // Mask memory\n')
+            mfile.write(f'  MXC_{bbfc}->reg0 = 0x0; // Power\n')
+            mfile.write(f'  MXC_{bbfc}->reg2 = 0xf; // Iso\n')
+            mfile.write(f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n')
+
+            if embedded_code and apifile is not None:
+                function_footer(apifile)  # disable()
 
         if not forever:
             if classification_layer or softmax:
                 memfile.write('  printf("Classification results:\\n");\n'
-                              '  for (i = 0; i < NUM_OUTPUTS; i++) {\n'
+                              '  for (i = 0; i < CNN_NUM_OUTPUTS; i++) {\n'
                               '    digs = (1000 * ml_softmax[i] + 0x4000) >> 15;\n'
                               '    tens = digs % 10;\n'
                               '    digs = digs / 10;\n'
                               '    printf("[%7d] -> Class %d: %d.%d%%\\n", '
                               f'{"fc_output" if classification_layer else "ml_data"}[i], '
                               'i, digs, tens);\n'
-                              '  }\n\n')
+                              '  }\n')
         else:
-            memfile.write('  printf("Starting endless loop...\\n");\n\n  LED_On(1);\n\n')
-
-            memfile.write('  while(1) {\n')
-
-            gval = tc.dev.READY_SEL << 1
-            if fifo:
-                gval |= 1 << 15
-            if device != 84:
-                gval |= 1 << 3  # Enable clocks
-            if mexpress:
-                gval |= 1 << 20
-
-            for _, group in enumerate(groups):
-                addr = tc.dev.APB_BASE + tc.ctl_addr(group, tc.dev.REG_CTL)
-                memfile.write(f'    *((volatile uint32_t *) 0x{addr:08x}) = 0x{gval:08x}; '
-                              '// Stop SM\n')
-            for _, group in enumerate(groups):
-                val = gval | 0x800
-                if group > 0:
-                    val |= 0x01
-                addr = tc.dev.APB_BASE + tc.ctl_addr(group, tc.dev.REG_CTL)
-                memfile.write(f'    *((volatile uint32_t *) 0x{addr:08x}) = 0x{val:08x}; '
-                              f'// Enable group {group}\n')
-
-            addr = tc.dev.APB_BASE + tc.ctl_addr(0, tc.dev.REG_CTL)
-            memfile.write(f'    *((volatile uint32_t *) 0x{addr:08x}) = 0x{gval | 0x01:08x}; '
-                          '// Master enable group 0\n')
-
-            memfile.write(f'    while ((*((volatile uint32_t *) '
-                          f'0x{tc.dev.APB_BASE + tc.dev.C_CNN_BASE:08x}) '
-                          '& (1<<12)) != 1<<12) ;\n')
+            memfile.write('  printf("Starting endless loop...\\n");\n\n  LED_On(1);\n\n'
+                          '  while(1) {\n'
+                          '    cnn_start();\n')
+            if embedded_code or tc.dev.MODERN_SIM:
+                memfile.write('    while (cnn_time == 0)\n')
+                if not riscv:
+                    memfile.write('      __WFI(); // Wait for CNN\n')
+                else:
+                    memfile.write('      asm volatile("wfi"); // Wait for CNN\n')
+            else:
+                memfile.write('    cnn_wait();\n')
 
             memfile.write('  }\n')
 
@@ -609,33 +762,12 @@ def main(
                               '  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=1\n')
             memfile.write('  __WFI(); // Let RISC-V run\n')
         elif embedded_code or tc.dev.MODERN_SIM:
-            memfile.write('  // Signal the Cortex-M4\n'
-                          '  MXC_SEMA->irq0 = MXC_F_SEMA_IRQ0_EN | MXC_F_SEMA_IRQ0_CM4_IRQ;\n\n')
+            memfile.write('\n  // Signal the Cortex-M4\n'
+                          '  MXC_SEMA->irq0 = MXC_F_SEMA_IRQ0_EN | MXC_F_SEMA_IRQ0_CM4_IRQ;\n')
 
     if not embedded_code and not embedded_arm:
-        memfile.write('  pass();\n')
-    memfile.write('  return 0;\n}\n\n')
-
-
-def verify_header(
-        memfile,
-        riscv_flash=False,
-):
-    """
-    Write the header for the CNN verification function to `memfile`.
-    """
-    if riscv_flash:
-        memfile.write(rv.RISCV_FLASH)
-    memfile.write('int cnn_check(void)\n{\n  int rv = 1;\n')
-
-
-def verify_footer(
-        memfile,
-):
-    """
-    Write the footer for the CNN verification function to `memfile`.
-    """
-    memfile.write('  return rv;\n}\n\n')
+        memfile.write('\n  pass();')
+    function_footer(memfile, return_value='0')  # Exit main - don't change from 0
 
 
 def fc_layer(
@@ -646,7 +778,7 @@ def fc_layer(
         cmsis_nn=False,
         softmax_only=False,
         output_width=8,
-        num_classes=None,
+        num_classes=None,  # pylint: disable=unused-argument
 ):
     """
     Write the call to the fully connected layer with the given `weights` and
@@ -655,9 +787,6 @@ def fc_layer(
     memfile.write('// Classification layer:\n')
     if not softmax_only:
         memfile.write(f'#define FC_IN {weights.shape[1]}\n')
-        memfile.write(f'#define NUM_OUTPUTS {weights.shape[0]}\n')
-    else:
-        memfile.write(f'#define NUM_OUTPUTS {num_classes}\n')
 
     if not softmax_only:
         weights = convert_to_x4_q7_weights(weights)
@@ -666,36 +795,39 @@ def fc_layer(
         memfile.write('static const q7_t fc_weights[] = FC_WEIGHTS;\n\n')
 
     if not cmsis_nn:
-        memfile.write(f'static int{output_width}_t ml_data[NUM_OUTPUTS];\n')
+        write_ml_data(memfile, output_width)
     if not softmax_only:
         memfile.write('static q15_t fc_buffer[FC_IN];\n')
-        memfile.write('static q15_t fc_output[NUM_OUTPUTS];\n')
-    memfile.write('static q15_t ml_softmax[NUM_OUTPUTS];\n\n')
+        memfile.write('static q15_t fc_output[CNN_NUM_OUTPUTS];\n')
+    memfile.write('static q15_t ml_softmax[CNN_NUM_OUTPUTS];\n\n')
 
     if bias is not None and not softmax_only:
         c_define(weights_fh, bias, 'FC_BIAS', '%d', 16)
         memfile.write('static const q7_t fc_bias[] = FC_BIAS;\n\n')
 
     if not cmsis_nn:
-        memfile.write(f'int {"softmax" if softmax_only else "fc"}_layer(void)\n'
-                      f'{{\n  cnn_unload((uint{output_width}_t *) ml_data);\n')
+        function_header(memfile, prefix='',
+                        function=f'{"softmax" if softmax_only else "fc"}_layer',
+                        return_type='void')
+        memfile.write(f'  cnn_unload((uint32_t *) ml_data{"32" if output_width != 32 else ""});\n')
     else:
-        memfile.write('int fc_layer(q7_t *ml_data)\n'
-                      '{\n')
+        function_header(memfile, prefix='', function='fc_layer', arguments='q7_t *ml_data',
+                        return_type='void')
 
     if not softmax_only:
         memfile.write('  arm_fully_connected_q7_q8p7_opt((q7_t *) ml_data, fc_weights, '
-                      'FC_IN, NUM_OUTPUTS, 0, 7, '
+                      'FC_IN, CNN_NUM_OUTPUTS, 0, 7, '
                       f'{"fc_bias" if bias is not None else "NULL"}, '
                       'fc_output, fc_buffer);\n')
-        memfile.write('  arm_softmax_q8p7_q15(fc_output, NUM_OUTPUTS, ml_softmax);\n\n')
+        memfile.write('  arm_softmax_q8p7_q15(fc_output, CNN_NUM_OUTPUTS, ml_softmax);\n')
     elif output_width == 32:
         memfile.write('  softmax_q17p14_q15((const q31_t *) ml_data, '
-                      'NUM_OUTPUTS, ml_softmax);\n\n')
+                      'CNN_NUM_OUTPUTS, ml_softmax);\n')
     else:
-        memfile.write('  arm_softmax_q7_q15((const q7_t *) ml_data, NUM_OUTPUTS, ml_softmax);\n\n')
+        memfile.write('  arm_softmax_q7_q15((const q7_t *) ml_data, '
+                      'CNN_NUM_OUTPUTS, ml_softmax);\n')
 
-    memfile.write('  return 1;\n}\n\n')
+    function_footer(memfile, return_value='void')
 
 
 def fc_verify(
@@ -708,11 +840,11 @@ def fc_verify(
     """
     memfile.write('// Expected output of classification layer:\n')
     c_define(sampledata, data, 'FC_EXPECTED', '%d', 16)
-    memfile.write('static q15_t fc_expected[NUM_OUTPUTS] = FC_EXPECTED;\n\n')
-    memfile.write('int fc_verify(void)\n'
-                  '{\n')
-    memfile.write('  return memcmp(fc_output, fc_expected, '
-                  'NUM_OUTPUTS * sizeof(q15_t)) == 0;\n}\n\n')
+    memfile.write('static q15_t fc_expected[CNN_NUM_OUTPUTS] = FC_EXPECTED;\n\n')
+    function_header(memfile, prefix='', function='fc_verify')
+    function_footer(memfile,
+                    return_value='memcmp(fc_output, fc_expected, '
+                                 'CNN_NUM_OUTPUTS * sizeof(q15_t)) == 0')
 
 
 def c_define(

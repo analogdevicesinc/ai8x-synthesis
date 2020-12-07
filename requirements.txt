@@ -8,4 +8,5 @@ torch==1.7.0
 pytest~=4.6.4
 onnx>=1.7.0
 tensorboard==2.4.0
+colorama>=0.4.4
 -e file:distiller

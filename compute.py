@@ -11,7 +11,6 @@ NumPy implementation of Conv2d, ConvTranspose2d, Pool2d.
 Compatible with PyTorch.
 """
 import os
-import sys
 
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
@@ -187,7 +186,6 @@ def conv2d(
     if debug:
         if not (ref == output).all():
             eprint('NumPy <-> Python mismatch in compute.conv2d')
-            sys.exit(1)
 
     assert output.shape == tuple(output_size)
 
@@ -345,7 +343,6 @@ def pool2d(
         match = (ref == pooled).all()
         if not match:
             eprint('NumPy <-> Python mismatch in compute.pool2d')
-            sys.exit(1)
 
     assert pooled.shape == tuple(output_size)
 
