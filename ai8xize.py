@@ -87,6 +87,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         pool_first,
         in_sequences,
         input_skip,
+        input_channel_skip,
         input_filename,
         output_filename,
         c_filename,
@@ -911,6 +912,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             print(f'Input channels      = {input_chan}')
             if any(s > 0 for s in input_skip):
                 print(f'Input skip          = {input_skip}')
+            if any(s > 0 for s in input_channel_skip):
+                print(f'Input channel skip  = {input_channel_skip}')
             print(f'Convolution groups  = {conv_groups}')
             print(f'Flatten             = {flatten}')
             print('Processor map       = [',
@@ -1777,6 +1780,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
         # Drop input channels?
         if reshape_inputs:
+            if input_channel_skip[ll] > 0:
+                data = np.delete(data, np.s_[:input_channel_skip[ll]], axis=1)
             data = np.delete(data, np.s_[in_chan:], axis=1)
 
         show_data(
@@ -2359,6 +2364,7 @@ def main():
 
     input_channels = input_channels[:layers]
     input_skip = params['input_skip'][:layers]
+    input_channel_skip = params['input_chan_skip'][:layers]
     output_channels = output_channels[:layers]
     output_offset = params['output_offset'][:layers]
     conf_input_dim = params['input_dim'][:layers]
@@ -2584,6 +2590,7 @@ def main():
             pool_first,
             in_sequences,
             input_skip,
+            input_channel_skip,
             args.input_filename,
             args.output_filename,
             args.c_filename,
