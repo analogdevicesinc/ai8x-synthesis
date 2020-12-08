@@ -116,7 +116,6 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
         sat_fn = get_max_bit_shift
         checkpoint['extras']['clipping_method'] = 'MAX_BIT_SHIFT'
 
-    first = True
     layers = 0
     num_layers = len(params['quantization']) if params else None
     for _, k in enumerate(checkpoint_state.keys()):
@@ -158,9 +157,6 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                     clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Default to 8 bits
 
             factor = 2**(clamp_bits-1) * sat_fn(checkpoint_state[k])
-            if first and arguments.clip_mode is not None:
-                factor /= 2.  # The input layer is [-0.5, +0.5] -- compensate
-                first = False
 
             if arguments.verbose:
                 print(k, 'avg_max:', unwrap(avg_max(checkpoint_state[k])),
@@ -205,9 +201,6 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
                 # and is therefore always 128.
                 bias *= 2**(tc.dev.ACTIVATION_BITS-1)
 
-                if first:  # Only True for QAT
-                    bias *= 2.  # Multiply first layer by 2. FIXME: Address this in DataLoader
-
                 # Ensure it fits and is an integer
                 bias = bias.add(.5).floor().clamp(min=-(2**(clamp_bits+tc.dev.ACTIVATION_BITS-2)),
                                                   max=2**(clamp_bits+tc.dev.ACTIVATION_BITS-2)-1)
@@ -218,9 +211,6 @@ def convert_checkpoint(dev, input_file, output_file, arguments):
             # Set output shift
             out_shift_name = '.'.join([layer, 'output_shift'])
             out_shift = torch.Tensor([-1 * get_max_bit_shift(checkpoint_state[k], True)])
-            if first:
-                out_shift -= 1
-                first = False
             new_checkpoint_state[out_shift_name] = out_shift
             if new_masks_dict is not None:
                 new_masks_dict[out_shift_name] = out_shift
