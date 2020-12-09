@@ -488,7 +488,6 @@ def main(
         else:
             memfile.write('  MXC_PCIF->ctrl = MXC_S_CAMERAIF_CTRL_READ_MODE_SINGLE_IMG +\n'
                           f'                   MXC_S_CAMERAIF_CTRL_DATA_WIDTH_{mode}BIT +\n'
-                          '                   MXC_F_CAMERAIF_CTRL_DS_TIMING_EN +\n'
                           '                   MXC_F_CAMERAIF_CTRL_PCIF_SYS')
             if channels == 3:
                 memfile.write(' +\n                   MXC_F_CAMERAIF_CTRL_THREE_CH_EN;\n\n')
