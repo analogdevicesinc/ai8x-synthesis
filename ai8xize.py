@@ -249,7 +249,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 fifo_group = False
             if output_width[0] != 8:
                 eprint('Single-layer fast FIFO setup requires output width of 8.')
-            if operator[0] not in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
+            if operator[0] != op.NONE:
                 eprint('Fast FIFO requies a convolution operation in the first layer.')
     elif streaming[0] and not allow_streaming:
         eprint('Streaming in the first layer requires use of a FIFO.')
@@ -605,7 +605,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                f'pool with stride {pool_stride_str[ll]}', embedded_code)
                 else:
                     apb.output('no pooling', embedded_code)
-                if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
+                if operator[ll] != op.NONE:
                     conv_str = f', {op.string(operator[ll])} with kernel size ' \
                                f'{kernel_size_str[ll]}, ' \
                                f'stride {stride_str[ll]}, ' \
@@ -657,7 +657,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             )
         if not block_mode and (embedded_code or mexpress or compact_weights):
             # Pre-define the kernels and bias values
-            kern_offs, kern_len = kernels.load(
+            kern_offs, kern_len, kern_count = kernels.load(
                 verbose,
                 True,
                 device,
@@ -849,7 +849,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         apb.function_footer()
 
         if block_mode or not (embedded_code or mexpress or compact_weights):
-            kern_offs, kern_len = kernels.load(
+            kern_offs, kern_len, kern_count = kernels.load(
                 verbose,
                 embedded_code,
                 device,
@@ -908,53 +908,57 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             print('------------------------')
             if repeat_layers > 1:
                 print(f'Layer repeat count  = {repeat_layers}')
-            print(f'Input dimensions    = {input_dim}')
+            print(f'Group map           = {group_map}')
+
+            print('Input offset        = [',
+                  ', '.join('0x{:04x}'.format(k) for k in in_offset), ']', sep='',)
+            print(f'Streaming           = {streaming}')
             print(f'Input channels      = {input_chan}')
+            print(f'Input dimensions    = {input_dim}')
+            print(f'Flatten             = {flatten}')
             if any(s > 0 for s in input_skip):
                 print(f'Input skip          = {input_skip}')
             if any(s > 0 for s in input_channel_skip):
                 print(f'Input channel skip  = {input_channel_skip}')
-            print(f'Convolution groups  = {conv_groups}')
-            print(f'Flatten             = {flatten}')
-            print('Processor map       = [',
-                  ', '.join('0x{:016x}'.format(k) for k in processor_map), ']', sep='',)
             print(f'Input expansion     = {in_expand}')
             print(f'Expansion threshold = {in_expand_thresh}')
+
+            print(f'Pooling             = {pool}')
+            print(f'Pooling stride      = {pool_stride}')
+            print(f'Pooled dimensions   = {pooled_dim}')
+
+            print('Processor map       = [',
+                  ', '.join('0x{:016x}'.format(k) for k in processor_map), ']', sep='',)
+
             print('Element-wise op     = [',
                   ', '.join(op.string(k, elt=True) for k in eltwise), ']', sep='',)
             print(f'Operand expansion   = {operands}')
 
-            print('Input offsets       = [',
-                  ', '.join('0x{:04x}'.format(k) for k in in_offset), ']', sep='',)
-
-            print(f'Output dimensions   = {output_dim}')
             print(f'Output channels     = {output_chan}')
-            print('Output processors   = [',
-                  ', '.join('0x{:016x}'.format(k) for k in output_processor_map), ']', sep='',)
+            print(f'Output dimensions   = {output_dim}')
             print(f'Output expansion    = {out_expand}')
             print(f'Expansion threshold = {out_expand_thresh}')
+            print(f'Output shift        = {output_shift}')
+            print('Output processors   = [',
+                  ', '.join('0x{:016x}'.format(k) for k in output_processor_map), ']', sep='',)
             print(f'Output data bits    = {output_width}')
-            print('Output offsets      = [',
+
+            print(f'Group with bias     = {bias_group}')
+            print(f'Bias offset         = {bias_offs}')
+
+            print('Output offset       = [',
                   ', '.join('0x{:04x}'.format(k) for k in out_offset), ']', sep='',)
 
-            print(f'Group map           = {group_map}')
-
-            print(f'Kernel offsets      = {kern_offs}')
-            print(f'Kernel lengths      = {kern_len}')
-            print(f'Kernel dimensions   = {kernel_size}')
-            print(f'Kernel size (bits)  = {quantization}')
-            print(f'Output shift        = {output_shift}')
             print('Operator            = [',
                   ', '.join(op.string(k) for k in operator), ']', sep='',)
-            print(f'Stride              = {stride}')
-
+            print(f'Kernel offset       = {kern_offs}')
+            print(f'Kernel length       = {kern_len}')
+            print(f'Kernel count        = {kern_count}')
+            print(f'Kernel dimensions   = {kernel_size}')
+            print(f'Kernel size (bits)  = {quantization}')
+            print(f'Convolution groups  = {conv_groups}')
             print(f'Padding             = {padding}')
-            print(f'Group with bias     = {bias_group}')
-            print(f'Bias offsets        = {bias_offs}')
-            print(f'Pooling             = {pool}')
-            print(f'Pooling stride      = {pool_stride}')
-            print(f'Pooled dimensions   = {pooled_dim}')
-            print(f'Streaming           = {streaming}')
+            print(f'Stride              = {stride}')
             print('')
 
         if verbose:
@@ -1239,18 +1243,13 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_LCTL2, val,
                                    verbose, comment=' // Layer control 2')
 
-                    # Configure mask count
-                    # Restriction: Every one of the mask memories will have to start from same
-                    # offset
+                    # Configure mask start and end addresses
+                    # Every mask memory starts from the same offset for all processors
                     oned_sad = 0
-                    if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
-                        in_exp = in_expand[ll]
-                        if flatten[ll]:
-                            in_exp *= pooled_dim[ll][0] * pooled_dim[ll][1]
-                        kl = (((fls(output_processor_map[ll])
-                                - (ffs(output_processor_map[ll])
-                                   & ~(tc.dev.P_SHARED-1))) + 1)
-                              * quantization[ll]) * out_expand[ll] * in_exp - quantization[ll]
+                    if operator[ll] != op.NONE:
+                        kl = (kern_count[ll] - 1) * quantization[ll]
+                        ochan = kern_count[ll] - 1
+
                         if ll == 0 and fast_fifo_quad or calcx4:
                             if calcx4:
                                 kl += quantization[ll]
@@ -1262,7 +1261,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         koffs *= 8
 
                     if hasattr(tc.dev, 'LREG_MCNT1'):
-                        if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
+                        if operator[ll] != op.NONE:
                             assert koffs < 2**19
                             assert kl + koffs < 2**19
                             apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT1, kl + koffs,
@@ -1270,20 +1269,18 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT2, koffs,
                                            verbose, comment=' // Mask offset')
                         else:
-                            assert operator[ll] == op.NONE
                             val = (out_expand[ll] - 1) * 8
                             assert val < 2**19
                             apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT2, val,
                                            verbose, comment=' // Mask offset')
                     else:
-                        if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
+                        if operator[ll] != op.NONE:
                             assert koffs < 2**16
                             assert kl + koffs < 2**16
                             # kern_offs is always bytes
                             val = \
                                 koffs << tc.dev.MCNT_SAD_OFFS | kl + koffs << tc.dev.MCNT_MAX_OFFS
                         else:
-                            assert operator[ll] == op.NONE
                             val = (out_expand[ll] - 1) * 8
                             assert val < 2**16
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT, val,
@@ -1292,14 +1289,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     if hasattr(tc.dev, 'LREG_OCHAN'):
                         val = 0
                         if operator[ll] != op.NONE:
-                            in_exp = in_expand[ll]
-                            if flatten[ll]:
-                                in_exp *= pooled_dim[ll][0] * pooled_dim[ll][1]
-                            ochan = ((((fls(output_processor_map[ll])
-                                        - (ffs(output_processor_map[ll])
-                                           & ~(tc.dev.P_SHARED-1))) + 1)
-                                      * quantization[ll]) * out_expand[ll] * in_exp
-                                     - quantization[ll]) // quantization[ll]
                             if calcx4:
                                 ochan //= 4
                             if ochan > 0:
@@ -1408,7 +1397,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     # Configure mask and processor enables
                     # Enable at most 16 processors and masks
                     val = (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO
-                    if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
+                    if operator[ll] != op.NONE:
                         val = val << 16 | val
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_ENA, val,
                                    verbose, comment=' // Mask and processor enables')

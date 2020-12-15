@@ -52,7 +52,7 @@ def print_map(
 def load(  # pylint: disable=too-many-branches,too-many-statements
         verbose,
         embedded_code,
-        device,
+        device,  # pylint: disable=unused-argument
         apb,
         start_layer,
         layers,
@@ -94,6 +94,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     proc_kern_max = [0] * tc.dev.MAX_PROC
     kern_offs = [start_offs] * layers
     kern_len = [0] * layers
+    kern_count = [0] * layers
     kernel_map = np.full((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE),
                          _INVALID_VALUE, dtype=np.int64)
     kernels_used = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE), dtype=np.int64)
@@ -111,7 +112,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     assert not ((embedded_code or mexpress) and calcx4)  # FIXME Add support later
 
     for ll in range(start_layer, layers):
-        if operator[ll] not in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
+        if operator[ll] == op.NONE:
             assert kern_len[ll] == 0
             assert kern_offs[ll] == start_offs
             continue
@@ -139,35 +140,50 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
 
         ksize = kernel_size[ll][0] * kernel_size[ll][1]
         qfactor = 8 // quantization[ll]
+        next_layer_map = output_processor_map[ll]
+        first_output_proc = ffs(next_layer_map)
+        start_col = first_output_proc % tc.dev.P_SHARED  # First target column
+
         # Determine the number of kernels that need to be programmed. Since each instance
         # spans 4 processors, kernels for all instances that have a single processor enabled
         # need to be written, i.e. round down the first. The last does not need to be rounded
         # up because hardware takes care of it.
-        next_layer_map = output_processor_map[ll]
         # When using kernels smaller than 8 bit, round up to the next 8-bit boundary
         # Gaps are accounted for like any other kernel.
-        kern_len[ll] = 1 + quantization[ll] * \
-            (fls(next_layer_map) - ffs(next_layer_map)) // 8
-        # This extends the kernels to the right on AI85 for input and output expansion
-        if output_chan[ll] > tc.dev.MAX_PROC:
-            kern_len[ll] = (kern_len[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
-        kern_len[ll] *= out_expand[ll] * in_expand[ll]
+
+        # This extends the kernels to the right for output expansion
+        if out_expand[ll] > 1:
+            first_output_proc -= start_col
+
+        kc = (1 + fls(next_layer_map) - first_output_proc) \
+            * out_expand[ll] * in_expand[ll]
+        kern_count[ll] = kc + start_col * out_expand[ll] * in_expand[ll]
+
         if not legacy_kernels and flatten[ll]:
-            kern_len[ll] *= kernel_reshaped.shape[1]
-            kern_len[ll] -= (out_expand[ll] * popcount(next_layer_map) - output_chan[ll]) \
-                * kernel_reshaped.shape[1] * 8 // (ksize * quantization[ll])
-        if device != 84:
-            # Pack kernels when using 1D convolutions, or 1x1 kernels
-            kern_len[ll] = (kern_len[ll] * ksize + 8) // 9
+            kc *= kernel_reshaped.shape[1]
+            kern_count[ll] *= kernel_reshaped.shape[1]  # FIXME
+            kc -= (out_expand[ll] * popcount(next_layer_map) - output_chan[ll]) \
+                * kernel_reshaped.shape[1]
+            kern_count[ll] -= (out_expand[ll] * popcount(next_layer_map) - output_chan[ll]) \
+                * kernel_reshaped.shape[1]
+
+        # Pack kernels to 72-bit words
+        kern_len[ll] = (kc * ksize * quantization[ll] + 71) // 72
+
         if ll == 0 and quad:
             kern_len[0] = (kern_len[0] + 3) // 4
+            kern_count[0] = (kern_count[0] + 3) // 4
 
         # We don't have to use dummy columns if there's space available on the left
         kern_offs[ll] = \
             max(0, kern_offs[ll] - (((ffs(next_layer_map) % tc.dev.P_SHARED)
                                      + qfactor - 1) // qfactor))
-        # The kernel offset needs to start at a multiple of 4.
+
+        # The kernel offset needs to start at a multiple of 4 since we use start_col to
+        # adjust within the group of 4 processors.
         kern_offs[ll] = (kern_offs[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
+
+        # Check for overflow
         if kern_offs[ll] + kern_len[ll] > tc.dev.mask_width(p):
             eprint(f'\nKernel memory exceeded at layer {ll}; offset: {kern_offs[ll]}, '
                    f'needed: {kern_len[ll]}.'
@@ -176,9 +192,9 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             sys.exit(1)
 
         proc_mask = 2**qfactor - 1
+
         # Start at the first used instance
         this_map_init = next_layer_map >> ffs(next_layer_map)
-        start_col = ffs(next_layer_map) % tc.dev.P_SHARED  # First target column
 
         for p in range(first_proc, last_proc+1):
             if (processor_map[ll] >> p) & 1 == 0:
@@ -237,7 +253,8 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                 return col_target
 
                             n = 0
-                            if src_offs < len(kernel_reshaped):
+                            if ie * in_expand_thresh[ll] + ch < in_ch \
+                               and src_offs < len(kernel_reshaped):
                                 if not flatten[ll]:
                                     k = np.zeros_like(kernel_reshaped[src_offs].flatten())
                                 else:
@@ -516,4 +533,4 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
 
             apb.function_footer()  # load_weights()
 
-    return kern_offs, kern_len
+    return kern_offs, kern_len, kern_count
