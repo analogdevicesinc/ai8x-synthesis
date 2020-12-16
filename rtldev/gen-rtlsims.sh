@@ -375,7 +375,7 @@
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mlp-multilayer --config-file tests/test-mlp-multilayer208.yaml --device "$DEVICE" --mexpress "$@"
 
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-resnet --checkpoint-file tests/test-resnet.pth.tar --config-file tests/test-resnet-4l.yaml --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-resnet --checkpoint-file tests/test-resnet.pth.tar --config-file tests/test-resnet.yaml --device "$DEVICE" --timeout 100 $SHORT_LOG "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-resnet --checkpoint-file tests/test-resnet.pth.tar --config-file tests/test-resnet.yaml --device "$DEVICE" --timeout 400 --queue-name long $SHORT_LOG "$@"
 
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-burnin_64x64x64 --config-file tests/test-burnin_64x64x64.yaml --device "$DEVICE" --compact-data --mexpress --max-checklines 4096 --timeout 60 $SHORT_LOG "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-burnin_16x64x64 --config-file tests/test-burnin_16x64x64.yaml --device "$DEVICE" --compact-data --mexpress --max-checklines 4096 "$@"
@@ -391,7 +391,7 @@
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mlpflattennopool12to2 --config-file tests/test-mlpflattennopool12to2.yaml --device "$DEVICE" --debug-computation --debug "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant2-fc --config-file tests/test-flatten-fc-quant2-fc.yaml --device "$DEVICE" --timeout 1000 "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mlpflatten768to100-quant4 --config-file tests/test-mlpflatten768to100-quant4.yaml --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-maxops85 --config-file tests/test-maxops.yaml --device "$DEVICE" --max-checklines 4096 --timeout 120 --queue-name long "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-maxops85 --config-file tests/test-maxops.yaml --device "$DEVICE" --max-checklines 4096 --timeout 400 --queue-name long "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-negate --config-file tests/test-negate.yaml --stop-after 0 --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-negate --config-file tests/test-negate.yaml --device "$DEVICE" "$@"
 

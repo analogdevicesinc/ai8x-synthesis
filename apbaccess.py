@@ -1013,8 +1013,29 @@ class APBTopLevel(APB):
         assert addr >= 0
 
         if self.output_data_mem is not None and data:
+            if mask is None:
+                if num_bytes == 4:
+                    mask = ''
+                elif num_bytes == 3:
+                    mask = 0xffffff
+                elif num_bytes == 2:
+                    mask = 0xffff
+                elif num_bytes == 1:
+                    mask = 0xff
+                else:
+                    raise NotImplementedError
+
+            if mask != '':
+                mask <<= first_proc * 8
+
+            val = f'{val:08x}'
+            if mask != '':
+                w = ''
+                for i, e in enumerate(f'{mask:08x}'):
+                    w += 'X' if e != 'f' else val[i]
+                val = w
             group, proc, mem, offs = tc.dev.datainstance_from_addr(addr)
-            self.output_data_mem[group][proc][mem].append((offs, f'{val:08x}'))
+            self.output_data_mem[group][proc][mem].append((offs, val))
             return
 
         addr += self.apb_base

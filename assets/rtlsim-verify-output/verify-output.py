@@ -57,7 +57,12 @@ for _, _, fnames in sorted(os.walk('data-expected')):
 
             try:
                 addr = int(addr[1:], base=16)
-                val = int(val.strip().lower(), base=16)
+                val = val.strip().lower()
+                mask = ''
+                for _, e in enumerate(val):
+                    mask += '0' if e == 'x' else 'f'
+                mask = int(mask, base=16)
+                val = int(val.replace('x', '0'), base=16)
             except ValueError:
                 print(f'ERROR: Malformed line {e.strip()} in file data-expected/{fname}!',
                       file=sys.stderr)
@@ -75,20 +80,21 @@ for _, _, fnames in sorted(os.walk('data-expected')):
                     failures += 1
                 else:
                     try:
-                        result = int(result, base=16)
+                        result0 = int(result.replace('x', '0'), base=16)
+                        resultf = int(result.replace('x', 'f'), base=16)
                     except ValueError:
                         print(f'ERROR: Malformed line {addr}: {data[addr].strip()} in '
                               f'file data-output/{fname}!', file=sys.stderr)
                         sys.exit(-3)
 
-                    # print(f'Found address {addr:04x}, val {val:08x}, comp {result:08x}')
-                    if result != val:
+                    # print(f'Found address {addr:04x}, val {val:08x}, comp {result}')
+                    if result0 & mask != val & mask or resultf & mask != val & mask:
                         if failures == 0:
                             print(f'Before this failure, {matches} values were correct.',
                                   file=sys.stderr)
                         print(f'ERROR: Data mismatch at address {addr:04x} in '
                               f'file data-output/{outname}. Expected: {val:04x}, '
-                              f'got {result:08x}!', file=sys.stderr)
+                              f'got {result} (mask {mask:08x})!', file=sys.stderr)
                         failures += 1
                     else:
                         matches += 1
