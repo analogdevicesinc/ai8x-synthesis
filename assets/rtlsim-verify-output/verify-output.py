@@ -59,8 +59,8 @@ for _, _, fnames in sorted(os.walk('data-expected')):
                 addr = int(addr[1:], base=16)
                 val = val.strip().lower()
                 mask = ''
-                for _, e in enumerate(val):
-                    mask += '0' if e == 'x' else 'f'
+                for _, m in enumerate(val):
+                    mask += '0' if m == 'x' else 'f'
                 mask = int(mask, base=16)
                 val = int(val.replace('x', '0'), base=16)
             except ValueError:

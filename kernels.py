@@ -167,8 +167,10 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             kern_count[ll] -= (out_expand[ll] * popcount(next_layer_map) - output_chan[ll]) \
                 * kernel_reshaped.shape[1]
 
-        # Pack kernels to 72-bit words
-        kern_len[ll] = (kc * ksize * quantization[ll] + 71) // 72
+        # Pack kernels to 72-bit words, while ensuring there is enough space when using 1/2/4
+        # bit kernels where the kernel count requires padding.
+        res = (kc % qfactor) * ksize * (qfactor - 1)
+        kern_len[ll] = (kc * ksize * quantization[ll] + res + 71) // 72
 
         if ll == 0 and quad:
             kern_len[0] = (kern_len[0] + 3) // 4
@@ -322,7 +324,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             if flatten[ll]:
                 kern_len[ll] = col_target
             else:
-                assert kern_len[ll] == col_target - start_col
+                kern_len[ll] = col_target - start_col
             proc_kern_max[p] = kern_offs[ll] + kern_len[ll]
             ch += 1
             m = 0

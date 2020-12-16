@@ -249,7 +249,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 fifo_group = False
             if output_width[0] != 8:
                 eprint('Single-layer fast FIFO setup requires output width of 8.')
-            if operator[0] != op.NONE:
+            if operator[0] == op.NONE:
                 eprint('Fast FIFO requies a convolution operation in the first layer.')
     elif streaming[0] and not allow_streaming:
         eprint('Streaming in the first layer requires use of a FIFO.')
