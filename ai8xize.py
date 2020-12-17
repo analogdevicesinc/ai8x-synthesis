@@ -222,6 +222,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     if result_output and mlator:
         result_output = False
 
+    if result_output:
+        max_count = None
+
     # Check streaming and FIFO constraints
     if fast_fifo_quad:
         fast_fifo = True
