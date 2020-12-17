@@ -267,6 +267,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     if sleep and not riscv:
         eprint('--deepsleep requires --riscv')
 
+    if oneshot and timer is not None:
+        eprint('--timer is not supported when using --one-shot')
+
     processor_map_0 = processor_map[0]
     if fast_fifo_quad:
         processor_map[0] = processor_map_0 << 48 | processor_map_0 << 32 \
