@@ -219,7 +219,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     if riscv_flash or riscv_exclusive:
         riscv = True
 
-    if result_output and mlator:
+    if result_output and (mlator or oneshot or stopstart):
         result_output = False
 
     if result_output:
@@ -2514,6 +2514,9 @@ def main():
             if padding[ll][0] >= 3 and args.device != devices.CMSISNN:
                 eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
                        f'(currently set to {padding[ll][0]}).')
+            if stride[ll][0] != 1:
+                eprint(f'{op.string(operator[ll])} in layer {ll} does not support stride other '
+                       f'than 1 (currently set to {stride[ll][0]}).')
             output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
                                2 * padding[ll][0]) // stride[ll][0] + 1,
                               1]

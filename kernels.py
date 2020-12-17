@@ -352,7 +352,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 ll = kernel_map[p][col]
                 if ll != _INVALID_VALUE:
                     k = kernel_data[p][col]
-                    apb.write_kern(ll, p, col, k, verify_only=verify, calcx4=calcx4)
+                    apb.write_kern(ll, p, col, k, calcx4=calcx4)
         apb.function_footer()  # load_weights()
 
     if embedded_code or mexpress:
