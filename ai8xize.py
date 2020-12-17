@@ -630,7 +630,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         if input_fifo:
             apb.output('#define USE_FIFO\n')
 
-        if (embedded_code and not fifo) or compact_data or input_csv:
+        if embedded_code or compact_data or input_csv:
             # Pre-define data memory loader. Inline later when generating RTL sim.
             load.load(
                 True,
