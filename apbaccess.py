@@ -1024,6 +1024,7 @@ class APBTopLevel(APB):
                     mask = 0xff
                 else:
                     raise NotImplementedError
+                assert first_proc + num_bytes <= 4
 
             if mask != '':
                 mask <<= first_proc * 8
@@ -1054,6 +1055,7 @@ class APBTopLevel(APB):
                 mask = 0xff
             else:
                 raise NotImplementedError
+            assert first_proc + num_bytes <= 4
 
         val_bytes = num_bytes
         if mask != '':

@@ -345,7 +345,7 @@ def verify(
                                 rv=False,
                                 comment=f' // {row},{col},{this_c}-{this_c+num_bytes-1}',
                                 num_bytes=num_bytes,
-                                first_proc=ffs(next_layer_map >> proc) % 4,
+                                first_proc=ffs(processor_map >> proc) % 4,
                                 data=ll == layers - 1,
                             )
                     else:

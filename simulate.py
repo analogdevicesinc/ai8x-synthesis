@@ -637,7 +637,7 @@ def pooling_layer(
         # Use pool_stride only
         if operation != op.CONV1D:
             pooled = data[:, :, ::pool_stride[0], ::pool_stride[1]]
-            if pool_stride[0] > 0 or pool_stride[1] > 0:
+            if pool_stride[0] > 1 or pool_stride[1] > 1:
                 if verbose:
                     print(f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
                           f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]} "
@@ -648,7 +648,7 @@ def pooling_layer(
                     print('')
         else:
             pooled = data[:, :, ::pool_stride[0]]
-            if pool_stride[0] > 0:
+            if pool_stride[0] > 1:
                 if verbose:
                     print(f"{pool[0]} {'AVERAGE' if pool_average else 'MAX'} "
                           f"POOLING, STRIDE {pool_stride[0]} "

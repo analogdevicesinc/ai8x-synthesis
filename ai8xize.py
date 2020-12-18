@@ -377,6 +377,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) must be equal to the'
                        f' number of input channels ({input_chan[ll]}), and output '
                        f' channels ({output_chan[ll]}) must be equal to input channels.')
+            if flatten[ll]:
+                eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) > 1 are not supported'
+                       f' when flattening.')
 
         if input_skip[ll] != 0 and not hasattr(tc.dev, 'MP_STRIDE_OFFS'):
             eprint(f'Layer {ll}: `in_skip` must be 0 for this device.')
@@ -663,7 +666,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             )
         if not block_mode and (embedded_code or mexpress or compact_weights):
             # Pre-define the kernels and bias values
-            kern_offs, kern_len, kern_count = kernels.load(
+            kern_offs, kern_len, kern_count, kern_ochan = kernels.load(
                 verbose,
                 True,
                 device,
@@ -682,6 +685,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 out_expand_thresh,
                 in_expand,
                 in_expand_thresh,
+                conv_groups,
                 flatten,
                 mexpress,
                 verify_kernels,
@@ -855,7 +859,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         apb.function_footer()
 
         if block_mode or not (embedded_code or mexpress or compact_weights):
-            kern_offs, kern_len, kern_count = kernels.load(
+            kern_offs, kern_len, kern_count, kern_ochan = kernels.load(
                 verbose,
                 embedded_code,
                 device,
@@ -874,6 +878,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 out_expand_thresh,
                 in_expand,
                 in_expand_thresh,
+                conv_groups,
                 flatten,
                 mexpress,
                 verify_kernels,
@@ -1254,7 +1259,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     oned_sad = 0
                     if operator[ll] != op.NONE:
                         kl = (kern_count[ll] - 1) * quantization[ll]
-                        ochan = kern_count[ll] - 1
+                        ochan = kern_ochan[ll] - 1
 
                         if ll == 0 and fast_fifo_quad or calcx4:
                             if calcx4:
@@ -1297,10 +1302,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         if operator[ll] != op.NONE:
                             if calcx4:
                                 ochan //= 4
-                            if ochan > 0:
-                                val = ochan - 1
+                            val = ochan
                         elif tscnt_max > 0:
-                            val = tscnt_max - 1
+                            val = tscnt_max
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_OCHAN, val,
                                        verbose, comment=' // Output channel count')
 

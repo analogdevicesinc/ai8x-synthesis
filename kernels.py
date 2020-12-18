@@ -68,6 +68,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         out_expand_thresh,
         in_expand,
         in_expand_thresh,
+        conv_groups,
         flatten=False,
         mexpress=False,
         verify=False,
@@ -95,6 +96,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     kern_offs = [start_offs] * layers
     kern_len = [0] * layers
     kern_count = [0] * layers
+    kern_ochan = [0] * layers
     kernel_map = np.full((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE),
                          _INVALID_VALUE, dtype=np.int64)
     kernels_used = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE), dtype=np.int64)
@@ -155,9 +157,17 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         if out_expand[ll] > 1:
             first_output_proc -= start_col
 
-        kc = (1 + fls(next_layer_map) - first_output_proc) \
-            * out_expand[ll] * in_expand[ll]
-        kern_count[ll] = kc + start_col * out_expand[ll] * in_expand[ll]
+        # MAX7800X devices currently support only groups=1 and groups equal to input channels
+        # equal to output channels.
+        if conv_groups[ll] == 1:
+            kc = (1 + fls(next_layer_map) - first_output_proc) \
+                * out_expand[ll] * in_expand[ll]
+            kern_ochan[ll] = kern_count[ll] = kc + start_col * out_expand[ll] * in_expand[ll]
+        else:
+            kc = in_expand[ll]
+            kern_count[ll] = kc + start_col * in_expand[ll]
+            kern_ochan[ll] = (1 + fls(next_layer_map) - first_output_proc) \
+                * in_expand[ll] + start_col * in_expand[ll]
 
         if not legacy_kernels and flatten[ll]:
             kc *= kernel_reshaped.shape[1]
@@ -166,6 +176,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 * kernel_reshaped.shape[1]
             kern_count[ll] -= (out_expand[ll] * popcount(next_layer_map) - output_chan[ll]) \
                 * kernel_reshaped.shape[1]
+            kern_ochan[ll] = kern_count[ll]
 
         # Pack kernels to 72-bit words, while ensuring there is enough space when using 1/2/4
         # bit kernels where the kernel count requires padding.
@@ -175,6 +186,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         if ll == 0 and quad:
             kern_len[0] = (kern_len[0] + 3) // 4
             kern_count[0] = (kern_count[0] + 3) // 4
+            kern_ochan[0] = (kern_ochan[0] + 3) // 4
 
         # We don't have to use dummy columns if there's space available on the left
         kern_offs[ll] = \
@@ -203,14 +215,23 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 # Unused source processor
                 continue
             col_target = start_col
-            for expand in range(out_expand[ll]):
+            out_range = out_expand[ll] if conv_groups[ll] == 1 else 1
+            for expand in range(out_range):
                 this_map = this_map_init
                 if ll == 0 and quad:
-                    col = expand * (out_expand_thresh[ll] + 3) // 4
-                    stop_col = col + (out_expand_thresh[ll] + 3) // 4
+                    if conv_groups[ll] == 1:
+                        col = expand * (out_expand_thresh[ll] + 3) // 4
+                        stop_col = col + (out_expand_thresh[ll] + 3) // 4
+                    else:
+                        col = expand
+                        stop_col = expand + 1
                 else:
-                    col = expand * out_expand_thresh[ll]
-                    stop_col = col + out_expand_thresh[ll]
+                    if conv_groups[ll] == 1:
+                        col = expand * out_expand_thresh[ll]
+                        stop_col = col + out_expand_thresh[ll]
+                    else:
+                        col = expand
+                        stop_col = expand + 1
                 while col < stop_col:
                     # Skip over unused bits in the target processor map
                     # (unused means 1 bit for 8-bit weights, 2 for 4-bit weights, etc.)
@@ -535,4 +556,4 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
 
             apb.function_footer()  # load_weights()
 
-    return kern_offs, kern_len, kern_count
+    return kern_offs, kern_len, kern_count, kern_ochan
