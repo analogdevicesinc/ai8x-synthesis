@@ -306,6 +306,15 @@ def main(
         memfile.write('  MXC_SEMA->irq0 = MXC_F_SEMA_IRQ0_EN & ~MXC_F_SEMA_IRQ0_CM4_IRQ;\n')
         function_footer(memfile, return_value='void')  # WakeISR()
 
+    # Add this to RTL simulations where it's missing from the SDK
+    if riscv is not None and not riscv and sleep and not embedded_code:
+        function_header(memfile, prefix='', function='_MXC_LP_ClearWakeStatus', return_type='void')
+        memfile.write('  /* Write 1 to clear */\n'
+                      '  MXC_PWRSEQ->lpwkst0 = 0xFFFFFFFF;\n'
+                      '  MXC_PWRSEQ->lpwkst1 = 0xFFFFFFFF;\n'
+                      '  MXC_PWRSEQ->lppwst  = 0xFFFFFFFF;\n')
+        function_footer(memfile, return_value='void')  # _MXC_LP_ClearWakeStatus
+
     function_header(memfile, prefix='', function='main')
     if clock_trim is not None and not riscv:
         memfile.write('  uint32_t trim;\n')
@@ -757,7 +766,9 @@ def main(
     if riscv is not None:
         if not riscv:
             if sleep:
-                memfile.write('  MXC_LP_ClearWakeStatus();\n'
+                if tc.dev.REQUIRE_SEMA_LPWKEN:
+                    memfile.write('  MXC_PWRSEQ->lppwen |= 0x400; // CPU1WKEN=1\n')
+                memfile.write(f'  {"_" if not embedded_code else ""}MXC_LP_ClearWakeStatus();\n'
                               '  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=1\n')
             memfile.write('  __WFI(); // Let RISC-V run\n')
         elif embedded_code or tc.dev.MODERN_SIM:
