@@ -2253,7 +2253,6 @@ def main():
                     args.display_checkpoint,
                     args.no_bias,
                     args.scale,
-                    args.keep_first,
                     args.generate_dequantized_onnx_file,
                 )
         else:

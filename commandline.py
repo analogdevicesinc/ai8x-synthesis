@@ -95,8 +95,6 @@ def get_parser():
     group.add_argument('--scale', metavar='S', required=None,
                        help="scale factor for quantizing onnx weights, not required"
                             "Typical values: PyTorch - 0.8; TensorFlow - 2.0; Default: no scaling")
-    group.add_argument('--keep-first', action='store_true', default=False,
-                       help="keep first level scale value (default: false)")
     group.add_argument('--generate-dequantized-onnx-file', action='store_true', default=False,
                        help="store dequantized weights (default: false)")
     # Need to transpose(1,2,0) in loader?

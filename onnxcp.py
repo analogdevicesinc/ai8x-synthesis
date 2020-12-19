@@ -562,7 +562,7 @@ def load(
         verbose=False,
         no_bias=None,
         scale=None,
-        keep_first=False,
+        keep_first=True,
         generate_dequantized_onnx_file=False,
 ):
     """
