@@ -8,6 +8,7 @@
 Simulate a single CNN layer
 """
 import os
+
 import numpy as np
 
 import op
@@ -554,11 +555,18 @@ def pooling_layer(
     """
     Perform pooling for one layer.
     """
+    # Always apply stride
+    if operation != op.CONV1D:
+        pooled_size = [input_size[0],
+                       (input_size[1] + pool_stride[0] - pool[0]) // pool_stride[0],
+                       (input_size[2] + pool_stride[1] - pool[1]) // pool_stride[1]]
+    else:
+        pooled_size = [input_size[0],
+                       (input_size[1] + pool_stride[0] - pool[0]) // pool_stride[0]]
+
+    # Actual pooling operation?
     if pool[0] > 1 or pool[1] > 1:
         if operation != op.CONV1D:
-            pooled_size = [input_size[0],
-                           (input_size[1] + pool_stride[0] - pool[0]) // pool_stride[0],
-                           (input_size[2] + pool_stride[1] - pool[1]) // pool_stride[1]]
             pooled = np.empty((operands, pooled_size[0], pooled_size[1], pooled_size[2]),
                               dtype=np.int64)
             for i in range(operands):
@@ -599,8 +607,6 @@ def pooling_layer(
             else:
                 stats.comp += st
         else:
-            pooled_size = [input_size[0],
-                           (input_size[1] + pool_stride[0] - pool[0]) // pool_stride[0]]
             pooled = pool1d(
                 data[0],
                 input_size,
@@ -628,8 +634,11 @@ def pooling_layer(
             pooled = np.expand_dims(pooled, axis=0)
 
     else:
-        pooled_size = input_size
-        pooled = data
+        # Use pool_stride only
+        if operation != op.CONV1D:
+            pooled = data[:, :, ::pool_stride[0], ::pool_stride[1]]
+        else:
+            pooled = data[:, :, ::pool_stride[0]]
 
     return pooled, pooled_size
 

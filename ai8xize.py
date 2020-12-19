@@ -33,10 +33,9 @@ import sampleweight
 import stats
 import tornadocnn as tc
 import yamlcfg
-from eprint import eprint
-from simulate import conv1d_layer, conv2d_layer, convtranspose2d_layer, \
-    linear_layer, passthrough_layer, eltwise_layer, \
-    pooling_layer, show_data
+from eprint import eprint, wprint
+from simulate import (conv1d_layer, conv2d_layer, convtranspose2d_layer, eltwise_layer,
+                      linear_layer, passthrough_layer, pooling_layer, print_data, show_data)
 from utils import ffs, fls, popcount
 
 
@@ -46,6 +45,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         verbose_all,
         debug,
         debug_computation,
+        debug_latency,  # pylint: disable=unused-argument
         no_error_stop,
         overwrite_ok,
         log,
@@ -89,6 +89,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         input_filename,
         output_filename,
         c_filename,
+        api_filename,
         base_directory,
         runtest_filename,
         log_filename,
@@ -103,7 +104,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         write_zero_regs=False,
         weight_filename=None,
         sample_filename=None,
-        device=84,
+        device=85,
         init_tram=False,
         avg_pool_rounding=False,
         fifo=False,
@@ -119,7 +120,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         riscv_flash=False,
         riscv_cache=False,
         riscv_debug=False,
-        riscv_debugwait=True,
+        debugwait=1,
         override_start=None,
         increase_start=0,
         override_rollover=None,
@@ -140,11 +141,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         powerdown=False,
         simple1b=False,
         legacy_test=True,
+        legacy_kernels=False,
         log_intermediate=False,
         log_pooling=False,
         allow_streaming=False,
         softmax=False,
-        unload=False,
         clock_trim=None,
         repeat_layers=1,
         fixed_input=False,
@@ -152,7 +153,19 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         boost=None,
         forever=False,
         write_gap=None,
+        start_layer=0,
+        pipeline=False,
+        pll=False,
+        reshape_inputs=False,
+        link_layer=False,
         measure_energy=False,
+        timer=None,
+        board_name='',
+        rd_ahead=False,
+        calcx4=False,
+        rtl_preload=False,
+        result_output=False,
+        weight_start=0,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -171,6 +184,31 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     pool_stride_str = [None] * layers
     stride_str = [None] * layers
 
+    if start_layer > tc.dev.MAX_START_LAYER:
+        eprint(f"--start-layer is set to {start_layer}, but the device only supports "
+               f"a maximum of {tc.dev.MAX_START_LAYER}.")
+
+    if link_layer and not hasattr(tc.dev, 'LREG_NXTLYR'):
+        eprint("--link-layer is not supported on this device.")
+
+    if rd_ahead and not hasattr(tc.dev, 'RD_AHEAD_OFFS'):
+        eprint("--read-ahead is not supported on this device.")
+
+    if calcx4 and not tc.dev.SUPPORT_CALCX4:
+        eprint("--calcx4 is not supported on this device.")
+
+    if pipeline and not tc.dev.SUPPORT_PIPELINE:
+        eprint("--pipeline is not supported on this device.")
+
+    if pll and not tc.dev.SUPPORT_PLL:
+        eprint("--pll is not supported on this device.")
+
+    if pipeline is None:
+        pipeline = tc.dev.SUPPORT_PIPELINE
+
+    if pll is None:
+        pll = pipeline
+
     if riscv_debug:
         riscv = True
     if riscv_cache:
@@ -178,6 +216,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         riscv_flash = True
     if riscv_flash or riscv_exclusive:
         riscv = True
+
+    if result_output and mlator:
+        result_output = False
 
     # Check streaming and FIFO constraints
     if fast_fifo_quad:
@@ -191,37 +232,35 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         if input_chan[0] > 16 or big_data[0] and input_chan[0] > 4:
             eprint("Using the FIFO is restricted to a maximum of 4 input channels (CHW) or "
                    f"16 channels (HWC); this test is using {input_chan[0]} channels.")
-            sys.exit(1)
         if big_data[0] and processor_map[0] & ~0x0001000100010001 != 0 \
            or not big_data[0] and processor_map[0] & ~0x000f000f000f000f != 0:
             eprint("The FIFO is restricted to processors 0, 16, 32, 48 (CHW) or "
                    "0-3, 16-19, 32-35, 48-51 (HWC).")
-            sys.exit(1)
         if fast_fifo:
             if big_data[0] and input_chan[0] > 1:
                 eprint("Fast FIFO supports only a single CHW input channel; "
                        f"this test is using {input_chan[0]} channels.")
-                sys.exit(1)
             elif not big_data[0] and input_chan[0] > 4:
                 eprint("Fast FIFO supports up to four HWC input channels; "
                        f"this test is using {input_chan[0]} channels.")
-                sys.exit(1)
             if processor_map[0] != 1 and processor_map[0] & 0x0e == 0:
                 fifo_group = False
             if output_width[0] != 8:
                 eprint('Single-layer fast FIFO setup requires output width of 8.')
-                sys.exit(1)
             if operator[0] not in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
                 eprint('Fast FIFO requies a convolution operation in the first layer.')
-                sys.exit(1)
     elif streaming[0] and not allow_streaming:
         eprint('Streaming in the first layer requires use of a FIFO.')
-        sys.exit(1)
 
     if mlator and (output_dim[-1][0] * output_dim[-1][1] < 4 or output_width[-1] > 8):
-        eprint('--mlator should only be used with 4 or more 8-bit outputs per channel; ignoring.',
-               error=False)
+        wprint('--mlator should only be used with 4 or more 8-bit outputs per channel; ignoring.')
         mlator = False
+
+    if fast_fifo and not riscv:
+        eprint('--fast-fifo requires --riscv')
+
+    if sleep and not riscv:
+        eprint('--deepsleep requires --riscv')
 
     processor_map_0 = processor_map[0]
     if fast_fifo_quad:
@@ -242,16 +281,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                    f"output_shift range of [{-15 - implicit_shift}, +{15 - implicit_shift}]. "
                    f"The specified value of output_shift is {output_shift[ll] - implicit_shift} "
                    "which exceeds the system limits.")
-            sys.exit(1)
 
         if big_data[ll]:
             p = processor_map[ll] >> (ffs(processor_map[ll]) & ~(tc.dev.P_SHARED-1))
             while p:
                 if popcount(p & (tc.dev.P_SHARED-1)) > 1:
-                    eprint(f"Layer {ll} uses CHW (big data) input format, but multiple channels "
+                    eprint(f"Layer {ll} uses CHW input format, but multiple channels "
                            "share the same memory instance. Modify the processor map for "
                            f"layer {ll}.")
-                    sys.exit(1)
                 p >>= tc.dev.P_SHARED
 
         out_expand[ll] = (output_chan[ll] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
@@ -273,19 +310,19 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         # Data memory size check - 4 channels share one instance unless CHW format
         in_size = input_dim[ll][0] * input_dim[ll][1] * in_expand[ll] * operands[ll] \
             * (1 if big_data[ll] else 4)
-        if not streaming[ll] and in_size + in_offset[ll] > tc.dev.INSTANCE_SIZE*16:
-            eprint(f'Layer {ll}: {1 if big_data[ll] else 4}-channel input size {in_size} '
+        if not streaming[ll] and in_size + in_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
+            eprint(f'Layer {ll}: {1 if big_data[ll] else 4}-channel {input_dim[ll][0]}x'
+                   f'{input_dim[ll][1]} input (size {in_size}) '
                    f'with input offset 0x{in_offset[ll]:04x} and expansion {in_expand[ll]}x '
-                   f'exceeds data memory instance size of {tc.dev.INSTANCE_SIZE*16}.')
-            sys.exit(1)
+                   f'exceeds data memory instance size of {tc.dev.INSTANCE_WIDTH*16}.')
         out_size = output_dim[ll][0] * output_dim[ll][1] * out_expand[ll] \
             * 4 * output_width[ll] // 8
         if (not streaming[ll] or ll == layers - 1) \
-           and out_size + out_offset[ll] > tc.dev.INSTANCE_SIZE*16:
-            eprint(f'Layer {ll}: 4-channel, {output_width[ll]}-bit output size {out_size} '
+           and out_size + out_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
+            eprint(f'Layer {ll}: 4-channel, {output_width[ll]}-bit {output_dim[ll][0]}x'
+                   f'{output_dim[ll][1]} output (size {out_size}) '
                    f'with output offset 0x{out_offset[ll]:04x} and expansion {out_expand[ll]}x '
-                   f'exceeds data memory instance size of {tc.dev.INSTANCE_SIZE*16}.')
-            sys.exit(1)
+                   f'exceeds data memory instance size of {tc.dev.INSTANCE_WIDTH*16}.')
 
         if operator[ll] != op.CONV1D:
             input_dim_str[ll] = f'{input_dim[ll][0]}x{input_dim[ll][1]}'
@@ -314,18 +351,29 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 tram_max[ll] *= stride[ll][1]
 
         if input_chan[ll] % conv_groups[ll] != 0 or output_chan[ll] % conv_groups[ll] != 0:
-            eprint(f'Layer {ll}: convolution groups {conv_groups[ll]} does not divide'
-                   f' the input channels {input_chan[ll]} or output channels {output_chan[ll]}.')
-            sys.exit(1)
+            eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) does not divide'
+                   f' the input channels ({input_chan[ll]}) or'
+                   f' output channels ({output_chan[ll]}).')
 
         if flatten[ll] and operator[ll] == op.NONE:
             eprint(f'Layer {ll}: `flatten` is not compatible with passthrough layers.')
-            sys.exit(1)
+
+        if flatten[ll] and (pool[ll][0] > 1 or pool[ll][1] > 1):
+            eprint(f'Layer {ll}: `flatten` is not compatible with pooling.')
+
+        if conv_groups[ll] > 1:
+            if not tc.dev.SUPPORT_DEPTHWISE:
+                eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) > 1 are not supported'
+                       f' on this device.')
+            if conv_groups[ll] != input_chan[ll] or conv_groups[ll] != output_chan[ll]:
+                eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) must be equal to the'
+                       f' number of input channels ({input_chan[ll]}), and output '
+                       f' channels ({output_chan[ll]}) must be equal to input channels.')
 
     # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
     test_name = prefix
     if not embedded_code:
-        for ll in range(layers):
+        for ll in range(start_layer, layers):
             test_name += f'-{input_chan[ll]}x{input_dim_str[ll]}' \
                          f'{"b" if big_data[ll] else "l"}' \
                          f'{"f" if flatten[ll] else ""}_' \
@@ -383,11 +431,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         if input_chan[ll] > tc.dev.MAX_CHANNELS:
             eprint(f'Layer {ll} is configured for {input_chan[ll]} inputs, which exceeds '
                    f'the system maximum of {tc.dev.MAX_CHANNELS}.')
-            sys.exit(1)
         if output_chan[ll] > tc.dev.MAX_CHANNELS:
             eprint(f'Layer {ll} is configured for {output_chan[ll]} outputs, which exceeds '
                    f'the system maximum of {tc.dev.MAX_CHANNELS}.')
-            sys.exit(1)
         if (ll != 0 or not fast_fifo_quad) \
            and popcount(processor_map[ll]) != in_expand_thresh[ll]:
             eprint(f'Layer {ll} has {input_chan[ll]} inputs with input expansion '
@@ -395,21 +441,18 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                    f'but enabled processor map 0x{processor_map[ll]:016x} '
                    f'has {popcount(processor_map[ll])} bits instead of the '
                    f'expected number of {in_expand_thresh[ll]}.')
-            sys.exit(1)
         if ll == 0 and fast_fifo_quad and popcount(processor_map_0) != in_expand_thresh[ll]:
             eprint(f'Layer {ll} has {input_chan[ll]} inputs with input expansion '
                    f'{in_expand[ll]}, threshold {in_expand_thresh[ll]}, but '
                    f'enabled processor map 0x{processor_map[ll]:016x} '
                    f'has {popcount(processor_map[ll])} bits instead of the '
                    f'expected number of {in_expand_thresh[ll]}.')
-            sys.exit(1)
         if popcount(output_processor_map[ll]) != out_expand_thresh[ll]:
             eprint(f'Layer {ll} has {output_chan[ll]} outputs with output expansion '
                    f'{out_expand[ll]}, threshold {out_expand_thresh[ll]}, but '
                    f'processor output map 0x{output_processor_map[ll]:016x} '
                    f'has {popcount(output_processor_map[ll])} bits instead of the '
                    f'expected number of {out_expand_thresh[ll]}.')
-            sys.exit(1)
         this_map = []
         for group in range(tc.dev.P_NUMGROUPS):
             if (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO:
@@ -439,7 +482,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
     if 0 not in groups_used:
         eprint('Group 0 is not used, this currently does not work.')
-        sys.exit(1)
 
     # Create ARM code wrapper if needed
     if riscv and not block_mode:
@@ -454,32 +496,33 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 riscv_cache=riscv_cache,
                 riscv_exclusive=riscv_exclusive,
                 sleep=sleep,
+                mexpress=mexpress,
+                mem_output=rtl_preload,
+                mem_output_final=result_output,
+                debugwait=debugwait,
+                embedded_arm=embedded_code,
+                fail_indicator=forever,
+                groups=list(set().union(groups_used)),
+                clock_trim=clock_trim,
+                pll=pll,
             )
             apb.copyright_header()
 
             apb.output(f'// ARM wrapper code\n// {test_name}\n')
-            apb.output(f'// Created using {" ".join(str(x) for x in sys.argv)}\n')
+            apb.output(f'// Created using {" ".join(str(x) for x in sys.argv)}\n\n')
 
-            apb.header(
-                embedded_arm=embedded_code,
-                fail_indicator=forever,
-                measure_energy=measure_energy,
-            )
-            apb.main(
-                clock_trim=clock_trim,
-                embedded_arm=embedded_code,
-                groups=list(set().union(groups_used)),
-                boost=boost,
-                forever=forever,
-                mexpress=mexpress,
-                fifo=fifo,
-                measure_energy=measure_energy,
-            )
+            apb.header()
+            apb.main()
 
     if input_csv is not None:
         csv = os.path.join(base_directory, test_name, input_csv)
     else:
         csv = None
+
+    if embedded_code and api_filename.lower() != 'none':
+        apifile = open(os.path.join(base_directory, test_name, api_filename), mode='w')
+    else:
+        apifile = None
 
     with open(os.path.join(base_directory, test_name, filename), mode='w') as memfile:
         apb = apbaccess.apbwriter(
@@ -498,41 +541,65 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             sample_filename=sample_filename,
             device=device,
             verify_kernels=verify_kernels,
-            master=groups_used[0] if oneshot > 0 or stopstart else False,
+            master=groups_used[0] if oneshot > 0 or stopstart or (apifile is not None) else False,
             riscv=True if riscv else None,
             riscv_flash=riscv_flash,
             riscv_cache=riscv_cache,
             riscv_debug=riscv_debug,
-            riscv_debugwait=riscv_debugwait,
+            debugwait=debugwait,
             fast_fifo=fast_fifo,
             input_csv=input_csv,
             input_csv_format=input_csv_format,
             input_chan=input_chan[0],
             sleep=sleep,
+            mexpress=mexpress,
+            mem_output=rtl_preload,
+            mem_output_final=result_output,
+            apifile=apifile,
+            measure_energy=measure_energy,
+            timer=timer,
+            pll=pll,
+            boost=boost,
+            forever=forever,
+            fifo=fifo,
+            fail_indicator=forever,
+            groups=list(set().union(groups_used)),
+            clock_trim=clock_trim,
+            oneshot=layers - 1 if oneshot else 0,
+            softmax=softmax,
+            stopstart=stopstart,
+            num_classes=output_chan[-1],
+            output_width=output_width[-1],
+            bias=any(b is not None for b in bias),
         )
 
         apb.copyright_header()
 
         apb.output(f'// {test_name}\n')
-        apb.output(f'// Created using {" ".join(str(x) for x in sys.argv)}\n')
+        apb.output(f'// Created using {" ".join(str(x) for x in sys.argv)}\n\n')
+        if apifile is not None:
+            apb.output(f'// {test_name}\n', True)
+            apb.output(f'// Created using {" ".join(str(x) for x in sys.argv)}\n\n', True)
+            apb.output('// DO NOT EDIT - regenerate this file instead!\n\n', True)
 
         # Human readable description of test
-        apb.output(f'\n// Configuring {repeat_layers * layers} '
-                   f'layer{"s" if repeat_layers * layers > 1 else ""}:\n')
+        apb.output(f'// Configuring {repeat_layers * layers} '
+                   f'layer{"s" if repeat_layers * layers > 1 else ""}:\n', embedded_code)
 
         for r in range(repeat_layers):
-            for ll in range(layers):
+            for ll in range(start_layer, layers):
                 apb.output(f'// Layer {r * layers + ll}: '
                            f'{str(operands[ll])+"x" if operands[ll] > 1 else ""}'
                            f'{input_chan[ll]}x{input_dim_str[ll]} ('
                            f'{"streaming " if streaming[ll] else ""}'
                            f'{"flattened " if flatten[ll] else ""}'
-                           f'{"CHW/big data)" if big_data[ll] else "HWC/little data)"}, ')
+                           f'{"CHW data)" if big_data[ll] else "HWC data)"}, ',
+                           embedded_code)
                 if pool[ll][0] > 1 or pool[ll][1] > 1:
                     apb.output(f'{pool_str[ll]} {"avg" if pool_average[ll] else "max"} '
-                               f'pool with stride {pool_stride_str[ll]}')
+                               f'pool with stride {pool_stride_str[ll]}', embedded_code)
                 else:
-                    apb.output('no pooling')
+                    apb.output('no pooling', embedded_code)
                 if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
                     conv_str = f', {op.string(operator[ll])} with kernel size ' \
                                f'{kernel_size_str[ll]}, ' \
@@ -541,24 +608,25 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 else:
                     conv_str = ', no convolution, '
                 apb.output(conv_str +
-                           f'{output_chan[ll]}x{output_dim_str[ll]} output\n')
+                           f'{output_chan[ll]}x{output_dim_str[ll]} output\n', embedded_code)
 
-        apb.output('\n')
-        apb.header(
-            fail_indicator=forever,
-            measure_energy=measure_energy,
-        )
+        apb.output('\n', embedded_code)
+
+        apb.header()
 
         if embedded_code or compact_data or mexpress:
-            apb.output('void memcpy32(uint32_t *dst, const uint32_t *src, int n)\n{\n')
+            apb.function_header(prefix='', function='memcpy32', return_type='void',
+                                arguments='uint32_t *dst, const uint32_t *src, int n')
             apb.output('  while (n-- > 0) {\n'
                        '    *dst++ = *src++;\n'
-                       '  }\n}\n\n')
+                       '  }\n', embedded_code)
+            apb.function_footer(return_value='void')  # memcpy32()
+
+        if input_fifo:
+            apb.output('#define USE_FIFO\n')
 
         if (embedded_code and not fifo) or compact_data or input_csv:
             # Pre-define data memory loader. Inline later when generating RTL sim.
-            if input_fifo:
-                apb.output('#define USE_FIFO\n')
             load.load(
                 True,
                 apb,
@@ -589,6 +657,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 True,
                 device,
                 apb,
+                0,
                 layers,
                 operator,
                 kernel,
@@ -609,6 +678,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 fast_fifo_quad,
                 debug,
                 block_mode,
+                legacy_kernels=legacy_kernels,
+                calcx4=calcx4,
+                api=embedded_code,
+                start_offs=weight_start,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
                 verbose,
@@ -623,18 +696,62 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 debug,
             )
 
-        apb.load_header()
+        apb.function_header(function='init')
 
         # Initialize CNN registers
 
         if verbose:
+            # startup, lat = stats.calc_latency(
+            #     streaming,
+            #     layers,
+            #     eltwise,
+            #     pool,
+            #     pooled_dim,
+            #     in_expand,
+            #     output_chan,
+            #     output_dim,
+            #     input_dim,
+            #     padding,
+            #     kernel_size,
+            # )
+            # print('\nEstimated latency:')
+            # print('------------------')
+            # if lat is None:
+            #     print('N/A')
+            # else:
+            #     total = startup
+            #     print(f'Startup{startup:14,}')
+            #     for k in range(start_layer, layers):
+            #         total += lat[k][0]
+            #         print(f'Layer {k:<3}{lat[k][0]:12,}', end='')
+            #         if debug_latency:
+            #             print('', lat[k][1])
+            #         else:
+            #             print('')
+            #     print('           ==========')
+            #     print(f'Total{total:16,} cycles')
+
             print('\nGlobal registers:')
             print('-----------------')
 
+        if tc.dev.REQUIRE_REG_CLEAR:
+            for _, group in enumerate(groups_used):
+                apb.write_ctl(group, tc.dev.REG_CTL, 1 << 3 | tc.dev.READY_SEL << 1,
+                              verbose, comment=' // Enable clocks', no_verify=True)
+            for _, group in enumerate(groups_used):
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 7,
+                              verbose, comment=' // Clear registers', no_verify=True)
+            for _, group in enumerate(groups_used):
+                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 25, 1 << 25,
+                             comment=' // Wait for clear')
+            for _, group in enumerate(groups_used):
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
+                              verbose, comment=' // Reset BIST', force_write=True, no_verify=True)
+            apb.output('\n', embedded_code)
+
         # Reset
-        if device != 84:
-            apb.write_fifo_ctl(tc.dev.AON_CTL, tc.dev.AON_READY_SEL,
-                               verbose, comment=' // AON control', force_write=True)
+        apb.write_fifo_ctl(tc.dev.AON_CTL, tc.dev.AON_READY_SEL,
+                           verbose, comment=' // AON control', force_write=True)
 
         # Disable completely unused groups
         for group in range(tc.dev.P_NUMGROUPS):
@@ -650,21 +767,20 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     for p in range(tc.dev.P_NUMPRO):
                         for offs in range(tc.dev.TRAM_SIZE):
                             apb.write_tram(group, p, offs, 0, comment='Zero ')
-                    apb.output('\n')
+                    apb.output('\n', embedded_code)
                 else:
                     for p in range(tc.dev.P_NUMPRO):
                         addr = apb_base + tc.dev.C_GROUP_OFFS*group + tc.dev.C_TRAM_BASE \
                             + p * tc.dev.TRAM_OFFS * 4
                         apb.output(f'  memset((uint32_t *) 0x{addr:08x}, 0, '
-                                   f'{tc.dev.TRAM_SIZE}); // Zero TRAM {group}\n')
-                        apb.output('\n')
+                                   f'{tc.dev.TRAM_SIZE}); // Zero TRAM {group}\n', embedded_code)
+                        apb.output('\n', embedded_code)
 
             # Stop state machine - will be overwritten later; enable FIFO
             val = tc.dev.READY_SEL << 1
             if fifo:
                 val |= 1 << 15
-            if device != 84:
-                val |= 1 << 3  # Enable clocks
+            val |= 1 << 3  # Enable clocks
             if mexpress:
                 val |= 1 << 20
             apb.write_ctl(group, tc.dev.REG_CTL, val,
@@ -672,12 +788,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             # SRAM Control - does not need to be changed
             apb.write_ctl(group, tc.dev.REG_SRAM, 0x40e,
                           verbose, comment=' // SRAM control')
-            # Number of layers
-            apb.write_ctl(group, tc.dev.REG_LCNT_MAX, repeat_layers * layers - 1,
+            # Number of layers and start layer
+            val = (repeat_layers * layers - 1) | (start_layer << 8)
+            apb.write_ctl(group, tc.dev.REG_LCNT_MAX, val,
                           verbose, comment=' // Layer count')
-            apb.output('\n')
 
-        if device != 84 and zero_sram:
+        if zero_sram:
             for group in range(tc.dev.P_NUMGROUPS):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 0,
                               verbose, comment=' // Data SRAM BIST')
@@ -690,7 +806,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             for group in range(tc.dev.P_NUMGROUPS):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
                               verbose, comment=' // Reset BIST', force_write=True)
-            apb.output('\n')
+            apb.output('\n', embedded_code)
             for group in range(tc.dev.P_NUMGROUPS):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 2,
                               verbose, comment=' // Mask SRAM BIST')
@@ -703,7 +819,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             for group in range(tc.dev.P_NUMGROUPS):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
                               verbose, comment=' // Reset BIST', force_write=True)
-            apb.output('\n')
+            apb.output('\n', embedded_code)
             for group in range(tc.dev.P_NUMGROUPS):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 4,
                               verbose, comment=' // Tornado SRAM BIST')
@@ -716,7 +832,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             for group in range(tc.dev.P_NUMGROUPS):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
                               verbose, comment=' // Reset BIST', force_write=True)
-            apb.output('\n')
+            apb.output('\n', embedded_code)
             for group in range(tc.dev.P_NUMGROUPS):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 6,
                               verbose, comment=' // Bias Rfile BIST')
@@ -729,13 +845,17 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             for group in range(tc.dev.P_NUMGROUPS):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
                               verbose, comment=' // Reset BIST', force_write=True)
-            apb.output('\n')
+            apb.output('\n', embedded_code)
+
+        apb.function_footer()
 
         if block_mode or not (embedded_code or mexpress or compact_weights):
             kern_offs, kern_len = kernels.load(
                 verbose,
                 embedded_code,
-                device, apb,
+                device,
+                apb,
+                0,
                 layers,
                 operator,
                 kernel,
@@ -756,6 +876,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 fast_fifo_quad,
                 debug,
                 block_mode,
+                legacy_kernels=legacy_kernels,
+                calcx4=calcx4,
+                start_offs=weight_start,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
                 verbose,
@@ -769,18 +892,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 streaming,
                 debug,
             )
-        else:
-            apb.output('  load_kernels();\n')
-            if verify_kernels:
-                apb.output('  if (!verify_kernels()) return 0;\n')
-            if max(group_bias_max) > 0:
-                apb.output('  load_bias();\n')
 
         if verbose:
             print('\nGlobal configuration:')
             print('---------------------')
             print(f'Used processors     = 0x{processors_used:016x}')
             print(f'Used groups         = {groups_used}')
+            if start_layer > 0:
+                print(f'Starting layer      = {start_layer}')
 
             print('\nPer-group configuration:')
             print('-----------------------')
@@ -796,12 +915,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             print(f'Flatten             = {flatten}')
             print('Processor map       = [',
                   ', '.join('0x{:016x}'.format(k) for k in processor_map), ']', sep='',)
-            if device != 84:
-                print(f'Input expansion     = {in_expand}')
-                print(f'Expansion threshold = {in_expand_thresh}')
-                print('Element-wise op     = [',
-                      ', '.join(op.string(k, elt=True) for k in eltwise), ']', sep='',)
-                print(f'Operand expansion   = {operands}')
+            print(f'Input expansion     = {in_expand}')
+            print(f'Expansion threshold = {in_expand_thresh}')
+            print('Element-wise op     = [',
+                  ', '.join(op.string(k, elt=True) for k in eltwise), ']', sep='',)
+            print(f'Operand expansion   = {operands}')
 
             print('Input offsets       = [',
                   ', '.join('0x{:04x}'.format(k) for k in in_offset), ']', sep='',)
@@ -810,10 +928,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             print(f'Output channels     = {output_chan}')
             print('Output processors   = [',
                   ', '.join('0x{:016x}'.format(k) for k in output_processor_map), ']', sep='',)
-            if device != 84:
-                print(f'Output expansion    = {out_expand}')
-                print(f'Expansion threshold = {out_expand_thresh}')
-                print(f'Output data bits    = {output_width}')
+            print(f'Output expansion    = {out_expand}')
+            print(f'Expansion threshold = {out_expand_thresh}')
+            print(f'Output data bits    = {output_width}')
             print('Output offsets      = [',
                   ', '.join('0x{:04x}'.format(k) for k in out_offset), ']', sep='',)
 
@@ -821,10 +938,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
             print(f'Kernel offsets      = {kern_offs}')
             print(f'Kernel lengths      = {kern_len}')
-            if device != 84:
-                print(f'Kernel dimensions   = {kernel_size}')
-                print(f'Kernel size         = {quantization}')
-                print(f'Output shift        = {output_shift}')
+            print(f'Kernel dimensions   = {kernel_size}')
+            print(f'Kernel size (bits)  = {quantization}')
+            print(f'Output shift        = {output_shift}')
             print('Operator            = [',
                   ', '.join(op.string(k) for k in operator), ']', sep='',)
             print(f'Stride              = {stride}')
@@ -842,9 +958,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             print('Layer register configuration:')
             print('-----------------------------')
 
+        apb.function_header(function='configure')
+
         # Configure per-layer control registers
         for r in range(repeat_layers):
-            for ll in range(layers):
+            for ll in range(start_layer, layers):
 
                 local_source = False
                 for _, group in enumerate(groups_used):
@@ -885,81 +1003,115 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 (popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
                                           % 2**tc.dev.P_NUMPRO) * output_width[ll] // 8 - 1) // 4
                             )
+                    elif conv_groups[ll] > 1:
+                        tscnt_max = max(
+                            tscnt_max,
+                            popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
+                                     % 2**tc.dev.P_NUMPRO) - 1
+                        )
 
                 for _, group in enumerate(groups_used):
-                    apb.output(f'\n  // Layer {r * layers + ll} group {group}\n')
+                    apb.output(f'  // Layer {r * layers + ll} group {group}\n', embedded_code)
 
-                    if device == 84 and operator[ll] == op.CONV1D:
-                        # For 1D convolutions on AI84, the column count is always 3, and the
-                        # row count is divided by 3. Padding is divided by 3.
-                        val = (padding[ll][0] // 3 << 8) \
-                               | (input_dim[ll][0] + 2*padding[ll][0]) // 3 - 1
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_RCNT, val,
-                                       verbose, comment=' // Rows')
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_CCNT, 2,
-                                       verbose, comment=' // Columns')
+                    if hasattr(tc.dev, 'LREG_NXTLYR'):
+                        if link_layer:
+                            if ll < layers-1:
+                                val = 1 << 7 | (ll + 1)
+                            else:
+                                val = 1 << 8  # Stop
+                        else:
+                            val = 0
+                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_NXTLYR, val,
+                                       verbose, comment=' // Next Layer')
+
+                    # Configure row count
+                    if flatten[ll]:
+                        in_row = pool[ll][0]
+                        in_col = pool[ll][1]
                     else:
-                        # Configure row count
-                        # [9:0]   maxcount: lower 8 bits = total of width + pad - 1
-                        # [17:16] pad: 2 bits pad
-                        if flatten[ll]:
-                            val = 0
+                        if operator[ll] == op.CONVTRANSPOSE2D:
+                            in_row = stride[ll][0] * input_dim[ll][0]
+                            in_col = stride[ll][1] * input_dim[ll][1]
                         else:
-                            if operator[ll] == op.CONVTRANSPOSE2D:
-                                val = stride[ll][0]*input_dim[ll][0] - 1
-                            else:
-                                val = input_dim[ll][0] - 1
-                        assert padding[ll][0] < 2**2
-                        assert val + 2*padding[ll][0] < 2**10
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_RCNT,
-                                       padding[ll][0] << 16 | val + 2*padding[ll][0],
-                                       verbose, comment=' // Rows')
+                            in_row = input_dim[ll][0]
+                            in_col = input_dim[ll][1]
+                    if hasattr(tc.dev, 'CNT_DIFF_OFFS'):
+                        diff = (in_row - ((in_row - pool[ll][0])
+                                          // pool_stride[ll][0]) * pool_stride[ll][0])
+                        val = in_row - diff  # Stop row, 0-based
+                        assert val < 2**tc.dev.MAX_CNT_BITS
 
-                        # Configure column count (evaluates to 0 for 1D convolutions)
-                        # [9:0]   width including padding - 1
-                        # [17:16] pad count (0 = no pad, 1 = half pad, 2 = full pad)
-                        if flatten[ll]:
-                            val = 0
+                        # Stop column
+                        if operator[ll] == op.CONV1D:
+                            diff = 1
                         else:
-                            if operator[ll] == op.CONVTRANSPOSE2D:
-                                val = stride[ll][1]*input_dim[ll][1] - 1
-                            else:
-                                val = input_dim[ll][1] - 1
+                            diff = (in_col - ((in_col - pool[ll][1])
+                                              // pool_stride[ll][1]) * pool_stride[ll][1])
+                        diff = (diff + (pool_stride[ll][0] - 1) * in_col) \
+                            * operands[ll] * in_expand[ll]  # Bytes to next starting element
+
+                        val |= diff << tc.dev.CNT_DIFF_OFFS
+                        if padding[ll][0] > 0:
+                            assert padding[ll][0] - 1 < 2**2
+                            val |= 1 << tc.dev.PAD_ENA_OFFS
+                            val |= padding[ll][0] - 1 << tc.dev.PAD_CNT_OFFS
+                    else:
+                        val = in_row - 1
+                        assert padding[ll][0] < 2**2
+                        assert val + 2*padding[ll][0] < 2**tc.dev.MAX_CNT_BITS
+                        val |= padding[ll][0] << tc.dev.PAD_CNT_OFFS
+                        val += 2*padding[ll][0]
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_RCNT, val,
+                                   verbose, comment=' // Rows')
+
+                    # Configure column count (evaluates to 0 for 1D convolutions)
+                    if hasattr(tc.dev, 'CNT_DIFF_OFFS'):
+                        # Calculate last pooling fetch before advancing to next row
+                        diff = (in_col - ((in_col - pool[ll][1])
+                                          // pool_stride[ll][1]) * pool_stride[ll][1])
+                        val = in_col - diff
+                        assert val < 2**tc.dev.MAX_CNT_BITS
+                        val |= diff << tc.dev.CNT_DIFF_OFFS
+                        if padding[ll][1] > 0:
+                            assert padding[ll][1] - 1 < 2**2
+                            val |= 1 << tc.dev.PAD_ENA_OFFS
+                            val |= padding[ll][1] - 1 << tc.dev.PAD_CNT_OFFS
+                    else:
+                        val = in_col - 1
                         assert padding[ll][1] < 2**2
-                        assert val + 2*padding[ll][1] < 2**10
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_CCNT,
-                                       padding[ll][1] << 16 | val + 2 * padding[ll][1],
-                                       verbose, comment=' // Columns')
+                        assert val + 2 * padding[ll][1] < 2**tc.dev.MAX_CNT_BITS
+                        val |= padding[ll][1] << tc.dev.PAD_CNT_OFFS
+                        val += 2 * padding[ll][1]
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_CCNT, val,
+                                   verbose, comment=' // Columns')
 
                     # Configure pooling row count
                     val = pool[ll][0]-1
-                    if device == 84 and pool[ll][0] == 1:
-                        val = 1
-                    else:
-                        val = pool[ll][0]-1
-                        assert val < 2**4
+                    assert val < 2**4
+                    if hasattr(tc.dev, 'CNT_INC_OFFS'):
+                        val |= 0 << tc.dev.CNT_INC_OFFS  # FIXME
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PRCNT, val,
                                    verbose, comment=' // Pooling rows')
 
                     # Configure pooling column count
-                    if device == 84 and pool[ll][1] == 1:
-                        val = 1
-                    else:
-                        val = pool[ll][1]-1
-                        assert val < 2**4
+                    val = pool[ll][1]-1
+                    assert val < 2**4
+                    if hasattr(tc.dev, 'CNT_INC_OFFS'):
+                        val |= 0 << tc.dev.CNT_INC_OFFS  # FIXME
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PCCNT, val,
                                    verbose, comment=' // Pooling columns')
 
                     # Configure pooling stride count
-                    if pool[ll][0] > 1 or pool[ll][1] > 1:
-                        val = pool_stride[ll][0]-1
-                    elif operator[ll] == op.CONVTRANSPOSE2D:
+                    if operator[ll] == op.CONVTRANSPOSE2D:
                         val = 0
+                    elif pool_stride[ll][0] > 1:
+                        val = pool_stride[ll][0]-1
                     else:
                         val = stride[ll][0]-1
-                    if device == 84 and operator[ll] == op.CONV1D:
-                        val //= 3
                     assert val < 2**4
+                    if hasattr(tc.dev, 'MP_STRIDE_OFFS'):  # Multipass stride
+                        val |= pool_stride[ll][0] * operands[ll] * in_expand[ll] \
+                            << tc.dev.MP_STRIDE_OFFS
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STRIDE, val,
                                    verbose, comment=' // Stride')
 
@@ -980,55 +1132,40 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 instance = 0
 
                         val |= (instance % tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE \
-                            | (instance // tc.dev.P_SHARED) << tc.dev.INSTANCE_SHIFT
+                            | (instance // tc.dev.P_SHARED) << tc.dev.WRITE_PTR_SHIFT
                     else:
                         instance = ffs(output_processor_map[ll] >> group * tc.dev.P_SHARED) \
                                & ~(tc.dev.P_SHARED-1)
                         val |= (instance + group * tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE
-                    assert val < 2**17
+                    assert val < 2**tc.dev.MAX_PTR_BITS
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_BASE, val,
                                    verbose, comment=' // SRAM write ptr')
 
-                    if device == 84:
-                        # Configure write pointer mask offset count
-                        # [15:0]  Timeslot offset
-                        #         [11:0]  12 bits for memory - word address every time
-                        #                 we reach limit
-                        #         [13:12] instance in group
-                        #         [15:14] by-16 group
-                        # [31:16] Mask offset (0x10000000, required when writing more than 4 masks)
-                        if input_chan[ll] * kern_len[ll] > 4:
-                            val = 1 << tc.dev.INSTANCE_SHIFT + 16
+                    # Write Pointer Timeslot Offset Register
+                    # Used for 1x1 convolution, and pooling without convolution
+                    if operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]:
+                        val = 1 if conv_groups[ll] == 1 else 0
+                    elif operator[ll] == op.NONE:
+                        if popcount(processor_map[ll]) > 4 \
+                           or operands[ll] > 1 and in_expand[ll] > 1:
+                            val = tc.dev.INSTANCE_SIZE * 4
                         else:
-                            val = 0
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_OFFS, val,
-                                       verbose, comment=' // Mask offset count')
+                            val = tc.dev.INSTANCE_SIZE
                     else:
-                        # [15:0] Write Pointer Timeslot Offset Register
-                        # Used for 1x1 convolution, and pooling without convolution
-                        if operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]:
-                            val = 1
-                        elif operator[ll] == op.NONE:
-                            if popcount(processor_map[ll]) > 4 \
-                               or operands[ll] > 1 and in_expand[ll] > 1:
-                                val = tc.dev.INSTANCE_SIZE * 4
-                            else:
-                                val = tc.dev.INSTANCE_SIZE
-                        else:
-                            val = 0
-                        assert val < 2**17
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_TOFFS, val,
-                                       verbose, comment=' // Write ptr time slot offs')
+                        val = 0
+                    assert val < 2**tc.dev.MAX_PTR_BITS
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_TOFFS, val,
+                                   verbose, comment=' // Write ptr time slot offs')
 
-                        # [15:0] Write Pointer Mask Offset Register
-                        val = 1 << tc.dev.INSTANCE_SHIFT
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_MOFFS, val,
-                                       verbose, comment=' // Write ptr mask offs')
+                    # [15:0] Write Pointer Mask Offset Register
+                    val = 1 << tc.dev.WRITE_PTR_SHIFT
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_MOFFS, val,
+                                   verbose, comment=' // Write ptr mask offs')
 
-                        # [15:0] Write Pointer Multi-Pass Channel Offset Register
-                        val = output_width[ll] // 8
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_CHOFFS, val,
-                                       verbose, comment=' // Write ptr multi-pass channel offs')
+                    # [15:0] Write Pointer Multi-Pass Channel Offset Register
+                    val = output_width[ll] // 8
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_CHOFFS, val,
+                                   verbose, comment=' // Write ptr multi-pass channel offs')
 
                     # Configure sram read ptr count -- read ptr is local
                     # Source address must match write pointer of previous layer (minus global
@@ -1038,19 +1175,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                    verbose, comment=' // SRAM read ptr')
 
                     # Configure per-layer control
-                    # [3:0] s_slave: enable the by-4 group within the by-16 mask RAM to slave
-                    #                to first input volume; also enable timeslot
-                    # [4]   m_slave: slaves to 16x masters
-                    # [5]   master: sums all 16 processor outputs (vs 4 sums)
-                    # [6]   parallel: equals CHW/big data (per layer control)
-                    # [7]   pool_enable
-                    # [8]   maxpool_enable
-                    # [9]   activation_enable
-                    # [10]  cpad_only (column pad only, no row pad) for parallel processing
-                    # [11]  sramlsrc: global/local output SRAM data memory input select
-                    # [15:12] cnnsiena: enable externally sourced summed values from other
-                    #         processors
-                    # [16]  bigdwrt (AI85 only) Enables 32-bit output
                     val = (0x200 if activation[ll] == op.ACT_RELU else 0) | \
                           (0x100 if not pool_average[ll] else 0) | \
                           (0x80 if pool[ll][0] > 1 or pool[ll][1] > 1 else 0) | \
@@ -1059,7 +1183,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     if not local_source:
                         val |= 0x800
 
-                    if device != 84 and output_width[ll] != 8:
+                    if output_width[ll] != 8:
                         val |= 1 << 16
 
                     if (ll != 0 or not fast_fifo_quad) \
@@ -1074,76 +1198,81 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             if (processor_map[ll] >> (t * tc.dev.P_NUMPRO)) % 2**tc.dev.P_NUMPRO:
                                 sources |= 1 << t
                         val |= sources << 12
+
+                    if rd_ahead and hasattr(tc.dev, 'RD_AHEAD_OFFS'):
+                        val |= 1 << tc.dev.RD_AHEAD_OFFS
+
+                    if hasattr(tc.dev, 'CPRIME_MAX_OFFS') and operator[ll] != op.NONE:
+                        val |= kernel_size[ll][0] - 1 << tc.dev.RPRIME_MAX_OFFS
+                        val |= kernel_size[ll][1] - 1 << tc.dev.CPRIME_MAX_OFFS
+
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_LCTL, val,
                                    verbose, comment=' // Layer control')
 
-                    if device != 84:
-                        flatten_prod = 0
-                        # [3:0]  inpchexp[3:0]
-                        # [7:4]  wptr_inc[3:0]
-                        # [16:8] xpch_max[8:0] Selects the maximum channel processor number used
-                        #                      in channel expansion mode (bottom 3 are for bits)
-                        if flatten[ll]:
-                            # Store all bits, top programmed in post processing register
-                            flatten_prod = \
-                                in_expand[ll] * pooled_dim[ll][0] * pooled_dim[ll][1] - 1
-                            in_exp = flatten_prod % 2**4
-                        else:
-                            in_exp = in_expand[ll] - 1
+                    flatten_prod = 0
+                    if flatten[ll]:
+                        # Store all bits, top programmed in post processing register
+                        flatten_prod = \
+                            in_expand[ll] * pooled_dim[ll][0] * pooled_dim[ll][1] - 1
+                        in_exp = flatten_prod & 0x0f  # Lower 4 bits only
+                    else:
+                        in_exp = in_expand[ll] - 1
 
-                        assert in_exp < 2**4  # Cannot have more than 4 bits
+                    assert in_exp < 2**4  # Cannot have more than 4 bits
 
-                        val = (fls(output_processor_map[ll])
-                               - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) \
-                            * quantization[ll] << 8 \
-                            | in_exp
-                        if operator[ll] != op.NONE:
-                            wptr_skip = out_expand[ll] * (write_gap[ll] + 1)
-                            assert wptr_skip <= 2**4  # Cannot have more than 4 bits (+1)
-                            val |= (wptr_skip - 1) << 4
-                        else:
-                            assert write_gap[ll] + 1 <= 2**4  # Cannot have more than 4 bits (+1)
-                            val |= write_gap[ll] << 4
+                    val = (fls(output_processor_map[ll])
+                           - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) \
+                        * quantization[ll] << 8 \
+                        | in_exp
+                    if operator[ll] != op.NONE:
+                        wptr_skip = out_expand[ll] * (write_gap[ll] + 1)
+                        assert wptr_skip <= 2**4  # Cannot have more than 4 bits (+1)
+                        val |= (wptr_skip - 1) << 4
+                    else:
+                        assert write_gap[ll] + 1 <= 2**4  # Cannot have more than 4 bits (+1)
+                        val |= write_gap[ll] << 4
 
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_LCTL2, val,
-                                       verbose, comment=' // Layer control 2')
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_LCTL2, val,
+                                   verbose, comment=' // Layer control 2')
 
                     # Configure mask count
                     # Restriction: Every one of the mask memories will have to start from same
                     # offset
-                    # AI84:
-                    # [6:0]   Max count (output channels)
-                    # [7]     RFU
-                    # [14:8]  Starting address for group of 16
-                    # [15]    RFU
-                    # [23:16] Bias pointer starting address
-                    # [24]    Bias enable
-                    # [31:25] RFU
-                    # AI85:
-                    # [15:0]  Max count (output channels)
-                    # [31:16] Starting address for group of 16
-                    if device == 84:
-                        val = kern_offs[ll] << tc.dev.MCNT_SAD_OFFS \
-                            | (kern_len[ll] << tc.dev.MCNT_MAX_OFFS) - 1
-                        if group == bias_group[ll]:
-                            # Enable bias only for one group
-                            val |= 0x1000000 | bias_offs[ll] << 16
-                    else:
-                        oned_sad = 0
-                        if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
-                            in_exp = in_expand[ll]
-                            if flatten[ll]:
-                                in_exp *= pooled_dim[ll][0] * pooled_dim[ll][1]
-                            kl = (((fls(output_processor_map[ll])
-                                    - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) + 1)
-                                  * quantization[ll]) * out_expand[ll] * in_exp \
-                                - quantization[ll]
-                            if ll == 0 and fast_fifo_quad:
-                                kl = (kl + 3) // 4
-                            koffs, oned_sad = divmod(9 * kern_offs[ll],
-                                                     kernel_size[ll][0] * kernel_size[ll][1])
-                            koffs *= 8
+                    oned_sad = 0
+                    if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
+                        in_exp = in_expand[ll]
+                        if flatten[ll]:
+                            in_exp *= pooled_dim[ll][0] * pooled_dim[ll][1]
+                        kl = (((fls(output_processor_map[ll])
+                                - (ffs(output_processor_map[ll])
+                                   & ~(tc.dev.P_SHARED-1))) + 1)
+                              * quantization[ll]) * out_expand[ll] * in_exp - quantization[ll]
+                        if ll == 0 and fast_fifo_quad or calcx4:
+                            if calcx4:
+                                kl += quantization[ll]
+                            kl = (kl + 3) // 4  # FIXME: Handle fast_fifo_quad and calcx4
+                            if calcx4:
+                                kl -= quantization[ll]
+                        koffs, oned_sad = divmod(9 * kern_offs[ll],
+                                                 kernel_size[ll][0] * kernel_size[ll][1])
+                        koffs *= 8
 
+                    if hasattr(tc.dev, 'LREG_MCNT1'):
+                        if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
+                            assert koffs < 2**19
+                            assert kl + koffs < 2**19
+                            apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT1, kl + koffs,
+                                           verbose, comment=' // Mask count')
+                            apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT2, koffs,
+                                           verbose, comment=' // Mask offset')
+                        else:
+                            assert operator[ll] == op.NONE
+                            val = (out_expand[ll] - 1) * 8
+                            assert val < 2**19
+                            apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT2, val,
+                                           verbose, comment=' // Mask offset')
+                    else:
+                        if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
                             assert koffs < 2**16
                             assert kl + koffs < 2**16
                             # kern_offs is always bytes
@@ -1153,47 +1282,50 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             assert operator[ll] == op.NONE
                             val = (out_expand[ll] - 1) * 8
                             assert val < 2**16
-                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT, val,
-                                   verbose, comment=' // Mask offset and count')
+                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT, val,
+                                       verbose, comment=' // Mask offset and count')
 
-                    if device != 84:
-                        #   [3:0] tscnt_max[3:0]      Maximum timeslot count register
-                        #   [7:4] oned_sad[3:0]       Start mask address (offset within 9 byte
-                        #                             mask)
-                        #  [11:8] oned_width[3:0]     1D mask width (0-9). Width > 0 enables 1D.
-                        #    [12] oned_iena           Input data is 1-dimensional
-                        #    [13] ewise_ena           Enable element-wise operation
-                        # [17:14] ewise_fun           Elementwise function select
-                        #         .3   - Enables 2D convolution of the ewise result.
-                        #                Standard 2D processing applies.
-                        #         .2   - Enables pre-pooling of the input data before element-wise
-                        #                operation.
-                        #         .1/0 - 2'b00 = add
-                        #                2'b01 = subtract
-                        #                2'b10 = bitwise XOR
-                        #                2'b11 = bitwise OR.
-                        # [21:18] ewise_cnt           Element wise operand count
+                    if hasattr(tc.dev, 'LREG_OCHAN'):
+                        val = 0
+                        if operator[ll] != op.NONE:
+                            in_exp = in_expand[ll]
+                            if flatten[ll]:
+                                in_exp *= pooled_dim[ll][0] * pooled_dim[ll][1]
+                            ochan = ((((fls(output_processor_map[ll])
+                                        - (ffs(output_processor_map[ll])
+                                           & ~(tc.dev.P_SHARED-1))) + 1)
+                                      * quantization[ll]) * out_expand[ll] * in_exp
+                                     - quantization[ll]) // quantization[ll]
+                            if calcx4:
+                                ochan //= 4
+                            if ochan > 0:
+                                val = ochan - 1
+                        elif tscnt_max > 0:
+                            val = tscnt_max - 1
+                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_OCHAN, val,
+                                       verbose, comment=' // Output channel count')
 
-                        val = tscnt_max
-                        assert 0 <= val < 2**4
-                        if operator[ll] == op.CONV1D:
-                            val |= kernel_size[ll][0] << 8 | 1 << 12
-                            assert kernel_size[ll][0] < 2**4
-                        elif (operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]
-                              or operator[ll] == op.NONE and operands[ll] == 1):
-                            val |= 1 << 8
-                        if operands[ll] > 1:
-                            val |= \
-                                1 << 13 | op.eltwise_fn(eltwise[ll]) << 14 | operands[ll] - 1 << 18
-                            if (pool[ll][0] > 1 or pool[ll][1] > 1) and pool_first[ll]:
-                                val |= 1 << 16
-                            if operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D]:
-                                val |= 1 << 17
-                        assert 0 <= oned_sad < 2**4
-                        val |= oned_sad << 4
+                    val = tscnt_max
+                    assert 0 <= val < 2**4
+                    if operator[ll] == op.CONV1D:
+                        val |= kernel_size[ll][0] << 8 | 1 << 12
+                        assert kernel_size[ll][0] < 2**4
+                    elif (operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]
+                          or operator[ll] == op.NONE and operands[ll] == 1):
+                        val |= 1 << 8
+                    if operands[ll] > 1:
+                        val |= \
+                            1 << 13 | op.eltwise_fn(eltwise[ll]) << 14 | operands[ll] - 1 << 18
+                        if (pool[ll][0] > 1 or pool[ll][1] > 1) \
+                           and pool_first[ll]:
+                            val |= 1 << 16
+                        if operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D]:
+                            val |= 1 << 17
+                    assert 0 <= oned_sad < 2**4
+                    val |= oned_sad << 4
 
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_ONED, val,
-                                       verbose, comment=' // 1D')
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_ONED, val,
+                                   verbose, comment=' // 1D')
 
                     # Configure tram pointer max
                     if operator[ll] == op.CONV1D or \
@@ -1209,65 +1341,67 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         assert val < 2**16
                         if ll > 0 and streaming[ll]:
                             prev_max = np.multiply(tram_max[:ll], in_expand[:ll]).sum()
-                            assert prev_max < 2**12
+                            assert prev_max < 2**tc.dev.MAX_TPTR_BITS
                             val += prev_max
                             assert val < 2**16
                             val |= prev_max << 16
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_TPTR, val,
                                    verbose, comment=' // TRAM ptr max')
 
-                    if device != 84:
-                        # Compensate for the smaller weights by adjusting the output shift
-                        if quantization[ll] == 1:
-                            val = 1 << 22
-                        elif quantization[ll] == 2:
-                            val = 2 << 22
-                        elif quantization[ll] == 4:
-                            val = 3 << 22
+                    # Compensate for the smaller weights by adjusting the output shift
+                    if quantization[ll] == 1:
+                        val = 1 << 22
+                    elif quantization[ll] == 2:
+                        val = 2 << 22
+                    elif quantization[ll] == 4:
+                        val = 3 << 22
+                    else:
+                        assert quantization[ll] == 8
+                        val = 0  # Do not shift
+                    # Scale Control - bit 4 determines shift direction (1>>,0<<),
+                    # bits[3:0] determine magnitude
+                    assert operator[ll] != op.NONE or output_shift[ll] == 0
+                    if output_shift[ll] < 0:
+                        val |= (-output_shift[ll] | 2**4) << 13
+                    else:
+                        val |= output_shift[ll] << 13
+
+                    # [24] ts_ena
+                    # [25] onexone_ena
+
+                    if group == bias_group[ll]:
+                        # Enable bias only for one group
+                        assert bias_offs[ll] < 2**12
+                        val |= 1 << 12 | bias_offs[ll]
+
+                    if operator[ll] == op.NONE:
+                        if operands[ll] == 1:
+                            val |= 3 << 24
                         else:
-                            assert quantization[ll] == 8
-                            val = 0  # Do not shift
-                        # Scale Control - bit 4 determines shift direction (1>>,0<<),
-                        # bits[3:0] determine magnitude
-                        assert operator[ll] != op.NONE or output_shift[ll] == 0
-                        if output_shift[ll] < 0:
-                            val |= (-output_shift[ll] | 2**4) << 13
-                        else:
-                            val |= output_shift[ll] << 13
+                            val |= 1 << 24
 
-                        # [24] ts_ena
-                        # [25] onexone_ena
+                    if activation[ll] == op.ACT_ABS:
+                        val |= 1 << 26
 
-                        if group == bias_group[ll]:
-                            # Enable bias only for one group
-                            assert bias_offs[ll] < 2**12
-                            val |= 1 << 12 | bias_offs[ll]
+                    if flatten_prod >= 2**4:
+                        val |= 1 << 27 | (flatten_prod >> 4) << 18  # flatten_ena, xpmp_cnt
 
-                        if operator[ll] == op.NONE:
-                            if operands[ll] == 1:
-                                val |= 3 << 24
-                            else:
-                                val |= 1 << 24
+                    if operator[ll] == op.CONVTRANSPOSE2D:
+                        val |= 1 << 28
 
-                        if activation[ll] == op.ACT_ABS:
-                            val |= 1 << 26
+                    if conv_groups[ll] > 1:
+                        val |= 1 << 30 | 1 << 24  # depthwise_ena, ts_ena
 
-                        if flatten_prod >= 2**4:
-                            val |= 1 << 27 | (flatten_prod >> 4) << 18  # flatten_ena, xpmp_cnt
+                    if calcx4:
+                        val |= 1 << 29
 
-                        if operator[ll] == op.CONVTRANSPOSE2D:
-                            val |= 1 << 28
+                    if rd_ahead and in_expand[ll] > 1:
+                        val |= 1 << 31  # tcalc
 
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_POST, val,
-                                       verbose, comment=' // Post processing register')
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_POST, val,
+                                   verbose, comment=' // Post processing register')
 
                     # Configure mask and processor enables
-                    # [15:0]  processor enable
-                    # [31:16] mask enable
-                    # When the input data is sourced from 16 independent byte streams, all 16
-                    # processors and compute elements need to be enabled.  If there were only 4
-                    # input channels, 0x000f000f would be correct.
-                    #
                     # Enable at most 16 processors and masks
                     val = (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO
                     if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
@@ -1310,29 +1444,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM2, val,
                                        verbose, comment=' // Stream processing delta')
                     elif ll > 0 and streaming[ll]:
-                        # [13:0]:  strm_isval[13:0]  Per stream start count - based on previous
-                        #                            layer tptr_inc count
-                        # Start count – defines the current layer rcnt (TRAM shift count) that
-                        # triggers processing of the next layer
-
-                        # [16:12]: strm_dsval1[4:0]  Per stream in-row delta count - based on
-                        #                            previous layer tptr_inc count
-                        # [31:20]: strm_dsval2[11:0] Per stream multi-row delta count - based on
-                        #                            previous layer tptr_inc count
-                        #
-                        # Delta1 count – defines the current layer count once the start count is
-                        # triggered that enables incremental layer processing.  This count is
-                        # used when layer processing is contained within a single row.
-                        # Delta2 count – defines the current layer count once the start count is
-                        # triggered that enables incremental layer processing.  This count is
-                        # used when layer processing spans multiple rows.
-
                         # Start: Prior layer's padded pooled row width * prior layer's kernel
                         # height + prior layer's kernel width + prior layer's pad
                         stream_start = (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
                             * (kernel_size[ll-1][0] - 1 + pool[ll][0] - 1) \
                             + kernel_size[ll-1][1] - 1 + pool[ll][1] + increase_start
-                        assert stream_start < 2**14
+                        assert stream_start < 2**tc.dev.MAX_ISVAL_BITS
 
                         # Delta 1: This layer's pooling stride
                         delta1 = pool_stride[ll][1] * operands[ll] + increase_delta1
@@ -1342,12 +1459,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         delta2 = (pool_stride[ll][0] - 1) \
                             * (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
                             + pool[ll][1] * operands[ll] + increase_delta2
-                        assert delta2 < 2**12
+                        assert delta2 < 2**tc.dev.MAX_DSVAL2_BITS
 
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM1, stream_start,
                                        verbose, comment=' // Stream processing start')
-                        # [3:0]:   strm_invol[3:0]   Per stream invol offset - based on stream
-                        #                            count
+                        # strm_invol[3:0]   Per stream invol offset - based on stream count
                         val = sum(in_expand[:ll])
                         assert val < 2**4
                         val |= delta2 << 16 | delta1 << 4
@@ -1368,7 +1484,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             rem = val % in_expand[ll]
                             if rem > 0:
                                 val = val + in_expand[ll] - rem
-                        assert val < 2**17
+                        assert val < 2**tc.dev.MAX_FBUF_BITS
 
                         # Check rollover vs available data memory
                         if in_offset[ll] < out_offset[ll]:
@@ -1378,8 +1494,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                        f'out_offset 0x{out_offset[ll]:08x}, '
                                        f'rollover 0x{val:08x}.',
                                        error=not no_error_stop)
-                                if not no_error_stop:
-                                    sys.exit(1)
                         else:
                             if out_offset[ll] + val * 4 >= in_offset[ll]:
                                 eprint('Overlapping input and output: '
@@ -1387,17 +1501,13 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                        f'out_offset 0x{out_offset[ll]:08x}, '
                                        f'rollover 0x{val:08x}.',
                                        error=not no_error_stop)
-                                if not no_error_stop:
-                                    sys.exit(1)
-                        if in_offset[ll] + val * 4 >= tc.dev.INSTANCE_SIZE * tc.dev.P_SHARED * 4:
+                        if in_offset[ll] + val * 4 >= tc.dev.INSTANCE_WIDTH * tc.dev.P_SHARED * 4:
                             eprint('Input plus rollover exceeds instance size: '
                                    f'in_offset 0x{in_offset[ll]:08x}, '
                                    f'out_offset 0x{out_offset[ll]:08x}, '
                                    f'rollover 0x{val:08x}, '
-                                   f'instance size 0x{tc.dev.INSTANCE_SIZE*4:08x}.',
+                                   f'instance size 0x{tc.dev.INSTANCE_WIDTH*4:08x}.',
                                    error=not no_error_stop)
-                            if not no_error_stop:
-                                sys.exit(1)
 
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_FMAX, val,
                                        verbose, comment=' // Rollover')
@@ -1406,13 +1516,15 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         val = input_dim[0][0] * input_dim[0][1]
                         if big_data[0]:
                             val = (val + 3) // 4
-                        assert val < 2**20
+                        assert val < 2**tc.dev.MAX_IFRM_BITS
                         apb.write_ctl(group, tc.dev.REG_IFRM, val, verbose,
                                       comment=' // Input frame size')
 
+                    apb.output('\n', embedded_code)  # End of group
+
         if zero_unused:
             for r in range(repeat_layers):
-                for ll in range(layers, tc.dev.MAX_LAYERS):
+                for ll in range(start_layer, layers, tc.dev.MAX_LAYERS):
                     for _, group in enumerate(groups_used):
                         for reg in range(tc.dev.MAX_LREG+1):
                             if reg == tc.dev.LREG_RFU:  # Register 2 not implemented
@@ -1420,12 +1532,21 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             apb.write_lreg(group, r * layers + ll, reg, 0,
                                            verbose, force_write=True,
                                            comment=f' // Zero unused layer {ll} registers')
+                if hasattr(tc.dev, 'MIN_STREAM_LREG'):
+                    for ll in range(start_layer, layers, tc.dev.MAX_STREAM_LAYERS):
+                        for _, group in enumerate(groups_used):
+                            for reg in range(tc.dev.MIN_STREAM_LREG, tc.dev.MAX_STREAM_LREG+1,
+                                             tc.dev.MAX_STREAM_LAYERS):
+                                apb.write_lreg(group, r * layers + ll, reg, 0,
+                                               verbose, force_write=True,
+                                               comment=f' // Zero unused layer {ll} registers')
 
         if not fifo:
             # Load data memory
             if embedded_code or compact_data or input_csv:
                 # Do the actual code generation later
-                apb.output('\n  load_input(); // Load data input\n\n')
+                if not embedded_code:
+                    apb.output('\n  load_input(); // Load data input\n\n')
             else:
                 load.load(
                     embedded_code,
@@ -1455,31 +1576,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
         # Configure the FIFOs when we're using them
         if fifo:
-            apb.output('\n')
+            apb.output('\n', embedded_code)
 
             # FIFO control
-            # [1:0] rdy_sel[1:0]        Sets the number of wait states added to the APB access.
-            # [4:2] fthres[2:0]         FIFO almost full threshold. If the difference between the
-            #                           write and read pointer exceeds this number of bytes, the
-            #                           almost full flag is set.
-            # [9:7] ethres[2:0]         FIFO almost empty threshold. If the difference between the
-            #                           write and read pointer falls below this number of bytes,
-            #                           the almost empty flag is set.
-            # [11] fifo_cpl             Setting this bit forces the FIFO to operate in lock-step.
-            #                           Data available status is dependent on all FIFO having
-            #                           identical write pointer values.
-            # [15:12] fifo_ena          Per FIFO enable. A logic 1 enables the FIFO. Unused FIFOs
-            #                           must be disabled.
-            # [19:16] full_iena         FIFO full interrupt enable. Logic '1' enables the interrupt
-            #                           request based on the fifo full flag.
-            # [23:20] empty_iena        FIFO empty interrupt enable. Logic '1' enables the
-            #                            interrupt request based on the fifo empty flag.
-            # [27:24] almost_full_iena  FIFO almost full interrupt enable. Logic '1' enables the
-            #                           interrupt request based on the fifo almost full threshold
-            #                           flag.
-            # [31:28] almost_empty_iena FIFO almost empty interrupt enable. Logic '1' enables the
-            #                           interrupt request based on the fifo almost empty threshold
-            #                           flag.
             if not fast_fifo:
                 val = 0x02 << 2 | 0x02 << 7 | 1 << 11 | tc.dev.FIFO_READY_SEL
                 for i in range(input_chan[0]):
@@ -1494,36 +1593,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 apb.write_fast_fifo_ctl(tc.dev.FAST_FIFO_CR, val,
                                         verbose, comment=' // Fast FIFO control')
 
-        # [0]     enable
-        # [2:1]   rdy_sel  (wait states - set to max)
-        # [3]     clock_ena
-        # [4]     calcmax
-        # [5]     poolena
-        # [6]     bigdata
-        # [7]     actena
-        # [8]     one-shot (stop after single layer)
-        # [10:9]  ext_sync[1:0] (slave to other group)
-        # [11]    ext_sync[2] (external slave)
-        # [12]    irq
-        # [13]    pool_rnd
-        # [14]    strm_ena - cnn_ctl register bit 14. Master stream processor enable. Layers are
-        #         processed up to the first layer with a zero start count value. After the last
-        #         stream layer (non-zero start and delta >> values) processing is complete,
-        #         standard processing follows for the remaining layers.
-        # [15]    fifo_ena
-        # [16]    mlat_ena
-        # [18:17] mlat_sel
-        # [19]    lil_buf - enables ifrm and frm_max
-        # [20]    mexpress = Enable loading of the mask memories using packed data. A change in
-        #         state of the two lsb of the address trigger a reload of the address counter.
-        # [21]    simple1b - Enable simple logic for 1 bit weights.
-        # [22]    ffifoena - Fast FIFO enable.  Enables the datapath between the ME17x
-        #         synch/asynch FIFO and the CNN
-        # [23]    fifogrp - Enables sending all "little data" channels to the first 4 processors.
-        #         When this bit is not set, each byte of FIFO data is directed to the first little
-        #         data channel of each x16 processor.
-        # [26:24] fclk_dly[2:0] - Selects the clock delay of the fast FIFO clock relative to the
-        #         primary CNN clock.
         val = 1 << 14 if any(streaming) else 0
         if avg_pool_rounding:
             val |= 1 << 13
@@ -1531,16 +1600,29 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             val |= 1 << 11
         if fifo and any(streaming):
             val |= 1 << 19
-        if device != 84:
-            val |= 1 << 3  # Enable clocks
+        val |= 1 << 3  # Enable clocks
         if mexpress:
             val |= 1 << 20
         if simple1b:
             val |= 1 << 21
         if fast_fifo_quad:
             val |= 1 << 31  # Qupac bit
+        if oneshot:
+            val |= 1 << 8
+        if hasattr(tc.dev, 'CTL_PIPELINE_OFFS'):
+            if not pipeline:
+                val |= 1 << tc.dev.CTL_PIPELINE_OFFS
+            if streaming[0] and big_data[0]:
+                val |= 1 << 6
+
+        if embedded_code:
+            apb.function_footer()
+            apb.function_header(function='start')
+
+        apb.output('  cnn_time = 0;\n\n', embedded_code)
 
         # Enable all needed groups except the first one
+        rdy_sel = tc.dev.READY_SEL if not pipeline else tc.dev.PIPELINE_READY_SEL
         for _, group in enumerate(groups_used):
             # Turn on the FIFO for this group if it's being loaded
             if fifo and processor_map_0 & 0x0f << group * 16 != 0:
@@ -1555,7 +1637,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 fval = 0
             if group != groups_used[0]:
                 fval |= 0x01
-            apb.write_ctl(group, tc.dev.REG_CTL, val | 0x800 | tc.dev.READY_SEL << 1
+            apb.write_ctl(group, tc.dev.REG_CTL, val | 0x800 | rdy_sel << 1
                           | fval | groups_used[0] << 9,
                           verbose, comment=f' // Enable group {group}')
 
@@ -1568,8 +1650,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             apb.write_fifo_ctl(tc.dev.AON_CTL, val2 | tc.dev.AON_READY_SEL,
                                verbose, comment=' // AON control')
 
+        if pll and not measure_energy:
+            apb.select_clock('ITO', 'DIV1', 'Switch CNN clock to PLL (ITO)')
         if embedded_code:
-            apb.output('\n  CNN_START; // Allow capture of processing time\n')
+            apb.output('\n#ifdef CNN_INFERENCE_TIMER\n'
+                       '  MXC_TMR_SW_Start(CNN_INFERENCE_TIMER);\n'
+                       '#endif\n\n', embedded_code)
+            if not measure_energy:
+                apb.output('  CNN_START; // Allow capture of processing time\n', embedded_code)
 
         # Master control - go
         if fifo and processor_map_0 & 0x0f << groups_used[0] * 16 != 0:
@@ -1578,14 +1666,15 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 val |= 1 << 22
             if fifo_group:
                 val |= 1 << 23
-        apb.write_ctl(groups_used[0], tc.dev.REG_CTL, val | tc.dev.READY_SEL << 1 | 0x01,
+        apb.write_ctl(groups_used[0], tc.dev.REG_CTL, val | rdy_sel << 1 | 0x01,
                       verbose, comment=f' // Master enable group {groups_used[0]}')
 
         if fifo:
             # Load data memory
-            if compact_data or input_csv:
+            if embedded_code or compact_data or input_csv:
                 # Do the actual code generation later
-                apb.output('\n  load_input(); // Load data input\n\n')
+                if not embedded_code:
+                    apb.output('\n  load_input(); // Load data input\n\n')
             else:
                 load.load(
                     False,
@@ -1609,7 +1698,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     debug=debug,
                 )
 
-        apb.load_footer()
+        apb.function_footer()
         # End of input
 
     in_map = apb.get_mem()
@@ -1651,7 +1740,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
     data_buf = [data]
     # Compute layer-by-layer output and chain results into input
-    for ll in range(layers):
+    for ll in range(start_layer, layers):
         if debug_computation:
             compute.debug_open(ll, base_directory, test_name, log_filename)
 
@@ -1662,7 +1751,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     data = np.concatenate([data_buf[i + 1] for i in in_sequences[ll]], axis=0)
                 except ValueError as err:
                     eprint('Error in input data concatenation layer:', err)
-                    sys.exit(1)
             else:
                 data = data_buf[in_sequences[ll] + 1]
         else:
@@ -1684,6 +1772,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         else:
             data = np.expand_dims(data, 0)
 
+        in_chan = input_chan[ll]
+
+        # Drop input channels?
+        if reshape_inputs:
+            data = np.delete(data, np.s_[in_chan:], axis=1)
+
         show_data(
             ll,
             verbose,
@@ -1696,8 +1790,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             operation=operator[ll],
             operands=operands[ll],
         )
-
-        in_chan = input_chan[ll]
 
         # Run in-flight element-wise operations first?
         if operands[ll] > 1 and not pool_first[ll]:
@@ -1730,13 +1822,17 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         )
 
         if operator[ll] == op.CONV1D:
-            assert out_size[0] == in_chan \
-                and out_size[1] == pooled_dim[ll][0] \
-                and pooled_dim[ll][1] == 1
+            if out_size[0] != in_chan \
+               or out_size[1] != pooled_dim[ll][0] or pooled_dim[ll][1] != 1:
+                eprint(f'Input dimensions do not match in layer {ll}. '
+                       f'Expected: {in_chan}x{pooled_dim[ll][0]}, '
+                       f'got {out_size[0]}x{out_size[1]}.')
         else:
-            assert out_size[0] == in_chan \
-                and out_size[1] == pooled_dim[ll][0] \
-                and out_size[2] == pooled_dim[ll][1]
+            if out_size[0] != in_chan \
+               or out_size[1] != pooled_dim[ll][0] or out_size[2] != pooled_dim[ll][1]:
+                eprint(f'Input dimensions do not match in layer {ll}. '
+                       f'Expected: {in_chan}x{pooled_dim[ll][0]}x{pooled_dim[ll][1]}, '
+                       f'got {out_size[0]}x{out_size[1]}x{out_size[2]}.')
 
         if operands[ll] > 1 and pool_first[ll]:
             data = run_eltwise(data, ll)
@@ -1749,7 +1845,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 in_chan *= pooled_dim[ll][0] * pooled_dim[ll][1]
                 data = data.reshape(in_chan, 1, 1)
                 if verbose:
-                    print(f"FLATTEN TO {in_chan}x1x1...\n")
+                    print_data(
+                        verbose,
+                        f'FLATTEN TO {in_chan}x1x1',
+                        data,
+                        data.shape,
+                        in_expand[ll],
+                        in_chan,
+                    )
 
             out_buf, out_size = conv2d_layer(
                 ll,
@@ -1765,7 +1868,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 activation[ll],
                 kernel[ll].reshape(
                     output_chan[ll],
-                    in_chan,
+                    in_chan // conv_groups[ll],
                     kernel_size[ll][0],
                     kernel_size[ll][1]
                 ),
@@ -1792,7 +1895,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 activation[ll],
                 kernel[ll].reshape(
                     output_chan[ll],
-                    in_chan,
+                    in_chan // conv_groups[ll],
                     kernel_size[ll][0],
                     kernel_size[ll][1],
                 ),
@@ -1818,7 +1921,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 activation[ll],
                 kernel[ll].reshape(
                     output_chan[ll],
-                    input_chan[ll],
+                    input_chan[ll] // conv_groups[ll],
                     kernel_size[ll][0],
                 ),
                 bias[ll],
@@ -1840,12 +1943,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             )
         else:
             eprint(f'Unknown operator `{op.string(operator[ll])}`.')
-            sys.exit(1)
 
         assert out_size[0] == output_chan[ll] \
             and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
 
-        # Write .mem file for output or create the C cnn_check() function to verify the output
+        # Write .mem file for output or create the C check_output() function to verify the output
         out_map = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
         if block_mode:
             if ll == layers-1:
@@ -1867,8 +1969,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 memfile = None
             apb.set_memfile(memfile)
 
-            apb.output(f'// {test_name}\n// Expected output of layer {ll}\n')
-            apb.verify_header()
+            apb.output(f'// Expected output of layer {ll} for {test_name} '
+                       'given the sample input\n')
+            apb.function_header(dest='wrapper', prefix='', function='check_output')
             if ll == layers-1 and mlator and not mlator_noverify:
                 apb.verify_unload(
                     ll,
@@ -1954,8 +2057,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 mlator=mlator if ll == layers-1 else False,
                 max_count=max_count,
                 write_gap=write_gap[ll],
+                layers=layers,
             )
-            apb.verify_footer()
+            apb.function_footer(dest='wrapper')  # check_output()
         finally:
             if memfile:
                 memfile.close()
@@ -1977,7 +2081,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         with open(os.path.join(base_directory, test_name, filename), mode=filemode) as memfile:
             apb.set_memfile(memfile)
 
-            if fc_weights or softmax or unload:
+            if fc_weights or softmax or embedded_code:
                 apb.unload(
                     output_processor_map[-1],
                     out_size,
@@ -2019,27 +2123,22 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     num_classes=output_chan[-1],
                 )
 
-            apb.main(
-                oneshot=layers - 1 if oneshot else 0,
-                softmax=softmax,
-                unload=unload,
-                stopstart=stopstart,
-                num_classes=output_chan[-1],
-                output_width=output_width[-1],
-                clock_trim=clock_trim,
-                groups=list(set().union(groups_used)),
-                boost=boost,
-                forever=forever,
-                mexpress=mexpress,
-                fifo=fifo,
-                measure_energy=measure_energy,
-            )
+            summary_stats = '/*\n' + \
+                            stats.summary(factor=repeat_layers, debug=debug, spaces=2,
+                                          weights=kernel, w_size=quantization, bias=bias) + \
+                            '*/\n'
+            apb.main()
+            apb.output(summary_stats + '\n')
 
     # Close header files
     if sampledata_header is not None:
         sampledata_header.close()
     if weight_header is not None:
         weight_header.close()
+    if apifile is not None:
+        apifile.close()
+    if rtl_preload:
+        apb.write_mem(base_directory, test_name)
 
     # Create run_test.sv
     if not embedded_code and not block_mode:
@@ -2060,22 +2159,41 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             input_csv=input_csv,
             input_period=input_csv_period,
             input_sync=input_sync,
+            rtl_preload=rtl_preload,
+            result_output=result_output,
         )
-        assets.copy('assets', 'all', base_directory, test_name)
+        assets.copy('assets', 'rtlsim-ai' + str(device), base_directory, test_name)
         if riscv_cache:
-            assets.copy('assets', 'riscv-cache', base_directory, test_name)
+            assets.copy('assets', 'rtlsim-riscv-cache-ai' + str(device), base_directory, test_name)
         elif riscv_flash:
-            assets.copy('assets', 'riscv-flash', base_directory, test_name)
+            assets.copy('assets', 'rtlsim-riscv-flash-ai' + str(device), base_directory, test_name)
         elif riscv:
-            assets.copy('assets', 'riscv', base_directory, test_name)
+            assets.copy('assets', 'rtlsim-riscv-ai' + str(device), base_directory, test_name)
+        if result_output:
+            assets.copy('assets', 'rtlsim-verify-output', base_directory, test_name)
     elif block_mode:
-        assets.copy('assets', 'blocklevel', base_directory, test_name)
+        assets.copy('assets', 'blocklevel-ai' + str(device), base_directory, test_name)
     elif embedded_code:
+        insert = summary_stats + \
+                 '\n/* Number of outputs for this network */\n' \
+                 '#define CNN_NUM_OUTPUTS ' \
+                 f'{fc_weights[0].shape[0] if fc_weights else output_chan[-1]}'
+        if timer is not None:
+            insert += '\n\n/* Use this timer to time the inference */\n' \
+                      f'#define CNN_INFERENCE_TIMER MXC_TMR{timer}'
+
         if riscv:
-            assets.copy('assets', 'embedded-riscv-ai' + str(device), base_directory, test_name)
+            assets.from_template('assets', 'embedded-riscv-ai' + str(device), base_directory,
+                                 test_name, board_name, '', riscv=riscv)
         else:
-            assets.copy('assets', 'embedded-ai' + str(device), base_directory, test_name)
-        assets.eclipse_template('assets', 'eclipse', base_directory, test_name, riscv=riscv)
+            assets.from_template('assets', 'embedded-ai' + str(device), base_directory,
+                                 test_name, board_name, '', riscv=riscv)
+        assets.from_template('assets', 'eclipse', base_directory,
+                             test_name, board_name, '', riscv=riscv)
+        assets.from_template('assets', 'device-all', base_directory,
+                             test_name, board_name, insert, riscv=riscv)
+        assets.from_template('assets', 'device-ai' + str(device), base_directory,
+                             test_name, board_name, '', riscv=riscv)
 
     return test_name
 
@@ -2089,13 +2207,10 @@ def main():
     args = commandline.get_parser()
 
     if args.device != 84 and args.fc_layer:
-        print("WARNING: --fc-layer should only be used on AI84")
+        wprint('--fc-layer should only be used on AI84.')
 
     # Configure device
     tc.dev = tc.get_device(args.device)
-
-    if args.device == 87:
-        args.device = 85  # For now, there are no differences between AI85 and AI87
 
     if args.apb_base:
         apb_base = args.apb_base
@@ -2120,7 +2235,6 @@ def main():
     if cfg['arch'] != 'test':
         if not args.checkpoint_file:
             eprint("--checkpoint-file is a required argument.")
-            sys.exit(1)
         fext = args.checkpoint_file.rsplit(sep='.', maxsplit=1)[1].lower()
         if fext == 'onnx':
             # ONNX file selected
@@ -2157,6 +2271,7 @@ def main():
                     params['operator'],
                     args.display_checkpoint,
                     args.no_bias,
+                    params['conv_groups'],
                 )
     else:  # Get some hard-coded sample weights
         layers, weights, bias, output_shift, fc_weights, \
@@ -2170,6 +2285,8 @@ def main():
                 cfg['weights'] if 'weights' in cfg else None,
                 cfg['bias'] if 'bias' in cfg else None,
                 args.no_bias,
+                params['conv_groups'],
+                params['operator'],
             )
 
     if cfg_layers > layers:
@@ -2190,30 +2307,12 @@ def main():
     if layers != cfg_layers:
         eprint(f"Number of layers in the YAML configuration file ({cfg_layers}) "
                f"does not match the checkpoint file ({layers}).")
-        sys.exit(1)
 
     if any(p < 0 or p > 4*tc.dev.MEM_SIZE for p in params['output_offset']):
         eprint('Unsupported value for `out_offset` in YAML configuration.')
-        sys.exit(1)
-
-    if args.device == 84:
-        if any(q != 8 for q in params['quantization']):
-            eprint('All quantization configuration values must be 8 for AI84.')
-            sys.exit(1)
-
-        if any(p0 != 1 and p0 & 1 != 0 or p0 < 0 or p0 > 4 or p1 != 1 and p1 & 1 != 0
-               or p1 < 0 or p1 > 4 for [p0, p1] in params['pool']):
-            eprint('Unsupported value for `max_pool`/`avg_pool` for AI84 in YAML configuration.')
-            sys.exit(1)
-
-        if any(p0 == 3 or p0 < 0 or p0 > 4
-               or p1 == 3 or p1 < 0 or p1 > 4 for [p0, p1] in params['pool_stride']):
-            eprint('Unsupported value for `pool_stride` in YAML configuration.')
-            sys.exit(1)
 
     if any(q != 8 for q in params['bias_quantization']):
         eprint('All bias quantization configuration values must be 8.')
-        sys.exit(1)
 
     in_sequences = params['in_sequences'][:layers]
 
@@ -2337,7 +2436,6 @@ def main():
     for ll in range(layers):
         if input_channels[ll] <= 0:
             eprint(f'Must specify `in_channels` for layer {ll}.')
-            sys.exit(1)
         if operator[ll] != op.NONE:
             assert weights[ll].min() >= -1 << quantization[ll] - 1
             assert weights[ll].max() <= (1 << quantization[ll] - 1) - 1
@@ -2350,7 +2448,6 @@ def main():
                         if output_dim[e] != dim:
                             eprint('Cannot concatenate outputs of different dimensions in layer '
                                    f'{ll}: {dim} vs {output_dim[e]}.')
-                            sys.exit(1)
                     auto_input_dim[ll] = dim
                 else:
                     auto_input_dim[ll] = output_dim[in_sequences[ll]]
@@ -2360,39 +2457,32 @@ def main():
                 input_dim[ll] = auto_input_dim[ll]
             else:
                 input_dim[ll] = conf_input_dim[ll]
-        if pool[ll][0] > 1 or pool[ll][1] > 1:
-            if operator[ll] != op.CONV1D:
-                if pool_stride[ll][0] != pool_stride[ll][1]:
-                    eprint(f'{op.string(operator[ll])} in layer {ll} does not support non-square'
-                           f' pooling stride (currently set to '
-                           f'{pool_stride[ll][0]}x{pool_stride[ll][1]}).')
-                    sys.exit(1)
-                pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])
-                               // pool_stride[ll][0],
-                               (input_dim[ll][1] + pool_stride[ll][1] - pool[ll][1])
-                               // pool_stride[ll][1]]
-            else:
-                pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])
-                               // pool_stride[ll][0],
-                               1]
+        if operator[ll] != op.CONV1D:
+            if pool_stride[ll][0] != pool_stride[ll][1]:
+                eprint(f'{op.string(operator[ll])} in layer {ll} does not support non-square '
+                       f'pooling stride (currently set to '
+                       f'{pool_stride[ll][0]}x{pool_stride[ll][1]}).')
+            pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])
+                           // pool_stride[ll][0],
+                           (input_dim[ll][1] + pool_stride[ll][1] - pool[ll][1])
+                           // pool_stride[ll][1]]
         else:
-            pooled_size = input_dim[ll]
+            pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])
+                           // pool_stride[ll][0],
+                           1]
 
         pooled_dim[ll] = pooled_size
         if any(dim == 0 for dim in pooled_dim[ll]):
             eprint(f'Pooling in layer {ll} results in a zero data dimension '
                    f'(input {input_dim[ll]}, pooled {pooled_dim[ll]}).')
-            sys.exit(1)
 
         if operator[ll] != op.CONV1D:
             if stride[ll][0] != stride[ll][1]:
                 eprint(f'{op.string(operator[ll])} in layer {ll} does not support non-square '
                        f'stride (currently set to {stride[ll][0]}x{stride[ll][1]}).')
-                sys.exit(1)
             if operator[ll] != op.CONVTRANSPOSE2D and stride[ll][0] != 1:
                 eprint(f'{op.string(operator[ll])} in layer {ll} does not support stride other '
                        f'than 1 (currently set to {stride[ll][0]}x{stride[ll][1]}).')
-                sys.exit(1)
             if operator[ll] in [op.NONE, op.CONV2D]:
                 output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1)
                                    - 1 + 2 * padding[ll][0]) // stride[ll][0] + 1,
@@ -2410,52 +2500,42 @@ def main():
             else:  # Element-wise
                 output_dim[ll] = [pooled_size[0], pooled_size[1]]
             if flatten[ll]:
+                if pooled_dim[ll][0] * pooled_dim[ll][1] > 256:
+                    eprint(f'`flatten` in layer {ll} exceeds supported input dimensions '
+                           f'({pooled_dim[ll][0]} * {pooled_dim[ll][1]} > 256)).')
                 output_dim[ll] = [1, 1]
                 input_channels[ll] //= pooled_dim[ll][0] * pooled_dim[ll][1]
                 assert input_channels[ll] > 0
-            if padding[ll][0] >= 3:
+            if padding[ll][0] >= 3 and args.device != devices.CMSISNN:
                 eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
                        f'(currently set to {padding[ll][0]}).')
-                sys.exit(1)
         else:
             # We don't have to consider padding for the width calculation,
             # since padding has to be a multiple of 3 and we check for that.
-            if args.device == 84:
-                if pooled_size[0] % 3 != 0:
-                    eprint(f'{op.string(operator[ll])} in layer {ll} requires a multiple of 3 for'
-                           f'the pooled input length (currently {pooled_size[0]}).')
-                    sys.exit(1)
-                if padding[ll][0] % 3 != 0:
-                    eprint(f'{op.string(operator[ll])} in layer {ll} requires a multiple of 3 for '
-                           f'`pad` (currently set to {padding[ll][0]}).')
-                    sys.exit(1)
-            else:
-                if padding[ll][0] >= 3:
-                    eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
-                           f'(currently set to {padding[ll][0]}).')
-                    sys.exit(1)
+            if padding[ll][0] >= 3 and args.device != devices.CMSISNN:
+                eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
+                       f'(currently set to {padding[ll][0]}).')
             output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
                                2 * padding[ll][0]) // stride[ll][0] + 1,
                               1]
 
         # Prohibit pad greater than or equal to kernel size
         if padding[ll][0] >= kernel_size[ll][0] or padding[ll][1] >= kernel_size[ll][1]:
-            eprint(f'Pad size for layer {ll} exceeds kernel size.')
-            sys.exit(1)
+            eprint(f'Pad size ({padding[ll]}) for layer {ll} is greater than or equal to'
+                   f' kernel size ({kernel_size[ll]}).')
 
         # Check for max dimensions
         if any(dim > tc.dev.MAX_ROW_COL for dim in input_dim[ll]):
             eprint(f'Input dimension {input_dim[ll]} exceeds system maximum of '
                    f'{tc.dev.MAX_ROW_COL} in layer {ll}.')
-            sys.exit(1)
         if any(dim > tc.dev.MAX_ROW_COL for dim in output_dim[ll]):
             eprint(f'Output dimension {output_dim[ll]} exceeds system maximum of '
                    f'{tc.dev.MAX_ROW_COL} in layer {ll}.')
-            sys.exit(1)
+
+        assert input_channels[ll] > 0
 
     if args.riscv and not args.riscv_cache and args.embedded_code:
         eprint("Embedded code on RISC-V requires --riscv-cache.")
-        sys.exit(1)
 
     if args.device != devices.CMSISNN:
         tn = create_net(
@@ -2464,6 +2544,7 @@ def main():
             args.verbose_all,
             args.debug,
             args.debug_computation,
+            args.debug_latency,
             args.no_error_stop,
             args.overwrite_ok,
             args.log,
@@ -2507,6 +2588,7 @@ def main():
             args.input_filename,
             args.output_filename,
             args.c_filename,
+            args.api_filename,
             args.test_dir,
             args.runtest_filename,
             args.log_filename,
@@ -2517,7 +2599,7 @@ def main():
             args.verify_kernels,
             args.embedded_code,
             args.compact_weights,
-            args.compact_data,
+            args.compact_data and not args.rtl_preload,
             args.write_zero_registers,
             args.weight_filename,
             args.sample_filename,
@@ -2537,7 +2619,7 @@ def main():
             args.riscv_flash,
             args.riscv_cache,
             args.riscv_debug,
-            args.riscv_debugwait,
+            args.debugwait,
             args.override_start,
             args.increase_start,
             args.override_rollover,
@@ -2558,11 +2640,11 @@ def main():
             args.powerdown,
             args.simple1b,
             args.legacy_test,
+            args.legacy_kernels,
             args.log_intermediate,
             args.log_pooling,
             args.allow_streaming,
             args.softmax,
-            args.unload,
             args.clock_trim,
             args.repeat_layers,
             args.fixed_input,
@@ -2570,7 +2652,19 @@ def main():
             args.boost,
             args.forever,
             write_gap,
+            args.start_layer,
+            args.pipeline,
+            args.pll,
+            args.reshape_inputs,
+            args.link_layer,
             args.energy,
+            args.timer,
+            args.board_name,
+            args.rd_ahead,
+            args.calcx4,
+            args.rtl_preload,
+            args.result_output,
+            args.weight_start,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(
@@ -2580,7 +2674,7 @@ def main():
                 args.autogen,
             )
     else:
-        eprint('CMSIS-NN code generation is unsupported.', error=False)
+        wprint('CMSIS-NN code generation is unsupported.')
 
         cmsisnn.create_net(
             args.prefix,
@@ -2628,8 +2722,8 @@ def main():
             args.legacy_test,
         )
 
-    print("SUMMARY OF OPS")
-    stats.print_summary(factor=args.repeat_layers, debug=args.debug)
+    print(stats.summary(factor=args.repeat_layers, debug=args.debug,
+                        weights=weights, w_size=quantization, bias=bias))
 
 
 def signal_handler(

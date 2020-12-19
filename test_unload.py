@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 ###################################################################################################
-# Copyright (C) 2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
 Test unload() / flatten() software operator
 """
 import numpy as np
+
 import tornadocnn as tc
 from utils import ffs, popcount
-
 
 MEM_INVALID = -(2**63)  # When encountering this value, we know the array value was not initialized
 MEM_SIZE = 0x10000 >> 2

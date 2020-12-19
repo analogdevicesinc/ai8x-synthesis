@@ -8,9 +8,10 @@
 Command line parser for Tornado CNN
 """
 import argparse
+
 import camera
-import devices
 from devices import device
+from eprint import wprint
 
 
 def get_parser():
@@ -18,20 +19,15 @@ def get_parser():
     Return an argparse parser.
     """
 
-    parser = argparse.ArgumentParser(description="AI8X CNN Generator")
+    parser = argparse.ArgumentParser(description="MAX7800X CNN Generator")
 
     # Device selection
     group = parser.add_argument_group('Device selection')
-    mgroup = group.add_mutually_exclusive_group()
+    mgroup = group.add_mutually_exclusive_group(required=True)
     mgroup.add_argument('--ai85', action='store_const', const=85, dest='device',
-                        help="enable AI85 features (default: AI84)")
-    mgroup.add_argument('--ai87', action='store_const', const=87, dest='device',
-                        help="enable AI87 features (default: AI84)")
-    mgroup.add_argument('--device', type=device, metavar='N',
-                        help="set device (default: 84)")
-    mgroup.add_argument('--cmsis-software-nn', action='store_const',
-                        const=devices.CMSISNN, dest='device',
-                        help="create code for an Arm CMSIS NN software network")
+                        help="set device to MAX78000")
+    mgroup.add_argument('--device', type=device, metavar='device-name',
+                        help="set device")
 
     # Hardware features
     group = parser.add_argument_group('Hardware features')
@@ -42,16 +38,35 @@ def get_parser():
 
     # Embedded code
     group = parser.add_argument_group('Embedded code')
-    group.add_argument('-e', '--embedded-code', action='store_true', default=False,
-                       help="generate embedded code for device instead of RTL simulation")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('-e', '--embedded-code', action='store_true', default=True,
+                        help="generate embedded code for device (default)")
+    mgroup.add_argument('--rtl', '--rtl-sim', action='store_false', dest='embedded_code',
+                        help="generate RTL sim code instead of embedded code (default: false)")
+    mgroup.add_argument('--rtl-preload', action='store_true',
+                        help="generate RTL sim code with memory preload (default: false)")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('--pipeline', action='store_true', default=None,
+                        help="enable pipeline (default: enabled where supported)")
+    mgroup.add_argument('--no-pipeline', action='store_false', dest='pipeline',
+                        help="disable pipeline")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('--pll', action='store_true', default=None,
+                        help="enable PLL (default: automatic)")
+    mgroup.add_argument('--no-pll', action='store_false', dest='pll',
+                        help="disable PLL (default: automatic)")
     group.add_argument('--config-file', required=True, metavar='S',
                        help="YAML configuration file containing layer configuration")
     group.add_argument('--checkpoint-file', metavar='S',
                        help="checkpoint file containing quantized weights")
+    group.add_argument('--board-name', metavar='S', default='EvKit_V1',
+                       help="set board name (default: EvKit_V1)")
     group.add_argument('--display-checkpoint', action='store_true', default=False,
                        help="show parsed checkpoint data")
     group.add_argument('--prefix', metavar='S', required=True,
                        help="set test name prefix")
+    group.add_argument('--debugwait', type=int, default=2, metavar='N',
+                       help="set the delay in seconds before calling __WFI() (default: 2)")
 
     # Code generation
     group = parser.add_argument_group('Code generation')
@@ -63,19 +78,20 @@ def get_parser():
                        help="use express kernel loading (default: false)")
     group.add_argument('--mlator', action='store_true', default=False,
                        help="use hardware to swap output bytes (default: false)")
-    mgroup = group.add_mutually_exclusive_group()
-    mgroup.add_argument('-f', '--fc-layer', action='store_true', default=False,
-                        help="add unload, a fully connected classification layer, and softmax"
-                             "in software (default: false; AI85 uses hardware)")
-    mgroup.add_argument('--unload', action='store_true', default=False,
-                        help="add a 'cnn_unload()' function (default: false)")
-    mgroup.add_argument('--softmax', action='store_true', default=False,
-                        help="add unload and software softmax functions (default: false)")
+    group.add_argument('--softmax', action='store_true', default=False,
+                       help="add software softmax function (default: false)")
+    group.add_argument('--unload', action='store_true', default=None,
+                       help="legacy argument - ignored")
     group.add_argument('--boost', metavar='S', default=None,
                        help="dot-separated port and pin that is turned on during CNN run to "
                             "boost the power supply, e.g. --boost 2.5 (default: None)")
-    group.add_argument('--energy', action='store_true', default=False,
-                       help="insert instrumentation code for energy measurement")
+    group.add_argument('--start-layer', type=int, metavar='N', default=0,
+                       help="set starting layer (default: 0)")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('--timer', type=int, metavar='N',
+                        help="use timer to time the inference (default: off, supply timer number)")
+    mgroup.add_argument('--energy', action='store_true', default=False,
+                        help="insert instrumentation code for energy measurement")
     group.add_argument('--scale', metavar='S', required=None,
                        help="scale factor for quantizing onnx weights, not required"
                             "Typical values: PyTorch - 0.8; TensorFlow - 2.0; Default: no scaling")
@@ -92,6 +108,8 @@ def get_parser():
     group.add_argument('--c-filename', metavar='S',
                        help="C file name base (RTL sim default: 'test' -> 'test.c', "
                             "otherwise 'main' -> 'main.c')")
+    group.add_argument('--api-filename', metavar='S', default='cnn.c',
+                       help="C library file name (default: 'cnn.c', 'none' to disable)")
     group.add_argument('--weight-filename', metavar='S', default='weights.h',
                        help="weight header file name (default: 'weights.h')")
     group.add_argument('--sample-filename', metavar='S', default='sampledata.h',
@@ -116,16 +134,19 @@ def get_parser():
     group = parser.add_argument_group('RISC-V')
     group.add_argument('--riscv', action='store_true', default=False,
                        help="use RISC-V processor (default: false)")
-    group.add_argument('--riscv-flash', action='store_true', default=False,
-                       help="move kernel/input to Flash (implies --riscv; default: false)")
-    group.add_argument('--riscv-cache', action='store_true', default=False,
-                       help="enable RISC-V cache (implies --riscv and --riscv-flash; "
-                            "default: false)")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('--riscv-flash', action='store_true', default=None,
+                        help="move kernel/input to Flash (implies --riscv; default: true)")
+    mgroup.add_argument('--no-riscv-flash', action='store_false', dest='riscv_flash',
+                        help="disable --riscv-flash")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('--riscv-cache', action='store_true', default=None,
+                        help="enable RISC-V cache (implies --riscv and --riscv-flash; "
+                             "default: true)")
+    mgroup.add_argument('--no-riscv-cache', action='store_false', dest='riscv_cache',
+                        help="disable RISC-V cache")
     group.add_argument('--riscv-debug', action='store_true', default=False,
                        help="enable RISC-V debug interface (implies --riscv; default: false)")
-    group.add_argument('--riscv-disable-debugwait', dest='riscv_debugwait',
-                       action='store_false', default=True,
-                       help="disable the for loop before calling WFI() (default: use loop)")
     group.add_argument('--riscv-exclusive', action='store_true', default=False,
                        help="exclusive SRAM access for RISC-V (implies --riscv; default: false)")
 
@@ -148,6 +169,8 @@ def get_parser():
                        help="debug mode (default: false)")
     group.add_argument('--debug-computation', action='store_true', default=False,
                        help="debug computation -- SLOW (default: false)")
+    group.add_argument('--debug-latency', action='store_true', default=False,
+                       help="debug latency calculations (default: false)")
     group.add_argument('--no-error-stop', action='store_true', default=False,
                        help="do not stop on errors (default: stop)")
     group.add_argument('--stop-after', type=int, metavar='N',
@@ -163,10 +186,20 @@ def get_parser():
                             "0 to ignore a particular trim")
     group.add_argument('--fixed-input', action='store_true', default=False,
                        help="use fixed 0xaa/0x55 alternating input (default: false)")
+    group.add_argument('--reshape-inputs', action='store_true', default=False,
+                       help="drop data channel dimensions to match weights (default: false)")
     group.add_argument('--max-checklines', type=int, metavar='N', default=None, dest='max_count',
                        help="output only N output check lines (default: all)")
     group.add_argument('--forever', action='store_true', default=False,
                        help="after initial run, repeat CNN forever (default: false)")
+    group.add_argument('--link-layer', action='store_true', default=False,
+                       help="always use the link layer feature (default: false)")
+    group.add_argument('--read-ahead', dest='rd_ahead', action='store_true', default=False,
+                       help="set the rd_ahead bit (default: false)")
+    group.add_argument('--calcx4', dest='calcx4', action='store_true', default=False,
+                       help="rearrange kernels and set the calcx4 bit (default: false)")
+    group.add_argument('--weight-start', type=int, metavar='N', default=0,
+                       help="specify start offset for weights (debug, default: 0)")
 
     # RTL sim
     group = parser.add_argument_group('RTL simulation')
@@ -184,9 +217,8 @@ def get_parser():
                        help="use synchronous camera input (default: false)")
     group.add_argument('--input-fifo', action='store_true', default=False,
                        help="use software FIFO to buffer input (default: false)")
-    group.add_argument('--autogen', default='tests', metavar='S',
-                       help="directory location for autogen_list (default: 'tests'); "
-                            "don't add if 'None'")
+    group.add_argument('--autogen', default='None', metavar='S',
+                       help="directory location for autogen_list (default: None)")
     group.add_argument('--input-filename', default='input', metavar='S',
                        help="input .mem file name base (default: 'input' -> 'input.mem')")
     group.add_argument('--output-filename', default='output', metavar='S',
@@ -195,14 +227,20 @@ def get_parser():
                        help="run test file name (default: 'run_test.sv')")
     group.add_argument('--legacy-test', action='store_true', default=False,
                        help="enable compatibility for certain old RTL sims (default: false)")
+    group.add_argument('--legacy-kernels', action='store_true', default=False,
+                       help="use old, less efficient kernel allocation for certain old RTL sims"
+                            " (default: false)")
     group.add_argument('--test-dir', metavar='S', required=True,
                        help="set base directory name for auto-filing .mem files")
-    group.add_argument('--top-level', default=None, metavar='S',
-                       help="top level name instead of block mode (default: None)")
+    group.add_argument('--top-level', default='cnn', metavar='S',
+                       help="top level name (default: 'cnn', 'None' for block level)")
     group.add_argument('--queue-name', default='short', metavar='S',
                        help="queue name (default: 'short')")
     group.add_argument('--timeout', type=int, metavar='N',
                        help="set RTL sim timeout (units of 1ms, default based on test)")
+    group.add_argument('--result-output', action='store_true', default=False,
+                       help="write expected output to memory dumps instead of inline code"
+                            " (default: false)")
 
     # Streaming
     group = parser.add_argument_group('Streaming tweaks')
@@ -279,11 +317,13 @@ def get_parser():
 
     args = parser.parse_args()
 
+    if args.rtl_preload:
+        args.embedded_code = False
+    if args.embedded_code is None:
+        args.embedded_code = True
+
     if not args.c_filename:
         args.c_filename = 'main' if args.embedded_code else 'test'
-
-    if not args.device:
-        args.device = 84
 
     if args.no_bias is None:
         args.no_bias = []
@@ -323,5 +363,20 @@ def get_parser():
         except ValueError as exc:
             raise ValueError('ERROR: Argument --streaming-layers must be a comma-separated '
                              'list of integers only') from exc
+
+    if args.top_level == 'None':
+        args.top_level = None
+
+    if args.riscv_flash is None:
+        args.riscv_flash = args.riscv
+    if args.riscv_cache is None:
+        args.riscv_cache = args.riscv
+
+    if args.unload:
+        wprint('--unload is no longer needed, and is ignored.')
+
+    # Set disabled legacy arguments
+    args.fc_layer = False
+    args.unload = False
 
     return args

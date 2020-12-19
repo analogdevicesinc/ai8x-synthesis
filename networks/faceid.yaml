@@ -65,6 +65,7 @@ layers:
   out_offset: 0x2000
   processors: 0xffffffffffffffff
 - avg_pool: [5, 3]
+  pool_stride: 1
   operation: None
   out_offset: 0x0000
   processors: 0xffffffffffffffff

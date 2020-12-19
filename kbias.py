@@ -1,22 +1,17 @@
 ###################################################################################################
-# Copyright (C) 2018-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
 Bias related functions
 """
-import sys
-
 import numpy as np
 
 import tornadocnn as tc
-from eprint import eprint
+from eprint import eprint, wprint
 from utils import argmin
-
 
 _INVALID_VALUE = -(2**63)
 
@@ -64,6 +59,9 @@ def load(
     if embedded_code:
         bias_values = np.zeros((tc.dev.P_NUMGROUPS, tc.dev.BIAS_SIZE), dtype=np.int64)
 
+    if not embedded_code:
+        apb.function_header(function='load_bias')
+
     group_bias_max = [0] * tc.dev.P_NUMGROUPS
     bias_offs = [None] * layers
     bias_group = [None] * layers
@@ -73,9 +71,8 @@ def load(
         if len(bias[ll]) != output_chan[ll]:
             eprint(f'Layer {ll}: output channel count {output_chan[ll]} does not match the number '
                    f'of bias values {len(bias[ll])}.')
-            sys.exit(1)
         if not np.any(bias[ll] != 0):
-            eprint(f'Layer {ll}: All bias values are zero. Ignoring the input.', error=False)
+            wprint(f'Layer {ll}: All bias values are zero. Ignoring the input.')
             continue
 
         q = 8  # Fixed to 8 bits instead of quantization[ll]
@@ -84,20 +81,18 @@ def load(
         # FIXME: Is it necessary to handle gaps in the next layer?
         bias_len = (output_chan[ll] + qfactor-1) // qfactor
 
-        if ll == 0 and streaming[ll] and tc.dev.FIX_STREAM_BIAS:
+        if ll == 0 and streaming[ll] and not tc.dev.SUPPORT_STREAM_BIAS:
             # Work around a problem on AI85
             bias_len += 1
-        if streaming[ll] and tc.dev.FIX_STREAM_BIAS:
-            eprint(f'Layer {ll} uses streaming and a bias. '
-                   'THIS COMBINATION MIGHT NOT BE FUNCTIONING CORRECTLY!!!',
-                   error=False)
+        if streaming[ll] and not tc.dev.SUPPORT_STREAM_BIAS:
+            wprint(f'Layer {ll} uses streaming and a bias. '
+                   'THIS COMBINATION MIGHT NOT BE FUNCTIONING CORRECTLY!!!')
 
         # Pick the group with the least amount of data in it
         group = argmin(group_bias_max[t] for t in group_map[ll])
         if group_bias_max[group] + bias_len > tc.dev.BIAS_SIZE:
             eprint(f'Layer {ll}: bias memory capacity exceeded - available groups: '
                    f'{group_map[ll]}, used so far: {group_bias_max}, needed: {bias_len}.')
-            sys.exit(1)
         bias_group[ll] = group
         bias_offs[ll] = group_bias_max[group]
         # Each layer has output_channel number of bias values
@@ -134,20 +129,26 @@ def load(
             for group in range(tc.dev.P_NUMGROUPS):
                 if group_bias_max[group] == 0:
                     continue
-                apb.output(f'static const uint8_t bias_{group}[] = BIAS_{group};\n')
-            apb.output('\n')
+                apb.output(f'static const uint8_t bias_{group}[] = BIAS_{group};\n', embedded_code)
+            apb.output('\n', embedded_code)
 
             # Finally, create function and do memcpy()
-            apb.output('void memcpy_8to32(uint32_t *dst, const uint8_t *src, size_t n)\n{\n')
-            apb.output('  while (n-- > 0) {\n    *dst++ = *src++;\n  }\n}\n\n')
+            apb.function_header(prefix='', function='memcpy_8to32', return_type='static void',
+                                arguments='uint32_t *dst, const uint8_t *src, int n')
+            apb.output('  while (n-- > 0) {\n    *dst++ = *src++;\n  }\n', embedded_code)
+            apb.function_footer(return_value='void')
 
-            apb.output('void load_bias(void)\n{\n')
+            apb.function_header(function='load_bias')
             for group in range(tc.dev.P_NUMGROUPS):
                 if group_bias_max[group] == 0:
                     continue
                 addr = apb.apb_base + tc.dev.C_GROUP_OFFS*group + tc.dev.C_BRAM_BASE
                 apb.output(f'  memcpy_8to32((uint32_t *) 0x{addr:08x}, bias_{group}, '
-                           f'sizeof(uint8_t) * {group_bias_max[group]});\n')
-            apb.output('}\n\n')
+                           f'sizeof(uint8_t) * {group_bias_max[group]});\n', embedded_code)
+        else:
+            apb.function_header(function='load_bias')
+            apb.output('  // Not used in this network', embedded_code)
+
+    apb.function_footer()  # load_bias()
 
     return bias_offs, bias_group, group_bias_max

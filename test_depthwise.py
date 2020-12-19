@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 ###################################################################################################
-# Copyright (C) 2019-2020 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
-Test the depthwise conv2d operator.
+Test the depthwise conv1d and conv2d operators.
 """
 import numpy as np
 import torch
+
 import compute
 
 
-def depthwise2d(groups, data, weight, expected):
+def depthwise2d(groups, data, weight, expected, kernel_size=3, padding=1):
     """Depthwise 2D convolution"""
     print('Input:\n', data)
 
@@ -24,7 +23,7 @@ def depthwise2d(groups, data, weight, expected):
         torch.as_tensor(weight, dtype=torch.float),
         bias=None,
         stride=1,
-        padding=1,  # Keep data dimensions
+        padding=padding,  # Keep data dimensions
         dilation=1,
         groups=groups,
     ).int().squeeze().numpy()
@@ -35,9 +34,9 @@ def depthwise2d(groups, data, weight, expected):
         None,
         data.shape,
         expected.shape,
-        kernel_size=[3, 3],
+        kernel_size=[kernel_size, kernel_size],
         stride=[1, 1],
-        pad=[1, 1],
+        pad=[padding, padding],
         dilation=[1, 1],
         fractional_stride=[1, 1],
         output_pad=[0, 0],
@@ -58,8 +57,50 @@ def depthwise2d(groups, data, weight, expected):
     assert np.array_equal(output, expected)
 
 
-def test_depthwise2d():
-    """Main program to test compute.conv2d with groups > 1."""
+def depthwise1d(groups, data, weight, expected, kernel_size=9, padding=0):
+    """Depthwise 1D convolution"""
+    print('Input:\n', data)
+
+    t = torch.nn.functional.conv1d(
+        torch.as_tensor(data, dtype=torch.float).unsqueeze(0),  # Add batch dimension
+        torch.as_tensor(weight, dtype=torch.float),
+        bias=None,
+        stride=1,
+        padding=padding,
+        dilation=1,
+        groups=groups,
+    ).int().squeeze().numpy()
+
+    output = compute.conv1d(
+        data,
+        weight,
+        None,
+        data.shape,
+        expected.shape,
+        weight.shape[0],
+        kernel_size=kernel_size,
+        stride=1,
+        pad=padding,
+        dilation=1,
+        groups=groups,
+        debug=True,
+    )
+
+    print("PYTORCH OK" if np.array_equal(output, t) else "*** FAILURE ***")
+    assert np.array_equal(output, t)
+
+    print('Output before division:\n', output)
+    output += 64
+    output //= 128
+    print('Output:\n', output)
+
+    print('Expected:\n', expected)
+    print("SUCCESS" if np.array_equal(output, expected) else "*** FAILURE ***")
+    assert np.array_equal(output, expected)
+
+
+def test_depthwise():
+    """Main program to test compute.conv1d and compute.conv2d with groups > 1."""
 
     # 3x4x4 (CHW)
     d0 = np.array(
@@ -177,6 +218,52 @@ def test_depthwise2d():
 
     depthwise2d(2, d2, w2, e2)
 
+    d3 = np.array(
+        [[[-41, -98],
+          [49, 73]],
+         [[-98, 31],
+          [-59, 86]]],
+        dtype=np.int64,
+    )
+
+    w3 = np.array(
+        [[[[33],
+           ]],
+         [[[110],
+           ]]],
+        dtype=np.int64,
+    )
+
+    e3 = np.array(
+        [[[-11, -25],
+          [13, 19]],
+         [[-84, 27],
+          [-51, 74]]],
+        dtype=np.int64,
+    )
+
+    depthwise2d(2, d3, w3, e3, kernel_size=1, padding=0)
+
+    d4 = np.array(
+        [[-41, -98, 16, 73, 49],
+         [35, 104, -27, -107, 111]],
+        dtype=np.int64,
+    )
+
+    w4 = np.array(
+        [[[-54, -64, 14]],
+         [[52, -44, -60]]],
+        dtype=np.int64,
+    )
+
+    e4 = np.array(
+        [[68, 41, -38],
+         [-9, 102, -26]],
+        dtype=np.int64,
+    )
+
+    depthwise1d(2, d4, w4, e4, kernel_size=3, padding=0)
+
 
 if __name__ == '__main__':
-    test_depthwise2d()
+    test_depthwise()
