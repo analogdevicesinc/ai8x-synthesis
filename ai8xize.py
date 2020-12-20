@@ -488,6 +488,13 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                            f'input {processor_map[ll]:08x}, output '
                            f'{output_processor_map[ll]:08x}.')
 
+        # Ensure byte positions are the same in the input and output map for depthwise convolutions
+        if conv_groups[ll] > 1:
+            if ffs(output_processor_map[ll]) % tc.dev.P_SHARED != 0:
+                eprint(f'Layer {ll} is a depth-wise convolution. Output processors '
+                       'must be aligned to a multiple of 4. Configured for this layer: '
+                       f'{output_processor_map[ll]:08x}.')
+
     groups_used = []
     for group in range(tc.dev.P_NUMGROUPS):
         if ((processors_used |
@@ -985,6 +992,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 local_source = False
                 for _, group in enumerate(groups_used):
                     # Local output must be used:
+                    # - for depthwise convolutions
                     # - When parallel processing is enabled (not currently supported), or
                     # - When there are gaps in the output, and
                     #   - the gaps are non-uniform, or
@@ -1019,13 +1027,15 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             tscnt_max = max(
                                 tscnt_max,
                                 (popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
-                                          % 2**tc.dev.P_NUMPRO) * output_width[ll] // 8 - 1) // 4
+                                          % 2**tc.dev.P_NUMPRO) * output_width[ll] // 8 - 1)
+                                // 4
                             )
                     elif conv_groups[ll] > 1:
                         tscnt_max = max(
                             tscnt_max,
-                            popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
-                                     % 2**tc.dev.P_NUMPRO) - 1
+                            ((popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
+                                       % 2**tc.dev.P_NUMPRO) * output_width[ll] // 8) - 1 + 15)
+                            // 4
                         )
 
                 for _, group in enumerate(groups_used):
@@ -1153,6 +1163,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         val |= (instance % tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE \
                             | (instance // tc.dev.P_SHARED) << tc.dev.WRITE_PTR_SHIFT
                     else:
+                        # FIXME: No test currently sets local_souce, so this code is suspect
                         instance = ffs(output_processor_map[ll] >> group * tc.dev.P_SHARED) \
                                & ~(tc.dev.P_SHARED-1)
                         val |= (instance + group * tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE
@@ -1200,7 +1211,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                           (0x40 if big_data[ll] else 0) | \
                           (0x20)
                     if not local_source:
-                        val |= 0x800
+                        val |= 1 << 11
+                    if conv_groups[ll] > 1:
+                        val |= 1 << 29
 
                     if output_width[ll] != 8:
                         val |= 1 << 16
