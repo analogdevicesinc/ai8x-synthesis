@@ -411,7 +411,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         test_name = test_name[:cutoff] + '-' + h
     print(f'{test_name}...')
 
-    os.makedirs(os.path.join(base_directory, test_name), exist_ok=True)
+    try:
+        target_dir = os.path.join(base_directory, test_name)
+        os.makedirs(target_dir, exist_ok=False)
+    except OSError:
+        wprint(target_dir, 'already exists')
 
     # Redirect stdout?
     if log:

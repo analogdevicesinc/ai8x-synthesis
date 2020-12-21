@@ -12,7 +12,7 @@ import os
 import toplevel
 import tornadocnn as tc
 import unload
-from eprint import eprint
+from eprint import eprint, wprint
 
 READ_TIME_NS = 230
 WRITE_TIME_NS = 280
@@ -175,8 +175,11 @@ class APB():
                                     f.write(f'@{addr:04x} {val}\n')
 
         if self.kernel_mem is not None:
-            target_dir = os.path.join(base_directory, test_name, 'masks')
-            os.makedirs(target_dir, exist_ok=True)
+            try:
+                target_dir = target_dir = os.path.join(base_directory, test_name, 'masks')
+                os.makedirs(target_dir, exist_ok=False)
+            except OSError:
+                wprint(target_dir, 'already exists')
             for group in range(tc.dev.P_NUMGROUPS):
                 for proc in range(tc.dev.P_NUMPRO):
                     for mem in range(tc.dev.MASK_INSTANCES):
@@ -191,9 +194,13 @@ class APB():
                                     f.write(f'@{addr:04x} {val}\n')
 
         if self.output_data_mem is not None:
-            os.makedirs(os.path.join(base_directory, test_name, 'data-output'), exist_ok=True)
-            target_dir = os.path.join(base_directory, test_name, 'data-expected')
+            target_dir = os.path.join(base_directory, test_name, 'data-output')
             os.makedirs(target_dir, exist_ok=True)
+            try:
+                target_dir = os.path.join(base_directory, test_name, 'data-expected')
+                os.makedirs(target_dir, exist_ok=False)
+            except OSError:
+                wprint(target_dir, 'already exists')
             for group in range(tc.dev.P_NUMGROUPS):
                 for proc in range(procs):
                     for mem in range(tc.dev.INSTANCE_COUNT):
