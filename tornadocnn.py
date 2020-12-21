@@ -17,6 +17,8 @@ class Dev:
     """
     Metaclass for all hardware devices
     """
+    device = 0
+
     SUPPORT_STREAM_BIAS = False
     SUPPORT_DEPTHWISE = False
     SUPPORT_CALCX4 = False
@@ -27,6 +29,7 @@ class Dev:
     REQUIRE_REG_CLEAR = False
     REQUIRE_SEMA_LPWKEN = False
     MODERN_SIM = False
+
     MASK_INSTANCES = MASK_INSTANCES_EACH = 1
     C_SRAM_BASE = C_GROUP_OFFS = INSTANCE_SIZE = INSTANCE_COUNT = INSTANCE_WIDTH = 0
     MASK_WIDTH_SMALL = MASK_WIDTH_LARGE = P_NUMPRO = 0  # These will be overridden by child classes
@@ -66,6 +69,8 @@ class DevCMSISNN(Dev):
     """
     CMSIS limitations
     """
+    device = devices.CMSISNN
+
     APB_BASE = 0
     MAX_LAYERS = 256
     MAX_ROW_COL = 2**16
@@ -80,6 +85,8 @@ class DevAI85(Dev):
     """
     AI85 hardware constants
     """
+    device = 85
+
     APB_BASE = 0x50000000
     MAX_LAYERS = 32
     MAX_STREAM_LAYERS = 8
@@ -199,6 +206,8 @@ class DevAI87(Dev):
     """
     AI85 hardware constants
     """
+    device = 87
+
     APB_BASE = 0x50000000
     MAX_LAYERS = 128
     MAX_STREAM_LAYERS = 8

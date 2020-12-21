@@ -52,7 +52,6 @@ def print_map(
 def load(  # pylint: disable=too-many-branches,too-many-statements
         verbose,
         embedded_code,
-        device,  # pylint: disable=unused-argument
         apb,
         start_layer,
         layers,

@@ -50,11 +50,10 @@ class UniqueKeyLoader(yaml.Loader):
         return mapping
 
 
-def parse(config_file, max_conv=None, device=None):  # pylint: disable=unused-argument
+def parse(config_file, max_conv=None):
     """
     Configure network parameters from the YAML configuration file `config_file`.
     `max_conv` can be set to force an early termination of the parser.
-    `device` is `85`, `87`, `CMSISNN`, etc.
     The function returns both YAML dictionary, the length of the processor map,
     as well as a settings dictionary.
     """
@@ -135,7 +134,7 @@ def parse(config_file, max_conv=None, device=None):  # pylint: disable=unused-ar
         if processor_map[sequence]:
             error_exit('Layer was already specified', sequence)
 
-        if device != devices.CMSISNN:
+        if tc.dev.device != devices.CMSISNN:
             if 'processors' in ll:
                 processor_map[sequence] = ll['processors']
             if not processor_map[sequence]:
@@ -472,7 +471,7 @@ def parse(config_file, max_conv=None, device=None):  # pylint: disable=unused-ar
     # Check first layer
     if input_offset[0] is None:
         input_offset[0] = 0
-    if device != devices.CMSISNN:
+    if tc.dev.device != devices.CMSISNN:
         # Check last layer
         if output_map[-1] is None and 'output_map' in cfg:
             output_map[-1] = cfg['output_map']

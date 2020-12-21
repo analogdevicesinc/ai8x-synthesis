@@ -452,6 +452,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     # Calculate the groups needed, and groups and processors used overall
     processors_used = 0
     group_map = []
+    broadcast_mode = []
     for ll in range(layers):
         bits = processor_map[ll]
         processors_used |= bits
@@ -499,15 +500,24 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 if out_pro != in_pro:
                     eprint(f'Layer {ll} is a pass-through layer. The output processors must be a '
                            'packed version of the input processors for each x16. Configured are: '
-                           f'input {processor_map[ll]:08x}, output '
-                           f'{output_processor_map[ll]:08x}.')
+                           f'input {processor_map[ll]:016x}, output '
+                           f'{output_processor_map[ll]:016x}.')
 
         # Ensure byte positions are the same in the input and output map for depthwise convolutions
         if conv_groups[ll] > 1:
             if ffs(output_processor_map[ll]) % tc.dev.P_SHARED != 0:
                 eprint(f'Layer {ll} is a depth-wise convolution. Output processors '
                        'must be aligned to a multiple of 4. Configured for this layer: '
-                       f'{output_processor_map[ll]:08x}.')
+                       f'{output_processor_map[ll]:016x}.')
+            if processor_map[ll] != output_processor_map[ll]:
+                wprint(f'Layer {ll} depthwise convolution moves data across processors. This has '
+                       f'a performance impact. Input {processor_map[ll]:016x}, output '
+                       f'{output_processor_map[ll]:016x}.')
+                broadcast_mode.append(False)
+            else:
+                broadcast_mode.append(True)
+        else:
+            broadcast_mode.append(None)
 
     groups_used = []
     for group in range(tc.dev.P_NUMGROUPS):
@@ -690,7 +700,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             kern_offs, kern_len, kern_count, kern_ochan = kernels.load(
                 verbose,
                 True,
-                device,
                 apb,
                 0,
                 layers,
@@ -725,10 +734,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 apb,
                 layers,
                 bias,
-                quantization,
                 group_map,
                 output_chan,
                 streaming,
+                conv_groups,
+                broadcast_mode,
+                output_processor_map,
                 debug,
             )
 
@@ -883,7 +894,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             kern_offs, kern_len, kern_count, kern_ochan = kernels.load(
                 verbose,
                 embedded_code,
-                device,
                 apb,
                 0,
                 layers,
@@ -917,10 +927,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 apb,
                 layers,
                 bias,
-                quantization,
                 group_map,
                 output_chan,
                 streaming,
+                conv_groups,
+                broadcast_mode,
+                output_processor_map,
                 debug,
             )
 
@@ -1045,12 +1057,20 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 // 4
                             )
                     elif conv_groups[ll] > 1:
-                        tscnt_max = max(
-                            tscnt_max,
-                            ((popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
-                                       % 2**tc.dev.P_NUMPRO) * output_width[ll] // 8) - 1 + 15)
-                            // 4
-                        )
+                        if broadcast_mode[ll]:
+                            tscnt_max = max(
+                                tscnt_max,
+                                ((popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
+                                           % 2**tc.dev.P_NUMPRO) * output_width[ll] + 31) // 32)
+                                - 1
+                            )
+                        else:
+                            tscnt_max = max(
+                                tscnt_max,
+                                ((popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
+                                           % 2**tc.dev.P_NUMPRO) * output_width[ll] + 7) // 8)
+                                - 1
+                            )
 
                 for _, group in enumerate(groups_used):
                     apb.output(f'  // Layer {r * layers + ll} group {group}\n', embedded_code)
@@ -1226,7 +1246,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                           (0x20)
                     if not local_source:
                         val |= 1 << 11
-                    if conv_groups[ll] > 1:
+                    if conv_groups[ll] > 1 and broadcast_mode[ll]:
                         val |= 1 << 29
                     if binary_quantization:
                         val |= 1 << 30
@@ -1235,7 +1255,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         val |= 1 << 16
 
                     if (ll != 0 or not fast_fifo_quad) \
-                       and operator[ll] != op.NONE and group == groups_used[0]:
+                       and operator[ll] != op.NONE and group == groups_used[0] \
+                       and conv_groups[ll] == 1:
                         # Set external source for other active processing groups (can be zero if no
                         # other groups are processing). Do not set the bit corresponding to this
                         # group (e.g., if group == 0, do not set bit 12)
@@ -1288,7 +1309,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     oned_sad = 0
                     if operator[ll] != op.NONE:
                         kl = (kern_count[ll] - 1) * abs(quantization[ll])
-                        ochan = kern_ochan[ll] - 1
 
                         if ll == 0 and fast_fifo_quad or calcx4:
                             if calcx4:
@@ -1327,12 +1347,13 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                        verbose, comment=' // Mask offset and count')
 
                     if hasattr(tc.dev, 'LREG_OCHAN'):
-                        val = 0
-                        if operator[ll] != op.NONE:
+                        if operator[ll] != op.NONE and conv_groups[ll] == 1:
+                            val = kern_ochan[ll] - 1
                             if calcx4:
-                                ochan //= 4
-                            val = ochan
-                        elif tscnt_max > 0:
+                                val //= 4
+                        elif conv_groups[ll] > 1:
+                            val = (tscnt_max + 1) * in_expand[ll] - 1
+                        else:
                             val = tscnt_max
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_OCHAN, val,
                                        verbose, comment=' // Output channel count')
@@ -1401,10 +1422,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     # [24] ts_ena
                     # [25] onexone_ena
 
-                    if group == bias_group[ll]:
+                    if conv_groups[ll] == 1 and group == bias_group[ll]:
                         # Enable bias only for one group
-                        assert bias_offs[ll] < 2**12
-                        val |= 1 << 12 | bias_offs[ll]
+                        assert bias_offs[ll][group] < 2**12
+                        val |= 1 << 12 | bias_offs[ll][group]
+                    elif bias_offs[ll][group] is not None and conv_groups[ll] > 1:
+                        # Enable bias for all groups
+                        assert bias_offs[ll][group] < 2**12
+                        val |= 1 << 12 | bias_offs[ll][group]
 
                     if operator[ll] == op.NONE:
                         if operands[ll] == 1:
@@ -2161,7 +2186,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
             summary_stats = '/*\n' + \
                             stats.summary(factor=repeat_layers, debug=debug, spaces=2,
-                                          weights=kernel, w_size=quantization, bias=bias) + \
+                                          weights=kernel, w_size=quantization, bias=bias,
+                                          group_bias_max=group_bias_max) + \
                             '*/\n'
             apb.main()
             apb.output(summary_stats + '\n')
@@ -2231,6 +2257,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         assets.from_template('assets', 'device-ai' + str(device), base_directory,
                              test_name, board_name, '', riscv=riscv)
 
+    print(stats.summary(factor=repeat_layers, debug=debug,
+                        weights=kernel, w_size=quantization, bias=bias,
+                        group_bias_max=group_bias_max))
+
     return test_name
 
 
@@ -2264,7 +2294,7 @@ def main():
         tc.dev.AON_READY_SEL = args.ready_sel_aon
 
     # Load configuration file
-    cfg, cfg_layers, params = yamlcfg.parse(args.config_file, args.stop_after, args.device)
+    cfg, cfg_layers, params = yamlcfg.parse(args.config_file, args.stop_after)
 
     # If not using test data, load weights and biases
     # This also configures the network's output channels
@@ -2766,8 +2796,7 @@ def main():
             args.legacy_test,
         )
 
-    print(stats.summary(factor=args.repeat_layers, debug=args.debug,
-                        weights=weights, w_size=quantization, bias=bias))
+        print(stats.summary(debug=args.debug, weights=weights, w_size=quantization, bias=bias))
 
 
 def signal_handler(
