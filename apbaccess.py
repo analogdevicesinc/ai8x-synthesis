@@ -710,7 +710,7 @@ class APB():
             mlator=False,
             max_count=None,
             write_gap=0,
-            layers=0,
+            final_layer=0,
     ):
         """
         Write a verification function. The layer to unload has the shape `input_shape`,
@@ -738,7 +738,7 @@ class APB():
             stream=self.memfile,
             max_count=max_count,
             write_gap=write_gap,
-            layers=layers,
+            final_layer=final_layer,
         )
 
     def output_define(  # pylint: disable=no-self-use

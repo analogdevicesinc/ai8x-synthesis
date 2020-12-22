@@ -50,7 +50,7 @@ class UniqueKeyLoader(yaml.Loader):
         return mapping
 
 
-def parse(config_file, max_conv=None):
+def parse(config_file):
     """
     Configure network parameters from the YAML configuration file `config_file`.
     `max_conv` can be set to force an early termination of the parser.
@@ -111,6 +111,7 @@ def parse(config_file, max_conv=None):
     eltwise = [op.NONE] * tc.dev.MAX_LAYERS
     pool_first = [True] * tc.dev.MAX_LAYERS
     in_sequences = [None] * tc.dev.MAX_LAYERS
+    next_sequence = [None] * tc.dev.MAX_LAYERS
     write_gap = [0] * tc.dev.MAX_LAYERS
 
     sequence = 0
@@ -121,7 +122,7 @@ def parse(config_file, max_conv=None):
                                'out_channels', 'out_offset', 'activate', 'activation',
                                'data_format', 'eltwise', 'flatten', 'op', 'operands', 'operation',
                                'operator', 'output_processors', 'output_width', 'output_shift',
-                               'pool_first', 'processors', 'pad', 'quantization',
+                               'pool_first', 'processors', 'pad', 'quantization', 'next_sequence',
                                'sequence', 'streaming', 'stride', 'write_gap'])):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
 
@@ -309,9 +310,6 @@ def parse(config_file, max_conv=None):
             operands[sequence] = val
 
         if 'data_format' in ll:
-            if sequence:
-                error_exit('`data_format` can only be configured for the first layer', sequence)
-
             val = ll['data_format'].lower()
             if val in ['chw', 'big']:
                 big_data[sequence] = True
@@ -382,12 +380,13 @@ def parse(config_file, max_conv=None):
                 error_exit(f'Unsupported value `{val}` for `flatten`', sequence)
 
         if 'in_sequences' in ll:
-            if isinstance(ll['in_sequences'], list):
-                if any([(i >= sequence) for i in ll['in_sequences']]):
-                    error_exit('`in_sequences` cannot be greater than layer sequence', sequence)
-            elif ll['in_sequences'] >= sequence:
-                error_exit('`in_sequences` cannot be greater than layer sequence', sequence)
             in_sequences[sequence] = ll['in_sequences']
+
+        if 'next_sequence' in ll:
+            if isinstance(ll['next_sequence'], str) and ll['next_sequence'].lower() == 'stop':
+                next_sequence[sequence] = -1
+            else:
+                next_sequence[sequence] = ll['next_sequence']
 
         if 'conv_groups' in ll or 'groups' in ll:
             key = 'conv_groups' if 'conv_groups' in ll else 'groups'
@@ -406,15 +405,6 @@ def parse(config_file, max_conv=None):
             kernel_size[sequence] = [1, 1]
         elif operator[sequence] == op.CONVTRANSPOSE2D:
             stride[sequence] = [2, 2]
-
-        # Check for early exit
-        if max_conv is not None:
-            if max_conv == 0:
-                if output_map[sequence] is None and (len(cfg['layers']) > sequence + 1):
-                    if 'processors' in cfg['layers'][sequence+1]:
-                        output_map[sequence] = cfg['layers'][sequence+1]['processors']
-                break
-            max_conv -= 1
 
         sequence += 1
 
@@ -451,34 +441,9 @@ def parse(config_file, max_conv=None):
             del eltwise[ll]
             del conv_groups[ll]
             del write_gap[ll]
+            del in_sequences[ll]
+            del next_sequence[ll]
 
-    # Check all but last layer
-    for ll in range(len(output_map) - 1):
-        if output_width[ll] != 8:
-            error_exit('`output_width` is not 8 for intermediate layer', ll)
-        # Fix up default output maps
-        if output_map[ll] is None:
-            output_map[ll] = processor_map[ll+1]
-
-    # Check all but first layer
-    for ll in range(1, len(input_offset)):
-        # Fix up default input maps
-        if input_offset[ll] is None:
-            input_offset[ll] = output_offset[ll-1]
-        # Check we don't turn on streaming too late
-        if streaming[ll] and not streaming[ll-1]:
-            error_exit('Enable streaming from the first layer on', ll)
-    # Check first layer
-    if input_offset[0] is None:
-        input_offset[0] = 0
-    if tc.dev.device != devices.CMSISNN:
-        # Check last layer
-        if output_map[-1] is None and 'output_map' in cfg:
-            output_map[-1] = cfg['output_map']
-        if output_width[-1] != 8 and activation[-1] is not None:
-            error_exit('`output_width` must be 8 when activation is used', len(activation))
-
-    # Check all layers
     for ll, e in enumerate(operator):
         # Warn when using default pool stride of 1, 1
         if pool_stride[ll][0] is None:
@@ -539,6 +504,7 @@ def parse(config_file, max_conv=None):
     settings['eltwise'] = eltwise
     settings['pool_first'] = pool_first
     settings['in_sequences'] = in_sequences
+    settings['next_sequence'] = next_sequence
     settings['conv_groups'] = conv_groups
     settings['write_gap'] = write_gap
 

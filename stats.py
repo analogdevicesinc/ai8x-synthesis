@@ -68,7 +68,7 @@ def summary(
     if weights is not None and hasattr(tc.dev, 'BIAS_SIZE'):
         kmem = sum(tc.dev.mask_width(proc) * 9 for proc in range(tc.dev.MAX_PROC))
         kmem_used = sum([reduce(operator.mul, e.shape) * abs(w_size[i]) // 8
-                         for i, e in enumerate(weights) if e is not None])
+                         for i, e in enumerate(weights[:len(w_size)]) if e is not None])
         rv += f"\n{sp}RESOURCE USAGE\n" \
               f'{sp}Weight memory: {kmem_used:,} bytes out of {kmem:,} bytes total ' \
               f'({kmem_used * 100.0 / kmem:.0f}%)\n'

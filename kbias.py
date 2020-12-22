@@ -20,6 +20,7 @@ def load(
         verbose,  # pylint: disable=unused-argument
         embedded_code,
         apb,
+        start_layer,
         layers,
         bias,
         group_map,
@@ -46,8 +47,8 @@ def load(
     group_bias_max = [0] * tc.dev.P_NUMGROUPS
     bias_offs = [[None] * tc.dev.P_NUMGROUPS for _ in range(layers)]
     bias_group = [None] * layers
-    for ll in range(layers):
-        if bias[ll] is None:
+    for ll in range(start_layer, layers):
+        if bias[ll] is None or group_map[ll] is None:
             continue
         if len(bias[ll]) != output_chan[ll]:
             eprint(f'Layer {ll}: output channel count {output_chan[ll]} does not match the number '

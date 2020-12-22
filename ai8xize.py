@@ -86,6 +86,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         eltwise,
         pool_first,
         in_sequences,
+        next_sequence,
+        prev_sequence,
         input_skip,
         input_channel_skip,
         input_filename,
@@ -157,6 +159,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         forever=False,
         write_gap=None,
         start_layer=0,
+        first_layer_used=0,
+        final_layer=-1,
         pipeline=False,
         pll=False,
         reshape_inputs=False,
@@ -187,24 +191,27 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     pool_stride_str = [None] * layers
     stride_str = [None] * layers
 
+    if start_layer > 0 and not tc.dev.SUPPORT_LINK_LAYER:
+        eprint("`--start-layer` is not supported on this device.")
+
     if start_layer > tc.dev.MAX_START_LAYER:
-        eprint(f"--start-layer is set to {start_layer}, but the device only supports "
+        eprint(f"`--start-layer` is set to {start_layer}, but the device only supports "
                f"a maximum of {tc.dev.MAX_START_LAYER}.")
 
-    if link_layer and not hasattr(tc.dev, 'LREG_NXTLYR'):
-        eprint("--link-layer is not supported on this device.")
+    if link_layer and not tc.dev.SUPPORT_LINK_LAYER:
+        eprint("`--link-layer` is not supported on this device.")
 
-    if rd_ahead and not hasattr(tc.dev, 'RD_AHEAD_OFFS'):
-        eprint("--read-ahead is not supported on this device.")
+    if rd_ahead and not tc.dev.SUPPORT_READ_AHEAD:
+        eprint("`--read-ahead` is not supported on this device.")
 
     if calcx4 and not tc.dev.SUPPORT_CALCX4:
-        eprint("--calcx4 is not supported on this device.")
+        eprint("`--calcx4` is not supported on this device.")
 
     if pipeline and not tc.dev.SUPPORT_PIPELINE:
-        eprint("--pipeline is not supported on this device.")
+        eprint("`--pipeline` is not supported on this device.")
 
     if pll and not tc.dev.SUPPORT_PLL:
-        eprint("--pll is not supported on this device.")
+        eprint("`--pll` is not supported on this device.")
 
     if pipeline is None:
         pipeline = tc.dev.SUPPORT_PIPELINE
@@ -235,30 +242,40 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     else:
         fifo_group = False
     if fifo:
-        if input_chan[0] > 16 or big_data[0] and input_chan[0] > 4:
+        if start_layer != 0:
+            eprint('`--start_layer` must be 0 when using a FIFO.')
+
+        if input_chan[start_layer] > 16 or big_data[start_layer] and input_chan[start_layer] > 4:
             eprint("Using the FIFO is restricted to a maximum of 4 input channels (CHW) or "
-                   f"16 channels (HWC); this test is using {input_chan[0]} channels.")
-        if big_data[0] and processor_map[0] & ~0x0001000100010001 != 0 \
-           or not big_data[0] and processor_map[0] & ~0x000f000f000f000f != 0:
+                   f"16 channels (HWC); this test is using {input_chan[start_layer]} channels.")
+        if big_data[start_layer] and processor_map[start_layer] & ~0x0001000100010001 != 0 \
+           or not big_data[start_layer] and processor_map[start_layer] & ~0x000f000f000f000f != 0:
             eprint("The FIFO is restricted to processors 0, 16, 32, 48 (CHW) or "
                    "0-3, 16-19, 32-35, 48-51 (HWC).")
         if fast_fifo:
-            if big_data[0] and input_chan[0] > 1:
+            if big_data[start_layer] and input_chan[start_layer] > 1:
                 eprint("Fast FIFO supports only a single CHW input channel; "
-                       f"this test is using {input_chan[0]} channels.")
-            elif not big_data[0] and input_chan[0] > 4:
+                       f"this test is using {input_chan[start_layer]} channels.")
+            elif not big_data[start_layer] and input_chan[start_layer] > 4:
                 eprint("Fast FIFO supports up to four HWC input channels; "
-                       f"this test is using {input_chan[0]} channels.")
-            if processor_map[0] != 1 and processor_map[0] & 0x0e == 0:
+                       f"this test is using {input_chan[start_layer]} channels.")
+            if processor_map[start_layer] != 1 and processor_map[start_layer] & 0x0e == 0:
                 fifo_group = False
-            if output_width[0] != 8:
+            if output_width[start_layer] != 8:
                 eprint('Single-layer fast FIFO setup requires output width of 8.')
-            if operator[0] == op.NONE:
+            if operator[start_layer] == op.NONE:
                 eprint('Fast FIFO requies a convolution operation in the first layer.')
-    elif streaming[0] and not allow_streaming:
+    elif streaming[start_layer] and not allow_streaming:
         eprint('Streaming in the first layer requires use of a FIFO.')
+    if any(streaming) and start_layer != 0:
+        eprint('`--start_layer` must be 0 when using streaming.')
+    for ll in range(min(tc.dev.MAX_STREAM_LAYERS, layers)):
+        if next_sequence[ll] != -1 and next_sequence[ll] != ll + 1 and streaming[ll]:
+            eprint(f'`next_sequence` must be {ll+1} when using streaming in layer {ll}. '
+                   f'Currently configured: {next_sequence[ll]}')
 
-    if mlator and (output_dim[-1][0] * output_dim[-1][1] < 4 or output_width[-1] > 8):
+    if mlator and (output_dim[final_layer][start_layer] * output_dim[final_layer][1] < 4
+                   or output_width[final_layer] > 8):
         wprint('--mlator should only be used with 4 or more 8-bit outputs per channel; ignoring.')
         mlator = False
 
@@ -271,16 +288,16 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     if oneshot and timer is not None:
         eprint('--timer is not supported when using --one-shot')
 
-    processor_map_0 = processor_map[0]
+    processor_map_0 = processor_map[start_layer]
     if fast_fifo_quad:
-        processor_map[0] = processor_map_0 << 48 | processor_map_0 << 32 \
+        processor_map[start_layer] = processor_map_0 << 48 | processor_map_0 << 32 \
             | processor_map_0 << 16 | processor_map_0
 
     binary_quantization = False
 
     # Check that input channels are in separate memory instances if CHW (big) data format is used,
     # and calculate input and output expansion
-    for ll in range(layers):
+    for ll in range(first_layer_used, layers):
         if quantization[ll] is None:
             quantization[ll] = 8  # Set default
         elif quantization[ll] == -1:
@@ -332,7 +349,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                    f'exceeds data memory instance size of {tc.dev.INSTANCE_WIDTH*16}.')
         out_size = output_dim[ll][0] * output_dim[ll][1] * out_expand[ll] \
             * 4 * output_width[ll] // 8
-        if (not streaming[ll] or ll == layers - 1) \
+        if (not streaming[ll] or ll == final_layer) \
            and out_size + out_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
             eprint(f'Layer {ll}: 4-channel, {output_width[ll]}-bit {output_dim[ll][0]}x'
                    f'{output_dim[ll][1]} output (size {out_size}) '
@@ -387,17 +404,17 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             if flatten[ll]:
                 eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) > 1 are not supported'
                        f' when flattening.')
-            if output_width[ll] != 8:
-                eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) > 1 are not supported'
-                       f' when using `wide` output.')
+            # if output_width[ll] != 8:
+            #     eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) > 1 are not'
+            #            f' supported when using `wide` output.')
 
-        if input_skip[ll] != 0 and not hasattr(tc.dev, 'MP_STRIDE_OFFS'):
+        if input_skip[ll] != 0 and not tc.dev.SUPPORT_MULTIPASS_STRIDE:
             eprint(f'Layer {ll}: `in_skip` must be 0 for this device.')
 
     # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
     test_name = prefix
     if not embedded_code:
-        for ll in range(start_layer, layers):
+        for ll in range(first_layer_used, layers):
             test_name += f'-{input_chan[ll]}x{input_dim_str[ll]}' \
                          f'{"b" if big_data[ll] else "l"}' \
                          f'{"f" if flatten[ll] else ""}_' \
@@ -451,9 +468,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
     # Calculate the groups needed, and groups and processors used overall
     processors_used = 0
-    group_map = []
-    broadcast_mode = []
-    for ll in range(layers):
+    group_map = [None] * layers
+    broadcast_mode = [None] * layers
+    for ll in range(first_layer_used, layers):
         bits = processor_map[ll]
         processors_used |= bits
 
@@ -463,14 +480,15 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         if output_chan[ll] > tc.dev.MAX_CHANNELS:
             eprint(f'Layer {ll} is configured for {output_chan[ll]} outputs, which exceeds '
                    f'the system maximum of {tc.dev.MAX_CHANNELS}.')
-        if (ll != 0 or not fast_fifo_quad) \
+        if (ll != start_layer or not fast_fifo_quad) \
            and popcount(processor_map[ll]) != in_expand_thresh[ll]:
             eprint(f'Layer {ll} has {input_chan[ll]} inputs with input expansion '
                    f'{in_expand[ll]}, {operands[ll]} operands, threshold {in_expand_thresh[ll]}, '
                    f'but enabled processor map 0x{processor_map[ll]:016x} '
                    f'has {popcount(processor_map[ll])} bits instead of the '
                    f'expected number of {in_expand_thresh[ll]}.')
-        if ll == 0 and fast_fifo_quad and popcount(processor_map_0) != in_expand_thresh[ll]:
+        if ll == start_layer and fast_fifo_quad \
+           and popcount(processor_map_0) != in_expand_thresh[ll]:
             eprint(f'Layer {ll} has {input_chan[ll]} inputs with input expansion '
                    f'{in_expand[ll]}, threshold {in_expand_thresh[ll]}, but '
                    f'enabled processor map 0x{processor_map[ll]:016x} '
@@ -486,7 +504,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         for group in range(tc.dev.P_NUMGROUPS):
             if (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO:
                 this_map.append(group)
-        group_map.append(this_map)
+        group_map[ll] = this_map
 
         # Ensure input and output map are the same for passthrough layers
         if operator[ll] == op.NONE:
@@ -510,19 +528,17 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                        'must be aligned to a multiple of 4. Configured for this layer: '
                        f'{output_processor_map[ll]:016x}.')
             if processor_map[ll] != output_processor_map[ll]:
-                wprint(f'Layer {ll} depthwise convolution moves data across processors. This has '
-                       f'a performance impact. Input {processor_map[ll]:016x}, output '
+                wprint(f'Layer {ll}: depth-wise convolution moves data across processors. This '
+                       f'has a performance impact. Input {processor_map[ll]:016x}, output '
                        f'{output_processor_map[ll]:016x}.')
-                broadcast_mode.append(False)
+                broadcast_mode[ll] = False
             else:
-                broadcast_mode.append(True)
-        else:
-            broadcast_mode.append(None)
+                broadcast_mode[ll] = True
 
     groups_used = []
     for group in range(tc.dev.P_NUMGROUPS):
         if ((processors_used |
-             output_processor_map[-1]) >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO:
+             output_processor_map[final_layer]) >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO:
             groups_used.append(group)
 
     if 0 not in groups_used:
@@ -595,7 +611,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             fast_fifo=fast_fifo,
             input_csv=input_csv,
             input_csv_format=input_csv_format,
-            input_chan=input_chan[0],
+            input_chan=input_chan[start_layer],
             sleep=sleep,
             mexpress=mexpress,
             mem_output=rtl_preload,
@@ -610,11 +626,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             fail_indicator=forever,
             groups=list(set().union(groups_used)),
             clock_trim=clock_trim,
-            oneshot=layers - 1 if oneshot else 0,
+            oneshot=final_layer if oneshot else 0,
             softmax=softmax,
             stopstart=stopstart,
-            num_classes=output_chan[-1],
-            output_width=output_width[-1],
+            num_classes=output_chan[final_layer],
+            output_width=output_width[final_layer],
             bias=any(b is not None for b in bias),
         )
 
@@ -632,7 +648,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                    f'layer{"s" if repeat_layers * layers > 1 else ""}:\n', embedded_code)
 
         for r in range(repeat_layers):
-            for ll in range(start_layer, layers):
+            for ll in range(first_layer_used, layers):
                 apb.output(f'// Layer {r * layers + ll}: '
                            f'{str(operands[ll])+"x" if operands[ll] > 1 else ""}'
                            f'{input_chan[ll]}x{input_dim_str[ll]} ('
@@ -675,15 +691,15 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             load.load(
                 True,
                 apb,
-                big_data[0],
+                big_data[start_layer],
                 processor_map_0,
-                in_offset[0],
-                [input_chan[0], input_dim[0][0], input_dim[0][1]],
-                in_expand[0],
-                operands[0],
-                in_expand_thresh[0],
+                in_offset[start_layer],
+                [input_chan[start_layer], input_dim[start_layer][0], input_dim[start_layer][1]],
+                in_expand[start_layer],
+                operands[start_layer],
+                in_expand_thresh[start_layer],
                 data,
-                padding[0],
+                padding[start_layer],
                 split=split,
                 fifo=fifo,
                 slowdown=slow_load,
@@ -701,7 +717,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 verbose,
                 True,
                 apb,
-                0,
+                first_layer_used,
                 layers,
                 operator,
                 kernel,
@@ -732,6 +748,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 verbose,
                 True,
                 apb,
+                first_layer_used,
                 layers,
                 bias,
                 group_map,
@@ -768,7 +785,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             # else:
             #     total = startup
             #     print(f'Startup{startup:14,}')
-            #     for k in range(start_layer, layers):
+            #     for k in range(first_layer_used, layers):
             #         total += lat[k][0]
             #         print(f'Layer {k:<3}{lat[k][0]:12,}', end='')
             #         if debug_latency:
@@ -830,7 +847,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             apb.write_ctl(group, tc.dev.REG_SRAM, 0x40e,
                           verbose, comment=' // SRAM control')
             # Number of layers and start layer
-            val = (repeat_layers * layers - 1) | (start_layer << 8)
+            val = (repeat_layers * final_layer) | (start_layer << 8)
             apb.write_ctl(group, tc.dev.REG_LCNT_MAX, val,
                           verbose, comment=' // Layer count')
 
@@ -895,7 +912,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 verbose,
                 embedded_code,
                 apb,
-                0,
+                first_layer_used,
                 layers,
                 operator,
                 kernel,
@@ -925,6 +942,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 verbose,
                 embedded_code,
                 apb,
+                first_layer_used,
                 layers,
                 bias,
                 group_map,
@@ -943,6 +961,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             print(f'Used groups         = {groups_used}')
             if start_layer > 0:
                 print(f'Starting layer      = {start_layer}')
+            if any(s != i+1 and (s != -1 or i != final_layer)
+                   for i, s in enumerate(next_sequence)):
+                print('Next layer sequence = [',
+                  ', '.join(str(k) if k != -1 else 'stop' for k in next_sequence), ']', sep='',)
 
             print('\nPer-group configuration:')
             print('-----------------------')
@@ -955,7 +977,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             print(f'Group map           = {group_map}')
 
             print('Input offset        = [',
-                  ', '.join('0x{:04x}'.format(k) for k in in_offset), ']', sep='',)
+                  ', '.join('0x{:04x}'.format(k) if k is not None
+                            else 'N/A' for k in in_offset), ']', sep='',)
             print(f'Streaming           = {streaming}')
             print(f'Input channels      = {input_chan}')
             print(f'Input dimensions    = {input_dim}')
@@ -984,7 +1007,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             print(f'Expansion threshold = {out_expand_thresh}')
             print(f'Output shift        = {output_shift}')
             print('Output processors   = [',
-                  ', '.join('0x{:016x}'.format(k) for k in output_processor_map), ']', sep='',)
+                  ', '.join('0x{:016x}'.format(k) if k is not None
+                            else 'N/A' for k in output_processor_map), ']', sep='',)
             print(f'Output data bits    = {output_width}')
 
             print(f'Group with bias     = {bias_group}')
@@ -1013,7 +1037,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
         # Configure per-layer control registers
         for r in range(repeat_layers):
-            for ll in range(start_layer, layers):
+            for ll in range(first_layer_used, layers):
 
                 local_source = False
                 for _, group in enumerate(groups_used):
@@ -1053,36 +1077,39 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             tscnt_max = max(
                                 tscnt_max,
                                 (popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
-                                          % 2**tc.dev.P_NUMPRO) * output_width[ll] // 8 - 1)
-                                // 4
+                                          % 2**tc.dev.P_NUMPRO) * output_width[ll] // 8 - 1) // 4
                             )
                     elif conv_groups[ll] > 1:
                         if broadcast_mode[ll]:
+                            pop = popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
+                                           % 2**tc.dev.P_NUMPRO)
                             tscnt_max = max(
                                 tscnt_max,
-                                ((popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
-                                           % 2**tc.dev.P_NUMPRO) * output_width[ll] + 31) // 32)
-                                - 1
+                                (min(pop - 1, 3) + 1) * (output_width[ll] // 8) - 1
                             )
                         else:
                             tscnt_max = max(
                                 tscnt_max,
-                                ((popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
-                                           % 2**tc.dev.P_NUMPRO) * output_width[ll] + 7) // 8)
-                                - 1
+                                (popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
+                                          % 2**tc.dev.P_NUMPRO) * output_width[ll] + 7) // 8 - 1
                             )
 
                 for _, group in enumerate(groups_used):
                     apb.output(f'  // Layer {r * layers + ll} group {group}\n', embedded_code)
 
                     if hasattr(tc.dev, 'LREG_NXTLYR'):
+                        val = 0
                         if link_layer:
-                            if ll < layers-1:
+                            if ll != final_layer:
                                 val = 1 << 7 | (ll + 1)
                             else:
                                 val = 1 << 8  # Stop
                         else:
-                            val = 0
+                            if next_sequence[ll] == -1:
+                                if ll != layers - 1:  # Don't set stop bit when we don't have to
+                                    val = 1 << 8
+                            elif next_sequence[ll] != ll + 1:
+                                val = 1 << 7 | next_sequence[ll]
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_NXTLYR, val,
                                        verbose, comment=' // Next Layer')
 
@@ -1254,7 +1281,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     if output_width[ll] != 8:
                         val |= 1 << 16
 
-                    if (ll != 0 or not fast_fifo_quad) \
+                    if (ll != start_layer or not fast_fifo_quad) \
                        and operator[ll] != op.NONE and group == groups_used[0] \
                        and conv_groups[ll] == 1:
                         # Set external source for other active processing groups (can be zero if no
@@ -1310,7 +1337,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     if operator[ll] != op.NONE:
                         kl = (kern_count[ll] - 1) * abs(quantization[ll])
 
-                        if ll == 0 and fast_fifo_quad or calcx4:
+                        if ll == start_layer and fast_fifo_quad or calcx4:
                             if calcx4:
                                 kl += abs(quantization[ll])
                             kl = (kl + 3) // 4  # FIXME: Handle fast_fifo_quad and calcx4
@@ -1466,15 +1493,15 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_ENA, val,
                                    verbose, comment=' // Mask and processor enables')
 
-                    if ll == 0 and fifo:
+                    if ll == start_layer and fifo:
                         # Start: 1
                         if override_start is not None:
                             stream_start = override_start
                         elif streaming[ll]:
                             stream_start = (pool[ll][0] - 1) * input_dim[ll][1] + pool[ll][1]
                         else:
-                            val = input_dim[0][0] * input_dim[0][1]
-                            if big_data[0]:
+                            val = input_dim[start_layer][0] * input_dim[start_layer][1]
+                            if big_data[start_layer]:
                                 val = (val + 3) // 4
                             stream_start = val
                         assert stream_start < 2**14
@@ -1503,9 +1530,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     elif ll > 0 and streaming[ll]:
                         # Start: Prior layer's padded pooled row width * prior layer's kernel
                         # height + prior layer's kernel width + prior layer's pad
-                        stream_start = (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
-                            * (kernel_size[ll-1][0] - 1 + pool[ll][0] - 1) \
-                            + kernel_size[ll-1][1] - 1 + pool[ll][1] + increase_start
+                        stream_start = (pooled_dim[prev_sequence[ll]][1]
+                                        + 2 * padding[prev_sequence[ll]][1]) \
+                            * (kernel_size[prev_sequence[ll]][0] - 1 + pool[ll][0] - 1) \
+                            + kernel_size[prev_sequence[ll]][1] - 1 + pool[ll][1] + increase_start
                         assert stream_start < 2**tc.dev.MAX_ISVAL_BITS
 
                         # Delta 1: This layer's pooling stride
@@ -1514,7 +1542,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         # Delta 2: (This layer's pooling - 1) * full prior layer's padded rows +
                         # prior layer's pad
                         delta2 = (pool_stride[ll][0] - 1) \
-                            * (pooled_dim[ll-1][1] + 2 * padding[ll-1][1]) \
+                            * (pooled_dim[prev_sequence[ll]][1]
+                               + 2 * padding[prev_sequence[ll]][1]) \
                             + pool[ll][1] * operands[ll] + increase_delta2
                         assert delta2 < 2**tc.dev.MAX_DSVAL2_BITS
 
@@ -1528,7 +1557,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                        verbose, comment=' // Stream processing delta')
 
                     if fifo and streaming[ll]:
-                        if ll == 0 and override_rollover is not None:
+                        if ll == start_layer and override_rollover is not None:
                             val = override_rollover
                         else:
                             if big_data[ll]:
@@ -1569,9 +1598,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_FMAX, val,
                                        verbose, comment=' // Rollover')
 
-                    if ll == 0 and fifo:
-                        val = input_dim[0][0] * input_dim[0][1]
-                        if big_data[0]:
+                    if ll == start_layer and fifo:
+                        val = input_dim[start_layer][0] * input_dim[start_layer][1]
+                        if big_data[start_layer]:
                             val = (val + 3) // 4
                         assert val < 2**tc.dev.MAX_IFRM_BITS
                         apb.write_ctl(group, tc.dev.REG_IFRM, val, verbose,
@@ -1581,7 +1610,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
         if zero_unused:
             for r in range(repeat_layers):
-                for ll in range(start_layer, layers, tc.dev.MAX_LAYERS):
+                for ll in range(first_layer_used, layers, tc.dev.MAX_LAYERS):
                     for _, group in enumerate(groups_used):
                         for reg in range(tc.dev.MAX_LREG+1):
                             if reg == tc.dev.LREG_RFU:  # Register 2 not implemented
@@ -1590,7 +1619,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                            verbose, force_write=True,
                                            comment=f' // Zero unused layer {ll} registers')
                 if hasattr(tc.dev, 'MIN_STREAM_LREG'):
-                    for ll in range(start_layer, layers, tc.dev.MAX_STREAM_LAYERS):
+                    for ll in range(first_layer_used, layers, tc.dev.MAX_STREAM_LAYERS):
                         for _, group in enumerate(groups_used):
                             for reg in range(tc.dev.MIN_STREAM_LREG, tc.dev.MAX_STREAM_LREG+1,
                                              tc.dev.MAX_STREAM_LAYERS):
@@ -1608,15 +1637,17 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 load.load(
                     embedded_code,
                     apb,
-                    big_data[0],
+                    big_data[start_layer],
                     processor_map_0,
-                    in_offset[0],
-                    [input_chan[0], input_dim[0][0], input_dim[0][1]],
-                    in_expand[0],
-                    operands[0],
-                    in_expand_thresh[0],
+                    in_offset[start_layer],
+                    [input_chan[start_layer],
+                     input_dim[start_layer][0],
+                     input_dim[start_layer][1]],
+                    in_expand[start_layer],
+                    operands[start_layer],
+                    in_expand_thresh[start_layer],
                     data,
-                    padding[0],
+                    padding[start_layer],
                     split=split,
                     fifo=fifo,
                     slowdown=slow_load,
@@ -1638,7 +1669,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             # FIFO control
             if not fast_fifo:
                 val = 0x02 << 2 | 0x02 << 7 | 1 << 11 | tc.dev.FIFO_READY_SEL
-                for i in range(input_chan[0]):
+                for i in range(input_chan[start_layer]):
                     if processor_map_0 & 1 << (i % tc.dev.P_NUMGROUPS) * tc.dev.P_NUMPRO != 0:
                         val |= 1 << i % tc.dev.P_NUMGROUPS + 12
                 apb.write_fifo_ctl(tc.dev.FIFO_CTL, val,
@@ -1671,7 +1702,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         if hasattr(tc.dev, 'CTL_PIPELINE_OFFS'):
             if not pipeline:
                 val |= 1 << tc.dev.CTL_PIPELINE_OFFS
-            if streaming[0] and big_data[0]:
+            if streaming[start_layer] and big_data[start_layer]:
                 val |= 1 << 6
 
         if embedded_code:
@@ -1738,15 +1769,17 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 load.load(
                     False,
                     apb,
-                    big_data[0],
+                    big_data[start_layer],
                     processor_map_0,
-                    in_offset[0],
-                    [input_chan[0], input_dim[0][0], input_dim[0][1]],
-                    in_expand[0],
-                    operands[0],
-                    in_expand_thresh[0],
+                    in_offset[start_layer],
+                    [input_chan[start_layer],
+                     input_dim[start_layer][0],
+                     input_dim[start_layer][1]],
+                    in_expand[start_layer],
+                    operands[start_layer],
+                    in_expand_thresh[start_layer],
                     data,
-                    padding[0],
+                    padding[start_layer],
                     split=split,
                     fifo=fifo,
                     slowdown=slow_load,
@@ -1783,7 +1816,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             eltwise[ll],
             ll,
             verbose,
-            verbose_all or ll == layers-1,
+            verbose_all or ll == final_layer,
             data[0].shape,
             output_shift[ll],
             data,
@@ -1797,9 +1830,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
         return data
 
+    ll = start_layer
     data_buf = [data]
     # Compute layer-by-layer output and chain results into input
-    for ll in range(start_layer, layers):
+    while ll < layers:
         if debug_computation:
             compute.debug_open(ll, base_directory, test_name, log_filename)
 
@@ -1817,7 +1851,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
         # Split data into multiple inputs if needed
         if operands[ll] > 1:
-            if ll == 0 and legacy_test:
+            if ll == start_layer and legacy_test:
                 data = np.array(np.split(data, operands[ll], axis=0))
             elif legacy_test:
                 d = np.empty((operands[ll],
@@ -1842,7 +1876,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         show_data(
             ll,
             verbose,
-            verbose_all or ll == layers-1,
+            verbose_all or ll == final_layer,
             data.shape,
             data,
             debug=debug_computation,
@@ -1867,7 +1901,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         data, out_size = pooling_layer(
             ll,
             verbose,
-            verbose_all or ll == layers-1,
+            verbose_all or ll == final_layer,
             data[0].shape,
             pool[ll],
             pool_stride[ll],
@@ -1918,7 +1952,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             out_buf, out_size = conv2d_layer(
                 ll,
                 verbose,
-                verbose_all or ll == layers-1,
+                verbose_all or ll == final_layer,
                 data.shape,
                 kernel_size[ll],
                 output_shift[ll],
@@ -1944,7 +1978,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             out_buf, out_size = convtranspose2d_layer(
                 ll,
                 verbose,
-                verbose_all or ll == layers-1,
+                verbose_all or ll == final_layer,
                 data.shape,
                 kernel_size[ll],
                 output_shift[ll],
@@ -1971,7 +2005,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             out_buf, out_size = conv1d_layer(
                 ll,
                 verbose,
-                verbose_all or ll == layers-1,
+                verbose_all or ll == final_layer,
                 data.shape,
                 kernel_size[ll][0],
                 output_shift[ll],
@@ -1996,7 +2030,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             out_buf, out_size = passthrough_layer(
                 ll,
                 verbose,
-                verbose_all or ll == layers-1,
+                verbose_all or ll == final_layer,
                 data.shape,
                 data,
                 device=device,
@@ -2011,13 +2045,13 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         # Write .mem file for output or create the C check_output() function to verify the output
         out_map = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
         if block_mode:
-            if ll == layers-1:
+            if ll == final_layer:
                 filename = output_filename + '.mem'  # Final output
             else:
                 filename = f'{output_filename}-{ll}.mem'  # Intermediate output
             filemode = 'w'
         else:
-            if ll == layers-1:
+            if ll == final_layer:
                 filename = c_filename + ('_riscv' if riscv else '') + '.c'  # Final output
             else:
                 filename = None  # Intermediate output - used for layer overwrite check
@@ -2033,7 +2067,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             apb.output(f'// Expected output of layer {ll} for {test_name} '
                        'given the sample input\n')
             apb.function_header(dest='wrapper', prefix='', function='check_output')
-            if ll == layers-1 and mlator and not mlator_noverify:
+            if ll == final_layer and mlator and not mlator_noverify:
                 apb.verify_unload(
                     ll,
                     in_map,
@@ -2077,7 +2111,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     riscv_cache=False,
                     fast_fifo=False,
                     input_csv=False,
-                    input_chan=input_chan[0],
+                    input_chan=input_chan[start_layer],
                     sleep=False,
                     debug_mem=True,
                 )
@@ -2097,7 +2131,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     pool_stride[ll],
                     overwrite_ok or streaming[ll],
                     no_error_stop,
-                    mlator=mlator if ll == layers-1 else False,
+                    mlator=mlator if ll == final_layer else False,
                     write_gap=write_gap[ll],
                 )
             apb.verify_unload(
@@ -2115,10 +2149,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 pool_stride[ll],
                 overwrite_ok or streaming[ll],
                 no_error_stop,
-                mlator=mlator if ll == layers-1 else False,
+                mlator=mlator if ll == final_layer else False,
                 max_count=max_count,
                 write_gap=write_gap[ll],
-                layers=layers,
+                final_layer=final_layer,
             )
             apb.function_footer(dest='wrapper')  # check_output()
         finally:
@@ -2136,6 +2170,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         if debug_computation:
             compute.debug_close()
 
+        if next_sequence[ll] == -1:
+            break
+        ll = next_sequence[ll]
+
     data = data_buf[-1]
 
     if not block_mode:
@@ -2144,16 +2182,16 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
             if fc_weights or softmax or embedded_code:
                 apb.unload(
-                    output_processor_map[-1],
+                    output_processor_map[final_layer],
                     out_size,
-                    out_offset[layers-1],
-                    out_expand[-1],
-                    out_expand_thresh[-1],
-                    output_width[-1],
-                    pool[-1],
-                    pool_stride[-1],
+                    out_offset[final_layer],
+                    out_expand[final_layer],
+                    out_expand_thresh[final_layer],
+                    output_width[final_layer],
+                    pool[final_layer],
+                    pool_stride[final_layer],
                     mlator=mlator,
-                    write_gap=write_gap[ll],
+                    write_gap=write_gap[final_layer],
                 )
 
             if fc_weights:
@@ -2161,7 +2199,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                 out_buf, out_size = linear_layer(
                     verbose=verbose,
-                    verbose_data=verbose_all or ll == layers-1,
+                    verbose_data=verbose_all or ll == final_layer,
                     activation=None,
                     data=data,
                     weight=fc_weights[0],
@@ -2172,7 +2210,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 apb.fc_layer(
                     fc_weights[0],
                     fc_bias[0],
-                    output_width=output_width[-1],
+                    output_width=output_width[final_layer],
                 )
                 apb.fc_verify(out_buf)
             elif softmax:
@@ -2180,8 +2218,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     None,
                     None,
                     softmax_only=True,
-                    output_width=output_width[-1],
-                    num_classes=output_chan[-1],
+                    output_width=output_width[final_layer],
+                    num_classes=output_chan[final_layer],
                 )
 
             summary_stats = '/*\n' + \
@@ -2239,7 +2277,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         insert = summary_stats + \
                  '\n/* Number of outputs for this network */\n' \
                  '#define CNN_NUM_OUTPUTS ' \
-                 f'{fc_weights[0].shape[0] if fc_weights else output_chan[-1]}'
+                 f'{fc_weights[0].shape[0] if fc_weights else output_chan[final_layer]}'
         if timer is not None:
             insert += '\n\n/* Use this timer to time the inference */\n' \
                       f'#define CNN_INFERENCE_TIMER MXC_TMR{timer}'
@@ -2272,8 +2310,8 @@ def main():
 
     args = commandline.get_parser()
 
-    if args.device != 84 and args.fc_layer:
-        wprint('--fc-layer should only be used on AI84.')
+    if args.fc_layer:
+        eprint('--fc-layer is no longer supported. Please use a linear layer instead.')
 
     # Configure device
     tc.dev = tc.get_device(args.device)
@@ -2294,7 +2332,7 @@ def main():
         tc.dev.AON_READY_SEL = args.ready_sel_aon
 
     # Load configuration file
-    cfg, cfg_layers, params = yamlcfg.parse(args.config_file, args.stop_after)
+    cfg, cfg_layers, params = yamlcfg.parse(args.config_file)
 
     # If not using test data, load weights and biases
     # This also configures the network's output channels
@@ -2376,10 +2414,24 @@ def main():
     if any(q != 8 for q in params['bias_quantization']):
         eprint('All bias quantization configuration values must be 8.')
 
+    processor_map = params['processor_map'][:layers]
+    output_processor_map = params['output_processor_map'][:layers]
     in_sequences = params['in_sequences'][:layers]
+    next_sequence = params['next_sequence'][:layers]
+    prev_sequence = [-1] * layers
 
-    # Override channels
-    for ll in range(layers):
+    # Override channels, establish sequence
+    for ll in range(layers - 1):
+        if next_sequence[ll] is None:
+            next_sequence[ll] = ll + 1  # Assign default next layer as sequential
+    if next_sequence[layers - 1] is None:
+        next_sequence[layers - 1] = -1
+    prev_ll = -1
+    final_layer = None
+    max_layer = args.start_layer
+    min_layer = args.start_layer
+    ll = args.start_layer
+    while ll < layers:
         if in_sequences[ll] is not None:
             if isinstance(in_sequences[ll], list):
                 if params['eltwise'][ll] == op.NONE:
@@ -2395,7 +2447,7 @@ def main():
                 input_channels[ll] = output_channels[in_sequences[ll]]
 
         if input_channels[ll] <= 0:
-            input_channels[ll] = output_channels[ll-1]
+            input_channels[ll] = output_channels[prev_ll]
         if params['input_chan'][ll] is not None:
             input_channels[ll] = params['input_chan'][ll]
         if output_channels[ll] <= 0:
@@ -2403,24 +2455,52 @@ def main():
         if params['output_chan'][ll] is not None:
             output_channels[ll] = params['output_chan'][ll]
 
-    processor_map = params['processor_map']
-    output_processor_map = params['output_processor_map'][:layers]
+        # Fix up default output maps
+        if output_processor_map[ll] is None \
+           and next_sequence[ll] != -1 and next_sequence[ll] < layers:
+            output_processor_map[ll] = processor_map[next_sequence[ll]]
+
+        if args.stop_after is not None and ll == args.stop_after:
+            next_sequence[ll] = -1
+
+        prev_sequence[ll] = prev_ll
+        prev_ll = ll
+        max_layer = max(ll, max_layer)
+        min_layer = min(ll, min_layer)
+        if next_sequence[ll] != -1 and next_sequence[ll] != ll + 1 \
+           and not tc.dev.SUPPORT_LINK_LAYER:
+            eprint(f"Layer {ll}: `next_sequence` is not supported on this device.")
+        elif next_sequence[ll] > layers:
+            wprint(f"Layer {ll}: `next_sequence` exceeds available layers, setting to `stop`.")
+            next_sequence[ll] = -1
+        if next_sequence[ll] == -1:
+            final_layer = ll
+            break
+
+        ll = next_sequence[ll]
+
+    layers = max_layer + 1
+    if final_layer is None:
+        final_layer = max_layer
 
     if args.device != devices.CMSISNN:
         if 'output_map' in cfg:
             # Use optional configuration value if it's specified
-            output_processor_map[-1] = cfg['output_map']
-        elif len(processor_map) == layers and output_processor_map[-1] is None:
+            output_processor_map[final_layer] = cfg['output_map']
+        elif output_processor_map[final_layer] is None:
             # Default to packed, 0-aligned output map
-            expand = (output_channels[layers-1] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
-            expand_chunk = (output_channels[layers-1] + expand-1) // expand
-            if output_channels[layers-1] > tc.dev.MAX_PROC:
+            expand = (output_channels[final_layer] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
+            expand_chunk = (output_channels[final_layer] + expand-1) // expand
+            if output_channels[final_layer] > tc.dev.MAX_PROC:
                 expand_chunk = min((expand_chunk + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1),
                                    tc.dev.MAX_PROC)
-            output_processor_map[-1] = 2**expand_chunk-1
+            output_processor_map[final_layer] = 2**expand_chunk-1
 
     # Remove extraneous layer configuration values (when --stop-after is used)
     processor_map = processor_map[:layers]
+    output_processor_map = output_processor_map[:layers]
+    next_sequence = next_sequence[:layers]
+    prev_sequence = prev_sequence[:layers]
 
     input_channels = input_channels[:layers]
     input_skip = params['input_skip'][:layers]
@@ -2458,7 +2538,7 @@ def main():
 
     # Command line override
     if args.input_offset is not None:
-        input_offset[0] = args.input_offset
+        input_offset[args.start_layer] = args.input_offset
 
     # Derived configuration options
     pool_average = [bool(x) for x in params['average']]
@@ -2492,12 +2572,21 @@ def main():
     pooled_dim = [None] * layers
     output_dim = [None] * layers
 
-    auto_input_dim[0] = [input_size[1], input_size[2]]
-    if conf_input_dim[0] is None:
-        input_dim[0] = auto_input_dim[0]
+    ll = args.start_layer
+    auto_input_dim[ll] = [input_size[1], input_size[2]]
+    if conf_input_dim[ll] is None:
+        input_dim[ll] = auto_input_dim[ll]
     else:
-        input_dim[0] = conf_input_dim[0]
-    for ll in range(layers):
+        input_dim[ll] = conf_input_dim[ll]
+    if input_offset[ll] is None:
+        input_offset[ll] = 0
+
+    if tc.dev.device != devices.CMSISNN:
+        # Check last layer
+        if output_width[final_layer] != 8 and activation[final_layer] is not None:
+            eprint(f'`output_width` must be 8 when activation is used in (layer {ll}).')
+
+    while ll < layers:
         if input_channels[ll] <= 0:
             eprint(f'Must specify `in_channels` for layer {ll}.')
         if operator[ll] != op.NONE:
@@ -2507,6 +2596,38 @@ def main():
             else:
                 assert weights[ll].min() >= -1 << quantization[ll] - 1
                 assert weights[ll].max() <= (1 << quantization[ll] - 1) - 1
+
+        # Check all but first layer
+        if ll != args.start_layer:
+            # Fix up default input maps
+            if input_offset[ll] is None:
+                input_offset[ll] = output_offset[prev_sequence[ll]]
+            # Check we don't turn on streaming too late
+            if streaming[ll] and not streaming[prev_sequence[ll]]:
+                eprint(f'Enable streaming from the first layer on (found in layer {ll}.')
+            if big_data[ll]:
+                eprint(f'`data_format` in layer {ll}: CHW can only be configured for the '
+                       'first layer.')
+
+        # Check all but last layer
+        if ll != final_layer:
+            if output_width[ll] != 8:
+                eprint(f'`output_width` must be 8 for intermediate layer {ll}.')
+
+        if in_sequences[ll] is not None:
+            if tc.dev.SUPPORT_LINK_LAYER:
+                if isinstance(in_sequences[ll], list) \
+                   and any([(i > len(in_sequences)) for i in in_sequences[ll]]) \
+                   or not isinstance(in_sequences[ll], list) \
+                   and in_sequences[ll] > final_layer:
+                    eprint(f'`in_sequences` in layer {ll} cannot be greater than the last layer.')
+            else:
+                if isinstance(in_sequences[ll], list) \
+                   and any([(i >= ll) for i in in_sequences[ll]]) \
+                   or not isinstance(in_sequences[ll], list) \
+                   and in_sequences[ll] >= ll:
+                    eprint(f'`in_sequences` in layer {ll} cannot be greater than layer sequence '
+                           'on this device')
 
         if input_dim[ll] is None:
             if in_sequences[ll] is not None:
@@ -2520,7 +2641,7 @@ def main():
                 else:
                     auto_input_dim[ll] = output_dim[in_sequences[ll]]
             else:
-                auto_input_dim[ll] = output_dim[ll-1]
+                auto_input_dim[ll] = output_dim[prev_sequence[ll]]
             if conf_input_dim[ll] is None:
                 input_dim[ll] = auto_input_dim[ll]
             else:
@@ -2605,6 +2726,10 @@ def main():
 
         assert input_channels[ll] > 0
 
+        ll = next_sequence[ll]
+        if ll == -1:
+            break
+
     if args.riscv and not args.riscv_cache and args.embedded_code:
         eprint("Embedded code on RISC-V requires --riscv-cache.")
 
@@ -2656,6 +2781,8 @@ def main():
             eltwise,
             pool_first,
             in_sequences,
+            next_sequence,
+            prev_sequence,
             input_skip,
             input_channel_skip,
             args.input_filename,
@@ -2727,6 +2854,8 @@ def main():
             args.forever,
             write_gap,
             args.start_layer,
+            min_layer,
+            final_layer,
             args.pipeline,
             args.pll,
             args.reshape_inputs,
