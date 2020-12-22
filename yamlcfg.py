@@ -50,11 +50,11 @@ class UniqueKeyLoader(yaml.Loader):
         return mapping
 
 
-def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argument
+def parse(config_file, max_conv=None, device=None):  # pylint: disable=unused-argument
     """
     Configure network parameters from the YAML configuration file `config_file`.
     `max_conv` can be set to force an early termination of the parser.
-    `device` is `84`, `85`, etc.
+    `device` is `85`, `87`, `CMSISNN`, etc.
     The function returns both YAML dictionary, the length of the processor map,
     as well as a settings dictionary.
     """
@@ -181,8 +181,12 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
 
         if 'quantization' in ll:
             val = ll['quantization']
-            if val not in [1, 2, 4, 8]:
-                error_exit('`quantization` must be 1, 2, 4, or 8', sequence)
+            if isinstance(val, str):
+                val = val.lower()
+            if val not in [1, 2, 4, 8, 'bin', 'binary']:
+                error_exit('`quantization` must be 1, 2, 4, 8 or bin/binary', sequence)
+            if val in ['bin', 'binary']:
+                val = -1
             quantization[sequence] = val
 
         if 'output_shift' in ll:
@@ -329,8 +333,7 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
 
             val = str(ll['kernel_size']).lower()
             if operator[sequence] == op.CONV2D:
-                if device == 84 and val not in ['3x3'] \
-                        or device != 84 and val not in ['1x1', '3x3']:
+                if val not in ['1x1', '3x3']:
                     error_exit(f'Unsupported value `{val}` for `kernel_size`', sequence)
                 kernel_size[sequence] = [int(val[0]), int(val[2])]
             elif operator[sequence] == op.CONVTRANSPOSE2D:
@@ -342,7 +345,7 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
                     val = int(val)
                 except ValueError:
                     error_exit(f'Unsupported value `{val}` for `kernel_size`', sequence)
-                if device == 84 and val != 9 or val < 1 or val > 9:
+                if val < 1 or val > 9:
                     error_exit(f'Unsupported value `{val}` for `kernel_size`', sequence)
                 kernel_size[sequence] = [val, 1]
         elif operator[sequence] == op.CONV1D:  # Set default for 1D convolution
@@ -356,8 +359,7 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
                 val = val[0]
             if pooling_enabled[sequence]:
                 # Must use the default stride when pooling, otherwise stride can be set
-                if operator[sequence] == op.CONV2D and val != 1 \
-                   or (device == 84 and val != 3 or val != 1):
+                if val != 1:
                     error_exit('Cannot set `stride` to non-default value when pooling', sequence)
             else:
                 if operator[sequence] == op.CONVTRANSPOSE2D and val != 2:
@@ -503,11 +505,9 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
         if not pool_first[ll] and (operands[ll] == 1 or pool[ll][0] == 1 and pool[ll][1] == 1):
             error_exit('`pool_first: False` requires both pooling and element-wise operations', ll)
 
-    if device == 84:
-        # Fix up defaults for Conv1D:
-        for ll, e in enumerate(operator):
-            if e == op.CONV1D:
-                kernel_size[ll] = [9, 1]
+        # Check we're not using binary weights on devices that don't support it
+        if quantization[ll] == -1 and not tc.dev.SUPPORT_BINARY_WEIGHTS:
+            error_exit('Binary weights (-1/+1) are not supported on this device', ll)
 
     settings = {}
     settings['padding'] = padding

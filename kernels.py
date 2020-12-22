@@ -129,6 +129,9 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         else:
             kernel_reshaped = kernel[ll]
 
+        if quantization[ll] == -1:
+            kernel_reshaped = kernel_reshaped.copy().clip(-1, 0)
+
         if np.ndim(kernel_reshaped) > 2:
             if kernel_reshaped.shape[-2] != kernel_size[ll][0] \
                or kernel_reshaped.shape[-1] != kernel_size[ll][1]:
@@ -153,7 +156,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             kern_offs[ll] = max(proc_kern_max[p], kern_offs[ll])
 
         ksize = kernel_size[ll][0] * kernel_size[ll][1]
-        qfactor = 8 // quantization[ll]
+        qfactor = 8 // abs(quantization[ll])
         next_layer_map = output_processor_map[ll]
         first_output_proc = ffs(next_layer_map)
         start_col = first_output_proc % tc.dev.P_SHARED  # First target column
@@ -193,7 +196,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         # Pack kernels to 72-bit words, while ensuring there is enough space when using 1/2/4
         # bit kernels where the kernel count requires padding.
         res = (kc % qfactor) * ksize * (qfactor - 1)
-        kern_len[ll] = (kc * ksize * quantization[ll] + res + 71) // 72
+        kern_len[ll] = (kc * ksize * abs(quantization[ll]) + res + 71) // 72
 
         if ll == 0 and quad:
             kern_len[0] = (kern_len[0] + 3) // 4
@@ -304,9 +307,9 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                             * input_chan[ll]
                                         if koffs < len(kernel_reshaped):
                                             this_kern = kernel_reshaped[koffs].flatten() \
-                                                & (2**quantization[ll]-1)
+                                                & (2**abs(quantization[ll])-1)
                                             if not flatten[ll]:
-                                                k |= this_kern << (i * quantization[ll])
+                                                k |= this_kern << (i * abs(quantization[ll]))
                                             else:
                                                 k = np.append(k, this_kern)
                                         n += 1
@@ -328,7 +331,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                     for i in range(0, len(k) // qfactor):
                                         e = 0
                                         for j in range(qfactor):
-                                            e |= k[i * qfactor + j] << (j * quantization[ll])
+                                            e |= k[i * qfactor + j] << (j * abs(quantization[ll]))
                                         col_target = add_kernel_data(ll, p, col_target, e)
                                 else:
                                     for i in range(ksize):

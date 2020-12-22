@@ -23,6 +23,7 @@ class Dev:
     SUPPORT_GCFR = False
     SUPPORT_PIPELINE = False
     SUPPORT_PLL = False
+    SUPPORT_BINARY_WEIGHTS = False
     REQUIRE_REG_CLEAR = False
     REQUIRE_SEMA_LPWKEN = False
     MODERN_SIM = False
@@ -322,6 +323,7 @@ class DevAI87(Dev):
     SUPPORT_CALCX4 = True
     SUPPORT_PIPELINE = True
     SUPPORT_PLL = True
+    SUPPORT_BINARY_WEIGHTS = True
     REQUIRE_REG_CLEAR = True
     REQUIRE_SEMA_LPWKEN = True
 

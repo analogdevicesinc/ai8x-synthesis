@@ -276,17 +276,23 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         processor_map[0] = processor_map_0 << 48 | processor_map_0 << 32 \
             | processor_map_0 << 16 | processor_map_0
 
+    binary_quantization = False
+
     # Check that input channels are in separate memory instances if CHW (big) data format is used,
     # and calculate input and output expansion
     for ll in range(layers):
         if quantization[ll] is None:
             quantization[ll] = 8  # Set default
+        elif quantization[ll] == -1:
+            binary_quantization = True
+        elif quantization[ll] == 1 and binary_quantization:
+            eprint(f"Cannot combine binary quantization in layer {ll} with 1-bit quantization.")
         if output_shift[ll] is None:
             output_shift[ll] = 0  # Set default
 
         if output_shift[ll] < -15 or output_shift[ll] > 15:
-            implicit_shift = 8 - quantization[ll]
-            eprint(f"Layer {ll} with {quantization[ll]}-bit weight quantization supports an "
+            implicit_shift = 8 - abs(quantization[ll])
+            eprint(f"Layer {ll} with {abs(quantization[ll])}-bit weight quantization supports an "
                    f"output_shift range of [{-15 - implicit_shift}, +{15 - implicit_shift}]. "
                    f"The specified value of output_shift is {output_shift[ll] - implicit_shift} "
                    "which exceeds the system limits.")
@@ -381,6 +387,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             if flatten[ll]:
                 eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) > 1 are not supported'
                        f' when flattening.')
+            if output_width[ll] != 8:
+                eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) > 1 are not supported'
+                       f' when using `wide` output.')
 
         if input_skip[ll] != 0 and not hasattr(tc.dev, 'MP_STRIDE_OFFS'):
             eprint(f'Layer {ll}: `in_skip` must be 0 for this device.')
@@ -1219,6 +1228,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         val |= 1 << 11
                     if conv_groups[ll] > 1:
                         val |= 1 << 29
+                    if binary_quantization:
+                        val |= 1 << 30
 
                     if output_width[ll] != 8:
                         val |= 1 << 16
@@ -1259,7 +1270,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                     val = (fls(output_processor_map[ll])
                            - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) \
-                        * quantization[ll] << 8 \
+                        * abs(quantization[ll]) << 8 \
                         | in_exp
                     if operator[ll] != op.NONE:
                         wptr_skip = out_expand[ll] * (write_gap[ll] + 1)
@@ -1276,15 +1287,15 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     # Every mask memory starts from the same offset for all processors
                     oned_sad = 0
                     if operator[ll] != op.NONE:
-                        kl = (kern_count[ll] - 1) * quantization[ll]
+                        kl = (kern_count[ll] - 1) * abs(quantization[ll])
                         ochan = kern_ochan[ll] - 1
 
                         if ll == 0 and fast_fifo_quad or calcx4:
                             if calcx4:
-                                kl += quantization[ll]
+                                kl += abs(quantization[ll])
                             kl = (kl + 3) // 4  # FIXME: Handle fast_fifo_quad and calcx4
                             if calcx4:
-                                kl -= quantization[ll]
+                                kl -= abs(quantization[ll])
                         koffs, oned_sad = divmod(9 * kern_offs[ll],
                                                  kernel_size[ll][0] * kernel_size[ll][1])
                         koffs *= 8
@@ -1370,7 +1381,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                    verbose, comment=' // TRAM ptr max')
 
                     # Compensate for the smaller weights by adjusting the output shift
-                    if quantization[ll] == 1:
+                    if abs(quantization[ll]) == 1:
                         val = 1 << 22
                     elif quantization[ll] == 2:
                         val = 2 << 22
@@ -2460,8 +2471,12 @@ def main():
         if input_channels[ll] <= 0:
             eprint(f'Must specify `in_channels` for layer {ll}.')
         if operator[ll] != op.NONE:
-            assert weights[ll].min() >= -1 << quantization[ll] - 1
-            assert weights[ll].max() <= (1 << quantization[ll] - 1) - 1
+            if quantization[ll] == -1:
+                w = np.abs(weights[ll])
+                assert w.min() == w.max() == 1
+            else:
+                assert weights[ll].min() >= -1 << quantization[ll] - 1
+                assert weights[ll].max() <= (1 << quantization[ll] - 1) - 1
 
         if input_dim[ll] is None:
             if in_sequences[ll] is not None:

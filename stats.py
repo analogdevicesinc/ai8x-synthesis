@@ -69,7 +69,7 @@ def summary(
         kmem = sum(tc.dev.mask_width(proc) * 9 for proc in range(tc.dev.MAX_PROC))
         for i, e in enumerate(weights):
             if e is not None:
-                kmem_used += reduce(operator.mul, e.shape) * w_size[i] // 8
+                kmem_used += reduce(operator.mul, e.shape) * abs(w_size[i]) // 8
         rv += f"\n{sp}RESOURCE USAGE\n" \
               f'{sp}Weight memory: {kmem_used:,} bytes out of {kmem:,} bytes total ' \
               f'({kmem_used * 100.0 / kmem:.0f}%)\n'
