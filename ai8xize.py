@@ -115,6 +115,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         zero_sram=False,
         mlator=False,
         oneshot=0,
+        ext_rdy=False,
         stopstart=False,
         mexpress=False,
         riscv=False,
@@ -1629,6 +1630,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             val |= 1 << 31  # Qupac bit
         if oneshot:
             val |= 1 << 8
+        if ext_rdy:
+            val |= 1 << 4
         if hasattr(tc.dev, 'CTL_PIPELINE_OFFS'):
             if not pipeline:
                 val |= 1 << tc.dev.CTL_PIPELINE_OFFS
@@ -2637,6 +2640,7 @@ def main():
             args.zero_sram,
             args.mlator,
             args.one_shot,
+            args.ext_rdy,
             args.stop_start,
             args.mexpress,
             args.riscv,
