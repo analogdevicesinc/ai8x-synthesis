@@ -125,7 +125,6 @@ def basic_quantize(w, first, scale_factor):
     w = w * wscale
     w = np.clip(w, -128, 127).round()  # FIXME - base on quantize bits
     w = w.astype(np.int64)
-
     return w
 
 
@@ -562,7 +561,6 @@ def load(
         verbose=False,
         no_bias=None,
         scale=None,
-        keep_first=True,
         generate_dequantized_onnx_file=False,
 ):
     """
@@ -584,10 +582,9 @@ def load(
     if scale is not None:
         do_quantize = True
         scale_factor = float(scale)
-    if keep_first is True:
-        first = False
-    else:
-        first = True
+
+    # no need to scale first layer weights by 1/2
+    first = False
 
     if generate_dequantized_onnx_file is True:
         model_path_components = checkpoint_file.rsplit(".", 1)
