@@ -11,7 +11,7 @@ import numpy as np
 
 import tornadocnn as tc
 from eprint import eprint, wprint
-from utils import argmin, ffs, nthone, popcount
+from utils import argmin, ffs, popcount
 
 _INVALID_VALUE = -(2**63)
 
@@ -28,7 +28,8 @@ def load(
         streaming,
         conv_groups,
         broadcast_mode,
-        output_processor_map,
+        processor_map,
+        output_processor_map,  # pylint: disable=unused-argument
         debug,  # pylint: disable=unused-argument
 ):
     """
@@ -110,39 +111,50 @@ def load(
                     eprint(f'Layer {layer}: bias memory capacity for group {group} exceeded, '
                            f'used so far: {group_bias_max[group]}.')
 
-                if not embedded_code:
-                    apb.write_bias(group, group_bias_max[group], val)
-                else:
-                    # Store for later
-                    bias_values[group][group_bias_max[group]] = val
+                if val is not None:  # else just consume the space
+                    if not embedded_code:
+                        apb.write_bias(group, group_bias_max[group], val)
+                    else:
+                        # Store for later
+                        bias_values[group][group_bias_max[group]] = val
                 group_bias_max[group] += 1
 
+            used_groups = 0
             for group in range(tc.dev.P_NUMGROUPS):
-                if output_processor_map[ll] >> group * tc.dev.P_NUMPRO & (2**tc.dev.P_NUMPRO - 1):
+                if processor_map[ll] >> group * tc.dev.P_NUMPRO & (2**tc.dev.P_NUMPRO - 1):
+                    if broadcast_mode[ll]:  # Round up so we can use all groups in parallel
+                        group_bias_max[group] = (group_bias_max[group] + 3) & ~3
                     bias_offs[ll][group] = group_bias_max[group]
+                    used_groups += 1
+                else:
+                    bias_offs[ll][group] = None
 
-            pop = popcount(output_processor_map[ll])
-            if broadcast_mode[ll]:
-                # Pad out to allow for parallel read from the 8-bit memories in broadcast mode
-                extend = ffs(output_processor_map[ll]) % tc.dev.P_NUMPRO
+            pop = popcount(processor_map[ll])
+            if broadcast_mode[ll] or used_groups > 1:
+                # Pad out to allow for parallel read from the 8-bit memories
+                extend = ffs(processor_map[ll]) % tc.dev.P_NUMPRO
                 popall = pop + extend
             else:
                 extend = 0
+                popall = pop
             passes = (output_chan[ll] + pop - 1) // pop
 
             for chan in range(passes * extend + output_chan[ll]):
+                this_pass, p = divmod(chan, popall)
+                group = p // tc.dev.P_NUMPRO
                 if broadcast_mode[ll]:
-                    p = chan % popall
-                    group = p // tc.dev.P_NUMPRO
                     src = (p & ~0x0f) + (p % 4) * 4 + (p % 16) // 4 - extend
                     if src >= 0:
-                        src += chan // popall * pop
+                        src += this_pass * pop
                 else:
-                    p = chan % pop
-                    group = nthone(p + 1, output_processor_map[ll]) // tc.dev.P_NUMPRO
-                    src = (p & 0x03) + (p >> 2) % passes * pop + (chan // (4 * passes)) * 4
+                    if extend <= p < tc.dev.P_NUMPRO:
+                        src = -1
+                    else:
+                        src = p + (popall - extend) * this_pass
+                        if p >= tc.dev.P_NUMPRO:
+                            src -= extend
 
-                val = bias[ll][src] & 0xff if src >= 0 and src < len(bias[ll]) else 0
+                val = bias[ll][src] & 0xff if 0 <= src < len(bias[ll]) else None
                 bias_add_byte(ll, group, val)
 
     if embedded_code:

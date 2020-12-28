@@ -756,6 +756,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 streaming,
                 conv_groups,
                 broadcast_mode,
+                processor_map,
                 output_processor_map,
                 debug,
             )
@@ -950,6 +951,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 streaming,
                 conv_groups,
                 broadcast_mode,
+                processor_map,
                 output_processor_map,
                 debug,
             )
@@ -964,7 +966,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             if any(s != i+1 and (s != -1 or i != final_layer)
                    for i, s in enumerate(next_sequence)):
                 print('Next layer sequence = [',
-                  ', '.join(str(k) if k != -1 else 'stop' for k in next_sequence), ']', sep='',)
+                      ', '.join(str(k) if k != -1 else 'stop' for k in next_sequence), ']',
+                      sep='',)
 
             print('\nPer-group configuration:')
             print('-----------------------')
@@ -1207,22 +1210,39 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                     val = out_offset[ll] // 4
                     if not local_source:
-                        # Configure SRAM write pointer -- write ptr is global
+                        # Configure SRAM write pointer -- write ptr is global (unless depth-wise
+                        # w/o broadcast is used).
                         # Get offset to first available instance of the first used processor of the
                         # next layer.
-                        if operator[ll] != op.NONE:
-                            instance = ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1)
+                        if operator[ll] != op.NONE \
+                           and conv_groups[ll] > 1 and not broadcast_mode[ll]:
+                            # First group used
+                            first_group = ffs(processor_map[ll]) // tc.dev.P_NUMPRO
+                            if group - first_group >= 0:
+                                # Target for first write in the group
+                                wptr = (group - first_group) * tc.dev.P_NUMPRO \
+                                    + ffs(output_processor_map[ll])
+                                if group != first_group:
+                                    # Correct for unused processors in the first group
+                                    wptr -= ffs(processor_map[ll]) % tc.dev.P_NUMPRO
+                                
+                                val |= (wptr // tc.dev.P_SHARED) << tc.dev.WRITE_PTR_SHIFT
+                            else:
+                                val = 0
                         else:
-                            if output_processor_map[ll] & \
-                               2**tc.dev.P_NUMPRO - 1 << group*tc.dev.P_NUMPRO > 0:
+                            if operator[ll] != op.NONE:
+                                instance = ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1)
+                            elif (output_processor_map[ll] &
+                                  2**tc.dev.P_NUMPRO - 1 << group*tc.dev.P_NUMPRO > 0):
                                 instance = ffs(output_processor_map[ll]
-                                               & 2**tc.dev.P_NUMPRO - 1 << group*tc.dev.P_NUMPRO) \
+                                               & 2**tc.dev.P_NUMPRO - 1
+                                               << group*tc.dev.P_NUMPRO) \
                                     & ~(tc.dev.P_SHARED-1)
                             else:
                                 instance = 0
 
-                        val |= (instance % tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE \
-                            | (instance // tc.dev.P_SHARED) << tc.dev.WRITE_PTR_SHIFT
+                            val |= (instance % tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE \
+                                | (instance // tc.dev.P_SHARED) << tc.dev.WRITE_PTR_SHIFT
                     else:
                         # FIXME: No test currently sets local_souce, so this code is suspect
                         instance = ffs(output_processor_map[ll] >> group * tc.dev.P_SHARED) \
@@ -1234,16 +1254,18 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                     # Write Pointer Timeslot Offset Register
                     # Used for 1x1 convolution, and pooling without convolution
-                    if operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]:
-                        val = 1 if conv_groups[ll] == 1 else 0
+                    val = 0
+                    if operator[ll] == op.CONV2D:
+                        if kernel_size[ll] == [1, 1] and conv_groups[ll] == 1:
+                            val = 1
+                        elif conv_groups[ll] > 1 and not broadcast_mode[ll]:
+                            val = tc.dev.INSTANCE_SIZE * 4
                     elif operator[ll] == op.NONE:
                         if popcount(processor_map[ll]) > 4 \
                            or operands[ll] > 1 and in_expand[ll] > 1:
                             val = tc.dev.INSTANCE_SIZE * 4
                         else:
                             val = tc.dev.INSTANCE_SIZE
-                    else:
-                        val = 0
                     assert val < 2**tc.dev.MAX_PTR_BITS
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_TOFFS, val,
                                    verbose, comment=' // Write ptr time slot offs')
@@ -1456,7 +1478,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     elif bias_offs[ll][group] is not None and conv_groups[ll] > 1:
                         # Enable bias for all groups
                         assert bias_offs[ll][group] < 2**12
-                        val |= 1 << 12 | bias_offs[ll][group]
+                        offs = bias_offs[ll][group]
+                        if broadcast_mode[ll]:
+                            offs //= 4
+                        val |= 1 << 12 | offs
 
                     if operator[ll] == op.NONE:
                         if operands[ll] == 1:

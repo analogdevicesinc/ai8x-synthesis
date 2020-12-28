@@ -399,6 +399,7 @@
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-poolstrideonly --checkpoint-file tests/test-mnist-extrasmallnet.pth.tar --config-file tests/test-pooling-strideonly.yaml --device "$DEVICE" "$@"
 
 if [ "$DEVICE" = "78000" ]; then exit 0; fi
+
 # MAX78002 only
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-layers128 --config-file tests/test-layers128.yaml --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-startlayer28 --config-file tests/test-layers.yaml --device "$DEVICE" --start-layer 28 "$@"
@@ -415,6 +416,7 @@ if [ "$DEVICE" = "78000" ]; then exit 0; fi
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-k3 --config-file tests/test-depthwise2x2x2.yaml --stop-after 0 --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-k3 --config-file tests/test-depthwise3x4x4.yaml --stop-after 0 --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-k1 --config-file tests/test-depthwise1x1.yaml --stop-after 0 --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-k1-move --config-file tests/test-depthwise1x1-move.yaml --stop-after 0 --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise1d-k3 --config-file tests/test-depthwise1d.yaml --stop-after 0 --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise-transpose2d --config-file tests/test-depthwiset2d.yaml --stop-after 0 --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise-big --config-file tests/test-depthwise-big.yaml --device "$DEVICE" "$@"
@@ -431,6 +433,9 @@ if [ "$DEVICE" = "78000" ]; then exit 0; fi
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise-128-bias --config-file tests/test-depthwise-128-bias.yaml --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-6ch --config-file tests/test-depthwise6x5x7.yaml --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-6ch-move --config-file tests/test-depthwise6x5x7-move.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-17ch-move --config-file tests/test-depthwise17x5x7-move.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-17ch-move-more --config-file tests/test-depthwise17x5x7-move-more.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-17ch-move-back --config-file tests/test-depthwise17x5x7-move-back.yaml --device "$DEVICE" "$@"
 
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-readahead-cifar --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-readahead-cifar10-hwc.yaml --stop-after 0 --device "$DEVICE" --read-ahead "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-readahead-cifar --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-readahead-cifar10-hwc.yaml --device "$DEVICE" --read-ahead "$@"
