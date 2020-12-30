@@ -158,7 +158,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         qfactor = 8 // abs(quantization[ll])
         next_layer_map = output_processor_map[ll]
         first_output_proc = ffs(next_layer_map)
-        start_col = first_output_proc % tc.dev.P_SHARED  # First target column
+        start_col = first_output_proc % tc.dev.P_SHARED  # First target column out of 4 shared
 
         # Determine the number of kernels that need to be programmed. Since each instance
         # spans 4 processors, kernels for all instances that have a single processor enabled
@@ -224,11 +224,38 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         # Start at the first used instance
         this_map_init = next_layer_map >> ffs(next_layer_map)
 
+        def add_kernel_data(ll, p, col_target, b):
+            col = kern_offs[ll] + col_target
+            if col >= tc.dev.mask_width(p):
+                eprint(f'\nKernel memory exceeded in layer {ll}.'
+                       '\n\nKernel map so far:', exit_code=None)
+                print_map(layers, kernel_map, print_fn=eprint_noprefix)
+                sys.exit(1)
+
+            if kernels_used[p][col] == 0:  # Update kernel map
+                assert kernel_map[p][col] == _INVALID_VALUE
+                kernel_map[p][col] = ll
+
+            assert kernels_used[p][col] <= 8
+            kernel_data[p][col][8 - kernels_used[p][col]] = b & 0xff
+            kernels_used[p][col] += 1
+
+            if kernels_used[p][col] == 9:  # Flush
+                col_target += 1  # Write 1
+
+            return col_target
+
         for p in range(first_proc, last_proc+1):
             if (processor_map[ll] >> p) & 1 == 0:
                 # Unused source processor
                 continue
-            col_target = start_col
+            # Skip start_col processors. Each takes up ksize bytes, or ksize // 9 full
+            # kernel words. There are col_bytes leftover bytes.
+            col_target, col_bytes = divmod(start_col * ksize * in_expand[ll], 9)
+            # Pad out the leftovers
+            for _ in range(col_bytes // qfactor):  # FIXME for quantization
+                col_target = add_kernel_data(ll, p, col_target, 0)
+
             out_range = out_expand[ll] if conv_groups[ll] == 1 else 1
             for expand in range(out_range):
                 this_map = this_map_init
@@ -239,13 +266,13 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                     else:
                         col = expand
                         stop_col = expand + 1
+                elif conv_groups[ll] == 1:
+                    col = expand * out_expand_thresh[ll]
+                    stop_col = col + out_expand_thresh[ll]
                 else:
-                    if conv_groups[ll] == 1:
-                        col = expand * out_expand_thresh[ll]
-                        stop_col = col + out_expand_thresh[ll]
-                    else:
-                        col = expand
-                        stop_col = expand + 1
+                    col = expand
+                    stop_col = expand + 1
+
                 while col < stop_col:
                     # Skip over unused bits in the target processor map
                     # (unused means 1 bit for 8-bit weights, 2 for 4-bit weights, etc.)
@@ -267,27 +294,6 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                     if ll > 0 or not quad or (m % 4 == p // 16):
                         for ie in range(in_expand[ll]):
                             mask = this_mask
-
-                            def add_kernel_data(ll, p, col_target, b):
-                                col = kern_offs[ll] + col_target
-                                if col >= tc.dev.mask_width(p):
-                                    eprint(f'\nKernel memory exceeded in layer {ll}.'
-                                           '\n\nKernel map so far:', exit_code=None)
-                                    print_map(layers, kernel_map, print_fn=eprint_noprefix)
-                                    sys.exit(1)
-
-                                if kernels_used[p][col] == 0:  # Update kernel map
-                                    assert kernel_map[p][col] == _INVALID_VALUE
-                                    kernel_map[p][col] = ll
-
-                                assert kernels_used[p][col] <= 8
-                                kernel_data[p][col][8 - kernels_used[p][col]] = b & 0xff
-                                kernels_used[p][col] += 1
-
-                                if kernels_used[p][col] == 9:  # Flush
-                                    col_target += 1  # Write 1
-
-                                return col_target
 
                             n = 0
                             if ie * in_expand_thresh[ll] + ch < in_ch \

@@ -29,7 +29,8 @@ def load(
         conv_groups,
         broadcast_mode,
         processor_map,
-        output_processor_map,  # pylint: disable=unused-argument
+        output_processor_map,
+        out_expand,
         debug,  # pylint: disable=unused-argument
 ):
     """
@@ -59,8 +60,8 @@ def load(
             continue
 
         # Round up the divided length of bias values
-        # FIXME: Is it necessary to handle gaps in the next layer?
-        bias_len = output_chan[ll]
+        target_offs = ffs(output_processor_map[ll]) % tc.dev.P_SHARED * out_expand[ll]
+        bias_len = output_chan[ll] + target_offs
 
         if ll == 0 and streaming[ll] and not tc.dev.SUPPORT_STREAM_BIAS:
             # Work around a problem on AI85
@@ -80,7 +81,6 @@ def load(
                 bias_offs[ll][i] = group_bias_max[group]
             # Each layer has output_channel number of bias values
             i = 0
-            target_offs = 0
             if ll == 0 and streaming[ll] and tc.dev.FIX_STREAM_BIAS:
                 # Work around a problem on AI85
                 if not embedded_code:

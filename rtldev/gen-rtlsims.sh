@@ -436,6 +436,8 @@ if [ "$DEVICE" = "78000" ]; then exit 0; fi
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-17ch-move --config-file tests/test-depthwise17x5x7-move.yaml --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-17ch-move-more --config-file tests/test-depthwise17x5x7-move-more.yaml --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-17ch-move-back --config-file tests/test-depthwise17x5x7-move-back.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise-mixed2-nobias --config-file tests/test-depthwise-mixed2-nobias.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise-mixed3-nobias --config-file tests/test-depthwise-mixed3-nobias.yaml --device "$DEVICE" "$@"
 
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-readahead-cifar --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-readahead-cifar10-hwc.yaml --stop-after 0 --device "$DEVICE" --read-ahead "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-readahead-cifar --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-readahead-cifar10-hwc.yaml --device "$DEVICE" --read-ahead "$@"

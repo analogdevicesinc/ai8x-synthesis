@@ -527,6 +527,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 eprint(f'Layer {ll} is a depth-wise convolution. Output processors '
                        'must be aligned to a multiple of 4. Configured for this layer: '
                        f'{output_processor_map[ll]:016x}.')
+            if ffs(processor_map[ll]) % tc.dev.P_SHARED != 0 \
+               and (processor_map[ll] >> ffs(processor_map[ll])) // 2**tc.dev.P_NUMPRO > 0:
+                eprint(f'Layer {ll} is a depth-wise convolution. When spanning groups, processors '
+                       'must be aligned to a multiple of 4. Configured for this layer: '
+                       f'{processor_map[ll]:016x}.')
             if processor_map[ll] != output_processor_map[ll]:
                 wprint(f'Layer {ll}: depth-wise convolution moves data across processors. This '
                        f'has a performance impact. Input {processor_map[ll]:016x}, output '
@@ -758,6 +763,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 broadcast_mode,
                 processor_map,
                 output_processor_map,
+                out_expand,
                 debug,
             )
 
@@ -953,6 +959,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 broadcast_mode,
                 processor_map,
                 output_processor_map,
+                out_expand,
                 debug,
             )
 
