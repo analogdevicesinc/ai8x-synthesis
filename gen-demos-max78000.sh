@@ -12,5 +12,6 @@ COMMON_ARGS="--device $DEVICE --compact-data --mexpress --timer 0 --display-chec
 ./ai8xize.py --verbose --log --test-dir $SDK_TARGET --prefix cifar-100-residual --checkpoint-file trained/ai85-cifar100-residual-qat8-q.pth.tar --config-file networks/cifar100-ressimplenet.yaml --softmax $COMMON_ARGS --boost 2.5 "$@"
 ./ai8xize.py --verbose --log --test-dir $SDK_TARGET --prefix kws20 --checkpoint-file trained/ai85-kws20-qat8-q.pth.tar --config-file networks/kws20-hwc.yaml --softmax $COMMON_ARGS "$@"
 ./ai8xize.py --verbose --log --test-dir $SDK_TARGET --prefix kws20_v2 --checkpoint-file trained/ai85-kws20_v2-qat8-q.pth.tar --config-file networks/kws20-v2-hwc.yaml --softmax $COMMON_ARGS "$@"
+./ai8xize.py --verbose --log --test-dir $SDK_TARGET --prefix kws20_v3 --checkpoint-file trained/ai85-kws20_v3-qat8-q.pth.tar --config-file networks/kws20-v3-hwc.yaml --softmax $COMMON_ARGS "$@"
 ./ai8xize.py --verbose --log --test-dir $SDK_TARGET --prefix faceid --checkpoint-file trained/ai85-faceid-qat8-q.pth.tar --config-file networks/faceid.yaml --fifo $COMMON_ARGS "$@"
 ./ai8xize.py --verbose --log --test-dir $SDK_TARGET --prefix cats-dogs --checkpoint-file trained/ai85-catsdogs-qat8-q.pth.tar --config-file networks/cats-dogs-chw.yaml --softmax $COMMON_ARGS "$@"
