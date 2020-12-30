@@ -1225,7 +1225,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 if group != first_group:
                                     # Correct for unused processors in the first group
                                     wptr -= ffs(processor_map[ll]) % tc.dev.P_NUMPRO
-                                
+
                                 val |= (wptr // tc.dev.P_SHARED) << tc.dev.WRITE_PTR_SHIFT
                             else:
                                 val = 0
