@@ -459,4 +459,14 @@ if [ "$DEVICE" = "78000" ]; then exit 0; fi
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-weightstart-cifar-conv1x1 --checkpoint-file tests/test-cifar10-1x1.pth.tar --config-file tests/test-ai85-cifar10-hwc-1x1.yaml --weight-start 3940 --device "$DEVICE" "$@"
 
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-extrdy --config-file tests/test-nonsquare-pool.yaml --device "$DEVICE" --ext-rdy --verify-writes "$@"
+
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-binary --config-file tests/test-binary.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-conv1d-pool-1-binary --config-file tests/test-conv1d-pool-1-binary.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-conv1d-pool-6-binary --config-file tests/test-conv1d-pool-6-binary.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-negate-binary --config-file tests/test-negate-binary.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-wide256in-bias-binary --config-file tests/test-wide256in-bias-binary.yaml --device "$DEVICE" --timeout 128 "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-wide512in-binary --config-file tests/test-wide512in-binary.yaml --device "$DEVICE" --timeout 128 --queue-name long "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-widein-bias-binary --config-file tests/test-widein-bias-binary.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-widein-binary --config-file tests/test-widein-binary.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-wideout-binary --config-file tests/test-wideout-binary.yaml --device "$DEVICE" "$@"
+
