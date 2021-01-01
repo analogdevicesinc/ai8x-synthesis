@@ -1138,6 +1138,7 @@ class APBTopLevel(APB):
                 timer=self.timer,
                 groups=self.groups,
                 lib=True,
+                oneshot=self.oneshot,
             )
 
         toplevel.header(
@@ -1158,6 +1159,7 @@ class APBTopLevel(APB):
             timer=self.timer,
             groups=self.groups,
             lib=False if self.apifile is not None else None,
+            oneshot=self.oneshot,
         )
 
     def function_header(

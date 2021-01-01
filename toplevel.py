@@ -76,6 +76,7 @@ def header(
         timer=None,  # pylint: disable=unused-argument
         groups=None,
         lib=False,  # Tri-state: None/False/True
+        oneshot=0,
 ):
     """
     Write include files and forward definitions to .c file handle `memfile`.
@@ -162,7 +163,10 @@ def header(
             memfile.write('  // Acknowledge interrupt to all groups\n')
             for _, group in enumerate(groups):
                 addr = tc.dev.APB_BASE + tc.ctl_addr(group, tc.dev.REG_CTL)
-                memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ~((1<<12) | 1);\n')
+                if oneshot > 0 and not tc.dev.REQUIRE_ONESHOT_CLEAR:
+                    memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ~(1<<12);\n')
+                else:
+                    memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ~((1<<12) | 1);\n')
             memfile.write('\n')
             if embedded_code and not measure_energy:
                 memfile.write('  CNN_COMPLETE; // Signal that processing is complete\n')
