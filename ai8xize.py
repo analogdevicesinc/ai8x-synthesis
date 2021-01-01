@@ -293,15 +293,13 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         processor_map[start_layer] = processor_map_0 << 48 | processor_map_0 << 32 \
             | processor_map_0 << 16 | processor_map_0
 
-    binary_quantization = False
+    binary_quantization = any(quantization[ll] == -1 for ll in range(first_layer_used, layers))
 
     # Check that input channels are in separate memory instances if CHW (big) data format is used,
     # and calculate input and output expansion
     for ll in range(first_layer_used, layers):
         if quantization[ll] is None:
             quantization[ll] = 8  # Set default
-        elif quantization[ll] == -1:
-            binary_quantization = True
         elif quantization[ll] == 1 and binary_quantization:
             eprint(f"Cannot combine binary quantization in layer {ll} with 1-bit quantization.")
         if output_shift[ll] is None:
@@ -1304,8 +1302,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         val |= 1 << 11
                     if conv_groups[ll] > 1 and broadcast_mode[ll]:
                         val |= 1 << 29
-                    if binary_quantization:
-                        val |= 1 << 30
 
                     if output_width[ll] != 8:
                         val |= 1 << 16
@@ -1725,6 +1721,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             val |= 1 << 20
         if simple1b:
             val |= 1 << 21
+        if binary_quantization:
+            val |= 1 << 30
         if fast_fifo_quad:
             val |= 1 << 31  # Qupac bit
         if oneshot:
