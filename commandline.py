@@ -87,6 +87,8 @@ def get_parser():
                             "boost the power supply, e.g. --boost 2.5 (default: None)")
     group.add_argument('--start-layer', type=int, metavar='N', default=0,
                        help="set starting layer (default: 0)")
+    group.add_argument('--no-wfi', dest='wfi', action='store_false', default=True,
+                       help="do not use _WFI() (default: _WFI() is used)")
     mgroup = group.add_mutually_exclusive_group()
     mgroup.add_argument('--timer', type=int, metavar='N',
                         help="use timer to time the inference (default: off, supply timer number)")

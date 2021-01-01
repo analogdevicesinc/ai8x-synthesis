@@ -285,6 +285,7 @@ def main(
         verify_kernels=False,
         load_kernels=True,
         compact_weights=False,  # pylint: disable=unused-argument
+        wfi=True,
 ):
     """
     Write the main function (including an optional call to the fully connected layer if
@@ -644,11 +645,14 @@ def main(
 
         if not measure_energy:
             if embedded_code or tc.dev.MODERN_SIM:
-                memfile.write('  while (cnn_time == 0)\n')
-                if not riscv:
-                    memfile.write('    __WFI(); // Wait for CNN\n\n')
+                if wfi:
+                    memfile.write('  while (cnn_time == 0)\n')
+                    if not riscv:
+                        memfile.write('    __WFI(); // Wait for CNN\n\n')
+                    else:
+                        memfile.write('    asm volatile("wfi"); // Wait for CNN\n\n')
                 else:
-                    memfile.write('    asm volatile("wfi"); // Wait for CNN\n\n')
+                    memfile.write('  while (cnn_time == 0); // Spin wait\n')
             else:
                 memfile.write('  cnn_wait();\n\n')
         else:

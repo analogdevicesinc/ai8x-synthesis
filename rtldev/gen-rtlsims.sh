@@ -115,8 +115,8 @@
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-pool-4x4s3 --config-file tests/test-pooling4x4s3.yaml --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-pool-4x4s4 --config-file tests/test-pooling4x4s4.yaml --device "$DEVICE" "$@"
 
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-singlebyte-hwc --config-file tests/test-singlebyte-hwc.yaml --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-singlebyte-chw --config-file tests/test-singlebyte-chw.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-singlebyte-hwc --config-file tests/test-singlebyte-hwc.yaml --device "$DEVICE" --no-wfi "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-singlebyte-chw --config-file tests/test-singlebyte-chw.yaml --device "$DEVICE" --no-wfi "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-layers --config-file tests/test-layers.yaml --device "$DEVICE" "$@"
 
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-passthru --config-file tests/test-passthrough.yaml --device "$DEVICE" "$@"
@@ -152,7 +152,7 @@
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-widein-maxproc4 --config-file tests/test-widein-maxproc4.yaml --device "$DEVICE" --max-proc 4 "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-widein-maxproc4-q4 --config-file tests/test-widein-maxproc4-q4.yaml --device "$DEVICE" --max-proc 4 "$@"
 
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-conv2Dk1x1 --config-file tests/test-conv2Dk1x1.yaml --device "$DEVICE" --debug-computation --debug "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-conv2Dk1x1 --config-file tests/test-conv2Dk1x1.yaml --device "$DEVICE" --debug-computation --no-wfi --debug "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-conv2Dk1x1-b --config-file tests/test-conv2Dk1x1-b.yaml --device "$DEVICE" --debug-computation --debug "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-conv2Dk1x1-b-pool --config-file tests/test-conv2Dk1x1-b-pool.yaml --device "$DEVICE" --debug-computation --debug "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mlp12to2 --config-file tests/test-mlp12to2.yaml --device "$DEVICE" --debug-computation --debug "$@"

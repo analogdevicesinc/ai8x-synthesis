@@ -72,6 +72,7 @@ class APB():
             num_classes=None,
             output_width=8,
             bias=False,
+            wfi=True,
     ):
         """
         Create an APB class object that writes to memfile.
@@ -121,6 +122,7 @@ class APB():
         self.num_classes = num_classes
         self.output_width = output_width
         self.bias = bias
+        self.wfi = wfi
 
         self.data = 0
         self.num = 0
@@ -1230,6 +1232,7 @@ class APBTopLevel(APB):
             output_width=self.output_width,
             bias=self.bias,
             verify_kernels=self.verify_kernels,
+            wfi=self.wfi,
         )
 
     def fc_layer(
