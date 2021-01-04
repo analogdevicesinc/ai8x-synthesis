@@ -11,42 +11,26 @@ import numpy as np
 
 import tornadocnn as tc
 from eprint import eprint, wprint
-from utils import argmin
+from utils import argmin, ffs, popcount
 
 _INVALID_VALUE = -(2**63)
-
-
-def combine(
-        b,
-        quantization,
-        start,
-        out_chan,
-):
-    """
-    When quantizing, combine multiple bias values `b` based on `quantization`. The first kernel
-    index is `start`. `out_chan` is used to determine whether to pad the result with zeros,
-    if necessary.
-    Returns the combined bias values.
-    """
-    val = 0
-    for i in range(8 // quantization):
-        if start + i < out_chan:
-            this_bias = b[start + i] & (2**quantization-1)
-            val |= this_bias << (i * quantization)
-
-    return val
 
 
 def load(
         verbose,  # pylint: disable=unused-argument
         embedded_code,
         apb,
+        start_layer,
         layers,
         bias,
-        quantization,  # pylint: disable=unused-argument
         group_map,
         output_chan,
         streaming,
+        conv_groups,
+        broadcast_mode,
+        processor_map,
+        output_processor_map,
+        out_expand,
         debug,  # pylint: disable=unused-argument
 ):
     """
@@ -63,10 +47,10 @@ def load(
         apb.function_header(function='load_bias')
 
     group_bias_max = [0] * tc.dev.P_NUMGROUPS
-    bias_offs = [None] * layers
+    bias_offs = [[None] * tc.dev.P_NUMGROUPS for _ in range(layers)]
     bias_group = [None] * layers
-    for ll in range(layers):
-        if bias[ll] is None:
+    for ll in range(start_layer, layers):
+        if bias[ll] is None or group_map[ll] is None:
             continue
         if len(bias[ll]) != output_chan[ll]:
             eprint(f'Layer {ll}: output channel count {output_chan[ll]} does not match the number '
@@ -75,11 +59,9 @@ def load(
             wprint(f'Layer {ll}: All bias values are zero. Ignoring the input.')
             continue
 
-        q = 8  # Fixed to 8 bits instead of quantization[ll]
-        qfactor = 8 // q
         # Round up the divided length of bias values
-        # FIXME: Is it necessary to handle gaps in the next layer?
-        bias_len = (output_chan[ll] + qfactor-1) // qfactor
+        target_offs = ffs(output_processor_map[ll]) % tc.dev.P_SHARED * out_expand[ll]
+        bias_len = output_chan[ll] + target_offs
 
         if ll == 0 and streaming[ll] and not tc.dev.SUPPORT_STREAM_BIAS:
             # Work around a problem on AI85
@@ -88,34 +70,92 @@ def load(
             wprint(f'Layer {ll} uses streaming and a bias. '
                    'THIS COMBINATION MIGHT NOT BE FUNCTIONING CORRECTLY!!!')
 
-        # Pick the group with the least amount of data in it
-        group = argmin(group_bias_max[t] for t in group_map[ll])
-        if group_bias_max[group] + bias_len > tc.dev.BIAS_SIZE:
-            eprint(f'Layer {ll}: bias memory capacity exceeded - available groups: '
-                   f'{group_map[ll]}, used so far: {group_bias_max}, needed: {bias_len}.')
-        bias_group[ll] = group
-        bias_offs[ll] = group_bias_max[group]
-        # Each layer has output_channel number of bias values
-        i = 0
-        target_offs = 0
-        if ll == 0 and streaming[ll] and tc.dev.FIX_STREAM_BIAS:
-            # Work around a problem on AI85
-            if not embedded_code:
-                apb.write_bias(group, bias_offs[ll], 0)
+        if conv_groups[ll] == 1:
+            # Pick the group with the least amount of data in it
+            group = argmin(group_bias_max[t] for t in group_map[ll])
+            if group_bias_max[group] + bias_len > tc.dev.BIAS_SIZE:
+                eprint(f'Layer {ll}: bias memory capacity exceeded - available groups: '
+                       f'{group_map[ll]}, used so far: {group_bias_max}, needed: {bias_len}.')
+            bias_group[ll] = group
+            for i in range(tc.dev.P_NUMGROUPS):
+                bias_offs[ll][i] = group_bias_max[group]
+            # Each layer has output_channel number of bias values
+            i = 0
+            if ll == 0 and streaming[ll] and tc.dev.FIX_STREAM_BIAS:
+                # Work around a problem on AI85
+                if not embedded_code:
+                    apb.write_bias(group, bias_offs[ll][group], 0)
+                else:
+                    # Store for later
+                    bias_values[group][bias_offs[ll][group]] = 0
+                target_offs += 1
+            while i < output_chan[ll]:
+                if not embedded_code:
+                    apb.write_bias(group, bias_offs[ll][group] + target_offs, bias[ll][i] & 0xff)
+                else:
+                    # Store for later
+                    bias_values[group][bias_offs[ll][group] + target_offs] = bias[ll][i] & 0xff
+                i += 1
+                target_offs += 1
+            group_bias_max[group] += bias_len
+        else:
+            # Each group needs to have 'its own' bias values
+            bias_group[ll] = 'all'
+            chan = 0
+
+            def bias_add_byte(layer, group, val):
+                """
+                Add a single bias byte `val` to the memory in `group`.
+                """
+                if group_bias_max[group] >= tc.dev.BIAS_SIZE:
+                    eprint(f'Layer {layer}: bias memory capacity for group {group} exceeded, '
+                           f'used so far: {group_bias_max[group]}.')
+
+                if val is not None:  # else just consume the space
+                    if not embedded_code:
+                        apb.write_bias(group, group_bias_max[group], val)
+                    else:
+                        # Store for later
+                        bias_values[group][group_bias_max[group]] = val
+                group_bias_max[group] += 1
+
+            used_groups = 0
+            for group in range(tc.dev.P_NUMGROUPS):
+                if processor_map[ll] >> group * tc.dev.P_NUMPRO & (2**tc.dev.P_NUMPRO - 1):
+                    if broadcast_mode[ll]:  # Round up so we can use all groups in parallel
+                        group_bias_max[group] = (group_bias_max[group] + 3) & ~3
+                    bias_offs[ll][group] = group_bias_max[group]
+                    used_groups += 1
+                else:
+                    bias_offs[ll][group] = None
+
+            pop = popcount(processor_map[ll])
+            if broadcast_mode[ll] or used_groups > 1:
+                # Pad out to allow for parallel read from the 8-bit memories
+                extend = ffs(processor_map[ll]) % tc.dev.P_NUMPRO
+                popall = pop + extend
             else:
-                # Store for later
-                bias_values[group][bias_offs[ll]] = 0
-            target_offs += 1
-        while i < output_chan[ll]:
-            b = combine(bias[ll], q, i, output_chan[ll])
-            if not embedded_code:
-                apb.write_bias(group, bias_offs[ll] + target_offs, b)
-            else:
-                # Store for later
-                bias_values[group][bias_offs[ll] + target_offs] = b & 0xff
-            i += qfactor
-            target_offs += 1
-        group_bias_max[group] += bias_len
+                extend = 0
+                popall = pop
+            passes = (output_chan[ll] + pop - 1) // pop
+
+            for chan in range(passes * extend + output_chan[ll]):
+                this_pass, p = divmod(chan, popall)
+                group = p // tc.dev.P_NUMPRO
+                if broadcast_mode[ll]:
+                    src = (p & ~0x0f) + (p % 4) * 4 + (p % 16) // 4 - extend
+                    if src >= 0:
+                        src += this_pass * pop
+                else:
+                    if extend <= p < tc.dev.P_NUMPRO:
+                        src = -1
+                    else:
+                        src = p + (popall - extend) * this_pass
+                        if p >= tc.dev.P_NUMPRO:
+                            src -= extend
+
+                val = bias[ll][src] & 0xff if 0 <= src < len(bias[ll]) else None
+                bias_add_byte(ll, group, val)
 
     if embedded_code:
         if max(group_bias_max) > 0:

@@ -34,13 +34,13 @@ def unwrap(x):
     return x.numpy() if isinstance(x, torch.Tensor) else x
 
 
-def convert_checkpoint(dev, input_file, output_file, arguments):
+def convert_checkpoint(input_file, output_file, arguments):
     """
     Convert checkpoint file or dump parameters for C code
     """
     # Load configuration file
     if arguments.config_file:
-        _, _, params = yamlcfg.parse(arguments.config_file, device=dev)
+        _, _, params = yamlcfg.parse(arguments.config_file)
     else:
         params = None
 
@@ -259,4 +259,4 @@ if __name__ == '__main__':
         args.stddev = DEFAULT_STDDEV
     tc.dev = tc.get_device(args.device)
 
-    convert_checkpoint(args.device, args.input, args.output, args)
+    convert_checkpoint(args.input, args.output, args)

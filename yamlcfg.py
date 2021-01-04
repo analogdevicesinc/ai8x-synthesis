@@ -50,11 +50,10 @@ class UniqueKeyLoader(yaml.Loader):
         return mapping
 
 
-def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argument
+def parse(config_file):
     """
     Configure network parameters from the YAML configuration file `config_file`.
     `max_conv` can be set to force an early termination of the parser.
-    `device` is `84`, `85`, etc.
     The function returns both YAML dictionary, the length of the processor map,
     as well as a settings dictionary.
     """
@@ -83,6 +82,8 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
     output_map = [None] * tc.dev.MAX_LAYERS
     input_offset = [None] * tc.dev.MAX_LAYERS
     input_chan = [None] * tc.dev.MAX_LAYERS
+    input_skip = [0] * tc.dev.MAX_LAYERS
+    input_chan_skip = [0] * tc.dev.MAX_LAYERS
     input_dim = [None] * tc.dev.MAX_LAYERS
     output_chan = [None] * tc.dev.MAX_LAYERS
     # All other variables are initialized with the default values
@@ -110,17 +111,18 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
     eltwise = [op.NONE] * tc.dev.MAX_LAYERS
     pool_first = [True] * tc.dev.MAX_LAYERS
     in_sequences = [None] * tc.dev.MAX_LAYERS
+    next_sequence = [None] * tc.dev.MAX_LAYERS
     write_gap = [0] * tc.dev.MAX_LAYERS
 
     sequence = 0
     for ll in cfg['layers']:
         if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'conv_groups',
-                               'groups', 'in_channels', 'in_dim', 'in_sequences', 'in_offset',
-                               'kernel_size', 'pool_stride', 'out_channels', 'out_offset',
-                               'activate', 'activation', 'data_format', 'eltwise', 'flatten',
-                               'op', 'operands', 'operation', 'operator',
-                               'output_processors', 'output_width', 'output_shift',
-                               'pool_first', 'processors', 'pad', 'quantization',
+                               'groups', 'in_channels', 'in_dim', 'in_sequences', 'in_skip',
+                               'in_channel_skip', 'in_offset', 'kernel_size', 'pool_stride',
+                               'out_channels', 'out_offset', 'activate', 'activation',
+                               'data_format', 'eltwise', 'flatten', 'op', 'operands', 'operation',
+                               'operator', 'output_processors', 'output_width', 'output_shift',
+                               'pool_first', 'processors', 'pad', 'quantization', 'next_sequence',
                                'sequence', 'streaming', 'stride', 'write_gap'])):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
 
@@ -133,7 +135,7 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
         if processor_map[sequence]:
             error_exit('Layer was already specified', sequence)
 
-        if device != devices.CMSISNN:
+        if tc.dev.device != devices.CMSISNN:
             if 'processors' in ll:
                 processor_map[sequence] = ll['processors']
             if not processor_map[sequence]:
@@ -179,8 +181,12 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
 
         if 'quantization' in ll:
             val = ll['quantization']
-            if val not in [1, 2, 4, 8]:
-                error_exit('`quantization` must be 1, 2, 4, or 8', sequence)
+            if isinstance(val, str):
+                val = val.lower()
+            if val not in [1, 2, 4, 8, 'bin', 'binary']:
+                error_exit('`quantization` must be 1, 2, 4, 8 or bin/binary', sequence)
+            if val in ['bin', 'binary']:
+                val = -1
             quantization[sequence] = val
 
         if 'output_shift' in ll:
@@ -194,6 +200,10 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
             if isinstance(ll['in_dim'], list) and len(ll['in_dim']) > 2:
                 error_exit('`in_dim` must not exceed two dimensions', sequence)
             input_dim[sequence] = ll['in_dim']
+        if 'in_skip' in ll:
+            input_skip[sequence] = ll['in_skip']
+        if 'in_channel_skip' in ll:
+            input_chan_skip[sequence] = ll['in_channel_skip']
         if 'in_offset' in ll:
             input_offset[sequence] = ll['in_offset']
         if 'out_channels' in ll:
@@ -300,9 +310,6 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
             operands[sequence] = val
 
         if 'data_format' in ll:
-            if sequence:
-                error_exit('`data_format` can only be configured for the first layer', sequence)
-
             val = ll['data_format'].lower()
             if val in ['chw', 'big']:
                 big_data[sequence] = True
@@ -323,8 +330,7 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
 
             val = str(ll['kernel_size']).lower()
             if operator[sequence] == op.CONV2D:
-                if device == 84 and val not in ['3x3'] \
-                        or device != 84 and val not in ['1x1', '3x3']:
+                if val not in ['1x1', '3x3']:
                     error_exit(f'Unsupported value `{val}` for `kernel_size`', sequence)
                 kernel_size[sequence] = [int(val[0]), int(val[2])]
             elif operator[sequence] == op.CONVTRANSPOSE2D:
@@ -336,7 +342,7 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
                     val = int(val)
                 except ValueError:
                     error_exit(f'Unsupported value `{val}` for `kernel_size`', sequence)
-                if device == 84 and val != 9 or val < 1 or val > 9:
+                if val < 1 or val > 9:
                     error_exit(f'Unsupported value `{val}` for `kernel_size`', sequence)
                 kernel_size[sequence] = [val, 1]
         elif operator[sequence] == op.CONV1D:  # Set default for 1D convolution
@@ -350,8 +356,7 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
                 val = val[0]
             if pooling_enabled[sequence]:
                 # Must use the default stride when pooling, otherwise stride can be set
-                if operator[sequence] == op.CONV2D and val != 1 \
-                   or (device == 84 and val != 3 or val != 1):
+                if val != 1:
                     error_exit('Cannot set `stride` to non-default value when pooling', sequence)
             else:
                 if operator[sequence] == op.CONVTRANSPOSE2D and val != 2:
@@ -375,12 +380,13 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
                 error_exit(f'Unsupported value `{val}` for `flatten`', sequence)
 
         if 'in_sequences' in ll:
-            if isinstance(ll['in_sequences'], list):
-                if any([(i >= sequence) for i in ll['in_sequences']]):
-                    error_exit('`in_sequences` cannot be greater than layer sequence', sequence)
-            elif ll['in_sequences'] >= sequence:
-                error_exit('`in_sequences` cannot be greater than layer sequence', sequence)
             in_sequences[sequence] = ll['in_sequences']
+
+        if 'next_sequence' in ll:
+            if isinstance(ll['next_sequence'], str) and ll['next_sequence'].lower() == 'stop':
+                next_sequence[sequence] = -1
+            else:
+                next_sequence[sequence] = ll['next_sequence']
 
         if 'conv_groups' in ll or 'groups' in ll:
             key = 'conv_groups' if 'conv_groups' in ll else 'groups'
@@ -400,15 +406,6 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
         elif operator[sequence] == op.CONVTRANSPOSE2D:
             stride[sequence] = [2, 2]
 
-        # Check for early exit
-        if max_conv is not None:
-            if max_conv == 0:
-                if output_map[sequence] is None and (len(cfg['layers']) > sequence + 1):
-                    if 'processors' in cfg['layers'][sequence+1]:
-                        output_map[sequence] = cfg['layers'][sequence+1]['processors']
-                break
-            max_conv -= 1
-
         sequence += 1
 
     # Sequence specification may have holes. Contract to the used layers.
@@ -419,6 +416,8 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
             del pool[ll]
             del pool_stride[ll]
             del input_chan[ll]
+            del input_skip[ll]
+            del input_chan_skip[ll]
             del input_dim[ll]
             del input_offset[ll]
             del output_chan[ll]
@@ -442,34 +441,9 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
             del eltwise[ll]
             del conv_groups[ll]
             del write_gap[ll]
+            del in_sequences[ll]
+            del next_sequence[ll]
 
-    # Check all but last layer
-    for ll in range(len(output_map) - 1):
-        if output_width[ll] != 8:
-            error_exit('`output_width` is not 8 for intermediate layer', ll)
-        # Fix up default output maps
-        if output_map[ll] is None:
-            output_map[ll] = processor_map[ll+1]
-
-    # Check all but first layer
-    for ll in range(1, len(input_offset)):
-        # Fix up default input maps
-        if input_offset[ll] is None:
-            input_offset[ll] = output_offset[ll-1]
-        # Check we don't turn on streaming too late
-        if streaming[ll] and not streaming[ll-1]:
-            error_exit('Enable streaming from the first layer on', ll)
-    # Check first layer
-    if input_offset[0] is None:
-        input_offset[0] = 0
-    if device != devices.CMSISNN:
-        # Check last layer
-        if output_map[-1] is None and 'output_map' in cfg:
-            output_map[-1] = cfg['output_map']
-        if output_width[-1] != 8 and activation[-1] is not None:
-            error_exit('`output_width` must be 8 when activation is used', len(activation))
-
-    # Check all layers
     for ll, e in enumerate(operator):
         # Warn when using default pool stride of 1, 1
         if pool_stride[ll][0] is None:
@@ -495,11 +469,9 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
         if not pool_first[ll] and (operands[ll] == 1 or pool[ll][0] == 1 and pool[ll][1] == 1):
             error_exit('`pool_first: False` requires both pooling and element-wise operations', ll)
 
-    if device == 84:
-        # Fix up defaults for Conv1D:
-        for ll, e in enumerate(operator):
-            if e == op.CONV1D:
-                kernel_size[ll] = [9, 1]
+        # Check we're not using binary weights on devices that don't support it
+        if quantization[ll] == -1 and not tc.dev.SUPPORT_BINARY_WEIGHTS:
+            error_exit('Binary weights (-1/+1) are not supported on this device', ll)
 
     settings = {}
     settings['padding'] = padding
@@ -507,6 +479,8 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
     settings['pooling_enabled'] = pooling_enabled
     settings['pool_stride'] = pool_stride
     settings['input_chan'] = input_chan
+    settings['input_chan_skip'] = input_chan_skip
+    settings['input_skip'] = input_skip
     settings['input_dim'] = input_dim
     settings['input_offset'] = input_offset
     settings['output_chan'] = output_chan
@@ -530,6 +504,7 @@ def parse(config_file, max_conv=None, device=84):  # pylint: disable=unused-argu
     settings['eltwise'] = eltwise
     settings['pool_first'] = pool_first
     settings['in_sequences'] = in_sequences
+    settings['next_sequence'] = next_sequence
     settings['conv_groups'] = conv_groups
     settings['write_gap'] = write_gap
 

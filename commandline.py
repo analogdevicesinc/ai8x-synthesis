@@ -87,6 +87,8 @@ def get_parser():
                             "boost the power supply, e.g. --boost 2.5 (default: None)")
     group.add_argument('--start-layer', type=int, metavar='N', default=0,
                        help="set starting layer (default: 0)")
+    group.add_argument('--no-wfi', dest='wfi', action='store_false', default=True,
+                       help="do not use _WFI() (default: _WFI() is used)")
     mgroup = group.add_mutually_exclusive_group()
     mgroup.add_argument('--timer', type=int, metavar='N',
                         help="use timer to time the inference (default: off, supply timer number)")
@@ -186,8 +188,10 @@ def get_parser():
                        help="always use the link layer feature (default: false)")
     group.add_argument('--read-ahead', dest='rd_ahead', action='store_true', default=False,
                        help="set the rd_ahead bit (default: false)")
-    group.add_argument('--calcx4', dest='calcx4', action='store_true', default=False,
+    group.add_argument('--calcx4', action='store_true', default=False,
                        help="rearrange kernels and set the calcx4 bit (default: false)")
+    group.add_argument('--ext-rdy', action='store_true', default=False,
+                       help="set ext_rdy bit (default: false)")
     group.add_argument('--weight-start', type=int, metavar='N', default=0,
                        help="specify start offset for weights (debug, default: 0)")
 

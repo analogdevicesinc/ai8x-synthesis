@@ -13,7 +13,7 @@ import numpy as np
 import torch
 
 import op as opn
-import tornadocnn
+import tornadocnn as tc
 from eprint import eprint
 from utils import fls
 
@@ -36,10 +36,10 @@ def load(
     the architecuture in the checkpoint file, abort with an error message. If `fc_layer` is
     `True`, configure a single fully connected classification layer for software rather than
     hardware.
-    `quantization` is a list of expected bit widths for the layer weights (always 8 for AI84).
+    `quantization` is a list of expected bit widths for the layer weights. `-1` is a special value
+    denoting -1/+1.
     This value is checked against the weight inputs.
-    `bias_quantization` is a list of the expected bit widths for the layer weights (always
-    8 for AI84/AI85).
+    `bias_quantization` is a list of the expected bit widths for the layer weights (always 8).
     In addition to returning weights anf biases, this function configures the network output
     channels and the number of layers.
     When `verbose` is set, display the shapes of the weights.
@@ -95,22 +95,28 @@ def load(
                     continue
 
                 w = checkpoint_state[k].numpy().astype(np.int64)
-                w_min, w_max = w.min(), w.max()
+                w_min, w_max, w_abs = w.min(), w.max(), np.abs(w)
 
                 # Determine quantization or make sure that what was given fits
                 if quantization[seq] is not None:
-                    assert w_min >= -(2**(quantization[seq]-1))
-                    assert w_max < 2**(quantization[seq]-1)
+                    if quantization[seq] == -1:
+                        assert w_abs.min() == w_abs.max() == 1
+                    else:
+                        assert w_min >= -(2**(quantization[seq]-1))
+                        assert w_max < 2**(quantization[seq]-1)
                 else:
-                    if w_max > 0:
-                        w_max_m = int(w_max)
+                    if tc.dev.SUPPORT_BINARY_WEIGHTS and w_abs.min() == w_abs.max() == 1:
+                        quantization[seq] = -1
                     else:
-                        w_max_m = int(abs(w_max)) - 1
-                    if w_min > 0:
-                        w_min_m = int(w_min)
-                    else:
-                        w_min_m = int(abs(w_min)) - 1
-                    quantization[seq] = 1 << (fls(max(fls(w_max_m), fls(w_min_m)) + 1) + 1)
+                        if w_max > 0:
+                            w_max_m = int(w_max)
+                        else:
+                            w_max_m = int(abs(w_max)) - 1
+                        if w_min > 0:
+                            w_min_m = int(w_min)
+                        else:
+                            w_min_m = int(abs(w_min)) - 1
+                        quantization[seq] = 1 << (fls(max(fls(w_max_m), fls(w_min_m)) + 1) + 1)
                     assert quantization[seq] <= 8
                 quant.append(quantization[seq])
 
@@ -148,7 +154,7 @@ def load(
 
                 w_count = np.prod(w.shape)
                 param_count += w_count
-                w_size = (w_count * quantization[seq] + 7) // 8
+                w_size = (w_count * abs(quantization[seq]) + 7) // 8
                 weight_size.append(w_size)
                 param_size += w_size
 
@@ -165,7 +171,7 @@ def load(
 
                 if bias_name in checkpoint_state and seq not in no_bias:
                     w = checkpoint_state[bias_name].numpy(). \
-                        astype(np.int64) // tornadocnn.dev.BIAS_DIV
+                        astype(np.int64) // tc.dev.BIAS_DIV
 
                     w_min, w_max = w.min(), w.max()
                     assert w_min >= -(2**(bias_quantization[seq]-1))
@@ -205,7 +211,7 @@ def load(
                         output_shift[seq] = 0
 
                 # Add implicit shift based on quantization
-                output_shift[seq] += 8 - quantization[seq]
+                output_shift[seq] += 8 - abs(quantization[seq])
 
                 layers += 1
                 seq += 1
