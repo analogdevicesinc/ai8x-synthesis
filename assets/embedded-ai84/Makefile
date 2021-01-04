@@ -1,5 +1,5 @@
 ################################################################################
- # Copyright (C) 2016 Maxim Integrated Products, Inc., All Rights Reserved.
+ # Copyright (C) Maxim Integrated Products, Inc., All Rights Reserved.
  #
  # Permission is hereby granted, free of charge, to any person obtaining a
  # copy of this software and associated documentation files (the "Software"),
@@ -28,9 +28,6 @@
  # trademarks, maskwork rights, or any other form of intellectual
  # property whatsoever. Maxim Integrated Products, Inc. retains all
  # ownership rights.
- #
- # $Date: 2019-04-23 14:56:25 -0500 (Tue, 23 Apr 2019) $ 
- # $Revision: 42865 $
  #
  ###############################################################################
 
@@ -68,15 +65,13 @@ CMSIS_ROOT=$(LIBS_DIR)/CMSIS
 LINKERFILE=$(CMSIS_ROOT)/Device/Maxim/AI85/Source/GCC/ai85_arm.ld
 
 # Source files for this test (add path to VPATH below)
-SRCS  = main.c arm_softmax_q17p14_q15.c
+SRCS  = main.c cnn.c arm_softmax_q17p14_q15.c
 
 
 # Where to find source files for this test
 VPATH  = .
-VPATH += ../Common/
 # Where to find header files for this test
 IPATH  = .
-IPATH += ../Common/
 
 # Enable assertion checking for development
 PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE -DARM_MATH_CM4

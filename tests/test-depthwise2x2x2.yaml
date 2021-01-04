@@ -1,0 +1,12 @@
+# Test depthwise convolution
+
+arch: test
+dataset: test_depthwise2x2x2
+
+layers:
+- out_offset: 0x2000
+  processors: 0x0000000000000003
+  operation: conv2d
+  kernel_size: 3x3
+  groups: 2
+

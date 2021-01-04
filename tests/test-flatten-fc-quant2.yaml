@@ -1,0 +1,13 @@
+# HME Test Network
+
+arch: test
+dataset: test_flatten-fc-quant
+
+layers:
+- flatten: true
+  out_offset: 0x4000
+  processors: 0x000000000000000f
+  operation: fc
+  quantization: 2
+  activation: None
+  output_shift: -8

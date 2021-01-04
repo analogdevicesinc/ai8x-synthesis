@@ -12,12 +12,14 @@ Test the convtranspose2d operator.
 """
 import os
 import sys
+
 import numpy as np
-import torch
 import tensorflow as tf
+import torch
+
+import ai8xTF  # pylint: disable=import-error,wrong-import-order,wrong-import-position  # noqa:E402
 
 sys.path.append(os.path.join('../ai8x-training/TensorFlow'))
-import ai8xTF  # pylint: disable=import-error,wrong-import-order,wrong-import-position  # noqa:E402
 
 STRIDE = 2
 PAD = 1

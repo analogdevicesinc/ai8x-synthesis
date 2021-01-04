@@ -9,12 +9,14 @@
 ONNX File Routines
 """
 import sys
+
 import numpy as np
+
 import onnx
 import onnx.shape_inference
+import onnxruntime
 from onnx import numpy_helper
 
-import onnxruntime
 import op as opn
 from eprint import eprint
 from utils import fls
@@ -123,7 +125,6 @@ def basic_quantize(w, first, scale_factor):
     w = w * wscale
     w = np.clip(w, -128, 127).round()  # FIXME - base on quantize bits
     w = w.astype(np.int64)
-
     return w
 
 
@@ -560,7 +561,6 @@ def load(
         verbose=False,
         no_bias=None,
         scale=None,
-        keep_first=False,
         generate_dequantized_onnx_file=False,
 ):
     """
@@ -582,10 +582,9 @@ def load(
     if scale is not None:
         do_quantize = True
         scale_factor = float(scale)
-    if keep_first is True:
-        first = False
-    else:
-        first = True
+
+    # no need to scale first layer weights by 1/2
+    first = False
 
     if generate_dequantized_onnx_file is True:
         model_path_components = checkpoint_file.rsplit(".", 1)
@@ -873,21 +872,24 @@ def load(
                             if kernel_size_onnx[seq][0] != 1 or kernel_size_onnx[seq][1] != 1:
                                 eprint(f'The `kernel_size` for the MLP layer {seq} should '
                                        f'be set to 1x1 instead of '
-                                       f'{kernel_size_onnx[seq][0]}x{kernel_size_onnx[seq][1]}.')
+                                       f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.',
+                                       exit_code=None)
                                 error_exit = True
                         elif len(w.shape) == 3:  # 1D
                             if kernel_size_onnx[seq][0] != w.shape[2] \
                                or kernel_size_onnx[seq][1] != 1:
                                 eprint(f'The `kernel_size` for the 1D layer {seq} should '
                                        f'be set to {w.shape[2]}x1 instead of '
-                                       f'{kernel_size_onnx[seq][0]}x{kernel_size_onnx[seq][1]}.')
+                                       f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.',
+                                       exit_code=None)
                                 error_exit = True
                         elif len(w.shape) == 4:  # 2D
                             if kernel_size_onnx[seq][0] != w.shape[t2] \
                                or kernel_size_onnx[seq][1] != w.shape[t3]:
                                 eprint(f'The `kernel_size` for the 2D layer {seq} should '
                                        f'be set to {w.shape[2]}x{w.shape[3]} instead of '
-                                       f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.')
+                                       f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.',
+                                       exit_code=None)
                                 error_exit = True
 
                         w_count = np.prod(w.shape)

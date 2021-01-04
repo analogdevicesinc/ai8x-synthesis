@@ -3,14 +3,10 @@
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
 Load Tornado CNN data memory
 """
-import sys
-
 import numpy as np
 
 import camera
@@ -54,6 +50,9 @@ def load(
     Output is written to the `apb` object.
     """
 
+    if fixed_input and not embedded_code:
+        eprint('--fixed-input requires --embedded-code')
+
     if csv_file is not None:
         return loadcsv(
             embedded_code,
@@ -89,7 +88,14 @@ def load(
 
     if not embedded_code:
         apb.output('\n\n  ')
-    apb.output(f'// {chan}-channel {input_size[1]}x{input_size[2]} data input:\n')
+    byte_size = input_size[0]*input_size[1]*input_size[2]
+    apb.output(f'// {chan}-channel {input_size[1]}x{input_size[2]} data input '
+               f'({byte_size} bytes')
+    if input_size[0] > 1:
+        apb.output(f' total / {input_size[1]*input_size[2]} bytes per channel):\n')
+    else:
+        apb.output(f' / {(byte_size + 3) // 4} 32-bit words):\n')
+
     c = 0
     data_offs = None
     step = 1 if chw else 4
@@ -116,7 +122,6 @@ def load(
         if new_data_offs == data_offs:
             eprint('Layer 0 processor map is misconfigured for data input. '
                    f'There is data overlap between processors {ch-1} and {ch}')
-            sys.exit(1)
         data_offs = new_data_offs
 
         if debug:
@@ -130,12 +135,11 @@ def load(
             if embedded_code and in_expand > 1:
                 # FIXME: This code does not handle multi-pass
                 eprint('--compact-data does not currently support multi-pass CHW input')
-                sys.exit(1)
 
             # CHW ("Big Data") - Separate channel sequences (BBBBB....GGGGG....RRRRR....)
             if embedded_code and split == 1:
                 # Create optimized code when we're not splitting the input
-                apb.output(f'// CHW (big data): {input_size[1]}x{input_size[2]}, channel {c}\n')
+                apb.output(f'// CHW {input_size[1]}x{input_size[2]}, channel {c}\n')
                 offs = 0
                 code_buffer = np.zeros(input_size[1] * input_size[2] // 4, dtype=np.int64)
                 addr = data_offs
@@ -162,19 +166,23 @@ def load(
                     offs += 1
 
                 if not fixed_input:
-                    apb.output_define(code_buffer, f'INPUT_{ch}', '0x%08x', 8, weights=False)
+                    apb.output_define(code_buffer, f'SAMPLE_INPUT_{ch}', '0x%08x', 8,
+                                      weights=False)
                 if riscv_flash:
                     apb.output(rv.RISCV_FLASH)
                 if not fixed_input:
-                    apb.output(f'static const uint32_t input_{ch}[] = INPUT_{ch};\n\n')
+                    apb.output(f'static const uint32_t input_{ch}[] = SAMPLE_INPUT_{ch};\n\n')
                 input_list.append((addr, ch, offs))
 
                 apb.data_offs = data_offs  # For mixed HWC/CHW operation
             else:
                 if embedded_code:
-                    apb.output('void load_input(void)\n{\n')
+                    apb.function_header(dest='wrapper', prefix='', function='load_input',
+                                        return_type='void')
+                    apb.output('  // This function loads the sample data input -- '
+                               'replace with actual data\n\n')
 
-                apb.output(f'  // CHW (big data): {input_size[1]}x{input_size[2]}, channel {c}\n')
+                apb.output(f'  // CHW {input_size[1]}x{input_size[2]}, channel {c}\n')
 
                 chunk = input_size[1] // split
                 # (Note: We do not need to flush here, since that is done at the
@@ -222,7 +230,7 @@ def load(
             # (0BGR0BGR0BGR0BGR0BGR....)
             if not embedded_code:
                 apb.output('  ')
-                apb.output(f'// HWC (little data): {input_size[1]}x{input_size[2]}, '
+                apb.output(f'// HWC {input_size[1]}x{input_size[2]}, '
                            f'channels {c} to {c+num_ch-1}\n')
 
             if embedded_code:
@@ -247,7 +255,7 @@ def load(
                         apb.check_overwrite(data_offs)
                         out_map[data_offs >> 2] = (-1, this_c, row, col, val)
                         if not embedded_code:
-                            apb.write(data_offs, val)
+                            apb.write_data(data_offs, val)
                         else:
                             code_buffer[offs] = val
                             offs += 1
@@ -268,16 +276,17 @@ def load(
 
                     # Merge all buffers into big buffer
                     for i, e in enumerate(buffer_list[proc]):
-                        apb.output(f'// HWC (little data): {input_size[1]}x{input_size[2]}, '
+                        apb.output(f'// HWC {input_size[1]}x{input_size[2]}, '
                                    f'channels {e[2]} to {e[3]}\n')
                         buf[i::in_expand] = e[0]
 
                     if not fixed_input:
-                        apb.output_define(buf, f'INPUT_{proc}', '0x%08x', 8, weights=False)
+                        apb.output_define(buf, f'SAMPLE_INPUT_{proc}', '0x%08x', 8, weights=False)
                     if riscv_flash:
                         apb.output(rv.RISCV_FLASH)
                     if not fixed_input:
-                        apb.output(f'static const uint32_t input_{proc}[] = INPUT_{proc};\n\n')
+                        apb.output(f'static const uint32_t input_{proc}[] = '
+                                   f'SAMPLE_INPUT_{proc};\n\n')
 
                     # Append information using first address, processor number, and total length
                     input_list.append((buffer_list[proc][0][1], proc, offs * in_expand))
@@ -292,16 +301,19 @@ def load(
     if embedded_code:
         if input_list:
             if fixed_input:
-                apb.output('\nvoid memcpy32_const(uint32_t *dst, int n)\n'
-                           '{\n'
-                           '  while (n > 0) {\n'
+                apb.function_header(prefix='', function='memcpy32_const', return_type='void',
+                                    arguments='uint32_t *dst, int n')
+                apb.output('  while (n > 0) {\n'
                            '    *dst++ = 0x55555555;\n'
                            '    *dst++ = 0xaaaaaaaa;\n'
                            '    n -= 2;\n'
-                           '  }\n'
-                           '}\n\n')
+                           '  }\n', True)
+                apb.function_footer(return_value='void')  # memcpy32_const()
 
-            apb.output('void load_input(void)\n{\n')
+            apb.function_header(dest='wrapper', prefix='', function='load_input',
+                                return_type='void')
+            apb.output('  // This function loads the sample data input -- '
+                       'replace with actual data\n\n')
             for _, (addr, ch, offs) in enumerate(input_list):
                 if not fixed_input:
                     apb.output(f'  memcpy32((uint32_t *) 0x{apb.apb_base + addr:08x}, input_{ch}, '
@@ -309,7 +321,7 @@ def load(
                 else:
                     apb.output(f'  memcpy32_const((uint32_t *) 0x{apb.apb_base + addr:08x}, '
                                f'{offs});\n')
-        apb.output('}\n\n')
+        apb.function_footer(dest='wrapper', return_value='void')  # load_input()
     else:
         apb.output('  // End of data input\n\n')
 
@@ -342,10 +354,16 @@ def loadfifo(
     if not embedded_code:
         apb.output('\n\n  ')
 
+    byte_size = input_size[0]*input_size[1]*input_size[2]
+
     if chw:
         # CHW ("Big Data") - Separate channel sequences (BBBBB....GGGGG....RRRRR....)
-        apb.output('// Data input: CHW (big data): '
-                   f'{input_size[0]}x{input_size[1]}x{input_size[2]}\n')
+        apb.output('// Data input: CHW '
+                   f'{input_size[0]}x{input_size[1]}x{input_size[2]} '
+                   f'({byte_size} bytes')
+        if input_size[0] > 1:
+            apb.output(f' total / {input_size[1]*input_size[2]} bytes per channel')
+        apb.output('):\n')
 
         if embedded_code:
             code_buffer = np.zeros((input_size[0], (input_size[1] * input_size[2] + 3) // 4),
@@ -379,8 +397,12 @@ def loadfifo(
             fifos = input_size[0]
     else:
         # HWC ("Little Data") - (Up to) four channels packed into a word (0BGR0BGR0BGR0BGR0BGR....)
-        apb.output('// Data input: HWC (little data): '
-                   f'{input_size[0]}x{input_size[1]}x{input_size[2]}\n')
+        apb.output('// Data input: HWC '
+                   f'{input_size[0]}x{input_size[1]}x{input_size[2]} '
+                   f'({byte_size} bytes')
+        if input_size[0] > 1:
+            apb.output(f' total / {input_size[1]*input_size[2]} bytes per channel')
+        apb.output('):\n')
 
         if embedded_code:
             code_buffer = np.zeros(((input_size[0] + 3) // 4, input_size[1] * input_size[2]),
@@ -415,13 +437,16 @@ def loadfifo(
 
     if embedded_code:
         for c in range(fifos):
-            apb.output_define(code_buffer[c], f'INPUT_{c}', '0x%08x', 8, weights=False)
+            apb.output_define(code_buffer[c], f'SAMPLE_INPUT_{c}', '0x%08x', 8, weights=False)
             if riscv_flash:
                 apb.output(rv.RISCV_FLASH)
-            apb.output(f'static const uint32_t input_{c}[] = INPUT_{c};\n')
+            apb.output(f'static const uint32_t input_{c}[] = SAMPLE_INPUT_{c};\n')
 
-        apb.output('\nvoid load_input(void)\n{\n')
-        apb.output('  int i;\n')
+        apb.function_header(dest='wrapper', prefix='', function='load_input',
+                            return_type='void')
+        apb.output('  // This function loads the sample data input -- '
+                   'replace with actual data\n\n'
+                   '  int i;\n')
         if synthesize is not None:
             apb.output('  uint32_t add = 0;\n')
         max_len = 0
@@ -448,7 +473,7 @@ def loadfifo(
                 apb.output(f'  in{c} = input_{c};\n')
             apb.output('    }\n')
         apb.output('  }\n')
-        apb.output('}\n\n')
+        apb.function_footer(dest='wrapper', return_value='void')  # load_input()
     else:
         apb.output('  // End of data input\n\n')
 
@@ -479,7 +504,7 @@ def loadcsv(
         apb.output('\n\n  ')
 
     # HWC ("Little Data") - (Up to) four channels packed into a word (0BGR0BGR0BGR0BGR0BGR....)
-    apb.output('// Data input: HWC (little data): '
+    apb.output('// Data input: HWC '
                f'{input_size[0]}x{input_size[1]}x{input_size[2]}\n')
 
     fifos = (input_size[0] + 3) // 4
@@ -505,17 +530,28 @@ def loadcsv(
         apb.output('#ifndef USE_FIFO\n')
         apb.output(f'  for (i = 0; i < {max_len}; i++) {{\n')
         for c in range(fifos):
-            apb.output('    while ((MXC_CAMERAIF0->int_fl & 0x80) == 0); '
-                       '// Wait for camera FIFO not empty\n')
-            apb.output('    d = MXC_CAMERAIF0->dma_data; // Read camera\n')
+            if not tc.dev.MODERN_SIM:
+                apb.output('    while ((MXC_CAMERAIF0->int_fl & 0x80) == 0); '
+                           '// Wait for camera FIFO not empty\n'
+                           '    d = MXC_CAMERAIF0->dma_data; // Read camera\n')
+            else:
+                apb.output('    while ((MXC_PCIF->int_fl & 0x80) == 0); '
+                           '// Wait for camera FIFO not empty\n'
+                           '    d = MXC_PCIF->fifo_data; // Read camera\n')
             apb.write(0, 'd', fifo=c, comment=f' // Write FIFO {c}', indent='    ')
         apb.output('  }\n')
         apb.output('#else\n')
         apb.output(f'  while (i < {max_len}) {{\n')
-        apb.output('    if (((MXC_CAMERAIF0->int_fl & 0x80) != 0) && (head + 1 != tail) && '
-                   '((head + 1 != FIFO_SZ) || (tail != 0))) {\n')
-        apb.output('      // Camera FIFO not empty and software FIFO not full\n')
-        apb.output('      fifo[head++] = MXC_CAMERAIF0->dma_data; // Read camera\n')
+        if not tc.dev.MODERN_SIM:
+            apb.output('    if (((MXC_CAMERAIF0->int_fl & 0x80) != 0) && (head + 1 != tail) && ')
+        else:
+            apb.output('    if (((MXC_PCIF->int_fl & 0x80) != 0) && (head + 1 != tail) && ')
+        apb.output('((head + 1 != FIFO_SZ) || (tail != 0))) {\n'
+                   '      // Camera FIFO not empty and software FIFO not full\n')
+        if not tc.dev.MODERN_SIM:
+            apb.output('      fifo[head++] = MXC_CAMERAIF0->dma_data; // Read camera\n')
+        else:
+            apb.output('      fifo[head++] = MXC_PCIF->fifo_data; // Read camera\n')
         apb.output('      if (head == FIFO_SZ)\n')
         apb.output('        head = 0;\n')
         apb.output('    }\n\n')

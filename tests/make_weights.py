@@ -25,6 +25,26 @@ np.save('weights_test_conv2Dk1x1', d, allow_pickle=False, fix_imports=False)
 # d[:, 1::2, :, 1::2, ::2] = 0x55
 # np.save('weights_test_burnin_64-64', d, allow_pickle=False, fix_imports=False)
 
+# Fixed alternating values on x4 boundary (single layer)
+# d = np.full((1, 60, 3, 3, 3), -86, dtype=np.int64)
+# d[:, ::8, :, ::2, ::2] = 0x55
+# d[:, ::8, :, 1::2, 1::2] = 0x55
+# d[:, 1::8, :, ::2, ::2] = 0x55
+# d[:, 1::8, :, 1::2, 1::2] = 0x55
+# d[:, 2::8, :, ::2, ::2] = 0x55
+# d[:, 2::8, :, 1::2, 1::2] = 0x55
+# d[:, 3::8, :, ::2, ::2] = 0x55
+# d[:, 3::8, :, 1::2, 1::2] = 0x55
+# d[:, 4::8, :, ::2, 1::2] = 0x55
+# d[:, 4::8, :, 1::2, ::2] = 0x55
+# d[:, 5::8, :, ::2, 1::2] = 0x55
+# d[:, 5::8, :, 1::2, ::2] = 0x55
+# d[:, 6::8, :, ::2, 1::2] = 0x55
+# d[:, 6::8, :, 1::2, ::2] = 0x55
+# d[:, 7::8, :, ::2, 1::2] = 0x55
+# d[:, 7::8, :, 1::2, ::2] = 0x55
+# np.save('weights_test_alternating', d, allow_pickle=False, fix_imports=False)
+
 # Same for element-wise (ChIn == ChOut)
 # d = np.zeros((1, 7, 7, 1, 1), dtype=np.int64)
 # np.save('weights_test_eltwise7', d, allow_pickle=False, fix_imports=False)

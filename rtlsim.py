@@ -1,16 +1,15 @@
 ###################################################################################################
-# Copyright (C) 2018-2019 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
-#
-# Written by RM
 ###################################################################################################
 """
 RTL simulation support routines
 """
 import os
 
+import tornadocnn as tc
 
 GLOBAL_TIME_OFFSET = 3
 
@@ -27,6 +26,8 @@ def create_runtest_sv(
         input_csv=None,
         input_period=80,
         input_sync=False,
+        rtl_preload=False,
+        result_output=False,
 ):
     """
     For for test `test_name`, create the runtest.sv file named `runtest_filename`, in the
@@ -73,21 +74,105 @@ def create_runtest_sv(
                 runfile.write('`define MULTI_CPU_SETUP\n')
             if timeout:
                 runfile.write(f'// Timeout: {timeout} ms\n')
-                runfile.write(f'defparam REPEAT_TIMEOUT = {timeout/10.0:0.1f};\n\n')
+                runfile.write(f'defparam REPEAT_TIMEOUT = {timeout/10.0:0.1f};\n')
             if riscv:
                 runfile.write(
-                    'event ev_load_riscv_flash_image;\n'
+                    '\nevent ev_load_riscv_flash_image;\n'
                     'initial begin\n'
                     '    @(por_done);\n'
                     '    $display("Loading RISC-V FLASH main array image %s at %0t", '
                     'FLASH_IMAGE, $time);\n'
                     '    $readmemh({`TARGET_DIR,"/RISCV_PROG_flash.prog"}, '
-                    '`FLASH.main_mem, 32\'h0000, 32\'h83FF);\n'
+                    f'`FLASH.main_mem, 32\'h0000, 32\'h{tc.dev.FLASH_SIZE + 0x3FF:04X});\n'
                     '    ->ev_load_riscv_flash_image;\n'
                     '    #1;\n'
-                    '    multi_cpu_en = 1\'b0;\n'
                     'end\n'
                 )
+            if tc.dev.MODERN_SIM:
+                runfile.write(
+                    '\n`define CNN_ENA  `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.cnnena\n'
+                    '`define CNN_CLK  `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.clk\n\n'
+                )
+            else:
+                runfile.write(
+                    '\n`define CNN_ENA  tb.xchip.xuut1.x16proc[0].xproc.xuut.cnnena\n'
+                    '`define CNN_CLK  tb.xchip.xuut1.x16proc[0].xproc.xuut.clk\n\n'
+                )
+            runfile.write(
+                'real  start_time;\n'
+                'real  end_time;\n'
+                'real  clk1_time;\n'
+                'real  clk2_time;\n'
+                'logic start_ena;\n'
+                'logic clkena1;\n'
+                'logic clkena2;\n')
+            if result_output:
+                runfile.write('int   chk_stat;\n')
+            runfile.write(
+                '\ninitial begin\n'
+            )
+            if result_output:
+                runfile.write(
+                    '   open_files;\n'
+                    '   chk_stat   = 0;\n'
+                )
+            runfile.write(
+                '   start_time = 0;\n'
+                '   end_time   = 0;\n'
+                '   clk1_time  = 0;\n'
+                '   clk2_time  = 0;\n'
+                '   start_ena  = 0;\n'
+                '   clkena1    = 0;\n'
+                '   clkena2    = 0;\n'
+                'end\n\n'
+                'always @(posedge `CNN_ENA) begin\n'
+                '  if (!start_ena) begin\n'
+            )
+            if rtl_preload:
+                runfile.write(
+                    '    load_cnn_mems_0;\n'
+                    '    load_cnn_mems_1;\n'
+                    '    load_cnn_mems_2;\n'
+                    '    load_cnn_mems_3;\n'
+                )
+            runfile.write(
+                '    start_time  = $realtime;\n'
+                '    start_ena   = 1;\n'
+                '    $display("CNN enabled");\n'
+                '  end\n'
+                'end\n\n'
+                'always @(negedge `CNN_ENA) begin\n'
+                '  if (start_ena) begin\n'
+                '    end_time  = $realtime;\n'
+                '    clkena1   = 1;\n'
+            )
+            if result_output:
+                runfile.write(
+                    '    dump_cnn_mems_0;\n'
+                    '    dump_cnn_mems_1;\n'
+                    '    dump_cnn_mems_2;\n'
+                    '    dump_cnn_mems_3;\n'
+                    '    close_files;\n'
+                    '    chk_stat = $system({`TARGET_DIR,"/verify-output.py ",`TARGET_DIR});\n'
+                    '    if (chk_stat != 0)\n'
+                    '      error_count++;\n'
+                )
+            runfile.write(
+                '  end\n'
+                'end\n\n'
+                'always @(posedge `CNN_CLK) begin\n'
+                '  if (clkena1) begin\n'
+                '    clk1_time = $realtime;\n'
+                '    clkena1   = 0;\n'
+                '    clkena2   = 1;\n'
+                '  end else if (clkena2) begin\n'
+                '    clk2_time = $realtime;\n'
+                '    clkena2   = 0;\n'
+                '    $display("CNN Cycles = %.0f", '
+                '$ceil((end_time - start_time)/(clk2_time - clk1_time)));\n'
+                '  end\n'
+                'end\n'
+            )
             if input_csv is not None:
                 runfile.write(f'\n`define CSV_FILE {{`TARGET_DIR,"/{input_csv}"}}\n')
                 runfile.write('`include "pcif_defines_af2.sv"\n')
@@ -115,10 +200,10 @@ def create_runtest_sv(
                 runfile.write('assign `PCIF_DATA_3  = data_val[3];\n')
                 runfile.write('assign `PCIF_DATA_2  = data_val[2];\n')
                 runfile.write('assign `PCIF_DATA_1  = data_val[1];\n')
-                runfile.write('assign `PCIF_DATA_0  = data_val[0];\n\n')
+                runfile.write('assign `PCIF_DATA_0  = data_val[0];\n')
 
                 if input_sync:
-                    runfile.write('parameter pclk_ai_per_pix = 9;\n\n')
+                    runfile.write('\nparameter pclk_ai_per_pix = 9;\n\n')
                     runfile.write('logic        pclk_ai;\n')
                     runfile.write('logic        clk_pix;\n')
                     runfile.write('logic        start_io;\n')
@@ -142,46 +227,46 @@ def create_runtest_sv(
                     runfile.write('      start_io    = 0;\n')
                     runfile.write('    end\n')
                     runfile.write('  end\n')
-                    runfile.write('end\n\n')
+                    runfile.write('end\n')
 
-                runfile.write('initial begin\n')
+                runfile.write('\ninitial begin\n')
                 runfile.write('  old_pixclk_val = 0;\n')
                 runfile.write('  pixclk_val = 0;\n')
                 runfile.write('  hsync_val = 0;\n')
                 runfile.write('  vsync_val = 0;\n')
                 runfile.write('  data_val = \'0;\n')
-                runfile.write('  input_file = $fopen(`CSV_FILE, "r");\n\n')
+                runfile.write('  input_file = $fopen(`CSV_FILE, "r");\n')
 
                 if input_sync:
-                    runfile.write('  start_io    = 0;\n')
+                    runfile.write('\n  start_io    = 0;\n')
                     runfile.write('  end_of_file = 0;\n')
-                    runfile.write('  clk_pix_i   = 0;\n\n')
+                    runfile.write('  clk_pix_i   = 0;\n')
 
-                runfile.write('  if (!input_file)\n')
+                runfile.write('\n  if (!input_file)\n')
                 runfile.write('    begin\n')
                 runfile.write('    $display("Error opening %s", `CSV_FILE);\n')
                 runfile.write('    $finish;\n')
                 runfile.write('  end\n\n')
                 runfile.write('  @(posedge sim.trig[0]);\n\n')
                 runfile.write('  $fgets(null_string, input_file);\n')
-                runfile.write('  $display("Reading camera image from %s", `CSV_FILE);\n\n')
+                runfile.write('  $display("Reading camera image from %s", `CSV_FILE);\n')
 
                 if input_sync:
-                    runfile.write('  start_io = 1;\n')
+                    runfile.write('\n  start_io = 1;\n')
                     runfile.write('  while (!end_of_file) begin\n')
                     runfile.write('    count++;\n')
                     runfile.write('    #200ns;\n')
-                    runfile.write('  end\n\n')
+                    runfile.write('  end\n')
                 else:
-                    runfile.write('  while (!$feof(input_file))\n')
+                    runfile.write('\n  while (!$feof(input_file))\n')
                     runfile.write('    begin\n')
                     runfile.write('      count++;\n')
                     runfile.write('      $fscanf(input_file, "%H,%H,%H,%H", '
                                   'vsync_val, hsync_val, pixclk_val, data_val);\n')
                     runfile.write(f'      #{input_period}ns;\n')
-                    runfile.write('    end\n\n')
+                    runfile.write('    end\n')
 
-                runfile.write('  $fclose(input_file);\n')
+                runfile.write('\n  $fclose(input_file);\n')
                 runfile.write('  $display("Camera image data read");\n\n')
                 runfile.write('end\n')
 
