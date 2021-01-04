@@ -10,6 +10,7 @@ layers:
   data_format: CHW
   streaming: true
   max_pool: 2
+  pool_stride: 1
   op: conv2d
 - pad: 1
   out_offset: 0x800

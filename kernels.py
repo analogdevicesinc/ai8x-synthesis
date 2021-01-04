@@ -16,8 +16,7 @@ import op
 import rv
 import tornadocnn as tc
 from eprint import eprint, eprint_noprefix
-from utils import ffs, fls
-
+from utils import ffs, fls, popcount
 
 _INVALID_VALUE = -(2**63)
 _WORDS_PER_KERNEL = 3
@@ -36,15 +35,18 @@ def print_map(
     if width > 1:
         width += 1  # Add space if wider than a single character
 
-    print_fn('-' * kmap.shape[1] * width)
-    for row in range(kmap.shape[0]):
-        for col in range(kmap.shape[1]):
+    assert kmap.shape[0] == tc.dev.MAX_PROC
+    assert kmap.shape[1] == tc.dev.MASK_WIDTH_LARGE
+
+    print_fn('-' * tc.dev.MASK_WIDTH_LARGE * width)
+    for row in range(tc.dev.MAX_PROC):
+        for col in range(tc.dev.mask_width(row)):
             val = kmap[row][col]
             if val == _INVALID_VALUE:
                 val = 'X'
             print_fn('{:>{w}}'.format(val, w=width), end='')
         print_fn('')
-    print_fn('-' * kmap.shape[1] * width)
+    print_fn('-' * tc.dev.MASK_WIDTH_LARGE * width)
 
 
 def load(  # pylint: disable=too-many-branches,too-many-statements
@@ -52,6 +54,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         embedded_code,
         device,
         apb,
+        start_layer,
         layers,
         operator,
         kernel,
@@ -72,6 +75,10 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         quad=False,
         debug=False,
         blocklevel=False,
+        legacy_kernels=False,
+        calcx4=False,
+        api=False,
+        start_offs=0,
 ):
     """
     Stack `kernel` values and write them to C code (for `embedded_code` if `True` or
@@ -85,23 +92,28 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     """
     # Kernels: Stack kernels; write only the kernels needed
     proc_kern_max = [0] * tc.dev.MAX_PROC
-    kern_offs = [0] * layers
+    kern_offs = [start_offs] * layers
     kern_len = [0] * layers
-    kernel_map = np.full((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH), _INVALID_VALUE, dtype=np.int64)
-    kernels_used = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH), dtype=np.int64)
-    kernel_data = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH, 9), dtype=np.int8)
+    kernel_map = np.full((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE),
+                         _INVALID_VALUE, dtype=np.int64)
+    kernels_used = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE), dtype=np.int64)
+    kernel_data = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE, 9), dtype=np.int8)
     # There are four 32-bit words per 9-byte kernel.
     # The value map is initialized with zeros so we can later ignore unused entries and use
     # memcpy() on initialized and uninitialized data.
-    kernel_values = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH * _WORDS_PER_KERNEL),
+    kernel_values = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE * _WORDS_PER_KERNEL),
                              dtype=np.int64)
     if debug:
         print('\nLoading Kernels...')
 
-    for ll in range(layers):
+    if calcx4 and not tc.dev.SUPPORT_CALCX4:
+        eprint('--calcx4 is not supported on this device.')
+    assert not ((embedded_code or mexpress) and calcx4)  # FIXME Add support later
+
+    for ll in range(start_layer, layers):
         if operator[ll] not in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
-            kern_len[ll] = 0
-            kern_offs[ll] = 0
+            assert kern_len[ll] == 0
+            assert kern_offs[ll] == start_offs
             continue
 
         if flatten[ll]:
@@ -140,8 +152,10 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         if output_chan[ll] > tc.dev.MAX_PROC:
             kern_len[ll] = (kern_len[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
         kern_len[ll] *= out_expand[ll] * in_expand[ll]
-        if flatten[ll]:
+        if not legacy_kernels and flatten[ll]:
             kern_len[ll] *= kernel_reshaped.shape[1]
+            kern_len[ll] -= (out_expand[ll] * popcount(next_layer_map) - output_chan[ll]) \
+                * kernel_reshaped.shape[1] * 8 // (ksize * quantization[ll])
         if device != 84:
             # Pack kernels when using 1D convolutions, or 1x1 kernels
             kern_len[ll] = (kern_len[ll] * ksize + 8) // 9
@@ -154,10 +168,10 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                      + qfactor - 1) // qfactor))
         # The kernel offset needs to start at a multiple of 4.
         kern_offs[ll] = (kern_offs[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
-        if kern_offs[ll] + kern_len[ll] > tc.dev.MASK_WIDTH:
+        if kern_offs[ll] + kern_len[ll] > tc.dev.mask_width(p):
             eprint(f'\nKernel memory exceeded at layer {ll}; offset: {kern_offs[ll]}, '
                    f'needed: {kern_len[ll]}.'
-                   '\n\nKernel map so far:')
+                   '\n\nKernel map so far:', exit_code=None)
             print_map(layers, kernel_map, print_fn=eprint_noprefix)
             sys.exit(1)
 
@@ -190,19 +204,22 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                     this_mask = this_map & proc_mask
                     this_map >>= qfactor
 
+                    in_ch = input_chan[ll]
+                    if flatten[ll]:
+                        in_ch *= qfactor
                     if ll == 0 and quad:
-                        src_offs = ch + (m - p // 16) * input_chan[ll]
+                        src_offs = ch + (m - p // 16) * in_ch
                     else:
-                        src_offs = ch + m * input_chan[ll]
+                        src_offs = ch + m * in_ch
                     if ll > 0 or not quad or (m % 4 == p // 16):
                         for ie in range(in_expand[ll]):
                             mask = this_mask
 
                             def add_kernel_data(ll, p, col_target, b):
                                 col = kern_offs[ll] + col_target
-                                if col >= tc.dev.MASK_WIDTH:
+                                if col >= tc.dev.mask_width(p):
                                     eprint(f'\nKernel memory exceeded in layer {ll}.'
-                                           '\n\nKernel map so far:')
+                                           '\n\nKernel map so far:', exit_code=None)
                                     print_map(layers, kernel_map, print_fn=eprint_noprefix)
                                     sys.exit(1)
 
@@ -223,23 +240,9 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                             if src_offs < len(kernel_reshaped):
                                 if not flatten[ll]:
                                     k = np.zeros_like(kernel_reshaped[src_offs].flatten())
-                                    for i in range(qfactor):
-                                        if m < output_chan[ll]:
-                                            # Cycle through phases
-                                            idx = n + ie * qfactor
-                                            koffs = src_offs + (idx % in_expand[ll]) \
-                                                * in_expand_thresh[ll] \
-                                                + (idx // in_expand[ll]) \
-                                                * input_chan[ll]
-                                            if koffs < len(kernel_reshaped):
-                                                this_kern = kernel_reshaped[koffs].flatten() \
-                                                    & (2**quantization[ll]-1)
-                                                k |= this_kern << (i * quantization[ll])
-                                            n += 1
-                                        mask >>= 1
                                 else:
-                                    kl = (len(kernel_reshaped[src_offs]) + qfactor - 1) // qfactor
-                                    k = np.zeros(kl, dtype=np.int64)
+                                    k = np.empty((0), dtype=np.int64)
+                                for i in range(qfactor):
                                     if m < output_chan[ll]:
                                         # Cycle through phases
                                         idx = n + ie * qfactor
@@ -248,29 +251,32 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                             + (idx // in_expand[ll]) \
                                             * input_chan[ll]
                                         if koffs < len(kernel_reshaped):
-                                            this_kern = kernel_reshaped[koffs].flatten()
-                                            if len(this_kern) % qfactor != 0:
-                                                this_kern = np.append(
-                                                    this_kern,
-                                                    np.zeros(
-                                                        qfactor - len(this_kern) % qfactor,
-                                                        dtype=np.int64
-                                                    )
-                                                )
-                                            for i in range(qfactor):
-                                                k |= ((this_kern[i::qfactor]
-                                                       & (2**quantization[ll]-1))) \
-                                                    << (i * quantization[ll])
+                                            this_kern = kernel_reshaped[koffs].flatten() \
+                                                & (2**quantization[ll]-1)
+                                            if not flatten[ll]:
+                                                k |= this_kern << (i * quantization[ll])
+                                            else:
+                                                k = np.append(k, this_kern)
                                         n += 1
-                                        mask >>= 1
+                                    mask >>= 1
                                 if debug:
                                     with np.printoptions(formatter={'int': '{0:02x}'.format}):
                                         print(f'Layer {ll} processor {p} channel '
                                               f'{ch + ie * in_expand_thresh[ll]} m[{m}..{m+n-1}] '
                                               f'of {output_chan[ll]}: {k}')
-
                                 if flatten[ll]:
-                                    for _, e in enumerate(k):
+                                    if len(k) % qfactor != 0:
+                                        k = np.append(
+                                            k,
+                                            np.zeros(
+                                                qfactor - len(k) % qfactor,
+                                                dtype=np.int64,
+                                            ),
+                                        )
+                                    for i in range(0, len(k) // qfactor):
+                                        e = 0
+                                        for j in range(qfactor):
+                                            e |= k[i * qfactor + j] << (j * quantization[ll])
                                         col_target = add_kernel_data(ll, p, col_target, e)
                                 else:
                                     for i in range(ksize):
@@ -291,7 +297,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                     else:
                         m += qfactor
 
-            if kern_offs[ll] + col_target < tc.dev.MASK_WIDTH \
+            if kern_offs[ll] + col_target < tc.dev.mask_width(p) \
                and kernels_used[p][kern_offs[ll] + col_target] > 0:  # Partials
                 col_target += 1
             while col_target - start_col < kern_len[ll]:
@@ -308,26 +314,36 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         print('\nKernel map:')
         print_map(layers, kernel_map)
 
-    if verify or not (embedded_code or mexpress):
-        if verify:
-            apb.output('int verify_kernels(void)\n{\n')
+    if verify:
+        apb.function_header(function='verify_weights')
         # Write in-line
         for p in range(tc.dev.MAX_PROC):
-            for col in range(0, tc.dev.MASK_WIDTH):
+            for col in range(0, tc.dev.mask_width(p)):
                 ll = kernel_map[p][col]
                 if ll != _INVALID_VALUE:
                     k = kernel_data[p][col]
-                    apb.write_kern(ll, p, col, k, verify_only=verify)
-        if verify:
-            apb.output('  return 1;\n}\n\n')
+                    apb.write_kern(ll, p, col, k, verify_only=verify, calcx4=calcx4)
+        apb.function_footer()  # verify_weights()
+
+    if not (embedded_code or mexpress):
+        apb.function_header(function='load_weights')
+        # Write in-line
+        for p in range(tc.dev.MAX_PROC):
+            for col in range(0, tc.dev.mask_width(p)):
+                ll = kernel_map[p][col]
+                if ll != _INVALID_VALUE:
+                    k = kernel_data[p][col]
+                    apb.write_kern(ll, p, col, k, verify_only=verify, calcx4=calcx4)
+        apb.function_footer()  # load_weights()
+
     if embedded_code or mexpress:
         # Write kernels, combining layers and processors where possible to reduce the number
         # of constants and calls to memcpy.
-        apb.output('// Kernels:\n')
+        apb.output('// Kernels:\n', api)
 
         if not mexpress:
             for p in range(tc.dev.MAX_PROC):
-                for col in range(0, tc.dev.MASK_WIDTH):
+                for col in range(0, tc.dev.mask_width(p)):
                     ll = kernel_map[p][col]
                     if ll != _INVALID_VALUE:
                         k = kernel_data[p][col]
@@ -341,9 +357,9 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             # First, define the weights (will move to header file)
             # Combining memcopy() requires stacked memories
             max_col = [-1] * tc.dev.MAX_PROC
-            min_col = [tc.dev.MASK_WIDTH] * tc.dev.MAX_PROC
+            min_col = [tc.dev.MASK_WIDTH_LARGE if not legacy_kernels else 0] * tc.dev.MAX_PROC
             for p in range(0, tc.dev.MAX_PROC):
-                for col in range(0, tc.dev.MASK_WIDTH):
+                for col in range(0, tc.dev.mask_width(p)):
                     ll = kernel_map[p][col]
                     if ll != _INVALID_VALUE:
                         max_col[p] = col
@@ -395,19 +411,22 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                         p += 1
                         span += max_col[p] + 1 - min_col[p]
                     if riscv_flash:
-                        apb.output(rv.RISCV_FLASH)
-                    apb.output(f'static const uint32_t kernels_{start}[] = KERNELS_{start};\n')
+                        apb.output(rv.RISCV_FLASH, api)
+                    apb.output(f'static const uint32_t kernels_{start}[] = KERNELS_{start};\n',
+                               api)
                 p += 1
-            apb.output('\n')
+            apb.output('\n', api)
 
             # Generate code to load the weights using memcpy
-            apb.output('void memcpy_96to128(uint32_t *dst, const uint32_t *src, int n)\n{\n')
+            apb.function_header(prefix='', function='memcpy_96to128', return_type='void',
+                                arguments='uint32_t *dst, const uint32_t *src, int n')
             apb.output('  while (n-- > 0) {\n'
                        '    *dst++ = *src++;\n'
                        '    *dst++ = *src++;\n'
                        '    *dst++ = *src++;\n'
                        '    *dst++ = 0;  // Execute write\n'
-                       '  }\n}\n\n')
+                       '  }\n', api)
+            apb.function_footer(return_value='void')  # memcpy_96to128()
         else:
             # When using the express loader, gather all consecutive kernels for each processor
             # and pack them.
@@ -417,8 +436,8 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             for p in range(tc.dev.MAX_PROC):
                 # Find min/max from kernel_map
                 max_col = -1
-                min_col = tc.dev.MASK_WIDTH
-                for col in range(0, tc.dev.MASK_WIDTH):
+                min_col = tc.dev.mask_width(p) if not legacy_kernels else 0
+                for col in range(0, tc.dev.mask_width(p)):
                     ll = kernel_map[p][col]
                     if ll != _INVALID_VALUE:
                         max_col = col
@@ -451,17 +470,17 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                             addr += 4
 
                     if riscv_flash:
-                        apb.output(rv.RISCV_FLASH)
-                    apb.output(f'static const uint32_t kernels_{p}[] = KERNELS_{p};\n')
+                        apb.output(rv.RISCV_FLASH, api)
+                    apb.output(f'static const uint32_t kernels_{p}[] = KERNELS_{p};\n', api)
                     k = None
-            apb.output('\n')
+            apb.output('\n', api)
 
         if not blocklevel:
-            apb.output('void load_kernels(void)\n{\n')
+            apb.function_header(function='load_weights')
             max_col = [-1] * tc.dev.MAX_PROC
-            min_col = [tc.dev.MASK_WIDTH] * tc.dev.MAX_PROC
+            min_col = [tc.dev.MASK_WIDTH_LARGE if not legacy_kernels else 0] * tc.dev.MAX_PROC
             for p in range(0, tc.dev.MAX_PROC):
-                for col in range(0, tc.dev.MASK_WIDTH):
+                for col in range(0, tc.dev.mask_width(p)):
                     ll = kernel_map[p][col]
                     if ll != _INVALID_VALUE:
                         max_col[p] = col
@@ -486,15 +505,15 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                     if not mexpress:
                         apb.output('  memcpy_96to128((uint32_t *)'
                                    f' 0x{addr + min_col[start] * 16:08x},'
-                                   f' kernels_{start}, {span});\n')
+                                   f' kernels_{start}, {span});\n', api)
                     else:
                         apb.output('  *((volatile uint8_t *)'
                                    f' 0x{addr + min_col[start] * 4 | 0x01:08x}) = 0x01; '
-                                   '// Set address\n')
+                                   '// Set address\n', api)
                         apb.output(f'  memcpy32((uint32_t *) 0x{addr:08x}, '
-                                   f'kernels_{start}, {(span * 9 + 3) // 4});\n')
+                                   f'kernels_{start}, {(span * 9 + 3) // 4});\n', api)
                 p += 1
 
-            apb.output('}\n\n')
+            apb.function_footer()  # load_weights()
 
     return kern_offs, kern_len

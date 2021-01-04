@@ -11,10 +11,10 @@
 Test the CMSIS NN network generator.
 """
 import numpy as np
-import pytest
 
 import cmsisnn
 import op
+import pytest
 
 
 @pytest.mark.parametrize('test_no', [0, 1, 2, 3, 4])
