@@ -213,11 +213,8 @@ def verify(
         out_expand,
         out_expand_thresh,
         output_width=8,
-        pool=None,
-        pool_stride=None,
         overwrite_ok=False,
         no_error_stop=False,
-        device=84,
         mlator=False,
         apb_base=0,
         stream=None,
@@ -319,10 +316,8 @@ def verify(
                     (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
                       (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
                      (doffs * (write_gap + 1)) * width + expand * out_size) * 4
-
-                # Special adjustment for AI84 quirk
-                if device == 84 and pool and pool[0] == 4 and pool_stride[0] == 4:
-                    offs += (doffs // 4) * 8 + 8
+                if write_gap > 1:
+                    offs += out_size * (write_gap - 1 + expand) * 4
 
                 if not no_data:
                     num_bytes = min(c - this_c, input_shape[0] - this_c)
