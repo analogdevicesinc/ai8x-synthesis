@@ -5,7 +5,7 @@
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
 ###################################################################################################
 """
-Tornado CNN hardware constants - AI84, AI85, AI87
+Tornado CNN hardware constants - AI85, AI87, CMSIS-NN
 """
 import devices
 from eprint import eprint

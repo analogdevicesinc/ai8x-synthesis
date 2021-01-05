@@ -22,14 +22,11 @@ def unload(
         out_expand,
         out_expand_thresh,
         output_width=8,
-        pool=None,
-        pool_stride=None,
-        device=84,
         mlator=False,
         blocklevel=False,
 ):
     """
-    Unload HWC memory from AI84, writing C code to the `memfile` handle.
+    Unload HWC memory from hardware, writing C code to the `memfile` handle.
     The generated C code is specific to the network configuration passed in in `processor_map`,
     and `input_shape`. Additionally, the generated addresses are offset by `apb_base` and
     `out_offset`. The C code function takes a pointer to a memory array, and the depth of
@@ -84,9 +81,6 @@ def unload(
                     (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
                       (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
                      doffs * width + expand * out_size) * 4
-
-                if device == 84 and pool and pool[0] == 4 and pool_stride[0] == 4:
-                    offs += (doffs // 4) * 8 + 8
 
                 if offs != read_addr:
                     memfile.write('  addr = (volatile uint32_t *) '

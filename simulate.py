@@ -76,7 +76,6 @@ def conv2d_layer(
         bits=8,
         output_width=8,
         groups=1,
-        device=84,  # pylint: disable=unused-argument
         debug=False,
 ):
     """
@@ -191,7 +190,6 @@ def convtranspose2d_layer(
         bits=8,
         output_width=8,
         groups=1,
-        device=84,  # pylint: disable=unused-argument
         debug=False,
 ):
     """
@@ -307,7 +305,6 @@ def conv1d_layer(
         bits=8,
         output_width=8,
         groups=1,
-        device=84,  # pylint: disable=unused-argument
         debug=False,
 ):
     """
@@ -460,7 +457,6 @@ def passthrough_layer(
         verbose_data,  # pylint: disable=unused-argument
         input_size,
         data,
-        device=84,  # pylint: disable=unused-argument
         debug=False,  # pylint: disable=unused-argument
 ):
     """
@@ -479,7 +475,6 @@ def eltwise_layer(
         output_shift,
         data,
         output_width=8,
-        device=84,  # pylint: disable=unused-argument
         debug=False,
         operands=1,
 ):

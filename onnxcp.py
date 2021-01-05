@@ -96,10 +96,9 @@ def load(
     the architecuture in the checkpoint file, abort with an error message. If `fc_layer` is
     `True`, configure a single fully connected classification layer for software rather than
     hardware.
-    `quantization` is a list of expected bit widths for the layer weights (always 8 for AI84).
+    `quantization` is a list of expected bit widths for the layer weights.
     This value is checked against the weight inputs.
-    `bias_quantization` is a list of the expected bit widths for the layer weights (always
-    8 for AI84/AI85).
+    `bias_quantization` is a list of the expected bit widths for the layer weights (always 8).
     In addition to returning weights anf biases, this function configures the network output
     channels and the number of layers.
     When `verbose` is set, display the shapes of the weights.

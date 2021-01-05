@@ -32,7 +32,7 @@ def get_parser():
     # Hardware features
     group = parser.add_argument_group('Hardware features')
     group.add_argument('--avg-pool-rounding', action='store_true', default=False,
-                       help="round average pooling results on AI85 and up (default: false)")
+                       help="round average pooling results (default: false)")
     group.add_argument('--simple1b', action='store_true', default=False,
                        help="use simple XOR instead of 1-bit multiplication (default: false)")
 

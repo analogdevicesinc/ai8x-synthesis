@@ -108,7 +108,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         write_zero_regs=False,
         weight_filename=None,
         sample_filename=None,
-        device=85,
         init_tram=False,
         avg_pool_rounding=False,
         fifo=False,
@@ -178,6 +177,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     """
     Chain multiple CNN layers, create and save input and output
     """
+    device = tc.dev.device
+
     in_expand = [0] * layers
     out_expand = [0] * layers
     in_expand_thresh = [0] * layers
@@ -554,7 +555,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             apb = apbaccess.apbwriter(
                 f,
                 apb_base,
-                device=device,
                 master=False,
                 riscv=False,
                 riscv_flash=riscv_flash,
@@ -604,7 +604,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             write_zero_registers=write_zero_regs,
             weight_filename=weight_filename,
             sample_filename=sample_filename,
-            device=device,
             verify_kernels=verify_kernels,
             master=groups_used[0] if oneshot > 0 or stopstart or (apifile is not None) else False,
             riscv=True if riscv else None,
@@ -1857,7 +1856,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             output_shift[ll],
             data,
             output_width=o_width,
-            device=device,
             debug=debug_computation,
             operands=operands[ll],
         )
@@ -2007,7 +2005,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 data,
                 output_width=output_width[ll],
                 groups=conv_groups[ll],
-                device=device,
                 debug=debug_computation,
             )
         elif operator[ll] == op.CONVTRANSPOSE2D:
@@ -2034,7 +2031,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 data,
                 output_width=output_width[ll],
                 groups=conv_groups[ll],
-                device=device,
                 debug=debug_computation,
             )
         elif operator[ll] == op.CONV1D:
@@ -2059,7 +2055,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 data,
                 output_width=output_width[ll],
                 groups=conv_groups[ll],
-                device=device,
                 debug=debug_computation,
             )
         elif operator[ll] == op.NONE:  # '0'D (pooling only or passthrough)
@@ -2069,7 +2064,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 verbose_all or ll == final_layer,
                 data.shape,
                 data,
-                device=device,
                 debug=debug_computation,
             )
         else:
@@ -2137,7 +2131,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     write_zero_registers=True,
                     weight_filename=None,
                     sample_filename=None,
-                    device=device,
                     verify_kernels=verify_kernels,
                     master=groups_used[0] if oneshot > 0 or stopstart else False,
                     riscv=None,
@@ -2218,8 +2211,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     out_expand[final_layer],
                     out_expand_thresh[final_layer],
                     output_width[final_layer],
-                    pool[final_layer],
-                    pool_stride[final_layer],
                     mlator=mlator,
                     write_gap=write_gap[final_layer],
                 )
@@ -2833,7 +2824,6 @@ def main():
             args.write_zero_registers,
             args.weight_filename,
             args.sample_filename,
-            args.device,
             args.init_tram,
             args.avg_pool_rounding,
             args.fifo,
@@ -2952,7 +2942,6 @@ def main():
             args.weight_filename,
             args.sample_filename,
             args.avg_pool_rounding,
-            args.device,
             args.legacy_test,
         )
 

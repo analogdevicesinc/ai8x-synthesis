@@ -37,7 +37,6 @@ class APB():
             write_zero_registers=False,
             weight_filename=None,
             sample_filename=None,
-            device=84,
             verify_kernels=False,
             master=None,
             riscv=None,
@@ -90,7 +89,6 @@ class APB():
         self.write_zero_regs = write_zero_registers
         self.weight_filename = weight_filename
         self.sample_filename = sample_filename
-        self.device = device
         self.verify_kernels = verify_kernels
         self.master = master
         self.riscv = riscv
@@ -681,8 +679,6 @@ class APB():
             out_expand=1,
             out_expand_thresh=64,
             output_width=8,
-            pool=None,
-            pool_stride=1,
             mlator=False,
             write_gap=0,
     ):  # pylint: disable=unused-argument
@@ -772,7 +768,6 @@ class APBBlockLevel(APB):
             write_zero_registers=False,
             weight_filename=None,
             sample_filename=None,
-            device=84,
             verify_kernels=False,
             master=None,
             riscv=None,
@@ -1202,7 +1197,6 @@ class APBTopLevel(APB):
             riscv_cache=self.riscv_cache,
             riscv_debug=self.riscv_debug,
             debugwait=self.debugwait,
-            device=self.device,
             camera=self.input_csv is not None,
             camera_format=self.input_csv_format,
             channels=self.input_chan,
@@ -1258,8 +1252,6 @@ class APBTopLevel(APB):
             out_expand=1,
             out_expand_thresh=64,
             output_width=8,
-            pool=None,
-            pool_stride=1,
             mlator=False,
             write_gap=0,
     ):
@@ -1269,7 +1261,6 @@ class APBTopLevel(APB):
         """
         unload.unload(self.apifile or self.memfile, self.apb_base, processor_map, input_shape,
                       output_offset, out_expand, out_expand_thresh, output_width,
-                      pool=pool, pool_stride=pool_stride, device=self.device,
                       mlator=mlator, blocklevel=self.blocklevel)
 
     def output_define(

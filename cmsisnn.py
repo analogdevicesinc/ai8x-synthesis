@@ -16,6 +16,7 @@ import assets
 import devices
 import op
 import toplevel
+import tornadocnn as tc
 from eprint import eprint, wprint
 from simulate import (conv1d_layer, conv2d_layer, convtranspose2d_layer, eltwise_layer,
                       linear_layer, passthrough_layer, pooling_layer, show_data)
@@ -63,7 +64,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         weight_filename,
         sample_filename,
         avg_pool_rounding,
-        device=84,
         legacy_test=False,
 ):
     """
@@ -123,7 +123,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     if log:
         sys.stdout = open(os.path.join(base_directory, test_name, log_filename), 'w')
         print(f'{" ".join(str(x) for x in sys.argv)}')
-        print(f'{devices.partnum(device)}\n')
+        print(f'{devices.partnum(tc.dev.device)}\n')
         print(f'{test_name}')
 
     filename = c_filename + '.c'
@@ -238,7 +238,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 output_shift[ll],
                 data,
                 output_width=o_width,
-                device=device,
                 debug=False,
                 operands=operands[ll],
             )
@@ -370,7 +369,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     data,
                     output_width=output_width[ll],
                     groups=conv_groups[ll],
-                    device=device,
                     debug=False,
                 )
             elif operator[ll] == op.CONVTRANSPOSE2D:
@@ -397,7 +395,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     data,
                     output_width=output_width[ll],
                     groups=conv_groups[ll],
-                    device=device,
                     debug=False,
                 )
             elif operator[ll] == op.CONV1D:
@@ -422,7 +419,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     data,
                     output_width=output_width[ll],
                     groups=conv_groups[ll],
-                    device=device,
                     debug=False,
                 )
             elif operator[ll] == op.NONE:  # '0'D (pooling only or passthrough)
@@ -432,7 +428,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     verbose_all or ll == layers-1,
                     data.shape,
                     data,
-                    device=device,
                     debug=False,
                 )
             else:
@@ -586,7 +581,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 weight=fc_weights[0],
                 bias=fc_bias[0],
                 data=data,
-                debug=debug
+                debug=debug,
             )
 
             # Rearrange the weights to account for the shape of the conv layer output

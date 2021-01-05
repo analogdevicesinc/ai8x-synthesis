@@ -266,7 +266,6 @@ def main(
         debugwait=1,
         camera=False,
         camera_format=None,
-        device=84,
         channels=None,
         sleep=False,
         output_width=8,
@@ -337,94 +336,87 @@ def main(
 
     if riscv is None or not riscv:
         if embedded_code or embedded_arm:
-            if device == 84:
-                memfile.write('  icache_enable();\n\n')
-                memfile.write('  SYS_ClockEnable(SYS_PERIPH_CLOCK_AI);\n')
-            else:
-                memfile.write('  MXC_ICC_Enable(MXC_ICC0); // Enable cache\n\n')
-                if clock_trim is not None:
-                    memfile.write('  // Manual clock trim override:\n')
-                    memfile.write('  *((volatile uint32_t *) 0x40000c00) = 1; '
-                                  '// Set TME\n')
-                    if clock_trim[0] or clock_trim[1]:
-                        memfile.write('  trim = *((volatile uint32_t *) 0x40005420);\n')
-                        if clock_trim[0]:
-                            memfile.write('  trim &= ~0xffff;\n'
-                                          f'  trim |= 0x{clock_trim[0]:x}; '
-                                          '// HIRC8M (7.3728 MHz) trim\n')
-                        if clock_trim[1]:
-                            memfile.write('  trim &= ~(0x1ff << 22);\n'
-                                          f'  trim |= 0x{clock_trim[1]:x} << 22; '
-                                          '// HIRC (60 MHz) trim\n')
-                        memfile.write('  *((volatile uint32_t *) 0x40005420) = trim;\n')
-                    if clock_trim[2]:
-                        memfile.write('  trim = *((volatile uint32_t *) 0x40005440) & '
-                                      '~(0x1ff << 15);\n')
-                        memfile.write('  *((volatile uint32_t *) 0x40005440) = '
-                                      'trim | (0xff << 15); // HILIM\n')
-                        memfile.write('  *((volatile uint32_t *) 0x40006c04) = '
-                                      f'0x{clock_trim[2]:x}; // HIRC96M (100 MHz) trim\n')
-                    memfile.write('  *((volatile uint32_t *) 0x40000c00) = 0; '
-                                  '// Clear TME\n\n')
+            memfile.write('  MXC_ICC_Enable(MXC_ICC0); // Enable cache\n\n')
+            if clock_trim is not None:
+                memfile.write('  // Manual clock trim override:\n')
+                memfile.write('  *((volatile uint32_t *) 0x40000c00) = 1; '
+                              '// Set TME\n')
+                if clock_trim[0] or clock_trim[1]:
+                    memfile.write('  trim = *((volatile uint32_t *) 0x40005420);\n')
+                    if clock_trim[0]:
+                        memfile.write('  trim &= ~0xffff;\n'
+                                      f'  trim |= 0x{clock_trim[0]:x}; '
+                                      '// HIRC8M (7.3728 MHz) trim\n')
+                    if clock_trim[1]:
+                        memfile.write('  trim &= ~(0x1ff << 22);\n'
+                                      f'  trim |= 0x{clock_trim[1]:x} << 22; '
+                                      '// HIRC (60 MHz) trim\n')
+                    memfile.write('  *((volatile uint32_t *) 0x40005420) = trim;\n')
+                if clock_trim[2]:
+                    memfile.write('  trim = *((volatile uint32_t *) 0x40005440) & '
+                                  '~(0x1ff << 15);\n')
+                    memfile.write('  *((volatile uint32_t *) 0x40005440) = '
+                                  'trim | (0xff << 15); // HILIM\n')
+                    memfile.write('  *((volatile uint32_t *) 0x40006c04) = '
+                                  f'0x{clock_trim[2]:x}; // HIRC96M (100 MHz) trim\n')
+                memfile.write('  *((volatile uint32_t *) 0x40000c00) = 0; '
+                              '// Clear TME\n\n')
 
-                memfile.write(f'  // Switch to {tc.dev.IPO_SPEED} MHz clock\n'
-                              '  MXC_SYS_Clock_Select(MXC_SYS_CLOCK_IPO);\n')
+            memfile.write(f'  // Switch to {tc.dev.IPO_SPEED} MHz clock\n'
+                          '  MXC_SYS_Clock_Select(MXC_SYS_CLOCK_IPO);\n')
+            if pll:
+                memfile.write('  MXC_GCR->ito_ctrl |= MXC_F_GCR_ITO_CTRL_EN;'
+                              ' // Enable PLL (ITO)\n')
+            memfile.write('  SystemCoreClockUpdate();\n')
+        else:
+            memfile.write('  icache_enable();\n\n')
+            memfile.write('  *((volatile uint32_t *) 0x40000c00) = 0x00000001; // Set TME\n')
+            memfile.write('  *((volatile uint32_t *) 0x40006c04) = 0x000001a0; // 96M trim\n')
+            memfile.write('  *((volatile uint32_t *) 0x40000c00) = 0x00000000; '
+                          '// Clear TME\n\n')
+            if tc.dev.SUPPORT_GCFR:
+                memfile.write('  MXC_GCR->clkctrl |= MXC_F_GCR_CLKCTRL_IPO_EN;'
+                              ' // Enable internal primary osc (IPO)\n')
                 if pll:
                     memfile.write('  MXC_GCR->ito_ctrl |= MXC_F_GCR_ITO_CTRL_EN;'
                                   ' // Enable PLL (ITO)\n')
-                memfile.write('  SystemCoreClockUpdate();\n')
-        else:
-            memfile.write('  icache_enable();\n\n')
-            if device == 84:
-                memfile.write('  MXC_GCR->perckcn1 &= ~0x20; // Enable CNN clock\n')
+                memfile.write('  while ((MXC_GCR->clkctrl & MXC_F_GCR_CLKCTRL_IPO_RDY) == 0) ;'
+                              ' // Wait for osc\n'
+                              '  MXC_GCR->clkctrl |= MXC_S_GCR_CLKCTRL_SYSCLK_SEL_IPO;'
+                              ' // Select osc\n')
+
+                if not tc.dev.MODERN_SIM:
+                    memfile.write('\n  // Reset all domains, restore power to CNN\n')
+                    memfile.write('  MXC_GCFR->reg3 = 0xf; // Reset\n')
+                    memfile.write(f'  MXC_GCFR->reg1 = 0x{mask:01x}; // Mask memory\n')
+                    memfile.write(f'  MXC_GCFR->reg0 = 0x{mask:01x}; // Power\n')
+                    memfile.write(f'  MXC_GCFR->reg2 = 0x{unmask:01x}; // Iso\n')
+                    memfile.write('  MXC_GCFR->reg3 = 0x0; // Reset\n\n')
+
+                    memfile.write('  MXC_GCR->pclkdiv &= ~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | '
+                                  'MXC_F_GCR_PCLKDIV_CNNCLKSEL);\n'
+                                  '  MXC_GCR->pclkdiv |= MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1; '
+                                  '// CNN clock: APB div 1\n')
+                    memfile.write('  MXC_GCR->pclkdis0 &= ~MXC_F_GCR_PCLKDIS0_CNN;'
+                                  ' // Enable CNN clock\n')
             else:
-                memfile.write('  *((volatile uint32_t *) 0x40000c00) = 0x00000001; // Set TME\n')
-                memfile.write('  *((volatile uint32_t *) 0x40006c04) = 0x000001a0; // 96M trim\n')
-                memfile.write('  *((volatile uint32_t *) 0x40000c00) = 0x00000000; '
-                              '// Clear TME\n\n')
-                if tc.dev.SUPPORT_GCFR:
-                    memfile.write('  MXC_GCR->clkctrl |= MXC_F_GCR_CLKCTRL_IPO_EN;'
-                                  ' // Enable internal primary osc (IPO)\n')
-                    if pll:
-                        memfile.write('  MXC_GCR->ito_ctrl |= MXC_F_GCR_ITO_CTRL_EN;'
-                                      ' // Enable PLL (ITO)\n')
-                    memfile.write('  while ((MXC_GCR->clkctrl & MXC_F_GCR_CLKCTRL_IPO_RDY) == 0) ;'
-                                  ' // Wait for osc\n'
-                                  '  MXC_GCR->clkctrl |= MXC_S_GCR_CLKCTRL_SYSCLK_SEL_IPO;'
-                                  ' // Select osc\n')
+                memfile.write('  MXC_GCR->clkcn |= MXC_F_GCR_CLKCN_HIRC96M_EN;'
+                              ' // Enable 96M\n')
+                memfile.write('  while ((MXC_GCR->clkcn & MXC_F_GCR_CLKCN_HIRC96M_RDY) == 0) ;'
+                              ' // Wait for 96M\n')
+                memfile.write('  MXC_GCR->clkcn |= MXC_S_GCR_CLKCN_CLKSEL_HIRC96;'
+                              ' // Select 96M\n')
 
-                    if not tc.dev.MODERN_SIM:
-                        memfile.write('\n  // Reset all domains, restore power to CNN\n')
-                        memfile.write('  MXC_GCFR->reg3 = 0xf; // Reset\n')
-                        memfile.write(f'  MXC_GCFR->reg1 = 0x{mask:01x}; // Mask memory\n')
-                        memfile.write(f'  MXC_GCFR->reg0 = 0x{mask:01x}; // Power\n')
-                        memfile.write(f'  MXC_GCFR->reg2 = 0x{unmask:01x}; // Iso\n')
-                        memfile.write('  MXC_GCFR->reg3 = 0x0; // Reset\n\n')
+                if not tc.dev.MODERN_SIM:
+                    memfile.write('\n  // Reset all domains, restore power to CNN\n')
+                    memfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
+                    memfile.write(f'  MXC_{bbfc}->reg1 = 0x{mask:01x}; // Mask memory\n')
+                    memfile.write(f'  MXC_{bbfc}->reg0 = 0x{mask:01x}; // Power\n')
+                    memfile.write(f'  MXC_{bbfc}->reg2 = 0x{unmask:01x}; // Iso\n')
+                    memfile.write(f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n\n')
 
-                        memfile.write('  MXC_GCR->pclkdiv &= ~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | '
-                                      'MXC_F_GCR_PCLKDIV_CNNCLKSEL);\n'
-                                      '  MXC_GCR->pclkdiv |= MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1; '
-                                      '// CNN clock: APB div 1\n')
-                        memfile.write('  MXC_GCR->pclkdis0 &= ~MXC_F_GCR_PCLKDIS0_CNN;'
-                                      ' // Enable CNN clock\n')
-                else:
-                    memfile.write('  MXC_GCR->clkcn |= MXC_F_GCR_CLKCN_HIRC96M_EN;'
-                                  ' // Enable 96M\n')
-                    memfile.write('  while ((MXC_GCR->clkcn & MXC_F_GCR_CLKCN_HIRC96M_RDY) == 0) ;'
-                                  ' // Wait for 96M\n')
-                    memfile.write('  MXC_GCR->clkcn |= MXC_S_GCR_CLKCN_CLKSEL_HIRC96;'
-                                  ' // Select 96M\n')
-
-                    if not tc.dev.MODERN_SIM:
-                        memfile.write('\n  // Reset all domains, restore power to CNN\n')
-                        memfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
-                        memfile.write(f'  MXC_{bbfc}->reg1 = 0x{mask:01x}; // Mask memory\n')
-                        memfile.write(f'  MXC_{bbfc}->reg0 = 0x{mask:01x}; // Power\n')
-                        memfile.write(f'  MXC_{bbfc}->reg2 = 0x{unmask:01x}; // Iso\n')
-                        memfile.write(f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n\n')
-
-                        memfile.write('  MXC_GCR->pckdiv = 0x00010000; // CNN clock 96M div 2\n')
-                        memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable CNN clock\n')
+                    memfile.write('  MXC_GCR->pckdiv = 0x00010000; // CNN clock 96M div 2\n')
+                    memfile.write('  MXC_GCR->perckcn &= ~0x2000000; // Enable CNN clock\n')
 
         if riscv is not None:
             if riscv_cache:

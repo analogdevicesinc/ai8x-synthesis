@@ -20,7 +20,7 @@ MEM_SIZE = 0x10000 >> 2
 def unload(apb_base, processor_map, input_shape,
            out_array, out_offset, in_array, flatten=False):
     """
-    Unload HWC memory from AI84 and return it in `out_array`.
+    Unload HWC memory and return it in `out_array`.
     The generated C code is specific to the network configuration passed in in `processor_map`,
     `input_shape`, and `chan`. Additionally, the generated addresses are offset by `apb_base` and
     `out_offset`. The C code function takes a pointer to a memory array, and the dimensions of
@@ -109,7 +109,7 @@ def test_unload():
     """
     test case for unload()
     """
-    tc.dev = tc.get_device(84)
+    tc.dev = tc.get_device(85)
     np.set_printoptions(threshold=np.inf, linewidth=80,
                         formatter={'int': lambda x: f'{x:02x}'})
 

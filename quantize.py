@@ -194,7 +194,7 @@ def convert_checkpoint(input_file, output_file, arguments):
                 bias = factor * checkpoint_state[bias_name]
 
                 # Save conv biases so PyTorch can still use them to run a model. This needs
-                # to be reversed before loading the weights into the AI84/AI85.
+                # to be reversed before loading the weights into the hardware.
                 # When multiplying data with weights, 1.0 * 1.0 corresponds to 128 * 128 and
                 # we divide the output by 128 to compensate. The bias therefore needs to be
                 # multiplied by 128. This depends on the data width, not the weight width,

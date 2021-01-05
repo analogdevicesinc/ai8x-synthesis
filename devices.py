@@ -30,7 +30,7 @@ def device(astring):
         num = int(s)
     except ValueError as exc:
         raise argparse.ArgumentTypeError(astring, 'is not a supported device type') from exc
-    if num in [84, 85, 87]:  # Die types
+    if num in [85, 87]:  # Die types
         dev = num
     elif num == 78000:  # Part numbers
         dev = 85
@@ -46,8 +46,6 @@ def partnum(num):
     """
     Return part number for a die type.
     """
-    if num == 84:
-        return 'AI84'
     if num == 85:
         return 'MAX78000'
     if num == 87:
