@@ -238,8 +238,8 @@ def get_parser():
 
     # Streaming
     group = parser.add_argument_group('Streaming tweaks')
-    group.add_argument('--overlap-data', '--overwrite-ok', dest='overwrite_ok',
-                       action='store_true', default=False,
+    group.add_argument('--overlap-data', '--overwrite-ok', '--allow-overwrite',
+                       dest='overwrite_ok', action='store_true', default=False,
                        help="allow output to overwrite input (default: warn/stop)")
     group.add_argument('--override-start', type=lambda x: int(x, 0), metavar='N',
                        help="override auto-computed streaming start value (x8 hex)")
@@ -325,7 +325,7 @@ def get_parser():
         try:
             args.no_bias = [int(s) for s in args.no_bias.split(',')]
         except ValueError as exc:
-            raise ValueError('ERROR: Argument --no-bias must be a comma-separated '
+            raise ValueError('ERROR: Argument `--no-bias` must be a comma-separated '
                              'list of integers only') from exc
 
     if args.clock_trim is not None:
@@ -337,7 +337,7 @@ def get_parser():
         except ValueError:
             clock_trim_error = True
         if clock_trim_error:
-            raise ValueError('ERROR: Argument --clock-trim must be a comma-separated '
+            raise ValueError('ERROR: Argument `--clock-trim` must be a comma-separated '
                              'list of three hexadecimal values (use 0 to ignore a value)')
 
     if args.boost is not None:
@@ -349,13 +349,13 @@ def get_parser():
         except ValueError:
             boost_error = True
         if boost_error:
-            raise ValueError('ERROR: Argument --boost must be a port.pin')
+            raise ValueError('ERROR: Argument `--boost` must be a port.pin')
 
     if args.streaming_layers is not None:
         try:
             args.streaming_layers = [int(s, 0) for s in args.streaming_layers.split(',')]
         except ValueError as exc:
-            raise ValueError('ERROR: Argument --streaming-layers must be a comma-separated '
+            raise ValueError('ERROR: Argument `--streaming-layers` must be a comma-separated '
                              'list of integers only') from exc
 
     if args.top_level == 'None':
@@ -367,7 +367,10 @@ def get_parser():
         args.riscv_cache = args.riscv
 
     if args.unload:
-        wprint('--unload is no longer needed, and is ignored.')
+        wprint('`--unload` is no longer needed, and is ignored.')
+
+    if args.allow_streaming:
+        wprint('`--allow-streaming` is not supported.')
 
     # Set disabled legacy arguments
     args.fc_layer = False
