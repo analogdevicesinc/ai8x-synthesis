@@ -136,23 +136,30 @@ def parse(config_file):
             error_exit('Layer was already specified', sequence)
 
         if tc.dev.device != devices.CMSISNN:
-            if 'processors' in ll:
-                processor_map[sequence] = ll['processors']
-            if not processor_map[sequence]:
+            pmap = ll['processors'] if 'processors' in ll else None
+            if isinstance(pmap, str):
+                try:
+                    pmap = int(pmap.replace('.', ''), 16)
+                except ValueError:
+                    pass
+            if pmap is None:
                 error_exit('`processors` must not be zero or missing', sequence)
-            if not isinstance(processor_map[sequence], int) \
-               or processor_map[sequence] >= 2**tc.dev.MAX_PROC:
-                error_exit(f'`processors` must be an int from 0 to 2**{tc.dev.MAX_PROC}-1',
-                           sequence)
+            if not isinstance(pmap, int) or pmap < 1 or pmap >= 2**tc.dev.MAX_PROC:
+                error_exit('`processors` must be an int from 1 to '
+                           f'2**{tc.dev.MAX_PROC}-1', sequence)
+            processor_map[sequence] = pmap
 
             if 'output_processors' in ll:
-                output_map[sequence] = ll['output_processors']
-                if not output_map[sequence]:
-                    error_exit('output_processors` cannot be zero', sequence)
-                if not isinstance(output_map[sequence], int) \
-                   or output_map[sequence] >= 2**tc.dev.MAX_PROC:
-                    error_exit('`output_processors` must be an int from 0 to '
+                pmap = ll['output_processors']
+                if isinstance(pmap, str):
+                    try:
+                        pmap = int(pmap.replace('.', ''), 16)
+                    except ValueError:
+                        pass
+                if not isinstance(pmap, int) or pmap < 1 or pmap >= 2**tc.dev.MAX_PROC:
+                    error_exit('`output_processors` must be an int from 1 to '
                                f'2**{tc.dev.MAX_PROC}-1', sequence)
+                output_map[sequence] = pmap
         else:
             processor_map[sequence] = 1
 
