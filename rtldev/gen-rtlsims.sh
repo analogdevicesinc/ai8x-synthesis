@@ -398,7 +398,7 @@
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mnist-oneshot --checkpoint-file tests/test-mnist.pth.tar --config-file tests/test-mnist-chw.yaml --one-shot --stop-after 2 --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-poolstrideonly --checkpoint-file tests/test-mnist-extrasmallnet.pth.tar --config-file tests/test-pooling-strideonly.yaml --device "$DEVICE" "$@"
 
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mpadd_minimal --checkpoint-file tests/test_mp_add_minimized_q.pth.tar --config-file tests/test_mpadd_minimal.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mpadd_minimal --checkpoint-file tests/test-mp_add_minimized_q.pth.tar --config-file tests/test-mpadd_minimal.yaml --device "$DEVICE" "$@"
 
 if [ "$DEVICE" = "78000" ]; then exit 0; fi
 
