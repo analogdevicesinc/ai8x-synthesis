@@ -705,8 +705,6 @@ class APB():
             out_expand=1,
             out_expand_thresh=64,
             output_width=8,
-            pool=None,
-            pool_stride=1,
             overwrite_ok=False,
             no_error_stop=False,
             mlator=False,
