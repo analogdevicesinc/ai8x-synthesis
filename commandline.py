@@ -194,8 +194,10 @@ def get_parser():
                        help="always use the link layer feature (default: false)")
     group.add_argument('--read-ahead', dest='rd_ahead', action='store_true', default=False,
                        help="set the rd_ahead bit (default: false)")
-    group.add_argument('--calcx4', dest='calcx4', action='store_true', default=False,
+    group.add_argument('--calcx4', action='store_true', default=False,
                        help="rearrange kernels and set the calcx4 bit (default: false)")
+    group.add_argument('--ext-rdy', action='store_true', default=False,
+                       help="set ext_rdy bit (default: false)")
     group.add_argument('--weight-start', type=int, metavar='N', default=0,
                        help="specify start offset for weights (debug, default: 0)")
 

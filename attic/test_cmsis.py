@@ -12,6 +12,8 @@ Test the CMSIS NN network generator.
 """
 import numpy as np
 
+import pytest
+
 import cmsisnn
 import op
 import pytest

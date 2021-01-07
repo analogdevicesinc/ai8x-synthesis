@@ -52,7 +52,6 @@ def print_map(
 def load(  # pylint: disable=too-many-branches,too-many-statements
         verbose,
         embedded_code,
-        device,
         apb,
         start_layer,
         layers,
@@ -68,6 +67,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         out_expand_thresh,
         in_expand,
         in_expand_thresh,
+        conv_groups,
         flatten=False,
         mexpress=False,
         verify=False,
@@ -94,6 +94,8 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     proc_kern_max = [0] * tc.dev.MAX_PROC
     kern_offs = [start_offs] * layers
     kern_len = [0] * layers
+    kern_count = [0] * layers
+    kern_ochan = [0] * layers
     kernel_map = np.full((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE),
                          _INVALID_VALUE, dtype=np.int64)
     kernels_used = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE), dtype=np.int64)
@@ -111,7 +113,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     assert not ((embedded_code or mexpress) and calcx4)  # FIXME Add support later
 
     for ll in range(start_layer, layers):
-        if operator[ll] not in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
+        if operator[ll] == op.NONE:
             assert kern_len[ll] == 0
             assert kern_offs[ll] == start_offs
             continue
@@ -126,6 +128,21 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         else:
             kernel_reshaped = kernel[ll]
 
+        if quantization[ll] == -1:
+            kernel_reshaped = kernel_reshaped.copy().clip(-1, 0)
+
+        if np.ndim(kernel_reshaped) > 2:
+            if kernel_reshaped.shape[-2] != kernel_size[ll][0] \
+               or kernel_reshaped.shape[-1] != kernel_size[ll][1]:
+                eprint(f'The configured kernel dimensions ({kernel_size[ll][0]}x'
+                       f'{kernel_size[ll][1]}) for layer {ll} do not match the binary weights '
+                       f'({kernel_reshaped.shape[-2]}x{kernel_reshaped.shape[-1]})!')
+        else:
+            if kernel_reshaped.shape[-1] != kernel_size[ll][0]:
+                eprint(f'The configured kernel dimensions ({kernel_size[ll][0]}) '
+                       f'for layer {ll} do not match the binary weights '
+                       f'({kernel_reshaped.shape[-1]})!')
+
         first_proc = ffs(processor_map[ll])
         last_proc = fls(processor_map[ll])
         ch = 0
@@ -138,36 +155,63 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             kern_offs[ll] = max(proc_kern_max[p], kern_offs[ll])
 
         ksize = kernel_size[ll][0] * kernel_size[ll][1]
-        qfactor = 8 // quantization[ll]
+        qfactor = 8 // abs(quantization[ll])
+        next_layer_map = output_processor_map[ll]
+        first_output_proc = ffs(next_layer_map)
+        start_col = first_output_proc % tc.dev.P_SHARED  # First target column out of 4 shared
+
         # Determine the number of kernels that need to be programmed. Since each instance
         # spans 4 processors, kernels for all instances that have a single processor enabled
         # need to be written, i.e. round down the first. The last does not need to be rounded
         # up because hardware takes care of it.
-        next_layer_map = output_processor_map[ll]
         # When using kernels smaller than 8 bit, round up to the next 8-bit boundary
         # Gaps are accounted for like any other kernel.
-        kern_len[ll] = 1 + quantization[ll] * \
-            (fls(next_layer_map) - ffs(next_layer_map)) // 8
-        # This extends the kernels to the right on AI85 for input and output expansion
-        if output_chan[ll] > tc.dev.MAX_PROC:
-            kern_len[ll] = (kern_len[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
-        kern_len[ll] *= out_expand[ll] * in_expand[ll]
+
+        # This extends the kernels to the right for output expansion
+        if out_expand[ll] > 1:
+            first_output_proc -= start_col
+
+        # MAX7800X devices currently support only groups=1 and groups equal to input channels
+        # equal to output channels.
+        if conv_groups[ll] == 1:
+            kc = (1 + fls(next_layer_map) - first_output_proc) \
+                * out_expand[ll] * in_expand[ll]
+            kern_ochan[ll] = kern_count[ll] = kc + start_col * out_expand[ll] * in_expand[ll]
+        else:
+            kc = in_expand[ll]
+            kern_count[ll] = kc + start_col * in_expand[ll]
+            kern_ochan[ll] = (1 + fls(next_layer_map) - first_output_proc) \
+                * in_expand[ll] + start_col * in_expand[ll]
+
         if not legacy_kernels and flatten[ll]:
-            kern_len[ll] *= kernel_reshaped.shape[1]
-            kern_len[ll] -= (out_expand[ll] * popcount(next_layer_map) - output_chan[ll]) \
-                * kernel_reshaped.shape[1] * 8 // (ksize * quantization[ll])
-        if device != 84:
-            # Pack kernels when using 1D convolutions, or 1x1 kernels
-            kern_len[ll] = (kern_len[ll] * ksize + 8) // 9
+            kc *= kernel_reshaped.shape[1]
+            kern_count[ll] *= kernel_reshaped.shape[1]  # FIXME
+            kc -= (out_expand[ll] * popcount(next_layer_map) - output_chan[ll]) \
+                * kernel_reshaped.shape[1]
+            kern_count[ll] -= (out_expand[ll] * popcount(next_layer_map) - output_chan[ll]) \
+                * kernel_reshaped.shape[1]
+            kern_ochan[ll] = kern_count[ll]
+
+        # Pack kernels to 72-bit words, while ensuring there is enough space when using 1/2/4
+        # bit kernels where the kernel count requires padding.
+        res = (kc % qfactor) * ksize * (qfactor - 1)
+        kern_len[ll] = (kc * ksize * abs(quantization[ll]) + res + 71) // 72
+
         if ll == 0 and quad:
             kern_len[0] = (kern_len[0] + 3) // 4
+            kern_count[0] = (kern_count[0] + 3) // 4
+            kern_ochan[0] = (kern_ochan[0] + 3) // 4
 
         # We don't have to use dummy columns if there's space available on the left
         kern_offs[ll] = \
             max(0, kern_offs[ll] - (((ffs(next_layer_map) % tc.dev.P_SHARED)
                                      + qfactor - 1) // qfactor))
-        # The kernel offset needs to start at a multiple of 4.
+
+        # The kernel offset needs to start at a multiple of 4 since we use start_col to
+        # adjust within the group of 4 processors.
         kern_offs[ll] = (kern_offs[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
+
+        # Check for overflow
         if kern_offs[ll] + kern_len[ll] > tc.dev.mask_width(p):
             eprint(f'\nKernel memory exceeded at layer {ll}; offset: {kern_offs[ll]}, '
                    f'needed: {kern_len[ll]}.'
@@ -176,23 +220,59 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             sys.exit(1)
 
         proc_mask = 2**qfactor - 1
+
         # Start at the first used instance
         this_map_init = next_layer_map >> ffs(next_layer_map)
-        start_col = ffs(next_layer_map) % tc.dev.P_SHARED  # First target column
+
+        def add_kernel_data(ll, p, col_target, b):
+            col = kern_offs[ll] + col_target
+            if col >= tc.dev.mask_width(p):
+                eprint(f'\nKernel memory exceeded in layer {ll}.'
+                       '\n\nKernel map so far:', exit_code=None)
+                print_map(layers, kernel_map, print_fn=eprint_noprefix)
+                sys.exit(1)
+
+            if kernels_used[p][col] == 0:  # Update kernel map
+                assert kernel_map[p][col] == _INVALID_VALUE
+                kernel_map[p][col] = ll
+
+            assert kernels_used[p][col] <= 8
+            kernel_data[p][col][8 - kernels_used[p][col]] = b & 0xff
+            kernels_used[p][col] += 1
+
+            if kernels_used[p][col] == 9:  # Flush
+                col_target += 1  # Write 1
+
+            return col_target
 
         for p in range(first_proc, last_proc+1):
             if (processor_map[ll] >> p) & 1 == 0:
                 # Unused source processor
                 continue
-            col_target = start_col
-            for expand in range(out_expand[ll]):
+            # Skip start_col processors. Each takes up ksize bytes, or ksize // 9 full
+            # kernel words. There are col_bytes leftover bytes.
+            col_target, col_bytes = divmod(start_col * ksize * in_expand[ll], 9)
+            # Pad out the leftovers
+            for _ in range(col_bytes // qfactor):  # FIXME for quantization
+                col_target = add_kernel_data(ll, p, col_target, 0)
+
+            out_range = out_expand[ll] if conv_groups[ll] == 1 else 1
+            for expand in range(out_range):
                 this_map = this_map_init
                 if ll == 0 and quad:
-                    col = expand * (out_expand_thresh[ll] + 3) // 4
-                    stop_col = col + (out_expand_thresh[ll] + 3) // 4
-                else:
+                    if conv_groups[ll] == 1:
+                        col = expand * (out_expand_thresh[ll] + 3) // 4
+                        stop_col = col + (out_expand_thresh[ll] + 3) // 4
+                    else:
+                        col = expand
+                        stop_col = expand + 1
+                elif conv_groups[ll] == 1:
                     col = expand * out_expand_thresh[ll]
                     stop_col = col + out_expand_thresh[ll]
+                else:
+                    col = expand
+                    stop_col = expand + 1
+
                 while col < stop_col:
                     # Skip over unused bits in the target processor map
                     # (unused means 1 bit for 8-bit weights, 2 for 4-bit weights, etc.)
@@ -215,29 +295,9 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                         for ie in range(in_expand[ll]):
                             mask = this_mask
 
-                            def add_kernel_data(ll, p, col_target, b):
-                                col = kern_offs[ll] + col_target
-                                if col >= tc.dev.mask_width(p):
-                                    eprint(f'\nKernel memory exceeded in layer {ll}.'
-                                           '\n\nKernel map so far:', exit_code=None)
-                                    print_map(layers, kernel_map, print_fn=eprint_noprefix)
-                                    sys.exit(1)
-
-                                if kernels_used[p][col] == 0:  # Update kernel map
-                                    assert kernel_map[p][col] == _INVALID_VALUE
-                                    kernel_map[p][col] = ll
-
-                                assert kernels_used[p][col] <= 8
-                                kernel_data[p][col][8 - kernels_used[p][col]] = b & 0xff
-                                kernels_used[p][col] += 1
-
-                                if kernels_used[p][col] == 9:  # Flush
-                                    col_target += 1  # Write 1
-
-                                return col_target
-
                             n = 0
-                            if src_offs < len(kernel_reshaped):
+                            if ie * in_expand_thresh[ll] + ch < in_ch \
+                               and src_offs < len(kernel_reshaped):
                                 if not flatten[ll]:
                                     k = np.zeros_like(kernel_reshaped[src_offs].flatten())
                                 else:
@@ -252,9 +312,9 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                             * input_chan[ll]
                                         if koffs < len(kernel_reshaped):
                                             this_kern = kernel_reshaped[koffs].flatten() \
-                                                & (2**quantization[ll]-1)
+                                                & (2**abs(quantization[ll])-1)
                                             if not flatten[ll]:
-                                                k |= this_kern << (i * quantization[ll])
+                                                k |= this_kern << (i * abs(quantization[ll]))
                                             else:
                                                 k = np.append(k, this_kern)
                                         n += 1
@@ -276,7 +336,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                     for i in range(0, len(k) // qfactor):
                                         e = 0
                                         for j in range(qfactor):
-                                            e |= k[i * qfactor + j] << (j * quantization[ll])
+                                            e |= k[i * qfactor + j] << (j * abs(quantization[ll]))
                                         col_target = add_kernel_data(ll, p, col_target, e)
                                 else:
                                     for i in range(ksize):
@@ -305,7 +365,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             if flatten[ll]:
                 kern_len[ll] = col_target
             else:
-                assert kern_len[ll] == col_target - start_col
+                kern_len[ll] = col_target - start_col
             proc_kern_max[p] = kern_offs[ll] + kern_len[ll]
             ch += 1
             m = 0
@@ -333,7 +393,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 ll = kernel_map[p][col]
                 if ll != _INVALID_VALUE:
                     k = kernel_data[p][col]
-                    apb.write_kern(ll, p, col, k, verify_only=verify, calcx4=calcx4)
+                    apb.write_kern(ll, p, col, k, calcx4=calcx4)
         apb.function_footer()  # load_weights()
 
     if embedded_code or mexpress:
@@ -516,4 +576,4 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
 
             apb.function_footer()  # load_weights()
 
-    return kern_offs, kern_len
+    return kern_offs, kern_len, kern_count, kern_ochan
