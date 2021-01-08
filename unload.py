@@ -347,7 +347,6 @@ def verify(
                                 num_bytes=num_bytes,
                                 first_proc=ffs(processor_map >> proc) % 4,
                                 data=ll == final_layer,
-                                data=ll == layers - 1,
                             )
                     else:
                         for i in range(min(num_bytes, out_size)):
