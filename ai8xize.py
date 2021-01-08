@@ -1744,7 +1744,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             apb.function_footer()
             apb.function_header(function='start')
 
-        apb.output('  cnn_time = 0;\n\n', embedded_code)
+        if embedded_code or tc.dev.MODERN_SIM:
+            apb.output('  cnn_time = 0;\n\n', embedded_code)
 
         # Enable all needed groups except the first one
         rdy_sel = tc.dev.READY_SEL if not pipeline else tc.dev.PIPELINE_READY_SEL
