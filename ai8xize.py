@@ -174,6 +174,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         result_output=False,
         weight_start=0,
         wfi=True,
+        bypass=None,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -265,7 +266,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             if output_width[start_layer] != 8:
                 eprint('Single-layer fast FIFO setup requires output width of 8.')
             if operator[start_layer] == op.NONE:
-                eprint('Fast FIFO requies a convolution operation in the first layer.')
+                eprint('Fast FIFO requires a convolution operation in the first layer.')
     elif streaming[start_layer] and not allow_streaming:
         eprint('Streaming in the first layer requires use of a FIFO.')
     if any(streaming) and start_layer != 0:
@@ -289,6 +290,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     if oneshot and timer is not None:
         eprint('--timer is not supported when using --one-shot')
 
+    if not tc.dev.SUPPORT_KERNEL_BYPASS \
+       and any(bypass[ll] for ll in range(first_layer_used, layers)):
+        eprint('Kernel bypass is not supported on this device.')
+
     processor_map_0 = processor_map[start_layer]
     if fast_fifo_quad:
         processor_map[start_layer] = processor_map_0 << 48 | processor_map_0 << 32 \
@@ -300,14 +305,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     # and calculate input and output expansion
     for ll in range(first_layer_used, layers):
         if quantization[ll] is None:
-            quantization[ll] = 8  # Set default
+            quantization[ll] = 8 if not bypass[ll] else 0  # Set default
         elif quantization[ll] == 1 and binary_quantization:
             eprint(f"Cannot combine binary quantization in layer {ll} with 1-bit quantization.")
         if output_shift[ll] is None:
-            output_shift[ll] = 0  # Set default
+            output_shift[ll] = 0 if not bypass[ll] else 7  # Set default
 
         if output_shift[ll] < -15 or output_shift[ll] > 15:
-            implicit_shift = 8 - abs(quantization[ll])
+            implicit_shift = 8 - abs(quantization[ll]) if not bypass[ll] else 0
             eprint(f"Layer {ll} with {abs(quantization[ll])}-bit weight quantization supports an "
                    f"output_shift range of [{-15 - implicit_shift}, +{15 - implicit_shift}]. "
                    f"The specified value of output_shift is {output_shift[ll] - implicit_shift} "
@@ -748,6 +753,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 calcx4=calcx4,
                 api=embedded_code,
                 start_offs=weight_start,
+                bypass=bypass,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
                 verbose,
@@ -944,6 +950,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 legacy_kernels=legacy_kernels,
                 calcx4=calcx4,
                 start_offs=weight_start,
+                bypass=bypass,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
                 verbose,
@@ -1036,6 +1043,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             print('Kernel size (bits)  = [',
                   ', '.join(str(k) if k >= 0
                             else 'b' for k in quantization), ']', sep='',)
+            if any(bypass):
+                print(f'Kernel bypass       = {bypass}')
             print(f'Convolution groups  = {conv_groups}')
             print(f'Padding             = {padding}')
             print(f'Stride              = {stride}')
@@ -1331,6 +1340,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         val |= kernel_size[ll][0] - 1 << tc.dev.RPRIME_MAX_OFFS
                         val |= kernel_size[ll][1] - 1 << tc.dev.CPRIME_MAX_OFFS
 
+                    if bypass[ll]:
+                        val |= 1 << 30
+
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_LCTL, val,
                                    verbose, comment=' // Layer control')
 
@@ -1345,10 +1357,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                     assert in_exp < 2**4  # Cannot have more than 4 bits
 
+                    quant = abs(quantization[ll]) if not bypass[ll] else 8
                     val = (fls(output_processor_map[ll])
                            - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) \
-                        * abs(quantization[ll]) << 8 \
-                        | in_exp
+                        * quant << 8 | in_exp
                     if operator[ll] != op.NONE:
                         wptr_skip = out_expand[ll] * (write_gap[ll] + 1)
                         assert wptr_skip <= 2**4  # Cannot have more than 4 bits (+1)
@@ -1363,7 +1375,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     # Configure mask start and end addresses
                     # Every mask memory starts from the same offset for all processors
                     oned_sad = 0
-                    if operator[ll] != op.NONE:
+                    if operator[ll] != op.NONE and not bypass[ll]:
                         kl = (kern_count[ll] - 1) * abs(quantization[ll])
 
                         if ll == start_layer and fast_fifo_quad or calcx4:
@@ -1375,6 +1387,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         koffs, oned_sad = divmod(9 * kern_offs[ll],
                                                  kernel_size[ll][0] * kernel_size[ll][1])
                         koffs *= 8
+                    else:
+                        kl = koffs = 0
 
                     if hasattr(tc.dev, 'LREG_MCNT1'):
                         if operator[ll] != op.NONE:
@@ -1403,7 +1417,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                        verbose, comment=' // Mask offset and count')
 
                     if hasattr(tc.dev, 'LREG_OCHAN'):
-                        if operator[ll] != op.NONE and conv_groups[ll] == 1:
+                        if bypass[ll]:
+                            val = input_chan[ll] - 1
+                        elif operator[ll] != op.NONE and conv_groups[ll] == 1:
                             val = kern_ochan[ll] - 1
                             if calcx4:
                                 val //= 4
@@ -1465,7 +1481,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     elif quantization[ll] == 4:
                         val = 3 << 22
                     else:
-                        assert quantization[ll] == 8
+                        assert quantization[ll] in [0, 8]
                         val = 0  # Do not shift
                     # Scale Control - bit 4 determines shift direction (1>>,0<<),
                     # bits[3:0] determine magnitude
@@ -1520,8 +1536,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     # Configure mask and processor enables
                     # Enable at most 16 processors and masks
                     val = (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO
-                    if operator[ll] != op.NONE:
-                        val = val << 16 | val
+                    if operator[ll] != op.NONE and not bypass[ll]:
+                        val = val << 16 | val  # Mask enables
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_ENA, val,
                                    verbose, comment=' // Mask and processor enables')
 
@@ -1983,6 +1999,20 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         in_chan,
                     )
 
+            if not bypass[ll]:
+                k = kernel[ll].reshape(
+                        output_chan[ll],
+                        in_chan // conv_groups[ll],
+                        kernel_size[ll][0],
+                        kernel_size[ll][1]
+                    )
+            else:
+                k = np.full(
+                        (output_chan[ll], in_chan, kernel_size[ll][0], kernel_size[ll][0]),
+                        1,
+                        dtype=np.int64,
+                    )
+
             out_buf, out_size = conv2d_layer(
                 ll,
                 verbose,
@@ -1995,20 +2025,30 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 dilation[ll],
                 stride[ll],
                 activation[ll],
-                kernel[ll].reshape(
-                    output_chan[ll],
-                    in_chan // conv_groups[ll],
-                    kernel_size[ll][0],
-                    kernel_size[ll][1]
-                ),
+                k,
                 bias[ll],
                 data,
                 output_width=output_width[ll],
                 groups=conv_groups[ll],
                 device=device,
                 debug=debug_computation,
+                bypass=bypass[ll],
             )
         elif operator[ll] == op.CONVTRANSPOSE2D:
+            if not bypass[ll]:
+                k = kernel[ll].reshape(
+                        output_chan[ll],
+                        in_chan // conv_groups[ll],
+                        kernel_size[ll][0],
+                        kernel_size[ll][1],
+                    )
+            else:
+                k = np.full(
+                        (output_chan[ll], in_chan, kernel_size[ll][0], kernel_size[ll][0]),
+                        1,
+                        dtype=np.int64,
+                    )
+
             out_buf, out_size = convtranspose2d_layer(
                 ll,
                 verbose,
@@ -2022,20 +2062,29 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 stride[ll],
                 [1, 1],  # output_padding
                 activation[ll],
-                kernel[ll].reshape(
-                    output_chan[ll],
-                    in_chan // conv_groups[ll],
-                    kernel_size[ll][0],
-                    kernel_size[ll][1],
-                ),
+                k,
                 bias[ll],
                 data,
                 output_width=output_width[ll],
                 groups=conv_groups[ll],
                 device=device,
                 debug=debug_computation,
+                bypass=bypass[ll],
             )
         elif operator[ll] == op.CONV1D:
+            if not bypass[ll]:
+                k = kernel[ll].reshape(
+                        output_chan[ll],
+                        input_chan[ll] // conv_groups[ll],
+                        kernel_size[ll][0],
+                    )
+            else:
+                k = np.full(
+                        (output_chan[ll], input_chan[ll], kernel_size[ll][0],),
+                        1,
+                        dtype=np.int64,
+                    )
+
             out_buf, out_size = conv1d_layer(
                 ll,
                 verbose,
@@ -2048,17 +2097,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 dilation[ll][0],
                 stride[ll][0],
                 activation[ll],
-                kernel[ll].reshape(
-                    output_chan[ll],
-                    input_chan[ll] // conv_groups[ll],
-                    kernel_size[ll][0],
-                ),
+                k,
                 bias[ll],
                 data,
                 output_width=output_width[ll],
                 groups=conv_groups[ll],
                 device=device,
                 debug=debug_computation,
+                bypass=bypass[ll],
             )
         elif operator[ll] == op.NONE:  # '0'D (pooling only or passthrough)
             out_buf, out_size = passthrough_layer(
@@ -2431,7 +2477,7 @@ def main():
         for ll in range(cfg_layers):
             operator = params['operator'][ll]
 
-            if operator == op.NONE or op.eltwise(operator):
+            if operator == op.NONE or op.eltwise(operator) or params['bypass'][ll]:
                 weights.insert(ll, None)
                 bias.insert(ll, None)
                 input_channels.insert(ll, 0)
@@ -2569,6 +2615,7 @@ def main():
     activation = params['activation'][:layers]
     conv_groups = params['conv_groups'][:layers]
     write_gap = params['write_gap'][:layers]
+    bypass = params['bypass'][:layers]
 
     # Command line override
     if args.input_offset is not None:
@@ -2623,7 +2670,7 @@ def main():
     while ll < layers:
         if input_channels[ll] <= 0:
             eprint(f'Must specify `in_channels` for layer {ll}.')
-        if operator[ll] != op.NONE:
+        if operator[ll] != op.NONE and not bypass[ll]:
             if quantization[ll] == -1:
                 w = np.abs(weights[ll])
                 assert w.min() == w.max() == 1
@@ -2903,6 +2950,7 @@ def main():
             args.result_output,
             args.weight_start,
             args.wfi,
+            bypass=bypass,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

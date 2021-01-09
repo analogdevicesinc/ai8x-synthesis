@@ -78,13 +78,16 @@ def conv2d_layer(
         groups=1,
         device=84,  # pylint: disable=unused-argument
         debug=False,
+        bypass=False,
 ):
     """
     Perform 2D convolution for one layer.
     """
     if verbose:
         print(f"{kernel_size[0]}x{kernel_size[1]} KERNEL(S)", end='')
-        if verbose_data:
+        if bypass:
+            print(' (BYPASS)')
+        if verbose_data and not bypass:
             print(":")
             with np.printoptions(formatter={'int': '{0:4}'.format}):
                 for i in range(output_channels):
@@ -93,6 +96,7 @@ def conv2d_layer(
                         print(np.squeeze(kernel[i]))
                     else:
                         print(kernel[i])
+        if verbose_data:
             print(f"BIAS: {bias}\n")
         elif bias is not None:
             print(f"\nBIAS SIZE: {len(bias)}")
@@ -193,13 +197,16 @@ def convtranspose2d_layer(
         groups=1,
         device=84,  # pylint: disable=unused-argument
         debug=False,
+        bypass=False,
 ):
     """
     Perform a fractionally strided 2D convolution for one layer.
     """
     if verbose:
         print(f"{kernel_size[0]}x{kernel_size[1]} KERNEL(S)", end='')
-        if verbose_data:
+        if bypass:
+            print(' (BYPASS)')
+        if verbose_data and not bypass:
             print(':')
             with np.printoptions(formatter={'int': '{0:4}'.format}):
                 for i in range(output_channels):
@@ -208,6 +215,7 @@ def convtranspose2d_layer(
                         print(np.squeeze(kernel[i]))
                     else:
                         print(kernel[i])
+        if verbose_data:
             print(f"BIAS: {bias}\n")
         elif bias is not None:
             print(f"\nBIAS SIZE: {len(bias)}")
@@ -309,15 +317,19 @@ def conv1d_layer(
         groups=1,
         device=84,  # pylint: disable=unused-argument
         debug=False,
+        bypass=False,
 ):
     """
     Perform 1D convolution for one layer.
     """
     if verbose:
         print(f"KERNEL SIZE {kernel_size}", end='')
-        if verbose_data:
+        if bypass:
+            print(' (BYPASS)')
+        if verbose_data and not bypass:
             print(':')
             print(kernel)
+        if verbose_data:
             print(f"BIAS: {bias}\n")
         elif bias is not None:
             print(f"\nBIAS SIZE: {len(bias)}")

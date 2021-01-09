@@ -1,0 +1,22 @@
+arch: test
+dataset: test_bypass-id
+bias: 64
+
+layers:
+- out_offset: 0x4000
+  processors: 0xffffffffffffffff
+  operation: conv2d
+  kernel_size: 1x1
+  activation: none
+  pad: 0
+  bypass: True
+  in_channels: 64
+  output_shift: -3
+- out_offset: 0x0
+  processors: 0xffffffffffffffff
+  operation: conv2d
+  kernel_size: 1x1
+  activation: relu
+  pad: 0
+  bypass: True
+  output_shift: -3
