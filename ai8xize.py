@@ -35,7 +35,7 @@ import tornadocnn as tc
 import yamlcfg
 from eprint import eprint, wprint
 from simulate import (conv1d_layer, conv2d_layer, convtranspose2d_layer, eltwise_layer,
-                      linear_layer, passthrough_layer, pooling_layer, print_data, show_data)
+                      passthrough_layer, pooling_layer, print_data, show_data)
 from utils import ffs, fls, popcount
 
 
@@ -75,8 +75,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         kernel,
         bias,
         big_data,
-        fc_weights,
-        fc_bias,
         split,
         in_offset,
         out_offset,
@@ -446,7 +444,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         target_dir = os.path.join(base_directory, test_name)
         os.makedirs(target_dir, exist_ok=False)
     except OSError:
-        wprint(target_dir, 'already exists')
+        wprint(target_dir, 'exists')
 
     # Redirect stdout?
     if log:
@@ -2260,7 +2258,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         with open(os.path.join(base_directory, test_name, filename), mode=filemode) as memfile:
             apb.set_memfile(memfile)
 
-            if fc_weights or softmax or embedded_code:
+            if softmax or embedded_code:
                 apb.unload(
                     output_processor_map[final_layer],
                     out_size,
@@ -2274,26 +2272,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     write_gap=write_gap[final_layer],
                 )
 
-            if fc_weights:
-                data = data.flatten()
-
-                out_buf, out_size = linear_layer(
-                    verbose=verbose,
-                    verbose_data=verbose_all or ll == final_layer,
-                    activation=None,
-                    data=data,
-                    weight=fc_weights[0],
-                    bias=fc_bias[0],
-                    debug=debug,
-                )
-
-                apb.fc_layer(
-                    fc_weights[0],
-                    fc_bias[0],
-                    output_width=output_width[final_layer],
-                )
-                apb.fc_verify(out_buf)
-            elif softmax:
+            if softmax:
                 apb.fc_layer(
                     None,
                     None,
@@ -2357,7 +2336,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         insert = summary_stats + \
                  '\n/* Number of outputs for this network */\n' \
                  '#define CNN_NUM_OUTPUTS ' \
-                 f'{fc_weights[0].shape[0] if fc_weights else output_chan[final_layer]}'
+                 f'{output_chan[final_layer]}'
         if timer is not None:
             insert += '\n\n/* Use this timer to time the inference */\n' \
                       f'#define CNN_INFERENCE_TIMER MXC_TMR{timer}'
@@ -2390,9 +2369,6 @@ def main():
 
     args = commandline.get_parser()
 
-    if args.fc_layer:
-        eprint('--fc-layer is no longer supported. Please use a linear layer instead.')
-
     # Configure device
     tc.dev = tc.get_device(args.device)
 
@@ -2422,12 +2398,11 @@ def main():
         fext = args.checkpoint_file.rsplit(sep='.', maxsplit=1)[1].lower()
         if fext == 'onnx':
             # ONNX file selected
-            layers, weights, bias, output_shift, fc_weights, \
-                fc_bias, input_channels, output_channels = \
+            layers, weights, bias, output_shift, \
+                input_channels, output_channels = \
                 onnxcp.load(
                     args.checkpoint_file,
                     cfg['arch'],
-                    args.fc_layer,
                     params['quantization'],
                     params['bias_quantization'],
                     params['output_shift'],
@@ -2438,12 +2413,11 @@ def main():
                 )
         else:
             # PyTorch checkpoint file selected
-            layers, weights, bias, output_shift, fc_weights, \
-                fc_bias, input_channels, output_channels = \
+            layers, weights, bias, output_shift, \
+                input_channels, output_channels = \
                 checkpoint.load(
                     args.checkpoint_file,
                     cfg['arch'],
-                    args.fc_layer,
                     params['quantization'],
                     params['bias_quantization'],
                     params['output_shift'],
@@ -2454,20 +2428,22 @@ def main():
                     params['conv_groups'],
                 )
     else:  # Get some hard-coded sample weights
-        layers, weights, bias, output_shift, fc_weights, \
-            fc_bias, input_channels, output_channels = \
+        layers, weights, output_shift, \
+            input_channels, output_channels = \
             sampleweight.load(
                 cfg['dataset'],
                 params['quantization'],
-                params['bias_quantization'],
                 params['output_shift'],
                 cfg_layers,
                 cfg['weights'] if 'weights' in cfg else None,
-                cfg['bias'] if 'bias' in cfg else None,
-                args.no_bias,
                 params['conv_groups'],
                 params['operator'],
             )
+        bias = sampleweight.load_bias(
+            cfg_layers,
+            cfg['bias'] if 'bias' in cfg else None,
+            args.no_bias,
+        )
 
     if cfg_layers > layers:
         # Add empty weights/biases and channel counts for layers not in checkpoint file.
@@ -2479,7 +2455,8 @@ def main():
 
             if operator == op.NONE or op.eltwise(operator) or params['bypass'][ll]:
                 weights.insert(ll, None)
-                bias.insert(ll, None)
+                if not params['bypass'][ll]:
+                    bias.insert(ll, None)
                 input_channels.insert(ll, 0)
                 output_channels.insert(ll, 0)
                 layers += 1
@@ -2851,8 +2828,6 @@ def main():
             weights,
             bias,
             big_data,
-            fc_weights,
-            fc_bias,
             args.input_split,
             input_offset,
             output_offset,
@@ -2991,8 +2966,6 @@ def main():
             data,
             weights,
             bias,
-            fc_weights,
-            fc_bias,
             flatten,
             operands,
             eltwise,

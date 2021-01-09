@@ -370,7 +370,6 @@ def get_parser():
         wprint('--unload is no longer needed, and is ignored.')
 
     # Set disabled legacy arguments
-    args.fc_layer = False
     args.unload = False
 
     return args

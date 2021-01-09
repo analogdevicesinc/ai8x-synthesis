@@ -181,7 +181,7 @@ class APB():
                 target_dir = target_dir = os.path.join(base_directory, test_name, 'masks')
                 os.makedirs(target_dir, exist_ok=False)
             except OSError:
-                wprint(target_dir, 'already exists')
+                wprint(target_dir, 'exists')
             for group in range(tc.dev.P_NUMGROUPS):
                 for proc in range(tc.dev.P_NUMPRO):
                     for mem in range(tc.dev.MASK_INSTANCES):
@@ -202,7 +202,7 @@ class APB():
                 target_dir = os.path.join(base_directory, test_name, 'data-expected')
                 os.makedirs(target_dir, exist_ok=False)
             except OSError:
-                wprint(target_dir, 'already exists')
+                wprint(target_dir, 'exists')
             for group in range(tc.dev.P_NUMGROUPS):
                 for proc in range(procs):
                     for mem in range(tc.dev.INSTANCE_COUNT):
