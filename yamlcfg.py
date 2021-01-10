@@ -113,6 +113,7 @@ def parse(config_file):
     in_sequences = [None] * tc.dev.MAX_LAYERS
     next_sequence = [None] * tc.dev.MAX_LAYERS
     write_gap = [0] * tc.dev.MAX_LAYERS
+    bypass = [False] * tc.dev.MAX_LAYERS
 
     sequence = 0
     for ll in cfg['layers']:
@@ -123,7 +124,7 @@ def parse(config_file):
                                'data_format', 'eltwise', 'flatten', 'op', 'operands', 'operation',
                                'operator', 'output_processors', 'output_width', 'output_shift',
                                'pool_first', 'processors', 'pad', 'quantization', 'next_sequence',
-                               'sequence', 'streaming', 'stride', 'write_gap'])):
+                               'sequence', 'streaming', 'stride', 'write_gap', 'bypass'])):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
 
         if 'sequence' in ll:
@@ -402,6 +403,13 @@ def parse(config_file):
         if 'write_gap' in ll:
             write_gap[sequence] = ll['write_gap']
 
+        if 'bypass' in ll:
+            val = ll['bypass']
+            try:
+                bypass[sequence] = bool(val)
+            except ValueError:
+                error_exit(f'Unsupported value `{val}` for `bypass`', sequence)
+
         # Fix up values for 1D convolution or no convolution
         if operator[sequence] == op.CONV1D:
             padding[sequence][1] = 0
@@ -450,6 +458,7 @@ def parse(config_file):
             del write_gap[ll]
             del in_sequences[ll]
             del next_sequence[ll]
+            del bypass[ll]
 
     for ll, e in enumerate(operator):
         # Warn when using default pool stride of 1, 1
@@ -514,5 +523,6 @@ def parse(config_file):
     settings['next_sequence'] = next_sequence
     settings['conv_groups'] = conv_groups
     settings['write_gap'] = write_gap
+    settings['bypass'] = bypass
 
     return cfg, len(processor_map), settings

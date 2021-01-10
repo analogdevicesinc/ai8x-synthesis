@@ -476,3 +476,15 @@ if [ "$DEVICE" = "78000" ]; then exit 0; fi
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-widein-binary --config-file tests/test-widein-binary.yaml --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-wideout-binary --config-file tests/test-wideout-binary.yaml --device "$DEVICE" "$@"
 
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-bypass --config-file tests/test-bypass.yaml --device "$DEVICE" "$@" --stop-after 0
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-bypass --config-file tests/test-bypass.yaml --device "$DEVICE" "$@" --stop-after 1
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-bypass --config-file tests/test-bypass.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-bypass-id --config-file tests/test-bypass-identity.yaml --device "$DEVICE" "$@" --stop-after 0
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-bypass-id --config-file tests/test-bypass-identity.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-bypass-id-small --config-file tests/test-bypass-identity-small.yaml --device "$DEVICE" "$@" --stop-after 0
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-bypass-id-small --config-file tests/test-bypass-identity-small.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-bypass-id-small-bias --config-file tests/test-bypass-identity-small-bias.yaml --device "$DEVICE" "$@" --stop-after 0
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-bypass-id-small-bias --config-file tests/test-bypass-identity-small-bias.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-bypass-depthwise2d-k3 --config-file tests/test-bypass-depthwise3x4x4.yaml --stop-after 0 --device "$DEVICE" "$@"
+
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fifostream-pool-stride-hwc-tall --config-file tests/test-fifostream-pool-stride-hwc-tall.yaml --device "$DEVICE" --fifo --debug-computation --override-start 0x1a --override-delta2 0x13 --override-rollover 0x1b "$@"

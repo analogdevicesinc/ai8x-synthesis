@@ -18,22 +18,16 @@ from utils import fls
 def load(
         dataset,
         quantization,
-        bias_quantization,  # pylint: disable=unused-argument
         output_shift,
         cfg_layers,
         cfg_weights=None,
-        cfg_bias=None,
-        no_bias=None,
         conv_groups=None,
         operator=None,
 ):
     """
     Return sample weights.
     """
-    no_bias = no_bias or []
     weights = []
-    fc_weights = []
-    fc_bias = []
     output_channels = []
     input_channels = []
     layers = 0
@@ -64,21 +58,6 @@ def load(
         layers = w.shape[0]
 
     layers = min(layers, cfg_layers)
-
-    bias = [None] * layers
-
-    if cfg_bias is not None:
-        ll = 0
-        fname = os.path.join('tests', f'bias_{cfg_bias}.npy')
-        with open(fname, mode='rb') as file:
-            print(f'Reading bias from {fname}...')
-            try:
-                while ll < layers:
-                    if ll not in no_bias:
-                        bias[ll] = np.load(file)
-                    ll += 1
-            except ValueError:
-                pass
 
     for ll in range(layers):
         # Set to default?
@@ -116,5 +95,32 @@ def load(
         else:
             weights.append(w[ll].reshape(-1, w[ll].shape[-1]))
 
-    return layers, weights, bias, output_shift, \
-        fc_weights, fc_bias, input_channels, output_channels
+    return layers, weights, output_shift, \
+        input_channels, output_channels
+
+
+def load_bias(
+        layers,
+        cfg_bias=None,
+        no_bias=None,
+):
+    """
+    Return sample bias weights.
+    """
+    no_bias = no_bias or []
+    bias = [None] * layers
+
+    if cfg_bias is not None:
+        ll = 0
+        fname = os.path.join('tests', f'bias_{cfg_bias}.npy')
+        with open(fname, mode='rb') as file:
+            print(f'Reading bias from {fname}...')
+            try:
+                while ll < layers:
+                    if ll not in no_bias:
+                        bias[ll] = np.load(file)
+                    ll += 1
+            except ValueError:
+                pass
+
+    return bias

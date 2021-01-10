@@ -68,7 +68,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         in_expand,
         in_expand_thresh,
         conv_groups,
-        flatten=False,
+        flatten=None,
         mexpress=False,
         verify=False,
         riscv_flash=False,
@@ -79,6 +79,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         calcx4=False,
         api=False,
         start_offs=0,
+        bypass=None,
 ):
     """
     Stack `kernel` values and write them to C code (for `embedded_code` if `True` or
@@ -113,7 +114,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     assert not ((embedded_code or mexpress) and calcx4)  # FIXME Add support later
 
     for ll in range(start_layer, layers):
-        if operator[ll] == op.NONE:
+        if operator[ll] == op.NONE or bypass[ll]:
             assert kern_len[ll] == 0
             assert kern_offs[ll] == start_offs
             continue

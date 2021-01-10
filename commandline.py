@@ -373,7 +373,6 @@ def get_parser():
         wprint('`--allow-streaming` is not supported.')
 
     # Set disabled legacy arguments
-    args.fc_layer = False
     args.unload = False
 
     return args

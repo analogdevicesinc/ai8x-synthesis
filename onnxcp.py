@@ -82,7 +82,6 @@ def process_channels(model, _input, initializers):
 def load(
         checkpoint_file,
         unused_arch,
-        fc_layer,
         quantization,
         bias_quantization,
         output_shift,
@@ -93,12 +92,10 @@ def load(
 ):
     """
     Load weights and biases from `checkpoint_file`. If `arch` is not None and does not match
-    the architecuture in the checkpoint file, abort with an error message. If `fc_layer` is
-    `True`, configure a single fully connected classification layer for software rather than
-    hardware.
+    the architecuture in the checkpoint file, abort with an error message.
     `quantization` is a list of expected bit widths for the layer weights.
     This value is checked against the weight inputs.
-    `bias_quantization` is a list of the expected bit widths for the layer weights (always 8).
+    `bias_quantization` is a list of expected bit widths for the layer bias weights (always 8).
     In addition to returning weights anf biases, this function configures the network output
     channels and the number of layers.
     When `verbose` is set, display the shapes of the weights.
@@ -111,8 +108,6 @@ def load(
     no_bias = no_bias or []
     weights = []
     bias = []
-    fc_weights = []
-    fc_bias = []
     weight_keys = []
     bias_keys = []
     output_channels = []
@@ -145,17 +140,6 @@ def load(
                         kernel_size_onnx.append(kernel_shape)
                         if layers >= num_conv_layers:
                             continue
-                        if fc_layer:
-                            if _input == _inputs[1]:  # weight
-                                assert w.min() >= -128 and w.max() <= 127
-                                fc_weights.append(w)
-
-                            if len(_inputs) == 3:  # have optional bias input
-                                if _input == _inputs[2]:  # bias
-                                    assert w.min() >= -128 and w.max() <= 127
-                                    fc_bias.append(w)
-                            elif _input == _inputs[1]:  # add bias 'None'
-                                fc_bias.append(None)    # during weight input processing
 
                     if node.op_type == 'Conv':  # (Conv layer)
                         for a in node.attribute:
@@ -304,10 +288,6 @@ def load(
             print(weights)
             print("bias:")
             print(bias)
-            print("fc_weights:")
-            print(fc_weights)
-            print("fc_bias:")
-            print(fc_bias)
             print("input_channels:")
             print(input_channels)
             print("output_channels:")
@@ -315,4 +295,4 @@ def load(
             print("")
 
     return layers, weights, bias, output_shift, \
-        fc_weights, fc_bias, input_channels, output_channels
+        input_channels, output_channels

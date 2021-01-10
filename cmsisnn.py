@@ -19,7 +19,7 @@ import toplevel
 import tornadocnn as tc
 from eprint import eprint, wprint
 from simulate import (conv1d_layer, conv2d_layer, convtranspose2d_layer, eltwise_layer,
-                      linear_layer, passthrough_layer, pooling_layer, show_data)
+                      passthrough_layer, pooling_layer, show_data)
 
 
 def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches
@@ -51,8 +51,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         data,
         kernel,
         bias,
-        fc_weights,
-        fc_bias,
         flatten,
         operands,
         eltwise,
@@ -571,31 +569,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                      f'  *output_size = {data_cmsis.size};\n\n'
                      '  return 1;\n}\n\n')
 
-        if fc_weights:
-            data = data.flatten()
-
-            out_buf, out_size = linear_layer(
-                verbose=verbose,
-                verbose_data=False,
-                activation=False,
-                weight=fc_weights[0],
-                bias=fc_bias[0],
-                data=data,
-                debug=debug,
-            )
-
-            # Rearrange the weights to account for the shape of the conv layer output
-            w = fc_weights[0]. \
-                reshape((fc_weights[0].shape[0], output_chan[ll],
-                         output_dim[ll][0], output_dim[ll][1])). \
-                transpose(0, 2, 3, 1). \
-                reshape((fc_weights[0].shape[0], fc_weights[0].shape[1]))
-
-            # np.dot(worg, torg.flatten()) should be equal to np.dot(wnew, tnew.flatten())
-            assert (np.dot(fc_weights[0], data) == np.dot(w, data_cmsis)).all()
-
-            toplevel.fc_layer(c_file, weight_header, w, fc_bias[0], cmsis_nn=True)
-
         c_file.write('int main(void)\n{\n'
                      '  int i;\n'
                      '  q7_t *output;\n'
@@ -608,22 +581,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                      '  else\n'
                      '    printf("!!! FAIL !!!\\n\\n");\n\n')
 
-        if fc_weights:
-            c_file.write('  fc_layer(output);\n\n')
-            c_file.write('  printf("Classification results:\\n");\n'
-                         '  for (i = 0; i < NUM_CLASSES; i++) {\n'
-                         '    printf("[%6d] -> Class %d: %0.1f%%\\n", fc_output[i], i, '
-                         '(double) (100.0 * ml_softmax[i] / 32768.0));\n'
-                         '  }\n\n')
-        else:
-            c_file.write('  printf("Output of final layer:\\n");\n'
-                         '  for (i = 0; i < output_size; i++) {\n'
-                         '    printf("%5hhd", (int8_t) (output[i] & 0xff));\n'
-                         '    if ((i + 1) % 32 == 0)\n      printf("\\n");\n'
-                         '    else if ((i + 1) % 4 == 0)\n      printf(" ");\n'
-                         '  }\n'
-                         '  printf("\\n");\n'
-                         '\n')
+        c_file.write('  printf("Output of final layer:\\n");\n'
+                     '  for (i = 0; i < output_size; i++) {\n'
+                     '    printf("%5hhd", (int8_t) (output[i] & 0xff));\n'
+                     '    if ((i + 1) % 32 == 0)\n      printf("\\n");\n'
+                     '    else if ((i + 1) % 4 == 0)\n      printf(" ");\n'
+                     '  }\n'
+                     '  printf("\\n");\n'
+                     '\n')
 
         c_file.write('  return 0;\n}\n\n')
 

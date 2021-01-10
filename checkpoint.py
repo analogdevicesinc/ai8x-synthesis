@@ -21,7 +21,6 @@ from utils import fls
 def load(
         checkpoint_file,
         arch,
-        fc_layer,
         quantization,
         bias_quantization,
         output_shift,
@@ -33,12 +32,9 @@ def load(
 ):
     """
     Load weights and biases from `checkpoint_file`. If `arch` is not None and does not match
-    the architecuture in the checkpoint file, abort with an error message. If `fc_layer` is
-    `True`, configure a single fully connected classification layer for software rather than
-    hardware.
+    the architecuture in the checkpoint file, abort with an error message.
     `quantization` is a list of expected bit widths for the layer weights. `-1` is a special value
-    denoting -1/+1.
-    This value is checked against the weight inputs.
+    denoting -1/+1. This value is checked against the weight inputs.
     `bias_quantization` is a list of the expected bit widths for the layer weights (always 8).
     In addition to returning weights anf biases, this function configures the network output
     channels and the number of layers.
@@ -47,8 +43,6 @@ def load(
     no_bias = no_bias or []
     weights = []
     bias = []
-    fc_weights = []
-    fc_bias = []
     weight_keys = []
     bias_keys = []
     quant = []
@@ -73,7 +67,6 @@ def load(
     checkpoint_state = checkpoint['state_dict']
     layers = 0
     num_conv_layers = len(quantization)
-    have_fc_layer = False
     output_channels = []
     input_channels = []
     param_count = 0
@@ -90,7 +83,7 @@ def load(
         if parameter in ['weight']:
             module, op = k.split(sep='.', maxsplit=1)
             op = op.rsplit(sep='.', maxsplit=1)[0]
-            if module != 'fc' or module == 'fc' and not fc_layer:
+            if module != 'fc' or module == 'fc':
                 if layers >= num_conv_layers or seq >= num_conv_layers:
                     continue
 
@@ -215,23 +208,6 @@ def load(
 
                 layers += 1
                 seq += 1
-            elif have_fc_layer:
-                eprint('The network cannot have more than one fully connected software layer, '
-                       'and it must be the output layer.')
-            elif fc_layer:
-                w = checkpoint_state[k].numpy().astype(np.int64)
-                assert w.min() >= -128 and w.max() <= 127
-                fc_weights.append(w)
-                # Is there a bias for this layer?
-                bias_name = operation + '.bias'
-                if bias_name in checkpoint_state:
-                    # Do not divide bias for FC
-                    w = checkpoint_state[bias_name].numpy().astype(np.int64)
-                    assert w.min() >= -128 and w.max() <= 127
-                    fc_bias.append(w)
-                else:
-                    fc_bias.append(None)
-                have_fc_layer = True
 
     if verbose:
         print(f'Checkpoint for epoch {checkpoint["epoch"]}, model {checkpoint["arch"]} - '
@@ -264,4 +240,4 @@ def load(
         sys.exit(1)
 
     return layers, weights, bias, output_shift, \
-        fc_weights, fc_bias, input_channels, output_channels
+        input_channels, output_channels
