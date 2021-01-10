@@ -14,7 +14,6 @@ import tornadocnn as tc
 from utils import ffs, popcount
 
 MEM_INVALID = -(2**63)  # When encountering this value, we know the array value was not initialized
-MEM_SIZE = 0x10000 >> 2
 
 
 def unload(apb_base, processor_map, input_shape,
@@ -32,7 +31,7 @@ def unload(apb_base, processor_map, input_shape,
         """
         Returns value stored at offset `offs` in the memory array.
         """
-        if offs >= (MEM_SIZE << 2) or offs < 0:
+        if offs >= (tc.dev.MEM_SIZE << 2) or offs < 0:
             raise RuntimeError(f'Offset {offs:04x} is invalid for the memory array.')
         if offs & 3:
             raise RuntimeError(f'Offset {offs:04x} should be a 32-bit address.')
@@ -114,9 +113,10 @@ def test_unload():
                         formatter={'int': lambda x: f'{x:02x}'})
 
     # Create memory image
-    mem_image = np.full(MEM_SIZE, MEM_INVALID, dtype=np.int64)
+    mem_image = np.full(tc.dev.MEM_SIZE, MEM_INVALID, dtype=np.int64)
 
     # Fill image with known values
+    instance = 4 << tc.dev.INSTANCE_SHIFT
     mem_image[0x0000 >> 2] = 0x00540055
     mem_image[0x0004 >> 2] = 0x007f0070
     mem_image[0x0008 >> 2] = 0x0e530345
@@ -133,38 +133,38 @@ def test_unload():
     mem_image[0x0034 >> 2] = 0x00000200
     mem_image[0x0038 >> 2] = 0x0005000f
     mem_image[0x003c >> 2] = 0x0002001e
-    mem_image[0x4000 >> 2] = 0x2d051a0d
-    mem_image[0x4004 >> 2] = 0x394e141a
-    mem_image[0x4008 >> 2] = 0x2039141b
-    mem_image[0x400c >> 2] = 0x0c000029
-    mem_image[0x4010 >> 2] = 0x18130913
-    mem_image[0x4014 >> 2] = 0x0a6c0000
-    mem_image[0x4018 >> 2] = 0x004f0000
-    mem_image[0x401c >> 2] = 0x001a0000
-    mem_image[0x4020 >> 2] = 0x00000008
-    mem_image[0x4024 >> 2] = 0x00500000
-    mem_image[0x4028 >> 2] = 0x005a0000
-    mem_image[0x402c >> 2] = 0x004a0000
-    mem_image[0x4030 >> 2] = 0x0f190b0e
-    mem_image[0x4034 >> 2] = 0x225b0c17
-    mem_image[0x4038 >> 2] = 0x006b030f
-    mem_image[0x403c >> 2] = 0x00570903
-    mem_image[0x8000 >> 2] = 0x381e3b00
-    mem_image[0x8004 >> 2] = 0x6c233a00
-    mem_image[0x8008 >> 2] = 0x6c002500
-    mem_image[0x800c >> 2] = 0x2d000000
-    mem_image[0x8010 >> 2] = 0x38432800
-    mem_image[0x8014 >> 2] = 0x646a1700
-    mem_image[0x8018 >> 2] = 0x53680500
-    mem_image[0x801c >> 2] = 0x2734063d
-    mem_image[0x8020 >> 2] = 0x10573427
-    mem_image[0x8024 >> 2] = 0x177f2a50
-    mem_image[0x8028 >> 2] = 0x0a5a004b
-    mem_image[0x802c >> 2] = 0x0028003c
-    mem_image[0x8030 >> 2] = 0x082d0e07
-    mem_image[0x8034 >> 2] = 0x00400009
-    mem_image[0x8038 >> 2] = 0x0a1a0419
-    mem_image[0x803c >> 2] = 0x00170809
+    mem_image[(instance + 0x0000) >> 2] = 0x2d051a0d
+    mem_image[(instance + 0x0004) >> 2] = 0x394e141a
+    mem_image[(instance + 0x0008) >> 2] = 0x2039141b
+    mem_image[(instance + 0x000c) >> 2] = 0x0c000029
+    mem_image[(instance + 0x0010) >> 2] = 0x18130913
+    mem_image[(instance + 0x0014) >> 2] = 0x0a6c0000
+    mem_image[(instance + 0x0018) >> 2] = 0x004f0000
+    mem_image[(instance + 0x001c) >> 2] = 0x001a0000
+    mem_image[(instance + 0x0020) >> 2] = 0x00000008
+    mem_image[(instance + 0x0024) >> 2] = 0x00500000
+    mem_image[(instance + 0x0028) >> 2] = 0x005a0000
+    mem_image[(instance + 0x002c) >> 2] = 0x004a0000
+    mem_image[(instance + 0x0030) >> 2] = 0x0f190b0e
+    mem_image[(instance + 0x0034) >> 2] = 0x225b0c17
+    mem_image[(instance + 0x0038) >> 2] = 0x006b030f
+    mem_image[(instance + 0x003c) >> 2] = 0x00570903
+    mem_image[(2 * instance + 0x0000) >> 2] = 0x381e3b00
+    mem_image[(2 * instance + 0x0004) >> 2] = 0x6c233a00
+    mem_image[(2 * instance + 0x0008) >> 2] = 0x6c002500
+    mem_image[(2 * instance + 0x000c) >> 2] = 0x2d000000
+    mem_image[(2 * instance + 0x0010) >> 2] = 0x38432800
+    mem_image[(2 * instance + 0x0014) >> 2] = 0x646a1700
+    mem_image[(2 * instance + 0x0018) >> 2] = 0x53680500
+    mem_image[(2 * instance + 0x001c) >> 2] = 0x2734063d
+    mem_image[(2 * instance + 0x0020) >> 2] = 0x10573427
+    mem_image[(2 * instance + 0x0024) >> 2] = 0x177f2a50
+    mem_image[(2 * instance + 0x0028) >> 2] = 0x0a5a004b
+    mem_image[(2 * instance + 0x002c) >> 2] = 0x0028003c
+    mem_image[(2 * instance + 0x0030) >> 2] = 0x082d0e07
+    mem_image[(2 * instance + 0x0034) >> 2] = 0x00400009
+    mem_image[(2 * instance + 0x0038) >> 2] = 0x0a1a0419
+    mem_image[(2 * instance + 0x003c) >> 2] = 0x00170809
 
     expected = np.array([
         [[0x55, 0x70, 0x45, 0x4e],

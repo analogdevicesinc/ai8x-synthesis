@@ -26,7 +26,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         prefix,
         verbose,
         verbose_all,
-        debug,
+        debug,  # pylint: disable=unused-argument
         log,
         layers,
         operator,

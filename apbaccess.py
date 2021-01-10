@@ -649,7 +649,7 @@ class APB():
         """
         return
 
-    def fc_layer(  # pylint: disable=no-self-use
+    def softmax_layer(  # pylint: disable=no-self-use
             self,
             *args,
             **kwargs,
@@ -657,16 +657,6 @@ class APB():
         """
         Write the call to the fully connected layer for the given `weights` and
         `bias`. The `bias` argument can be `None`.
-        The base class does nothing.
-        """
-        return
-
-    def fc_verify(  # pylint: disable=no-self-use
-            self,
-            data,
-    ):  # pylint: disable=unused-argument
-        """
-        Write the code to verify the fully connected layer against `data`.
         The base class does nothing.
         """
         return
@@ -1193,7 +1183,6 @@ class APBTopLevel(APB):
             embedded_code=self.embedded_code,
             riscv=self.riscv,
             riscv_exclusive=self.riscv_exclusive,
-            riscv_flash=self.riscv_flash,
             riscv_cache=self.riscv_cache,
             riscv_debug=self.riscv_debug,
             debugwait=self.debugwait,
@@ -1203,10 +1192,7 @@ class APBTopLevel(APB):
             sleep=self.sleep,
             unload=self.embedded_code,
             load_kernels=self.kernel_mem is None,
-            compact_weights=self.compact_weights,
             measure_energy=self.measure_energy,
-            timer=self.timer,
-            mexpress=self.mexpress,
             pll=self.pll,
             boost=self.boost,
             forever=self.forever,
@@ -1217,32 +1203,21 @@ class APBTopLevel(APB):
             oneshot=self.oneshot,
             softmax=self.softmax,
             stopstart=self.stopstart,
-            num_classes=self.num_classes,
             output_width=self.output_width,
             bias=self.bias,
             verify_kernels=self.verify_kernels,
             wfi=self.wfi,
         )
 
-    def fc_layer(
+    def softmax_layer(
             self,
             *args,
             **kwargs,
     ):
         """
-        Write call to the fully connected layer for the given `weights` and
-        `bias`. The `bias` argument can be `None`.
+        Write call to the softmax layer.
         """
-        toplevel.fc_layer(self.memfile, self.weight_header, *args, **kwargs)
-
-    def fc_verify(
-            self,
-            data,
-    ):
-        """
-        Write the code to verify the fully connected layer against `data`.
-        """
-        toplevel.fc_verify(self.memfile, self.sampledata_header, data)
+        toplevel.softmax_layer(self.memfile, *args, **kwargs)
 
     def unload(
             self,

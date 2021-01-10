@@ -2261,12 +2261,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 )
 
             if softmax:
-                apb.fc_layer(
-                    None,
-                    None,
-                    softmax_only=True,
+                apb.softmax_layer(
                     output_width=output_width[final_layer],
-                    num_classes=output_chan[final_layer],
                 )
 
             summary_stats = '/*\n' + \
