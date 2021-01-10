@@ -309,9 +309,9 @@ def verify(
                 offs = tc.dev.C_SRAM_BASE + out_offset + \
                     (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
                       (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
-                     (doffs * (write_gap + 1)) * width + expand * out_size) * 4
-                if write_gap > 1:
-                    offs += out_size * (write_gap - 1 + expand) * 4
+                     doffs * width + expand * out_size) * 4
+                if write_gap > 0:
+                    offs += doffs * width * write_gap * 4 + out_size * expand * (write_gap - 1) * 4
 
                 if not no_data:
                     num_bytes = min(c - this_c, input_shape[0] - this_c)

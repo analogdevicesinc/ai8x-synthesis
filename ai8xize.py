@@ -1285,15 +1285,16 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_TOFFS, val,
                                    verbose, comment=' // Write ptr time slot offs')
 
-                    # [15:0] Write Pointer Mask Offset Register
-                    val = 1 << tc.dev.WRITE_PTR_SHIFT
-                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_MOFFS, val,
-                                   verbose, comment=' // Write ptr mask offs')
+                    if operator[ll] != op.NONE:
+                        # [15:0] Write Pointer Mask Offset Register
+                        val = 1 << tc.dev.WRITE_PTR_SHIFT
+                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_MOFFS, val,
+                                       verbose, comment=' // Write ptr mask offs')
 
                     # [15:0] Write Pointer Multi-Pass Channel Offset Register
                     val = output_width[ll] // 8
-                    if out_expand[ll] > 1:
-                        val *= write_gap[ll] // out_expand[ll] + 1
+                    if out_expand[ll] > 1 and write_gap[ll] > 0:
+                        val *= write_gap[ll]
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_CHOFFS, val,
                                    verbose, comment=' // Write ptr multi-pass channel offs')
 
@@ -1361,11 +1362,15 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                            - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) \
                         * quant << 8 | in_exp
                     if operator[ll] != op.NONE:
-                        wptr_skip = out_expand[ll] * (write_gap[ll] + 1)
-                        assert wptr_skip <= 2**4  # Cannot have more than 4 bits (+1)
-                        val |= (wptr_skip - 1) << 4
+                        if write_gap[ll] > 1:
+                            wptr_skip = write_gap[ll] + 1
+                        else:
+                            wptr_skip = out_expand[ll] * (write_gap[ll] + 1) - 1
+
+                        assert wptr_skip < 2**4  # Cannot have more than 4 bits
+                        val |= wptr_skip << 4
                     else:
-                        assert write_gap[ll] + 1 <= 2**4  # Cannot have more than 4 bits (+1)
+                        assert write_gap[ll] < 2**4  # Cannot have more than 4 bits
                         val |= write_gap[ll] << 4
 
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_LCTL2, val,
