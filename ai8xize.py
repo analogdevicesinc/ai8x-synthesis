@@ -2751,7 +2751,7 @@ def main():
             if padding[ll][0] >= 3 and args.device != devices.CMSISNN:
                 eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
                        f'(currently set to {padding[ll][0]}).')
-            if stride[ll][0] != 1:
+            if stride[ll][0] != 1 and args.device != devices.CMSISNN:
                 eprint(f'{op.string(operator[ll])} in layer {ll} does not support stride other '
                        f'than 1 (currently set to {stride[ll][0]}).')
             output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
