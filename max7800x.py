@@ -1370,15 +1370,17 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     # Configure mask start and end addresses
                     # Every mask memory starts from the same offset for all processors
                     oned_sad = 0
-                    if operator[ll] != op.NONE and not bypass[ll]:
-                        kl = (kern_count[ll] - 1) * abs(quantization[ll])
+                    if operator[ll] != op.NONE:
+                        kc = kern_count[ll] if not bypass[ll] \
+                            else output_chan[ll] // conv_groups[ll]  # FIXME: bypass corner cases
+                        kl = (kc - 1) * quant
 
                         if ll == start_layer and fast_fifo_quad or calcx4:
                             if calcx4:
-                                kl += abs(quantization[ll])
+                                kl += quant
                             kl = (kl + 3) // 4  # FIXME: Handle fast_fifo_quad and calcx4
                             if calcx4:
-                                kl -= abs(quantization[ll])
+                                kl -= quant
                         koffs, oned_sad = divmod(9 * kern_offs[ll],
                                                  kernel_size[ll][0] * kernel_size[ll][1])
                         koffs *= 8
@@ -1413,7 +1415,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                     if hasattr(tc.dev, 'LREG_OCHAN'):
                         if bypass[ll]:
-                            val = input_chan[ll] - 1
+                            val = output_chan[ll] - 1
                         elif operator[ll] != op.NONE and conv_groups[ll] == 1:
                             val = kern_ochan[ll] - 1
                             if calcx4:
