@@ -8,10 +8,15 @@
 """
 Test the linear operator.
 """
+import os
+import sys
+
 import numpy as np
 import torch
 
-import compute
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+import compute  # pylint: disable=wrong-import-position, import-error
 
 
 def linear(data, weight, bias, expected):

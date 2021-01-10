@@ -10,17 +10,26 @@
 """
 Test the CMSIS NN network generator.
 """
+import os
+import sys
+
 import numpy as np
 
 import pytest
 
-import cmsisnn
-import op
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+import cmsisnn  # pylint: disable=wrong-import-position, import-error
+import devices  # pylint: disable=wrong-import-position, import-error
+import op  # pylint: disable=wrong-import-position, import-error
+import tornadocnn as tc  # pylint: disable=wrong-import-position, import-error
 
 
 @pytest.mark.parametrize('test_no', [0, 1, 2, 3, 4])
 def test_cmsis(test_no):
     """Main program to test cmsisnn.create_net."""
+
+    tc.dev = tc.get_device(devices.CMSISNN)
 
     weight = []
     bias = []
@@ -30,7 +39,7 @@ def test_cmsis(test_no):
     stride = [[1, 1]]
     kernel_size = [[3, 3]]
     quantization = [8]
-    pool = [[0, 0]]
+    pool = [[1, 1]]
     pool_stride = [[1, 1]]
     pool_average = [False]
     activate = [None]
@@ -174,8 +183,6 @@ def test_cmsis(test_no):
         data,
         weight,
         bias,
-        None,  # fc_weights
-        None,  # fc_bias
         flatten,
         operands,
         eltwise,
@@ -187,7 +194,6 @@ def test_cmsis(test_no):
         'weights.h',  # weight_filename
         'sampledata.h',  # sample_filename,
         False,  # avg_pool_rounding
-        85,  # device
         False,  # legacy_test
     )
 

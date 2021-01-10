@@ -8,10 +8,16 @@
 """
 Test unload() / flatten() software operator
 """
+import os
+import sys
+
 import numpy as np
 
-import tornadocnn as tc
-from utils import ffs, popcount
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+import tornadocnn as tc  # pylint: disable=wrong-import-position, import-error
+from utils import ffs, popcount  # pylint: disable=wrong-import-position, import-error
+
 
 MEM_INVALID = -(2**63)  # When encountering this value, we know the array value was not initialized
 
