@@ -12,10 +12,10 @@ import sys
 import numpy as np
 import torch
 
-import op as opn
-import tornadocnn as tc
-from eprint import eprint
-from utils import fls
+from . import op as opn
+from . import tornadocnn as tc
+from .eprint import eprint
+from .utils import fls
 
 
 def load(

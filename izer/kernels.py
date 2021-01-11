@@ -12,11 +12,10 @@ import sys
 
 import numpy as np
 
-import op
-import rv
-import tornadocnn as tc
-from eprint import eprint, eprint_noprefix
-from utils import ffs, fls, popcount
+from . import op, rv
+from . import tornadocnn as tc
+from .eprint import eprint, eprint_noprefix
+from .utils import ffs, fls, popcount
 
 _INVALID_VALUE = -(2**63)
 _WORDS_PER_KERNEL = 3

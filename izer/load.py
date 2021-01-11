@@ -9,11 +9,10 @@ Load Tornado CNN data memory
 """
 import numpy as np
 
-import camera
-import rv
-import tornadocnn as tc
-from eprint import eprint
-from utils import popcount, s2u
+from . import camera, rv
+from . import tornadocnn as tc
+from .eprint import eprint
+from .utils import popcount, s2u
 
 
 def load(

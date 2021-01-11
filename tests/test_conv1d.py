@@ -16,7 +16,7 @@ import torch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-import compute  # pylint: disable=wrong-import-position, import-error
+import izer.compute as compute  # noqa: E402 pylint: disable=wrong-import-position, import-error
 
 
 def convolve1d(groups, data, weight, bias, expected):

@@ -13,21 +13,12 @@ import sys
 
 import numpy as np
 
-import apbaccess
-import assets
-import compute
-import devices
-import kbias
-import kernels
-import load
-import op
-import rtlsim
-import stats
-import tornadocnn as tc
-from eprint import eprint, wprint
-from simulate import (conv1d_layer, conv2d_layer, convtranspose2d_layer, eltwise_layer,
-                      passthrough_layer, pooling_layer, print_data, show_data)
-from utils import ffs, fls, popcount
+from . import apbaccess, assets, compute, devices, kbias, kernels, load, op, rtlsim, stats
+from . import tornadocnn as tc
+from .eprint import eprint, wprint
+from .simulate import (conv1d_layer, conv2d_layer, convtranspose2d_layer, eltwise_layer,
+                       passthrough_layer, pooling_layer, print_data, show_data)
+from .utils import ffs, fls, popcount
 
 
 def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches

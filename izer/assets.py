@@ -11,7 +11,7 @@ Copy assets
 import os
 import shutil
 
-import tornadocnn as tc
+from . import tornadocnn as tc
 
 
 def copy(

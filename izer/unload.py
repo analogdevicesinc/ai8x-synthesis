@@ -7,10 +7,10 @@
 """
 Unload AI8X HWC memory into standard representation.
 """
-import toplevel
-import tornadocnn as tc
-from eprint import eprint, wprint
-from utils import ffs, popcount
+from . import toplevel
+from . import tornadocnn as tc
+from .eprint import eprint, wprint
+from .utils import ffs, popcount
 
 
 def unload(

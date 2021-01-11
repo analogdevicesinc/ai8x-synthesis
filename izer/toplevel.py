@@ -7,9 +7,9 @@
 """
 Toplevel C file structure generation
 """
-import rv
-import tornadocnn as tc
-from eprint import wprint
+from . import rv
+from . import tornadocnn as tc
+from .eprint import wprint
 
 COPYRIGHT = \
     '/*******************************************************************************\n' \

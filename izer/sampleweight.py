@@ -11,8 +11,8 @@ import os
 
 import numpy as np
 
-import op
-from utils import fls
+from . import op
+from .utils import fls
 
 
 def load(

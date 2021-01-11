@@ -16,10 +16,10 @@ import onnx
 import onnx.shape_inference
 from onnx import numpy_helper
 
-import op as opn
-import tornadocnn
-from eprint import eprint
-from utils import fls
+from . import op as opn
+from . import tornadocnn as tc
+from .eprint import eprint
+from .utils import fls
 
 
 def get_attribute(attr):
@@ -233,7 +233,7 @@ def load(
                         bias_quant.append(0)
                         bias_size.append(0)
                     elif _input == _inputs[2]:  # bias input
-                        w = w // tornadocnn.dev.BIAS_DIV
+                        w = w // tc.dev.BIAS_DIV
                         w_min, w_max = w.min(), w.max()
                         assert w_min >= -(2**(bias_quantization[seq]-1))
                         assert w_max < 2**(bias_quantization[seq]-1)

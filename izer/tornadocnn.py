@@ -7,8 +7,8 @@
 """
 Tornado CNN hardware constants - AI85, AI87, CMSIS-NN
 """
-import devices
-from eprint import eprint
+from . import devices
+from .eprint import eprint
 
 dev = None
 
@@ -83,6 +83,7 @@ class DevCMSISNN(Dev):
     SUPPORT_ARBITRARY_PADDING = True
     SUPPORT_ARBITRARY_STRIDE = True
     SUPPORT_ARBITRARY_OUTPUT_WIDTH = True
+    USE_PROCESSORS = False
 
     APB_BASE = 0
     MAX_LAYERS = 256

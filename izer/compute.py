@@ -15,9 +15,8 @@ import os
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
 
-import op
-import stats
-from eprint import eprint
+from . import op, stats
+from .eprint import eprint
 
 debug_log = None
 

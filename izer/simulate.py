@@ -11,10 +11,9 @@ import os
 
 import numpy as np
 
-import op
-import stats
-import tornadocnn as tc
-from compute import conv1d, conv2d, eltwise, linear, pool1d, pool2d
+from . import op, stats
+from . import tornadocnn as tc
+from .compute import conv1d, conv2d, eltwise, linear, pool1d, pool2d
 
 
 def print_data(

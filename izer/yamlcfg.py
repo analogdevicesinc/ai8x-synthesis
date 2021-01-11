@@ -9,10 +9,9 @@ YAML Configuration Routines
 """
 import yaml
 
-import devices
-import op
-import tornadocnn as tc
-from eprint import eprint, wprint
+from . import devices, op
+from . import tornadocnn as tc
+from .eprint import eprint, wprint
 
 DEFAULT_2D_KERNEL = [3, 3]
 DEFAULT_1D_KERNEL = [9, 1]

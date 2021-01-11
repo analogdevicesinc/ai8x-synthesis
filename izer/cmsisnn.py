@@ -12,14 +12,11 @@ import sys
 
 import numpy as np
 
-import assets
-import devices
-import op
-import toplevel
-import tornadocnn as tc
-from eprint import eprint, wprint
-from simulate import (conv1d_layer, conv2d_layer, convtranspose2d_layer, eltwise_layer,
-                      passthrough_layer, pooling_layer, show_data)
+from . import assets, devices, op, toplevel
+from . import tornadocnn as tc
+from .eprint import eprint, wprint
+from .simulate import (conv1d_layer, conv2d_layer, convtranspose2d_layer, eltwise_layer,
+                       passthrough_layer, pooling_layer, show_data)
 
 
 def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches

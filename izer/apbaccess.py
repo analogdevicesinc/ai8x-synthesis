@@ -9,10 +9,10 @@ Routines to read and write the APB peripherals.
 """
 import os
 
-import toplevel
-import tornadocnn as tc
-import unload
-from eprint import eprint, wprint
+from . import toplevel
+from . import tornadocnn as tc
+from . import unload
+from .eprint import eprint, wprint
 
 READ_TIME_NS = 230
 WRITE_TIME_NS = 280

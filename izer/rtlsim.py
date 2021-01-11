@@ -9,7 +9,7 @@ RTL simulation support routines
 """
 import os
 
-import tornadocnn as tc
+from . import tornadocnn as tc
 
 GLOBAL_TIME_OFFSET = 3
 

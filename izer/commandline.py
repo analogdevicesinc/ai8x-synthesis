@@ -9,9 +9,9 @@ Command line parser for Tornado CNN
 """
 import argparse
 
-import camera
-from devices import device
-from eprint import wprint
+from . import camera
+from .devices import device
+from .eprint import wprint
 
 
 def get_parser():

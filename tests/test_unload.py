@@ -15,9 +15,9 @@ import numpy as np
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-import tornadocnn as tc  # pylint: disable=wrong-import-position, import-error
-from utils import ffs, popcount  # pylint: disable=wrong-import-position, import-error
-
+import izer.tornadocnn as tc  # noqa: E402 pylint: disable=wrong-import-position, import-error
+from izer.utils import ffs  # noqa: E402 pylint: disable=wrong-import-position, import-error
+from izer.utils import popcount  # noqa: E402 pylint: disable=wrong-import-position, import-error
 
 MEM_INVALID = -(2**63)  # When encountering this value, we know the array value was not initialized
 

@@ -9,9 +9,9 @@ Bias related functions
 """
 import numpy as np
 
-import tornadocnn as tc
-from eprint import eprint, wprint
-from utils import argmin, ffs, popcount
+from . import tornadocnn as tc
+from .eprint import eprint, wprint
+from .utils import argmin, ffs, popcount
 
 _INVALID_VALUE = -(2**63)
 
