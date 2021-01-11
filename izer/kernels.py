@@ -143,12 +143,15 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                        f'for layer {ll} do not match the binary weights '
                        f'({kernel_reshaped.shape[-1]})!')
 
-        first_proc = ffs(processor_map[ll])
-        last_proc = fls(processor_map[ll])
+        proc_map = processor_map[ll]
+        if ll == 0 and quad:
+            proc_map &= 2**tc.dev.P_NUMPRO - 1
+        first_proc = ffs(proc_map)
+        last_proc = fls(proc_map)
         ch = 0
         m = 0
         for p in range(first_proc, last_proc+1):
-            if (processor_map[ll] >> p) & 1 == 0:
+            if (proc_map >> p) & 1 == 0:
                 # Unused processor
                 continue
             # Get highest offset for all used processors
@@ -225,7 +228,11 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         this_map_init = next_layer_map >> ffs(next_layer_map)
 
         def add_kernel_data(ll, p, col_target, b):
-            col = kern_offs[ll] + col_target
+            ct = col_target
+            if ll == 0 and quad:
+                ct //= 4
+                p += col_target % 4 * tc.dev.P_NUMPRO
+            col = kern_offs[ll] + ct
             if col >= tc.dev.mask_width(p):
                 eprint(f'\nKernel memory exceeded in layer {ll}.'
                        '\n\nKernel map so far:', exit_code=None)
@@ -245,8 +252,8 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
 
             return col_target
 
-        for p in range(first_proc, last_proc+1):
-            if (processor_map[ll] >> p) & 1 == 0:
+        for p in range(first_proc, last_proc + 1):
+            if (proc_map >> p) & 1 == 0:
                 # Unused source processor
                 continue
             # Skip start_col processors. Each takes up ksize bytes, or ksize // 9 full
@@ -259,14 +266,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             out_range = out_expand[ll] if conv_groups[ll] == 1 else 1
             for expand in range(out_range):
                 this_map = this_map_init
-                if ll == 0 and quad:
-                    if conv_groups[ll] == 1:
-                        col = expand * (out_expand_thresh[ll] + 3) // 4
-                        stop_col = col + (out_expand_thresh[ll] + 3) // 4
-                    else:
-                        col = expand
-                        stop_col = expand + 1
-                elif conv_groups[ll] == 1:
+                if conv_groups[ll] == 1:
                     col = expand * out_expand_thresh[ll]
                     stop_col = col + out_expand_thresh[ll]
                 else:
@@ -287,76 +287,73 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                     in_ch = input_chan[ll]
                     if flatten[ll]:
                         in_ch *= qfactor
-                    if ll == 0 and quad:
-                        src_offs = ch + (m - p // 16) * in_ch
-                    else:
-                        src_offs = ch + m * in_ch
-                    if ll > 0 or not quad or (m % 4 == p // 16):
-                        for ie in range(in_expand[ll]):
-                            mask = this_mask
+                    src_offs = ch + m * in_ch
 
-                            n = 0
-                            if ie * in_expand_thresh[ll] + ch < in_ch \
-                               and src_offs < len(kernel_reshaped):
-                                if not flatten[ll]:
-                                    k = np.zeros_like(kernel_reshaped[src_offs].flatten())
-                                else:
-                                    k = np.empty((0), dtype=np.int64)
-                                for i in range(qfactor):
-                                    if m < output_chan[ll]:
-                                        # Cycle through phases
-                                        idx = n + ie * qfactor
-                                        koffs = src_offs + (idx % in_expand[ll]) \
-                                            * in_expand_thresh[ll] \
-                                            + (idx // in_expand[ll]) \
-                                            * input_chan[ll]
-                                        if koffs < len(kernel_reshaped):
-                                            this_kern = kernel_reshaped[koffs].flatten() \
-                                                & (2**abs(quantization[ll])-1)
-                                            if not flatten[ll]:
-                                                k |= this_kern << (i * abs(quantization[ll]))
-                                            else:
-                                                k = np.append(k, this_kern)
-                                        n += 1
-                                    mask >>= 1
-                                if debug:
-                                    with np.printoptions(formatter={'int': '{0:02x}'.format}):
-                                        print(f'Layer {ll} processor {p} channel '
-                                              f'{ch + ie * in_expand_thresh[ll]} m[{m}..{m+n-1}] '
-                                              f'of {output_chan[ll]}: {k}')
-                                if flatten[ll]:
-                                    if len(k) % qfactor != 0:
-                                        k = np.append(
-                                            k,
-                                            np.zeros(
-                                                qfactor - len(k) % qfactor,
-                                                dtype=np.int64,
-                                            ),
-                                        )
-                                    for i in range(0, len(k) // qfactor):
-                                        e = 0
-                                        for j in range(qfactor):
-                                            e |= k[i * qfactor + j] << (j * abs(quantization[ll]))
-                                        col_target = add_kernel_data(ll, p, col_target, e)
-                                else:
-                                    for i in range(ksize):
-                                        col_target = add_kernel_data(ll, p, col_target,
-                                                                     k[ksize - i - 1])
+                    for ie in range(in_expand[ll]):
+                        mask = this_mask
 
-                            else:  # When expanding, need to pad with zero kernels if needed
-                                for _ in range(ksize // qfactor):
-                                    col_target = add_kernel_data(ll, p, col_target, 0)
+                        n = 0
+                        if ie * in_expand_thresh[ll] + ch < in_ch \
+                           and src_offs < len(kernel_reshaped):
+                            if not flatten[ll]:
+                                k = np.zeros_like(kernel_reshaped[src_offs].flatten())
+                            else:
+                                k = np.empty((0), dtype=np.int64)
+                            for i in range(qfactor):
+                                if m < output_chan[ll]:
+                                    # Cycle through phases
+                                    idx = n + ie * qfactor
+                                    koffs = src_offs + (idx % in_expand[ll]) \
+                                        * in_expand_thresh[ll] \
+                                        + (idx // in_expand[ll]) \
+                                        * input_chan[ll]
+                                    if koffs < len(kernel_reshaped):
+                                        this_kern = kernel_reshaped[koffs].flatten() \
+                                            & (2**abs(quantization[ll])-1)
+                                        if not flatten[ll]:
+                                            k |= this_kern << (i * abs(quantization[ll]))
+                                        else:
+                                            k = np.append(k, this_kern)
+                                    n += 1
+                                mask >>= 1
+                            if debug:
+                                with np.printoptions(formatter={'int': '{0:02x}'.format}):
+                                    print(f'Layer {ll} processor {p} channel '
+                                          f'{ch + ie * in_expand_thresh[ll]} m[{m}..{m+n-1}] '
+                                          f'of {output_chan[ll]}: {k}')
+                            if flatten[ll]:
+                                if len(k) % qfactor != 0:
+                                    k = np.append(
+                                        k,
+                                        np.zeros(
+                                            qfactor - len(k) % qfactor,
+                                            dtype=np.int64,
+                                        ),
+                                    )
+                                for i in range(0, len(k) // qfactor):
+                                    e = 0
+                                    for j in range(qfactor):
+                                        e |= k[i * qfactor + j] << (j * abs(quantization[ll]))
+                                    col_target = add_kernel_data(ll, p, col_target, e)
+                            else:
+                                for i in range(ksize):
+                                    col_target = add_kernel_data(ll, p, col_target,
+                                                                 k[ksize - i - 1])
 
-                        # Consume kernels
-                        if not flatten[ll]:
-                            col += qfactor
-                            m += qfactor
-                        else:
-                            col += 1
-                            m += 1
-                    else:
+                        else:  # When expanding, need to pad with zero kernels if needed
+                            for _ in range(ksize // qfactor):
+                                col_target = add_kernel_data(ll, p, col_target, 0)
+
+                    # Consume kernels
+                    if not flatten[ll]:
+                        col += qfactor
                         m += qfactor
+                    else:
+                        col += 1
+                        m += 1
 
+            if ll == 0 and quad:
+                col_target = (col_target - start_col + 3) // 4 + start_col
             if kern_offs[ll] + col_target < tc.dev.mask_width(p) \
                and kernels_used[p][kern_offs[ll] + col_target] > 0:  # Partials
                 col_target += 1
@@ -367,6 +364,10 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             else:
                 kern_len[ll] = col_target - start_col
             proc_kern_max[p] = kern_offs[ll] + kern_len[ll]
+            if ll == 0 and quad:
+                proc_kern_max[p + tc.dev.P_NUMPRO] = \
+                    proc_kern_max[p + 2 * tc.dev.P_NUMPRO] = \
+                    proc_kern_max[p + 3 * tc.dev.P_NUMPRO] = proc_kern_max[p]
             ch += 1
             m = 0
 

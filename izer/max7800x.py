@@ -1366,10 +1366,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             else output_chan[ll] // conv_groups[ll]  # FIXME: bypass corner cases
                         kl = (kc - 1) * quant
 
-                        if ll == start_layer and fast_fifo_quad or calcx4:
+                        if ll == start_layer and calcx4:
+                            # FIXME: Handle fast_fifo_quad and calcx4
                             if calcx4:
                                 kl += quant
-                            kl = (kl + 3) // 4  # FIXME: Handle fast_fifo_quad and calcx4
+                            kl = (kl + 3) // 4
                             if calcx4:
                                 kl -= quant
                         koffs, oned_sad = divmod(9 * kern_offs[ll],
