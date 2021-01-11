@@ -13,7 +13,7 @@ import sys
 
 import numpy as np
 
-from . import apbaccess, assets, compute, devices, kbias, kernels, load, op, rtlsim, stats
+from . import apbaccess, assets, compute, kbias, kernels, load, op, rtlsim, stats
 from . import tornadocnn as tc
 from .eprint import eprint, wprint
 from .simulate import (conv1d_layer, conv2d_layer, convtranspose2d_layer, eltwise_layer,
@@ -433,7 +433,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     if log:
         sys.stdout = open(os.path.join(base_directory, test_name, log_filename), 'w')
         print(f'{" ".join(str(x) for x in sys.argv)}')
-        print(f'{devices.partnum(device)}\n')
+        print(f'{tc.dev.partnum}\n')
         print(f'{test_name}')
 
     if block_mode:

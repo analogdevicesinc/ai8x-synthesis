@@ -18,6 +18,7 @@ class Dev:
     Metaclass for all hardware devices
     """
     device = 0
+    partnum = ''
 
     SUPPORT_STREAM_BIAS = False
     SUPPORT_DEPTHWISE = False
@@ -67,9 +68,6 @@ class Dev:
         addr %= self.INSTANCE_WIDTH * 4 // self.INSTANCE_COUNT
         return group, proc, mem, addr
 
-    def __init__(self, part_no):
-        self.part_no = part_no
-
     def __str__(self):
         return self.__class__.__name__
 
@@ -79,6 +77,7 @@ class DevCMSISNN(Dev):
     CMSIS limitations
     """
     device = devices.CMSISNN
+    partnum = 'CMSIS-NN'
 
     SUPPORT_ARBITRARY_PADDING = True
     SUPPORT_ARBITRARY_STRIDE = True
@@ -100,6 +99,7 @@ class DevAI85(Dev):
     AI85 hardware constants
     """
     device = 85
+    partnum = 'MAX78000'
 
     APB_BASE = 0x50000000
     MAX_LAYERS = 32
@@ -221,6 +221,7 @@ class DevAI87(Dev):
     AI85 hardware constants
     """
     device = 87
+    partnum = 'MAX78002'
 
     APB_BASE = 0x50000000
     MAX_LAYERS = 128
@@ -405,16 +406,15 @@ def get_device(
     Change implementation configuration to match, depending on the `device`
     integer input value.
     """
-    part = devices.partnum(device)
-    print('Configuring device:', part)
-
     if device == 85:
-        d = DevAI85(part)
+        d = DevAI85()
     elif device == 87:
-        d = DevAI87(part)
+        d = DevAI87()
     elif device == devices.CMSISNN:
-        d = DevCMSISNN(part)
+        d = DevCMSISNN()
     else:
         eprint(f'Unknown device code `{device}`')
+
+    print('Configuring device:', d.partnum)
 
     return d

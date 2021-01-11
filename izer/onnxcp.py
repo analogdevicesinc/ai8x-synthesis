@@ -92,11 +92,11 @@ def load(
 ):
     """
     Load weights and biases from `checkpoint_file`. If `arch` is not None and does not match
-    the architecuture in the checkpoint file, abort with an error message.
+    the architecture in the checkpoint file, abort with an error message.
     `quantization` is a list of expected bit widths for the layer weights.
     This value is checked against the weight inputs.
     `bias_quantization` is a list of expected bit widths for the layer bias weights (always 8).
-    In addition to returning weights anf biases, this function configures the network output
+    In addition to returning weights and biases, this function configures the network output
     channels and the number of layers.
     When `verbose` is set, display the shapes of the weights.
     """

@@ -44,9 +44,9 @@ def from_template(
     """
     template = 'template'
     if riscv:
-        elf_file = f'{tc.dev.part_no.lower()}-combined.elf'
+        elf_file = f'{tc.dev.partnum.lower()}-combined.elf'
     else:
-        elf_file = f'{tc.dev.part_no.lower()}.elf'
+        elf_file = f'{tc.dev.partnum.lower()}.elf'
 
     for _, _, files in sorted(os.walk(os.path.join(base, source))):
         for name in sorted(files):

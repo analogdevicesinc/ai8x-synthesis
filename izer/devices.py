@@ -40,17 +40,3 @@ def device(astring):
         raise argparse.ArgumentTypeError(astring, 'is not a supported device type')
 
     return dev
-
-
-def partnum(num):
-    """
-    Return part number for a die type.
-    """
-    if num == 85:
-        return 'MAX78000'
-    if num == 87:
-        return 'MAX78002'
-    if num == CMSISNN:
-        return 'CMSIS-NN'
-
-    raise RuntimeError(f'Unknown die type {num}')
