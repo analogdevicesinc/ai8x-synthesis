@@ -19,7 +19,7 @@ layers:
   kernel_size: 1x1
   pad: 0
   in_sequences: [0]
-  write_gap: 2
+  write_gap: 1
 # Layer 2
 - processors: 0xffffffffffffffff
   output_processors: 0xffffffffffffffff
@@ -29,7 +29,7 @@ layers:
   kernel_size: 1x1
   pad: 0
   in_sequences: [0]
-  write_gap: 2
+  write_gap: 1
 # Layer 3
 - processors: 0xffffffffffffffff
   output_processors: 0xffffffffffffffff
