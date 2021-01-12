@@ -37,6 +37,7 @@ class Dev:
     REQUIRE_REG_CLEAR = False
     REQUIRE_SEMA_LPWKEN = False
     REQUIRE_ONESHOT_CLEAR = True
+    EMULATE_ELTWISE_MP = False
     USE_PROCESSORS = True
     MODERN_SIM = False
 
@@ -204,6 +205,8 @@ class DevAI85(Dev):
     FAST_FIFO_IS = 3  # Interrupt status (flag) register
     FAST_FIFO_DR = 4  # Data register
     FAST_FIFO_DMA = 5  # DMA register (reserved function, not yet supported)
+
+    EMULATE_ELTWISE_MP = True
 
     FLASH_SIZE = 0x8000
     RISCV_SRAM_ORIGIN = 0x2001C000

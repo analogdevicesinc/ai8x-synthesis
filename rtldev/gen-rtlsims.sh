@@ -404,6 +404,8 @@
 
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mpadd-minimal --checkpoint-file tests/test-mp_add_minimized_q.pth.tar --config-file tests/test-mpadd-minimal.yaml --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mpadd-128 --config-file tests/test-mpadd-128.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mpadd-192 --config-file tests/test-mpadd-192.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mpadd-256 --config-file tests/test-mpadd-256.yaml --device "$DEVICE" "$@"
 
 if [ "$DEVICE" = "78000" ]; then exit 0; fi
 
