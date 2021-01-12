@@ -526,10 +526,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 broadcast_mode[ll] = True
 
         # Block certain element-wise operations when not using passthrough mode
-        if tc.dev.EMULATE_ELTWISE_MP and operands[ll] > 1 and in_expand[ll] > 2 \
-           and (operator[ll] != op.NONE or pool[ll][0] > 1 or pool[ll][1] > 1):
-            eprint(f'The element-wise operation in layer {ll} exceeds a multi-pass of 2 '
-                   'and therefore does not support pooling or convolution.')
+        emulate_eltwise = False
+        if tc.dev.EMULATE_ELTWISE_MP and operands[ll] > 1 and in_expand[ll] > 1 \
+           and operands[ll] * in_expand[ll] != operands[ll] + in_expand[ll]:
+            if operator[ll] != op.NONE or pool[ll][0] > 1 or pool[ll][1] > 1 \
+               or pool_stride[ll][0] > 1 or pool_stride[ll][1] > 1:
+                eprint(f'The element-wise operation in layer {ll} exceeds a multi-pass of 2 '
+                       'and therefore does not support pooling or convolution.')
+            emulate_eltwise = True
 
     groups_used = []
     for group in range(tc.dev.P_NUMGROUPS):
@@ -1127,8 +1131,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         if operator[ll] == op.CONVTRANSPOSE2D:
                             in_row = stride[ll][0] * input_dim[ll][0]
                             in_col = stride[ll][1] * input_dim[ll][1]
-                        elif (operator[ll] == op.NONE and tc.dev.EMULATE_ELTWISE_MP
-                              and operands[ll] > 1 and in_expand[ll] > 2):
+                        elif operator[ll] == op.NONE and emulate_eltwise:
                             in_row = input_dim[ll][0] * in_expand[ll]
                             in_col = input_dim[ll][1]
                         else:
@@ -1344,8 +1347,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         flatten_prod = \
                             in_expand[ll] * pooled_dim[ll][0] * pooled_dim[ll][1] - 1
                         in_exp = flatten_prod & 0x0f  # Lower 4 bits only
-                    elif (operator[ll] == op.NONE and tc.dev.EMULATE_ELTWISE_MP
-                          and operands[ll] > 1 and in_expand[ll] > 2):
+                    elif operator[ll] == op.NONE and emulate_eltwise:
                         in_exp = 0
                     else:
                         in_exp = in_expand[ll] - 1
@@ -1407,7 +1409,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             # kern_offs is always bytes
                             val = \
                                 koffs << tc.dev.MCNT_SAD_OFFS | kl + koffs << tc.dev.MCNT_MAX_OFFS
-                        elif tc.dev.EMULATE_ELTWISE_MP and operands[ll] > 1 and in_expand[ll] > 2:
+                        elif emulate_eltwise:
                             val = 0
                         else:
                             val = (out_expand[ll] - 1) * 8
@@ -1942,9 +1944,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         # Allow 1D <-> 2D and 2D W/L conversions
         if operator[ll] == op.CONV1D:
             assert input_dim[ll][1] == 1
-            data = data.reshape(data.shape[0], in_chan, input_dim[ll][0])
+            data = data.reshape(data.shape[0], -1, input_dim[ll][0])
         else:
-            data = data.reshape(data.shape[0], in_chan, input_dim[ll][0], input_dim[ll][1])
+            data = data.reshape(data.shape[0], -1, input_dim[ll][0], input_dim[ll][1])
 
         # In-flight pooling
         data, out_size = pooling_layer(
@@ -2317,10 +2319,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     elif block_mode:
         assets.copy('assets', 'blocklevel-ai' + str(device), base_directory, test_name)
     elif embedded_code:
+        output_count = output_chan[final_layer] \
+            * output_dim[final_layer][0] * output_dim[final_layer][1]
         insert = summary_stats + \
-                 '\n/* Number of outputs for this network */\n' \
-                 '#define CNN_NUM_OUTPUTS ' \
-                 f'{output_chan[final_layer]}'
+            '\n/* Number of outputs for this network */\n' \
+            f'#define CNN_NUM_OUTPUTS {output_count}'
         if timer is not None:
             insert += '\n\n/* Use this timer to time the inference */\n' \
                       f'#define CNN_INFERENCE_TIMER MXC_TMR{timer}'

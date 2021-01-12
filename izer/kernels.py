@@ -14,7 +14,7 @@ import numpy as np
 
 from . import op, rv
 from . import tornadocnn as tc
-from .eprint import eprint, eprint_noprefix
+from .eprint import eprint, eprint_noprefix, wprint
 from .utils import ffs, fls, popcount
 
 _INVALID_VALUE = -(2**63)
@@ -162,6 +162,9 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         next_layer_map = output_processor_map[ll]
         first_output_proc = ffs(next_layer_map)
         start_col = first_output_proc % tc.dev.P_SHARED  # First target column out of 4 shared
+        if start_col > 0 and quantization[ll] != 8:
+            wprint(f'Warning: Layer {ll} with {quantization[ll]}-bit quantization uses unaligned '
+                   'output processors, this may cause issues')
 
         # Determine the number of kernels that need to be programmed. Since each instance
         # spans 4 processors, kernels for all instances that have a single processor enabled

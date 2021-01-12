@@ -705,7 +705,7 @@ def main(
             memfile.write('\n  printf("\\n*** PASS ***\\n\\n");\n\n'
                           '#ifdef CNN_INFERENCE_TIMER\n'
                           f'  printf("Approximate {"data loading and " if fifo else ""}'
-                          'inference time: %d us\\n\\n", cnn_time);\n'
+                          'inference time: %u us\\n\\n", cnn_time);\n'
                           '#endif\n\n')
             if measure_energy:
                 memfile.write('  printf("See monitor display for inference energy.\\n\\n");\n\n')
