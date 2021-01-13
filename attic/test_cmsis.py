@@ -10,17 +10,26 @@
 """
 Test the CMSIS NN network generator.
 """
+import os
+import sys
+
 import numpy as np
 
 import pytest
 
-import cmsisnn
-import op
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+import izer.cmsisnn as cmsisnn  # noqa: E402 pylint: disable=wrong-import-position, import-error
+import izer.devices as devices  # noqa: E402 pylint: disable=wrong-import-position, import-error
+import izer.op as op  # noqa: E402 pylint: disable=wrong-import-position, import-error
+import izer.tornadocnn as tc  # noqa: E402 pylint: disable=wrong-import-position, import-error
 
 
 @pytest.mark.parametrize('test_no', [0, 1, 2, 3, 4])
 def test_cmsis(test_no):
     """Main program to test cmsisnn.create_net."""
+
+    tc.dev = tc.get_device(devices.CMSISNN)
 
     weight = []
     bias = []
@@ -30,7 +39,7 @@ def test_cmsis(test_no):
     stride = [[1, 1]]
     kernel_size = [[3, 3]]
     quantization = [8]
-    pool = [[0, 0]]
+    pool = [[1, 1]]
     pool_stride = [[1, 1]]
     pool_average = [False]
     activate = [None]
@@ -54,7 +63,7 @@ def test_cmsis(test_no):
              -8, -8, -13, -16, -3, 33, 48, 39, 27, 56, 50, 57, 31, 35,
              2, 8, 16, 28, 13, -18, 8, -6, 32, 20, -3, 4, 42, 41, 3, 23,
              67, 74, 8, -12, 33, 28, -25, -14, 1, 14, -3, 2], dtype=np.int64)
-        w = w.reshape(input_chan[0] * output_chan[0], kernel_size[0][0], kernel_size[0][1])
+        w = w.reshape((input_chan[0] * output_chan[0], kernel_size[0][0], kernel_size[0][1]))
         print(w.flatten())
         weight.append(w)
 
@@ -75,7 +84,7 @@ def test_cmsis(test_no):
 
         w = np.array(
             [-16, 26, 35, -6, -40, -31, -27, -54, -51], dtype=np.int64)
-        w = w.reshape(input_chan[0] * output_chan[0], kernel_size[0][0], kernel_size[0][1])
+        w = w.reshape((input_chan[0] * output_chan[0], kernel_size[0][0], kernel_size[0][1]))
         weight.append(w)
 
         data = np.array(
@@ -106,7 +115,7 @@ def test_cmsis(test_no):
         w = np.array(
             [-16, 26, 35, -6, -40, -31, -27, -54, -51,
              -84, -69, -65, -8, -8, -13, -16, -3, 33], dtype=np.int64)
-        w = w.reshape(input_chan[0] * output_chan[0], kernel_size[0][0], kernel_size[0][1])
+        w = w.reshape((input_chan[0] * output_chan[0], kernel_size[0][0], kernel_size[0][1]))
         weight.append(w)
 
         data = np.array(
@@ -174,8 +183,6 @@ def test_cmsis(test_no):
         data,
         weight,
         bias,
-        None,  # fc_weights
-        None,  # fc_bias
         flatten,
         operands,
         eltwise,
@@ -187,7 +194,6 @@ def test_cmsis(test_no):
         'weights.h',  # weight_filename
         'sampledata.h',  # sample_filename,
         False,  # avg_pool_rounding
-        85,  # device
         False,  # legacy_test
     )
 
