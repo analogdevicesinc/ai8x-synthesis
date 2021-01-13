@@ -455,6 +455,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     processors_used = 0
     group_map = [None] * layers
     broadcast_mode = [None] * layers
+    emulate_eltwise = [False] * layers
     for ll in range(first_layer_used, layers):
         bits = processor_map[ll]
         processors_used |= bits
@@ -526,14 +527,13 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 broadcast_mode[ll] = True
 
         # Block certain element-wise operations when not using passthrough mode
-        emulate_eltwise = False
         if tc.dev.EMULATE_ELTWISE_MP and operands[ll] > 1 and in_expand[ll] > 1 \
            and operands[ll] * in_expand[ll] != operands[ll] + in_expand[ll]:
             if operator[ll] != op.NONE or pool[ll][0] > 1 or pool[ll][1] > 1 \
                or pool_stride[ll][0] > 1 or pool_stride[ll][1] > 1:
                 eprint(f'The element-wise operation in layer {ll} exceeds a multi-pass of 2 '
                        'and therefore does not support pooling or convolution.')
-            emulate_eltwise = True
+            emulate_eltwise[ll] = True
 
     groups_used = []
     for group in range(tc.dev.P_NUMGROUPS):
@@ -1131,7 +1131,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         if operator[ll] == op.CONVTRANSPOSE2D:
                             in_row = stride[ll][0] * input_dim[ll][0]
                             in_col = stride[ll][1] * input_dim[ll][1]
-                        elif operator[ll] == op.NONE and emulate_eltwise:
+                        elif operator[ll] == op.NONE and emulate_eltwise[ll]:
                             in_row = input_dim[ll][0] * in_expand[ll]
                             in_col = input_dim[ll][1]
                         else:
@@ -1347,7 +1347,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         flatten_prod = \
                             in_expand[ll] * pooled_dim[ll][0] * pooled_dim[ll][1] - 1
                         in_exp = flatten_prod & 0x0f  # Lower 4 bits only
-                    elif operator[ll] == op.NONE and emulate_eltwise:
+                    elif operator[ll] == op.NONE and emulate_eltwise[ll]:
                         in_exp = 0
                     else:
                         in_exp = in_expand[ll] - 1
@@ -1409,7 +1409,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             # kern_offs is always bytes
                             val = \
                                 koffs << tc.dev.MCNT_SAD_OFFS | kl + koffs << tc.dev.MCNT_MAX_OFFS
-                        elif emulate_eltwise:
+                        elif emulate_eltwise[ll]:
                             val = 0
                         else:
                             val = (out_expand[ll] - 1) * 8
