@@ -142,6 +142,7 @@ class DevAI85(Dev):
     LREG_RFU = None
 
     PAD_CNT_OFFS = 16
+    XPCH_MAX_OFFS = 8
     MAX_CNT_BITS = 10
     MAX_PTR_BITS = 17
     MAX_TPTR_BITS = 12
@@ -149,6 +150,7 @@ class DevAI85(Dev):
     MAX_DSVAL2_BITS = 12
     MAX_FBUF_BITS = 17
     MAX_IFRM_BITS = 20
+    MAX_WPTRINC_BITS = 4
 
     # Global registers
     REG_CTL = 0
@@ -278,12 +280,14 @@ class DevAI87(Dev):
     MAX_CNT_BITS = 11
     CNT_INC_OFFS = 4
     MP_STRIDE_OFFS = 4
+    XPCH_MAX_OFFS = 12
     MAX_PTR_BITS = 21
     MAX_TPTR_BITS = 14
     MAX_ISVAL_BITS = 15
     MAX_DSVAL2_BITS = 13
     MAX_FBUF_BITS = 18
     MAX_IFRM_BITS = 22
+    MAX_WPTRINC_BITS = 8
 
     # Global registers
     REG_CTL = 0

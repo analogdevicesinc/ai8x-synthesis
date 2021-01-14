@@ -789,7 +789,7 @@ def softmax_layer(
         memfile.write('  softmax_q17p14_q15((const q31_t *) ml_data, '
                       'CNN_NUM_OUTPUTS, ml_softmax);\n')
     else:
-        memfile.write('  arm_softmax_q7_q15((const q7_t *) ml_data, '
+        memfile.write('  arm_softmax_q7_q15((const q7_t *) ml_data32, '
                       'CNN_NUM_OUTPUTS, ml_softmax);\n')
 
     function_footer(memfile, return_value='void')
