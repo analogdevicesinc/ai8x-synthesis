@@ -95,14 +95,17 @@ def load(
         current_quant = max(fls(abs(min_w)), fls(abs(max_w))) + 2
         if current_quant > 8:  # Either way, more than 8 bits is an error
             raise ValueError('ERROR: Weight file includes values larger than 8 bit!')
-        if current_quant > quantization[ll]:
+        if quantization[ll] == -1:
+            w[ll][np.where(w[ll] >= 0)] = 1
+            w[ll][np.where(w[ll] < 0)] = -1
+        elif current_quant > quantization[ll]:
             w[ll] >>= current_quant - quantization[ll]
 
         # Specified output_shift?
         if output_shift[ll] is None:
             output_shift[ll] = 0
         # Add based on quantization
-        output_shift[ll] += 8 - quantization[ll]
+        output_shift[ll] += 8 - abs(quantization[ll])
 
         mult = conv_groups[ll] if operator[ll] == op.CONVTRANSPOSE2D else 1
         output_channels.append(w[ll].shape[0] * mult)  # Output channels

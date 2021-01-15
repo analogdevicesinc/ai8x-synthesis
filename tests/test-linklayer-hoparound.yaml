@@ -1,0 +1,39 @@
+# Tests simple CIFAR-10 with link layer feature for AI87
+
+arch: test
+dataset: test_linklayer-hoparound
+bias: linklayer-hoparound
+
+layers:
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0
+  processors: 0xfffffffffffffff0
+  op: Conv2d
+  next_sequence: 3
+- pad: 1
+  # Start layer
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0x0000000000000007
+  data_format: HWC
+  op: Conv2d
+  next_sequence: 0
+- avg_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0
+  processors: 0x0ffffffffffffff0
+  op: Conv2d
+  next_sequence: stop
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0xfffffffffffffff0
+  op: Conv2d
+  next_sequence: 2
