@@ -1624,17 +1624,17 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         # Check rollover vs available data memory
                         if in_offset[ll] < out_offset[ll]:
                             if in_offset[ll] + val * 4 >= out_offset[ll]:
-                                eprint('Overlapping input and output: '
-                                       f'in_offset 0x{in_offset[ll]:08x} < '
-                                       f'out_offset 0x{out_offset[ll]:08x}, '
-                                       f'rollover 0x{val:08x}.',
+                                eprint(f'Layer {ll}: Overlapping input and output: '
+                                       f'in_offset 0x{in_offset[ll]:08x} + '
+                                       f'rollover 0x{val:08x} * 4 >= '
+                                       f'out_offset 0x{out_offset[ll]:08x}.',
                                        error=not no_error_stop)
                         else:
                             if out_offset[ll] + val * 4 >= in_offset[ll]:
-                                eprint('Overlapping input and output: '
-                                       f'in_offset 0x{in_offset[ll]:08x} >= '
-                                       f'out_offset 0x{out_offset[ll]:08x}, '
-                                       f'rollover 0x{val:08x}.',
+                                eprint(f'Layer {ll}: Overlapping input and output: '
+                                       f'out_offset 0x{out_offset[ll]:08x} + '
+                                       f'rollover 0x{val:08x} * 4 >= '
+                                       f'in_offset 0x{in_offset[ll]:08x}.',
                                        error=not no_error_stop)
                         if in_offset[ll] + val * 4 >= tc.dev.INSTANCE_WIDTH * tc.dev.P_SHARED * 4:
                             eprint('Input plus rollover exceeds instance size: '

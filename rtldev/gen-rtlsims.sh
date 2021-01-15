@@ -498,3 +498,14 @@ if [ "$DEVICE" = "78000" ]; then exit 0; fi
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fifostream-cifar-bias --checkpoint-file tests/test-cifar10-bias.pth.tar --config-file tests/test-cifar10-hwc-stream.yaml --fifo --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise-quantpool-stream --config-file tests/test-depthwise-quantpool-stream.yaml --fifo --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise-quantpool-stream-bias --config-file tests/test-depthwise-quantpool-stream-bias.yaml --fifo --device "$DEVICE" "$@"
+
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mpadd3-256-convpad0 --config-file tests/test-mpadd3-256-convpad0.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mpadd3-256-convpad1 --config-file tests/test-mpadd3-256-convpad1.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mpadd3-256-convpad2 --config-file tests/test-mpadd3-256-convpad2.yaml --device "$DEVICE" "$@"
+
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-widegap --config-file tests/test-widegap.yaml --device "$DEVICE" "$@"
+
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-csv-fifostream-hd8-hwc --config-file tests/test-fifostream-hd8-hwc.yaml --device "$DEVICE" --fifo --input-csv input.csv --queue-name long --timeout 2500 --input-csv-period 180 --input-sync $SHORT_LOG "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-csv-fifostream-hd8-chw --config-file tests/test-fifostream-hd8-chw.yaml --device "$DEVICE" --fifo --input-csv input.csv --queue-name long --timeout 2500 --input-csv-period 180 --input-sync $SHORT_LOG "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-riscv-csv-fastfifostream-hd8-hwc --config-file tests/test-fifostream-hd8-hwc.yaml --device "$DEVICE" --riscv --fast-fifo --input-csv input.csv --queue-name long --timeout 2500 --input-csv-period 180 --input-sync $SHORT_LOG "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-riscv-csv-qfastfifostream-hd8-hwc --config-file tests/test-fifostream-hd8-hwc.yaml --device "$DEVICE" --riscv --fast-fifo-quad --input-csv input.csv --queue-name long --timeout 2500 --input-csv-period 180 --input-sync $SHORT_LOG "$@"
