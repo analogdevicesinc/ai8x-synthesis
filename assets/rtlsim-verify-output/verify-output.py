@@ -9,17 +9,28 @@
 Compare the data memory contents from output of a simulation to the expected data.
 Run from the simulation directory.
 """
+import logging
 import os
 import sys
 
+stdout_handler = logging.StreamHandler(sys.stdout)
+handlers = [stdout_handler]
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(levelname)s: %(message)s',
+    handlers=handlers,
+)
+log = logging.getLogger(sys.argv[0])
+
 if len(sys.argv) > 2:
-    print('ERROR: Unknown arguments', sys.argv, file=sys.stderr)
+    log.error('Unknown arguments %s', sys.argv)
     sys.exit(-1)
 
 # Got target directory on command line
 if len(sys.argv) == 2:
     if not os.path.isdir(sys.argv[1]):
-        print('ERROR: Argument', sys.argv[1], 'is not a directory!', file=sys.stderr)
+        log.error('Argument %s is not a directory!', sys.argv[1])
         sys.exit(-1)
     os.chdir(sys.argv[1])
 
@@ -27,7 +38,7 @@ MAX_MISMATCH = 10
 
 # Check whether 'data-output' and 'data-expected' exist.
 if not os.path.isdir('data-output') or not os.path.isdir('data-expected'):
-    print('ERROR: data-output/ or data-expected/ does not exist!', file=sys.stderr)
+    log.error('data-output/ or data-expected/ does not exist!')
     sys.exit(-1)
 
 failures = 0
@@ -39,7 +50,7 @@ for _, _, fnames in sorted(os.walk('data-expected')):
     for fname in sorted(fnames):
         outname = fname.replace('DRAM_', 'DRAM_out_')
         if not os.path.isfile(os.path.join('data-output', outname)):
-            print(f'ERROR: data-output/{outname} does not exist!', file=sys.stderr)
+            log.error('data-output/%s does not exist!', outname)
             sys.exit(-2)
 
         with open(os.path.join('data-output', outname)) as f:
@@ -51,55 +62,57 @@ for _, _, fnames in sorted(os.walk('data-expected')):
         for e in expected:
             addr, val = e.split(' ')
             if addr[0] != '@':
-                print(f'ERROR: Malformed line {e.strip()} in file data-expected/{fname}!',
-                      file=sys.stderr)
+                log.error('Malformed line %s in file data-expected/%s!', e.strip(), fname)
                 sys.exit(-3)
 
             try:
                 addr = int(addr[1:], base=16)
-                val = int(val.strip().lower(), base=16)
+                val = val.strip().lower()
+                mask = ''
+                for _, m in enumerate(val):
+                    mask += '0' if m == 'x' else 'f'
+                mask = int(mask, base=16)
+                val = int(val.replace('x', '0'), base=16)
             except ValueError:
-                print(f'ERROR: Malformed line {e.strip()} in file data-expected/{fname}!',
-                      file=sys.stderr)
+                log.error('Malformed line %s in file data-expected/%s!', e.strip(), fname)
                 sys.exit(-3)
 
             if addr > len(data):
-                print(f'ERROR: Address from {e.strip()} not present in '
-                      f'file data-output/{outname}!', file=sys.stderr)
+                log.error('Address from %s not present in file data-output/%s!',
+                          e.strip(), outname)
                 failures += 1
             else:
                 result = data[addr].strip().lower()
                 if result == 'x' * len(result):
-                    print(f'ERROR: Output is {result} at address {addr:04x} in '
-                          f'file data-output/{outname}!', file=sys.stderr)
+                    log.error('Output is %s at address %04x in file data-output/%s!',
+                              result, addr, outname)
                     failures += 1
                 else:
                     try:
-                        result = int(result, base=16)
+                        result0 = int(result.replace('x', '0'), base=16)
+                        resultf = int(result.replace('x', 'f'), base=16)
                     except ValueError:
-                        print(f'ERROR: Malformed line {addr}: {data[addr].strip()} in '
-                              f'file data-output/{fname}!', file=sys.stderr)
+                        log.error('Malformed line %04x: %s in file data-output/%s!',
+                                  addr, data[addr].strip(), fname)
                         sys.exit(-3)
 
-                    # print(f'Found address {addr:04x}, val {val:08x}, comp {result:08x}')
-                    if result != val:
+                    log.debug('Found address %04x, val %08x, comp %s', addr, val, result)
+                    if result0 & mask != val & mask or resultf & mask != val & mask:
+                        log.error('Data mismatch at address %04x in file data-output/%s. '
+                                  'Expected: %08x, got %s (mask %08x)!',
+                                  addr, outname, val, result, mask)
                         if failures == 0:
-                            print(f'Before this failure, {matches} values were correct.',
-                                  file=sys.stderr)
-                        print(f'ERROR: Data mismatch at address {addr:04x} in '
-                              f'file data-output/{outname}. Expected: {val:04x}, '
-                              f'got {result:08x}!', file=sys.stderr)
+                            log.error('Before this failure, %d values were correct.', matches)
                         failures += 1
                     else:
                         matches += 1
 
             if failures > MAX_MISMATCH:
-                print(f'ERROR: Exceeding maximum compare failures ({MAX_MISMATCH}), exiting!',
-                      file=sys.stderr)
+                log.error('Exceeding maximum compare failures (%d), exiting!', MAX_MISMATCH)
                 sys.exit(failures)
 
 if failures == 0:
-    print('SUCCESS:', matches, 'data word matches.', file=sys.stderr)
+    log.info('%d successful data word matches, no failures.', matches)
 
 # Return success (0) or number of failures (when < MAX_MISMATCH):
 sys.exit(failures)

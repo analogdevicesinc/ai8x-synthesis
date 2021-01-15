@@ -76,6 +76,7 @@ def header(
         timer=None,  # pylint: disable=unused-argument
         groups=None,
         lib=False,  # Tri-state: None/False/True
+        oneshot=0,
 ):
     """
     Write include files and forward definitions to .c file handle `memfile`.
@@ -162,7 +163,10 @@ def header(
             memfile.write('  // Acknowledge interrupt to all groups\n')
             for _, group in enumerate(groups):
                 addr = tc.dev.APB_BASE + tc.ctl_addr(group, tc.dev.REG_CTL)
-                memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ~((1<<12) | 1);\n')
+                if oneshot > 0 and not tc.dev.REQUIRE_ONESHOT_CLEAR:
+                    memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ~(1<<12);\n')
+                else:
+                    memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ~((1<<12) | 1);\n')
             memfile.write('\n')
             if embedded_code and not measure_energy:
                 memfile.write('  CNN_COMPLETE; // Signal that processing is complete\n')
@@ -281,6 +285,7 @@ def main(
         verify_kernels=False,
         load_kernels=True,
         compact_weights=False,  # pylint: disable=unused-argument
+        wfi=True,
 ):
     """
     Write the main function (including an optional call to the fully connected layer if
@@ -305,6 +310,15 @@ def main(
         function_header(memfile, prefix='', function='WakeISR', return_type='void')
         memfile.write('  MXC_SEMA->irq0 = MXC_F_SEMA_IRQ0_EN & ~MXC_F_SEMA_IRQ0_CM4_IRQ;\n')
         function_footer(memfile, return_value='void')  # WakeISR()
+
+    # Add this to RTL simulations where it's missing from the SDK
+    if riscv is not None and not riscv and sleep and not embedded_code:
+        function_header(memfile, prefix='', function='_MXC_LP_ClearWakeStatus', return_type='void')
+        memfile.write('  /* Write 1 to clear */\n'
+                      '  MXC_PWRSEQ->lpwkst0 = 0xFFFFFFFF;\n'
+                      '  MXC_PWRSEQ->lpwkst1 = 0xFFFFFFFF;\n'
+                      '  MXC_PWRSEQ->lppwst  = 0xFFFFFFFF;\n')
+        function_footer(memfile, return_value='void')  # _MXC_LP_ClearWakeStatus
 
     function_header(memfile, prefix='', function='main')
     if clock_trim is not None and not riscv:
@@ -488,7 +502,6 @@ def main(
         else:
             memfile.write('  MXC_PCIF->ctrl = MXC_S_CAMERAIF_CTRL_READ_MODE_SINGLE_IMG +\n'
                           f'                   MXC_S_CAMERAIF_CTRL_DATA_WIDTH_{mode}BIT +\n'
-                          '                   MXC_F_CAMERAIF_CTRL_DS_TIMING_EN +\n'
                           '                   MXC_F_CAMERAIF_CTRL_PCIF_SYS')
             if channels == 3:
                 memfile.write(' +\n                   MXC_F_CAMERAIF_CTRL_THREE_CH_EN;\n\n')
@@ -632,11 +645,14 @@ def main(
 
         if not measure_energy:
             if embedded_code or tc.dev.MODERN_SIM:
-                memfile.write('  while (cnn_time == 0)\n')
-                if not riscv:
-                    memfile.write('    __WFI(); // Wait for CNN\n\n')
+                if wfi:
+                    memfile.write('  while (cnn_time == 0)\n')
+                    if not riscv:
+                        memfile.write('    __WFI(); // Wait for CNN\n\n')
+                    else:
+                        memfile.write('    asm volatile("wfi"); // Wait for CNN\n\n')
                 else:
-                    memfile.write('    asm volatile("wfi"); // Wait for CNN\n\n')
+                    memfile.write('  while (cnn_time == 0); // Spin wait\n')
             else:
                 memfile.write('  cnn_wait();\n\n')
         else:
@@ -758,7 +774,9 @@ def main(
     if riscv is not None:
         if not riscv:
             if sleep:
-                memfile.write('  MXC_LP_ClearWakeStatus();\n'
+                if tc.dev.REQUIRE_SEMA_LPWKEN:
+                    memfile.write('  MXC_PWRSEQ->lppwen |= 0x400; // CPU1WKEN=1\n')
+                memfile.write(f'  {"_" if not embedded_code else ""}MXC_LP_ClearWakeStatus();\n'
                               '  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=1\n')
             memfile.write('  __WFI(); // Let RISC-V run\n')
         elif embedded_code or tc.dev.MODERN_SIM:

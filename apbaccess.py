@@ -12,7 +12,7 @@ import os
 import toplevel
 import tornadocnn as tc
 import unload
-from eprint import eprint
+from eprint import eprint, wprint
 
 READ_TIME_NS = 230
 WRITE_TIME_NS = 280
@@ -72,6 +72,7 @@ class APB():
             num_classes=None,
             output_width=8,
             bias=False,
+            wfi=True,
     ):
         """
         Create an APB class object that writes to memfile.
@@ -121,6 +122,7 @@ class APB():
         self.num_classes = num_classes
         self.output_width = output_width
         self.bias = bias
+        self.wfi = wfi
 
         self.data = 0
         self.num = 0
@@ -175,8 +177,11 @@ class APB():
                                     f.write(f'@{addr:04x} {val}\n')
 
         if self.kernel_mem is not None:
-            target_dir = os.path.join(base_directory, test_name, 'masks')
-            os.makedirs(target_dir, exist_ok=True)
+            try:
+                target_dir = target_dir = os.path.join(base_directory, test_name, 'masks')
+                os.makedirs(target_dir, exist_ok=False)
+            except OSError:
+                wprint(target_dir, 'already exists')
             for group in range(tc.dev.P_NUMGROUPS):
                 for proc in range(tc.dev.P_NUMPRO):
                     for mem in range(tc.dev.MASK_INSTANCES):
@@ -191,9 +196,13 @@ class APB():
                                     f.write(f'@{addr:04x} {val}\n')
 
         if self.output_data_mem is not None:
-            os.makedirs(os.path.join(base_directory, test_name, 'data-output'), exist_ok=True)
-            target_dir = os.path.join(base_directory, test_name, 'data-expected')
+            target_dir = os.path.join(base_directory, test_name, 'data-output')
             os.makedirs(target_dir, exist_ok=True)
+            try:
+                target_dir = os.path.join(base_directory, test_name, 'data-expected')
+                os.makedirs(target_dir, exist_ok=False)
+            except OSError:
+                wprint(target_dir, 'already exists')
             for group in range(tc.dev.P_NUMGROUPS):
                 for proc in range(procs):
                     for mem in range(tc.dev.INSTANCE_COUNT):
@@ -703,7 +712,7 @@ class APB():
             mlator=False,
             max_count=None,
             write_gap=0,
-            layers=0,
+            final_layer=0,
     ):
         """
         Write a verification function. The layer to unload has the shape `input_shape`,
@@ -731,7 +740,7 @@ class APB():
             stream=self.memfile,
             max_count=max_count,
             write_gap=write_gap,
-            layers=layers,
+            final_layer=final_layer,
         )
 
     def output_define(  # pylint: disable=no-self-use
@@ -1013,8 +1022,30 @@ class APBTopLevel(APB):
         assert addr >= 0
 
         if self.output_data_mem is not None and data:
+            if mask is None:
+                if num_bytes == 4:
+                    mask = ''
+                elif num_bytes == 3:
+                    mask = 0xffffff
+                elif num_bytes == 2:
+                    mask = 0xffff
+                elif num_bytes == 1:
+                    mask = 0xff
+                else:
+                    raise NotImplementedError
+                assert first_proc + num_bytes <= 4
+
+            if mask != '':
+                mask <<= first_proc * 8
+
+            val = f'{val:08x}'
+            if mask != '':
+                w = ''
+                for i, e in enumerate(f'{mask:08x}'):
+                    w += 'X' if e != 'f' else val[i]
+                val = w
             group, proc, mem, offs = tc.dev.datainstance_from_addr(addr)
-            self.output_data_mem[group][proc][mem].append((offs, f'{val:08x}'))
+            self.output_data_mem[group][proc][mem].append((offs, val))
             return
 
         addr += self.apb_base
@@ -1033,6 +1064,7 @@ class APBTopLevel(APB):
                 mask = 0xff
             else:
                 raise NotImplementedError
+            assert first_proc + num_bytes <= 4
 
         val_bytes = num_bytes
         if mask != '':
@@ -1108,6 +1140,7 @@ class APBTopLevel(APB):
                 timer=self.timer,
                 groups=self.groups,
                 lib=True,
+                oneshot=self.oneshot,
             )
 
         toplevel.header(
@@ -1128,6 +1161,7 @@ class APBTopLevel(APB):
             timer=self.timer,
             groups=self.groups,
             lib=False if self.apifile is not None else None,
+            oneshot=self.oneshot,
         )
 
     def function_header(
@@ -1198,6 +1232,7 @@ class APBTopLevel(APB):
             output_width=self.output_width,
             bias=self.bias,
             verify_kernels=self.verify_kernels,
+            wfi=self.wfi,
         )
 
     def fc_layer(

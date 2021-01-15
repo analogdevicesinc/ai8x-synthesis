@@ -59,3 +59,18 @@ def u2s(i):
     if i > 127:
         i -= 256
     return i
+
+
+def nthone(n, x):
+    """
+    Return the position of the `n`th 1-bit in `x` (counting starts at bit position 0 to the right).
+    Example: n = 2, x = 0xff00 returns 9.
+    """
+    b = bin(x)
+    r = len(b)
+    while n > 0:
+        r = b.rfind('1', 2, r)
+        if r < 0:
+            return r
+        n -= 1
+    return len(b) - r - 1
