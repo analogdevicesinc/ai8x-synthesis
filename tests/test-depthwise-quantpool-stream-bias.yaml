@@ -1,0 +1,34 @@
+# Test depthwise convolution
+
+arch: test
+dataset: test_depthwise-stream
+bias: depthwise-stream
+
+layers:
+- out_offset: 0x4000
+  processors: 0x000f000f000f000f
+  operation: conv2d
+  kernel_size: 3x3
+  pad: 0
+  groups: 16
+  max_pool: 2
+  pool_stride: 1
+  quantization: 4
+- out_offset: 0x8000
+  processors: 0x0000f000f000f000f
+  operation: conv2d
+  kernel_size: 3x3
+  pad: 1
+  max_pool: 1
+  pool_stride: 2
+- out_offset: 0xc000
+  processors: 0xffffffffffffff00
+  output_processors: 0xffffffffffffff00
+  operation: conv2d
+  kernel_size: 3x3
+  pad: 2
+  groups: 111
+  max_pool: 2
+  pool_stride: 1
+  quantization: 2
+

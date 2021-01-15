@@ -1287,9 +1287,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                        verbose, comment=' // Write ptr mask offs')
 
                     # [15:0] Write Pointer Multi-Pass Channel Offset Register
-                    val = output_width[ll] // 8
+                    val = 0
                     if out_expand[ll] > 1:
-                        val *= write_gap[ll] + 1
+                        val = (output_width[ll] // 8) * (write_gap[ll] + 1)
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_CHOFFS, val,
                                    verbose, comment=' // Write ptr multi-pass channel offs')
 
@@ -1357,12 +1357,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     quant = abs(quantization[ll]) if not bypass[ll] else 8
                     val = (fls(output_processor_map[ll])
                            - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) \
-                        * quant << 8 | in_exp
+                        * quant << tc.dev.XPCH_MAX_OFFS | in_exp
                     if operator[ll] != op.NONE:
                         wptr_skip = out_expand[ll] * (write_gap[ll] + 1) - 1
                     else:
                         wptr_skip = write_gap[ll]
-                    assert wptr_skip < 2**4  # Cannot have more than 4 bits
+                    assert wptr_skip < 2**tc.dev.MAX_WPTRINC_BITS
                     val |= wptr_skip << 4
 
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_LCTL2, val,

@@ -11,7 +11,7 @@ import numpy as np
 
 from . import tornadocnn as tc
 from .eprint import eprint, wprint
-from .utils import argmin, ffs, popcount
+from .utils import argmin, ffs, fls, popcount
 
 _INVALID_VALUE = -(2**63)
 
@@ -81,7 +81,7 @@ def load(
                 bias_offs[ll][i] = group_bias_max[group]
             # Each layer has output_channel number of bias values
             i = 0
-            if ll == 0 and streaming[ll] and tc.dev.FIX_STREAM_BIAS:
+            if ll == 0 and streaming[ll] and not tc.dev.SUPPORT_STREAM_BIAS:
                 # Work around a problem on AI85
                 if not embedded_code:
                     apb.write_bias(group, bias_offs[ll][group], 0)
@@ -101,22 +101,22 @@ def load(
         else:
             # Each group needs to have 'its own' bias values
             bias_group[ll] = 'all'
-            chan = 0
 
             def bias_add_byte(layer, group, val):
                 """
                 Add a single bias byte `val` to the memory in `group`.
                 """
+                assert 0 <= group < tc.dev.P_NUMGROUPS_ALL
                 if group_bias_max[group] >= tc.dev.BIAS_SIZE:
                     eprint(f'Layer {layer}: bias memory capacity for group {group} exceeded, '
                            f'used so far: {group_bias_max[group]}.')
 
-                if val is not None:  # else just consume the space
+                if val is not None and val != _INVALID_VALUE:  # else just consume the space
                     if not embedded_code:
-                        apb.write_bias(group, group_bias_max[group], val)
+                        apb.write_bias(group, group_bias_max[group], val & 0xff)
                     else:
                         # Store for later
-                        bias_values[group][group_bias_max[group]] = val
+                        bias_values[group][group_bias_max[group]] = val & 0xff
                 group_bias_max[group] += 1
 
             used_groups = 0
@@ -129,33 +129,52 @@ def load(
                 else:
                     bias_offs[ll][group] = None
 
-            pop = popcount(processor_map[ll])
+            map_used = processor_map[ll]
+            if not broadcast_mode[ll]:
+                # The first gap is 'moved' to the end of the group
+                start_proc = ffs(map_used)
+                first_group = start_proc // tc.dev.P_NUMPRO
+                map_used &= ~((2**tc.dev.P_NUMPRO - 1) << first_group * tc.dev.P_NUMPRO)
+                map_used |= (processor_map[ll] & (((2**tc.dev.P_NUMPRO - 1) <<
+                             (first_group * tc.dev.P_NUMPRO)))) >> start_proc % tc.dev.P_NUMPRO
+
+            start_proc = ffs(map_used)
             if broadcast_mode[ll] or used_groups > 1:
                 # Pad out to allow for parallel read from the 8-bit memories
-                extend = ffs(processor_map[ll]) % tc.dev.P_NUMPRO
-                popall = pop + extend
-            else:
-                extend = 0
-                popall = pop
-            passes = (output_chan[ll] + pop - 1) // pop
+                start_proc &= ~(2**tc.dev.P_NUMPRO - 1)
+            last_proc = fls(map_used)
 
-            for chan in range(passes * extend + output_chan[ll]):
-                this_pass, p = divmod(chan, popall)
-                group = p // tc.dev.P_NUMPRO
-                if broadcast_mode[ll]:
-                    src = (p & ~0x0f) + (p % 4) * 4 + (p % 16) // 4 - extend
-                    if src >= 0:
-                        src += this_pass * pop
-                else:
-                    if extend <= p < tc.dev.P_NUMPRO:
-                        src = -1
-                    else:
-                        src = p + (popall - extend) * this_pass
-                        if p >= tc.dev.P_NUMPRO:
-                            src -= extend
+            # Break bias into multiple passes
+            bias_pad = bias[ll].copy()
+            leftover = (out_expand[ll] - len(bias_pad) % out_expand[ll]) % out_expand[ll]
+            if leftover != 0:
+                # Odd length with leftover unused values
+                bias_pad = np.append(bias_pad, np.array([_INVALID_VALUE] * leftover))
+            bias_pad = bias_pad.reshape(out_expand[ll], -1)
 
-                val = bias[ll][src] & 0xff if 0 <= src < len(bias[ll]) else None
-                bias_add_byte(ll, group, val)
+            assert bias_pad.shape[1] == popcount(processor_map[ll])
+
+            # Insert 'None' elements where processors are not used. This is not needed at the end,
+            # and additionally, not needed at the start but only when only one group is used and
+            # when not in broadcast mode.
+
+            # Start inserting from the left so the `proc` index will match the bias array
+            # Skip last_proc since we already know it is used (do not skip start since it could be
+            # unused)
+            for proc in range(start_proc, last_proc):
+                if map_used >> proc & 1 == 0:
+                    bias_pad = np.insert(bias_pad, proc,
+                                         np.array([_INVALID_VALUE] * out_expand[ll]), axis=1)
+
+            for expand in range(out_expand[ll]):
+                for p in range(start_proc, last_proc + 1):
+                    group = p // tc.dev.P_NUMPRO
+                    src = (p & ~0x0f) + (p % 4) * 4 + (p % 16) // 4 if broadcast_mode[ll] else p
+                    val = bias_pad[expand][src - start_proc] \
+                        if src - start_proc < bias_pad.shape[1] else None
+                    # Add value, even if it's None (except the very tail end)
+                    if expand < out_expand[ll] - 1 or p <= last_proc - leftover:
+                        bias_add_byte(ll, group, val)
 
     if embedded_code:
         if max(group_bias_max) > 0:

@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_January 11, 2020_
+_January 14, 2020_
 
 The Maxim Integrated AI project is comprised of four repositories:
 
@@ -1388,7 +1388,7 @@ Element-wise operations default to two operands. This can be changed using the `
 ##### `eltwise` (Optional)
 
 Element-wise operations can also be added “in-flight” to `Conv2d`. In this case, the element-wise operation is specified using the `eltwise` key.
-*Note: On MAX78000, this is only supported for 128 channels (a multi-pass of 2) or less. Use a separate layer for the element-wise operation when more than 128 channels are needed instead of combining with a convolution.*
+*Note: On MAX78000, this is only supported for 64 channels, or up to 128 channels when only two operands are used. Use a separate layer for the element-wise operation when more operands or channels are needed instead of combining the element-wise operator with a convolution.*
 
 Example:
   `eltwise: add`
