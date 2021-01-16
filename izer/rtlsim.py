@@ -204,13 +204,19 @@ def create_runtest_sv(
 
                 if input_sync:
                     runfile.write('\nparameter pclk_ai_per_pix = 9;\n\n')
-                    runfile.write('logic        pclk_ai;\n')
+                    if tc.dev.MODERN_SIM:
+                        runfile.write('`define PCLK_AI  `DIGITAL_TOP.pclk_ai\n')
+                    else:
+                        runfile.write('logic        pclk_ai;\n')
                     runfile.write('logic        clk_pix;\n')
                     runfile.write('logic        start_io;\n')
                     runfile.write('logic        end_of_file;\n')
                     runfile.write('integer      clk_pix_i;\n\n')
-                    runfile.write('assign pclk_ai = tb.xchip.pclk_ai;\n\n')
-                    runfile.write('always @(posedge pclk_ai) begin\n')
+                    if not tc.dev.MODERN_SIM:
+                        runfile.write('assign pclk_ai = tb.xchip.pclk_ai;\n\n')
+                        runfile.write('always @(posedge pclk_ai) begin\n')
+                    else:
+                        runfile.write('always @(posedge `PCLK_AI) begin\n')
                     runfile.write('  if (clk_pix_i == pclk_ai_per_pix)\n')
                     runfile.write('    clk_pix_i = 0;\n')
                     runfile.write('  else\n')

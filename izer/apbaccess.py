@@ -72,6 +72,7 @@ class APB():
             output_width=8,
             bias=False,
             wfi=True,
+            zero_sram=False,
     ):
         """
         Create an APB class object that writes to memfile.
@@ -105,7 +106,6 @@ class APB():
         self.blocklevel = blocklevel
         self.measure_energy = measure_energy
         self.timer = timer
-        self.mexpress = mexpress
         self.pll = pll
         self.boost = boost
         self.forever = forever
@@ -121,6 +121,7 @@ class APB():
         self.output_width = output_width
         self.bias = bias
         self.wfi = wfi
+        self.zero_sram = zero_sram
 
         self.data = 0
         self.num = 0
@@ -174,7 +175,7 @@ class APB():
                                 for (addr, val) in self.data_mem[group][proc][mem]:
                                     f.write(f'@{addr:04x} {val}\n')
 
-        if self.kernel_mem is not None:
+        if self.kernel_mem is not None and not self.zero_sram:
             try:
                 target_dir = target_dir = os.path.join(base_directory, test_name, 'masks')
                 os.makedirs(target_dir, exist_ok=False)

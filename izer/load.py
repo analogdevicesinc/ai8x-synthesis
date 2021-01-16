@@ -56,6 +56,7 @@ def load(
         return loadcsv(
             embedded_code,
             apb,
+            chw,
             input_size,
             operands,
             data,
@@ -480,6 +481,7 @@ def loadfifo(
 def loadcsv(
         embedded_code,
         apb,
+        chw,
         input_size,
         operands,
         data,
@@ -503,10 +505,11 @@ def loadcsv(
         apb.output('\n\n  ')
 
     # HWC ("Little Data") - (Up to) four channels packed into a word (0BGR0BGR0BGR0BGR0BGR....)
-    apb.output('// Data input: HWC '
+    # CHW ("Big Data") - One channel per word
+    apb.output(f'// Data input: {"CHW" if chw else "HWC"} '
                f'{input_size[0]}x{input_size[1]}x{input_size[2]}\n')
 
-    fifos = (input_size[0] + 3) // 4
+    fifos = input_size[0] if chw else (input_size[0] + 3) // 4
 
     if embedded_code:
         apb.output('\n#ifdef USE_FIFO\n')

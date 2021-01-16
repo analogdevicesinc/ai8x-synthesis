@@ -591,8 +591,6 @@ def main():
                 args.autogen,
             )
     else:
-        wprint('CMSIS-NN code generation is unsupported.')
-
         cmsisnn.create_net(
             args.prefix,
             args.verbose,

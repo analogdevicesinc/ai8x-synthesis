@@ -99,7 +99,6 @@ def parse(config_file):
     big_data = [False] * tc.dev.MAX_LAYERS
     output_width = [8] * tc.dev.MAX_LAYERS
     operator = [op.CONV2D] * tc.dev.MAX_LAYERS
-    # We don't support changing the following (yet), but leave as parameters:
     dilation = [[1, 1]] * tc.dev.MAX_LAYERS
     kernel_size = [DEFAULT_2D_KERNEL] * tc.dev.MAX_LAYERS
     conv_groups = [1] * tc.dev.MAX_LAYERS
@@ -116,7 +115,7 @@ def parse(config_file):
 
     sequence = 0
     for ll in cfg['layers']:
-        if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'conv_groups',
+        if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'conv_groups', 'dilation',
                                'groups', 'in_channels', 'in_dim', 'in_sequences', 'in_skip',
                                'in_channel_skip', 'in_offset', 'kernel_size', 'pool_stride',
                                'out_channels', 'out_offset', 'activate', 'activation',
@@ -283,6 +282,15 @@ def parse(config_file):
             if val < 0:
                 error_exit(f'Unsupported value {val} for `pad`', sequence)
             padding[sequence] = [val, val]
+
+        if 'dilation' in ll:
+            val = ll['dilation']
+            if not isinstance(val, list):
+                dilation[sequence] = [val, val]
+            else:
+                dilation[sequence] = val
+            if operator[sequence] == op.NONE:
+                error_exit('`dilation` requires a convolution operator', sequence)
 
         if 'eltwise' in ll:
             conv = ll['eltwise'].lower()
@@ -483,10 +491,6 @@ def parse(config_file):
             error_exit('Element-wise operations cannot be combined with Conv1d', ll)
         if not pool_first[ll] and (operands[ll] == 1 or pool[ll][0] == 1 and pool[ll][1] == 1):
             error_exit('`pool_first: False` requires both pooling and element-wise operations', ll)
-
-        # Check we're not using binary weights on devices that don't support it
-        if quantization[ll] == -1 and not tc.dev.SUPPORT_BINARY_WEIGHTS:
-            error_exit('Binary weights (-1/+1) are not supported on this device', ll)
 
     settings = {}
     settings['padding'] = padding

@@ -370,7 +370,7 @@ def get_parser():
         wprint('`--unload` is no longer needed, and is ignored.')
 
     if args.allow_streaming:
-        wprint('`--allow-streaming` is not supported.')
+        wprint('`--allow-streaming` is unsupported.')
 
     # Set disabled legacy arguments
     args.unload = False

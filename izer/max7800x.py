@@ -202,6 +202,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     if pll is None:
         pll = pipeline
 
+    if zero_sram:
+        # Clear kernels to 0x55 so the data matches what is in hardware
+        for i, _ in enumerate(kernel):
+            kernel[i] = np.full(shape=kernel[i].shape, fill_value=0x55, dtype=np.int64)
+
     if riscv_debug:
         riscv = True
     if riscv_cache:
@@ -281,6 +286,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             | processor_map_0 << 16 | processor_map_0
 
     binary_quantization = any(quantization[ll] == -1 for ll in range(first_layer_used, layers))
+    # Check we're not using binary weights on devices that don't support it
+    if binary_quantization and not tc.dev.SUPPORT_BINARY_WEIGHTS:
+        eprint("Binary weights (-1/+1) are not supported on this device.")
 
     # Check that input channels are in separate memory instances if CHW (big) data format is used,
     # and calculate input and output expansion
@@ -395,6 +403,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
         if input_skip[ll] != 0 and not tc.dev.SUPPORT_MULTIPASS_STRIDE:
             eprint(f'Layer {ll}: `in_skip` must be 0 for this device.')
+
+        if dilation[ll][0] < 1 or dilation[ll][1] < 1 or dilation[ll][0] > tc.dev.MAX_DILATION \
+           or dilation[ll][1] > tc.dev.MAX_DILATION:
+            eprint(f'Layer {ll}: `dilation` values must be 1 or greater, and '
+                   f'{tc.dev.MAX_DILATION} or smaller on this device.')
 
     # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
     test_name = prefix
@@ -631,6 +644,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             output_width=output_width[final_layer],
             bias=any(b is not None for b in bias),
             wfi=wfi,
+            zero_sram=zero_sram,
         )
 
         apb.copyright_header()
@@ -804,6 +818,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             for _, group in enumerate(groups_used):
                 apb.write_ctl(group, tc.dev.REG_CTL, 1 << 3 | tc.dev.READY_SEL << 1,
                               verbose, comment=' // Enable clocks', no_verify=True)
+        # Reset
+        apb.write_fifo_ctl(tc.dev.AON_CTL, tc.dev.AON_READY_SEL,
+                           verbose, comment=' // AON control', force_write=True)
+
+        if tc.dev.REQUIRE_REG_CLEAR:
             for _, group in enumerate(groups_used):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 7,
                               verbose, comment=' // Clear registers', no_verify=True)
@@ -814,10 +833,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
                               verbose, comment=' // Reset BIST', force_write=True, no_verify=True)
             apb.output('\n', embedded_code)
-
-        # Reset
-        apb.write_fifo_ctl(tc.dev.AON_CTL, tc.dev.AON_READY_SEL,
-                           verbose, comment=' // AON control', force_write=True)
 
         # Configure global control registers for used groups
         for _, group in enumerate(groups_used):
@@ -1029,6 +1044,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             print(f'Kernel length       = {kern_len}')
             print(f'Kernel count        = {kern_count}')
             print(f'Kernel dimensions   = {kernel_size}')
+            if any(h != 1 or w != 1 for h, w in dilation):
+                print(f'Dilation            = {dilation}')
             print('Kernel size (bits)  = [',
                   ', '.join(str(k) if k >= 0
                             else 'b' for k in quantization), ']', sep='',)
@@ -1189,18 +1206,18 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                    verbose, comment=' // Columns')
 
                     # Configure pooling row count
-                    val = pool[ll][0]-1
+                    val = pool[ll][0] - 1
                     assert val < 2**4
                     if hasattr(tc.dev, 'CNT_INC_OFFS'):
-                        val |= 0 << tc.dev.CNT_INC_OFFS  # FIXME
+                        val |= dilation[ll][0] - 1 << tc.dev.CNT_INC_OFFS
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PRCNT, val,
                                    verbose, comment=' // Pooling rows')
 
                     # Configure pooling column count
-                    val = pool[ll][1]-1
+                    val = pool[ll][1] - 1
                     assert val < 2**4
                     if hasattr(tc.dev, 'CNT_INC_OFFS'):
-                        val |= 0 << tc.dev.CNT_INC_OFFS  # FIXME
+                        val |= dilation[ll][1] - 1 << tc.dev.CNT_INC_OFFS
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PCCNT, val,
                                    verbose, comment=' // Pooling columns')
 
@@ -1445,7 +1462,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         if (pool[ll][0] > 1 or pool[ll][1] > 1) \
                            and pool_first[ll]:
                             val |= 1 << 16
-                        if operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D]:
+                        if operator[ll] != op.NONE:  # in [op.CONV2D, op.CONVTRANSPOSE2D]:
                             val |= 1 << 17
                     assert 0 <= oned_sad < 2**4
                     val |= oned_sad << 4
@@ -1542,73 +1559,163 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_ENA, val,
                                    verbose, comment=' // Mask and processor enables')
 
-                    if ll == start_layer and fifo:
-                        # Start: 1
-                        if override_start is not None:
-                            stream_start = override_start
-                        elif streaming[ll]:
-                            stream_start = (pool[ll][0] - 1) * input_dim[ll][1] + pool[ll][1]
-                        else:
-                            val = input_dim[start_layer][0] * input_dim[start_layer][1]
-                            if big_data[start_layer]:
-                                val = (val + 3) // 4
-                            stream_start = val
-                        assert stream_start < 2**14
+                    delta1 = delta2 = stream_start = invol = 0
+                    if not tc.dev.REQUIRE_NEW_STREAMING:
+                        if ll == start_layer and fifo:
+                            # Start: 1
+                            if override_start is not None:
+                                stream_start = override_start
+                            elif streaming[ll]:
+                                stream_start = (pool[ll][0] - 1) * input_dim[ll][1] + pool[ll][1]
+                            else:
+                                stream_start = input_dim[ll][0] * input_dim[ll][1]
+                                if big_data[ll]:
+                                    stream_start = (stream_start + 3) // 4
 
-                        if streaming[ll]:
+                            if streaming[ll]:
+                                # Delta 1: This layer's pooling stride
+                                if override_delta1 is not None:
+                                    delta1 = override_delta1
+                                else:
+                                    delta1 = (pool_stride[ll][1] - 1) * operands[ll]
+                                if override_delta2 is not None:
+                                    delta2 = override_delta2
+                                else:
+                                    delta2 = (pool[ll][0] - 1) * input_dim[ll][1] * operands[ll]
+
+                        elif ll > start_layer and streaming[ll]:
+                            # Start: Prior layer's padded pooled row width * prior layer's kernel
+                            # height + prior layer's kernel width + prior layer's pad
+                            stream_start = (pooled_dim[prev_sequence[ll]][1]
+                                            + 2 * padding[prev_sequence[ll]][1]) \
+                                * (kernel_size[prev_sequence[ll]][0] - 1 + pool[ll][0] - 1) \
+                                + kernel_size[prev_sequence[ll]][1] - 1 + pool[ll][1] \
+                                + increase_start
+                            assert stream_start < 2**tc.dev.MAX_ISVAL_BITS
+
                             # Delta 1: This layer's pooling stride
-                            if override_delta1 is not None:
-                                delta1 = override_delta1
+                            delta1 = pool_stride[ll][1] * operands[ll] + increase_delta1
+
+                            # Delta 2: (This layer's pooling - 1) * full prior layer's padded rows
+                            # + prior layer's pad
+                            delta2 = (pool_stride[ll][0] - 1) \
+                                * (pooled_dim[prev_sequence[ll]][1]
+                                    + 2 * padding[prev_sequence[ll]][1]) \
+                                + pool[ll][1] * operands[ll] + increase_delta2
+                    else:
+                        # MAX78002
+                        # =IF(Row_Pool>Stride,Row_Pool,Stride)
+                        row_inc = max(pool[ll][0], pool_stride[ll][0])
+                        # =IF(Col_Pool>Stride,Col_Pool,Stride)
+                        col_inc = max(pool[ll][1], pool_stride[ll][1])
+
+                        # Prefill
+                        if ll == start_layer and override_start is not None:
+                            stream_start_hwc = stream_start = override_start
+                        elif ll == start_layer and fifo:
+                            if streaming[ll]:
+                                # =IF(AND(Stride=1,Row_Pool=1),Col_Inc,
+                                #     (((Row_Inc-1)*(Cols+(Pad*2)))+Col_Inc))
+                                if pool_stride[ll][0] == 1 and pool[ll][0] == 1:
+                                    stream_start = col_inc
+                                else:
+                                    stream_start = (row_inc - 1) * (input_dim[ll][1]
+                                                                    + 2 * padding[ll][1]) + col_inc
+                            else:  # fifo only
+                                stream_start = input_dim[ll][0] * input_dim[ll][1]
+                            stream_start_hwc = stream_start
+                            if big_data[ll]:
+                                stream_start = (stream_start + 3) // 4
+                        elif ll > start_layer and streaming[ll]:
+                            # =(Pad*(Cols+(Pad*2)))
+                            #   +(((Row_Inc*(Cols+(Pad*2)))
+                            #   +(Pad+(2*Col_Inc)))*Elementwise)
+                            stream_start_hwc = stream_start = \
+                                padding[ll][1] * (input_dim[ll][1] + 2 * padding[ll][1]) \
+                                + (row_inc * (input_dim[ll][1] + 2 * padding[ll][1])
+                                   + padding[ll][1] + 2 * col_inc) * operands[ll]
+                            if big_data[ll]:
+                                # =(ROUNDUP(Prefill/4,0))
+                                stream_start = (stream_start + 3) // 4
+
+                        # Delta 1 Count, Delta 2 Count
+                        if streaming[ll]:
+                            # =IF(((ROUNDDOWN(Cols/Stride,0)*Stride)+(Pool-1))>Cols,
+                            #     (ROUNDDOWN((Cols/Stride),0))-1,(ROUNDDOWN((Cols/Stride),0)))
+                            effective_cols = input_dim[ll][1] // pool_stride[ll][1]
+                            if effective_cols * pool_stride[ll][1] + pool[ll][1] - 1 > \
+                               input_dim[ll][1]:
+                                effective_cols -= 1
+
+                            # =IF(((Cols-(Effective_Cols*Stride))*Passes)<0,0,
+                            #      ((Cols-(Effective_Cols*Stride))*Passes))
+                            skipped_cols = max(
+                                0,
+                                (input_dim[ll][1] - (effective_cols * pool_stride[ll][1]))
+                                * in_expand[ll]
+                            )
+
+                            if ll == start_layer:
+                                if override_delta1 is not None:
+                                    delta1 = override_delta1
+                                else:
+                                    # =(Stride*Elementwise)-1
+                                    delta1 = pool_stride[ll][1] * operands[ll] - 1
+                                    if big_data[ll]:
+                                        # =(ROUNDUP(Delta1_0/4,0))
+                                        delta1 = (delta1 + 3) // 4
+
+                                if override_delta2 is not None:
+                                    delta2 = override_delta2
+                                else:
+                                    # =IF(Stride=1,Delta1_0+Skipped_Cols,
+                                    #              (((Stride-1)*Cols))+Skipped_Cols+(Col_Pool-1))
+                                    if pool_stride[ll][0] == 1:
+                                        delta2 = delta1 + skipped_cols
+                                    else:
+                                        delta2 = (pool_stride[ll][0] - 1) * input_dim[ll][1] \
+                                            + skipped_cols + pool[ll][1] - 1
+                                    if big_data[ll]:
+                                        # =(ROUNDUP(Delta2_0/4,0))
+                                        delta2 = (delta2 + 3) // 4
                             else:
-                                delta1 = (pool_stride[ll][1] - 1) * operands[ll]
-                            assert delta1 < 2**5
-                            if override_delta2 is not None:
-                                delta2 = override_delta2
-                            else:
-                                delta2 = (pool[ll][0] - 1) * input_dim[ll][1] * operands[ll]
-                            assert delta2 < 2**12
-                        else:
-                            delta1 = 0
-                            delta2 = 0
+                                # =Stride*Elementwise
+                                delta1 = pool_stride[ll][1] * operands[ll]
+                                if big_data[ll]:
+                                    # =(ROUNDUP(Delta1/4,0))
+                                    delta1 = (delta1 + 3) // 4
+                                delta1 += increase_delta1
 
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM1, stream_start,
-                                       verbose, comment=' // Stream processing start')
-                        val = delta2 << 16 | delta1 << 4
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM2, val,
-                                       verbose, comment=' // Stream processing delta')
-                    elif ll > 0 and streaming[ll]:
-                        # Start: Prior layer's padded pooled row width * prior layer's kernel
-                        # height + prior layer's kernel width + prior layer's pad
-                        stream_start = (pooled_dim[prev_sequence[ll]][1]
-                                        + 2 * padding[prev_sequence[ll]][1]) \
-                            * (kernel_size[prev_sequence[ll]][0] - 1 + pool[ll][0] - 1) \
-                            + kernel_size[prev_sequence[ll]][1] - 1 + pool[ll][1] + increase_start
-                        assert stream_start < 2**tc.dev.MAX_ISVAL_BITS
+                                # =IF(Stride=1,Delta1+Skipped_Cols,((Stride-1)*Cols)+Skipped_Cols)
+                                if pool_stride[ll][0] == 1:
+                                    delta2 = delta1 + skipped_cols
+                                else:
+                                    delta2 = (pool_stride[ll][0] - 1) * input_dim[ll][1] \
+                                        + skipped_cols
+                                if big_data[ll]:
+                                    # =(ROUNDUP(Delta2/4,0))
+                                    delta2 = (delta2 + 3) // 4
+                                delta2 += increase_delta2
 
-                        # Delta 1: This layer's pooling stride
-                        delta1 = pool_stride[ll][1] * operands[ll] + increase_delta1
-                        assert delta1 < 2**5
-                        # Delta 2: (This layer's pooling - 1) * full prior layer's padded rows +
-                        # prior layer's pad
-                        delta2 = (pool_stride[ll][0] - 1) \
-                            * (pooled_dim[prev_sequence[ll]][1]
-                               + 2 * padding[prev_sequence[ll]][1]) \
-                            + pool[ll][1] * operands[ll] + increase_delta2
-                        assert delta2 < 2**tc.dev.MAX_DSVAL2_BITS
+                    # strm_invol[3:0]: Per stream invol offset - based on stream count
+                    if ll > start_layer and streaming[ll]:
+                        invol = sum(in_expand[:ll])
 
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM1, stream_start,
-                                       verbose, comment=' // Stream processing start')
-                        # strm_invol[3:0]   Per stream invol offset - based on stream count
-                        val = sum(in_expand[:ll])
-                        assert val < 2**4
-                        val |= delta2 << 16 | delta1 << 4
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM2, val,
-                                       verbose, comment=' // Stream processing delta')
+                    assert stream_start < 2**14
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM1, stream_start,
+                                   verbose, comment=' // Stream processing start')
+
+                    assert invol < 2**4
+                    assert delta1 < 2**5
+                    assert delta2 < 2**tc.dev.MAX_DSVAL2_BITS
+                    val = delta2 << 16 | delta1 << 4 | invol
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM2, val,
+                                   verbose, comment=' // Stream processing delta')
 
                     if fifo and streaming[ll]:
                         if ll == start_layer and override_rollover is not None:
                             val = override_rollover
-                        else:
+                        elif not tc.dev.REQUIRE_NEW_STREAMING:
                             if big_data[ll]:
                                 # FIXME stream_start + max(stride[ll][1], pool_stride[ll][1])
                                 val = 12
@@ -1619,6 +1726,24 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             rem = val % in_expand[ll]
                             if rem > 0:
                                 val = val + in_expand[ll] - rem
+                        else:
+                            # MAX78002
+                            if ll == start_layer:
+                                # =Prefill0 + Col_Inc
+                                val = stream_start_hwc + col_inc
+                                if big_data[ll]:
+                                    # =Buffer0*4*Stride
+                                    val *= pool_stride[ll][1] * 4
+                            else:
+                                # =Prefill+((Passes-1)*((Row_Inc*Cols)+Pad+Col_Inc))+Col_Inc
+                                val = stream_start_hwc \
+                                    + (in_expand[ll] - 1) * (row_inc * input_dim[ll][1]
+                                                             + padding[ll][1] + col_inc) \
+                                    + col_inc
+                                if big_data[ll]:
+                                    # =(ROUNDUP(Buffer/4,0))
+                                    val = (val + 3) // 4
+
                         assert val < 2**tc.dev.MAX_FBUF_BITS
 
                         # Check rollover vs available data memory
@@ -1648,8 +1773,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                        verbose, comment=' // Rollover')
 
                     if ll == start_layer and fifo:
-                        val = input_dim[start_layer][0] * input_dim[start_layer][1]
-                        if big_data[start_layer]:
+                        val = input_dim[ll][0] * input_dim[ll][1]
+                        if big_data[ll]:
                             val = (val + 3) // 4
                         assert val < 2**tc.dev.MAX_IFRM_BITS
                         apb.write_ctl(group, tc.dev.REG_IFRM, val, verbose,

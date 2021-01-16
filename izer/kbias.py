@@ -75,7 +75,8 @@ def load(
             group = argmin(group_bias_max[t] for t in group_map[ll])
             if group_bias_max[group] + bias_len > tc.dev.BIAS_SIZE:
                 eprint(f'Layer {ll}: bias memory capacity exceeded - available groups: '
-                       f'{group_map[ll]}, used so far: {group_bias_max}, needed: {bias_len}.')
+                       f'{group_map[ll]}, used so far: {group_bias_max}, needed: {bias_len}, '
+                       f'best available: group {group}.')
             bias_group[ll] = group
             for i in range(tc.dev.P_NUMGROUPS):
                 bias_offs[ll][i] = group_bias_max[group]
@@ -138,11 +139,17 @@ def load(
                 map_used |= (processor_map[ll] & (((2**tc.dev.P_NUMPRO - 1) <<
                              (first_group * tc.dev.P_NUMPRO)))) >> start_proc % tc.dev.P_NUMPRO
 
+            def rearrange_processor(p, bc_mode):
+                """
+                Rearrange processor `p` for broadcast mode if needed.
+                """
+                return (p & ~0x0f) + (p % 4) * 4 + (p % 16) // 4 if bc_mode else p
+
             start_proc = ffs(map_used)
+            last_proc = max(rearrange_processor(fls(map_used), broadcast_mode[ll]), fls(map_used))
             if broadcast_mode[ll] or used_groups > 1:
                 # Pad out to allow for parallel read from the 8-bit memories
                 start_proc &= ~(2**tc.dev.P_NUMPRO - 1)
-            last_proc = fls(map_used)
 
             # Break bias into multiple passes
             bias_pad = bias[ll].copy()
@@ -169,7 +176,7 @@ def load(
             for expand in range(out_expand[ll]):
                 for p in range(start_proc, last_proc + 1):
                     group = p // tc.dev.P_NUMPRO
-                    src = (p & ~0x0f) + (p % 4) * 4 + (p % 16) // 4 if broadcast_mode[ll] else p
+                    src = rearrange_processor(p, broadcast_mode[ll])
                     val = bias_pad[expand][src - start_proc] \
                         if src - start_proc < bias_pad.shape[1] else None
                     # Add value, even if it's None (except the very tail end)
