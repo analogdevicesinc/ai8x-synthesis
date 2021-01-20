@@ -305,6 +305,8 @@ def main():
     while ll < layers:
         if input_channels[ll] <= 0:
             eprint(f'Must specify `in_channels` for layer {ll}.')
+        if quantization[ll] is None:
+            quantization[ll] = 8 if not bypass[ll] and operator[ll] != op.NONE else 0  # Defaults
         if operator[ll] != op.NONE and not bypass[ll]:
             if quantization[ll] == -1:
                 w = np.abs(weights[ll])

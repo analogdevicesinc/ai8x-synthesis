@@ -378,7 +378,7 @@
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-burnin-rand_16x64x64 --config-file tests/test-burnin-rand_16x64x64.yaml --device "$DEVICE" --compact-data --mexpress --max-checklines 4096 "$@"
 
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-conv1d-3-bias --config-file tests/test-conv1d-3-bias.yaml --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-riscv-fastfifo-mnist --checkpoint-file tests/test-mnist-qat8-q.pth.tar --config-file networks/mnist-chw-ai85.yaml --device "$DEVICE" --compact-data --mexpress --riscv --riscv-debug "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-riscv-mnist --checkpoint-file tests/test-mnist-qat8-q.pth.tar --config-file networks/mnist-chw-ai85.yaml --device "$DEVICE" --compact-data --mexpress --riscv --riscv-debug "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-upsample-nonsquare --config-file tests/test-upsample-nonsquare.yaml --device "$DEVICE" --debug --debug-computation "$@"
 
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fifostream-quant --config-file tests/test-fifostream-quant.yaml --device "$DEVICE" --fifo --stop-after 0 "$@"

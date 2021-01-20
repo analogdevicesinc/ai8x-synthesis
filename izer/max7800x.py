@@ -294,9 +294,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     # Check that input channels are in separate memory instances if CHW (big) data format is used,
     # and calculate input and output expansion
     for ll in range(first_layer_used, layers):
-        if quantization[ll] is None:
-            quantization[ll] = 8 if not bypass[ll] else 0  # Set default
-        elif quantization[ll] == 1 and binary_quantization:
+        if quantization[ll] == 1 and binary_quantization:
             eprint(f"Cannot combine binary quantization in layer {ll} with 1-bit quantization.")
         if output_shift[ll] is None:
             output_shift[ll] = 0 if not bypass[ll] else 7  # Set default
