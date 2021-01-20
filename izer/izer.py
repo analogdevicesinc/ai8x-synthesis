@@ -250,6 +250,7 @@ def main():
     conv_groups = params['conv_groups'][:layers]
     write_gap = params['write_gap'][:layers]
     bypass = params['bypass'][:layers]
+    bias_group_map = params['bias_group_map'][:layers]
 
     # Command line override
     if args.input_offset is not None:
@@ -582,6 +583,7 @@ def main():
             weight_start=args.weight_start,
             wfi=args.wfi,
             bypass=bypass,
+            bias_group_map=bias_group_map,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

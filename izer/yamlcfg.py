@@ -112,6 +112,7 @@ def parse(config_file):
     next_sequence = [None] * tc.dev.MAX_LAYERS
     write_gap = [0] * tc.dev.MAX_LAYERS
     bypass = [False] * tc.dev.MAX_LAYERS
+    bias_group_map = [None] * tc.dev.MAX_LAYERS
 
     sequence = 0
     for ll in cfg['layers']:
@@ -122,7 +123,8 @@ def parse(config_file):
                                'data_format', 'eltwise', 'flatten', 'op', 'operands', 'operation',
                                'operator', 'output_processors', 'output_width', 'output_shift',
                                'pool_first', 'processors', 'pad', 'quantization', 'next_sequence',
-                               'sequence', 'streaming', 'stride', 'write_gap', 'bypass'])):
+                               'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
+                               'bias_group'])):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
 
         if 'sequence' in ll:
@@ -417,6 +419,13 @@ def parse(config_file):
             except ValueError:
                 error_exit(f'Unsupported value `{val}` for `bypass`', sequence)
 
+        if 'bias_group' in ll:
+            val = ll['bias_group']
+            if isinstance(val, int):
+                bias_group_map[sequence] = [val]
+            else:
+                bias_group_map[sequence] = val
+
         # Fix up values for 1D convolution or no convolution
         if operator[sequence] == op.CONV1D:
             padding[sequence][1] = 0
@@ -466,29 +475,16 @@ def parse(config_file):
             del in_sequences[ll]
             del next_sequence[ll]
             del bypass[ll]
+            del bias_group_map[ll]
 
-    for ll, e in enumerate(operator):
+    for ll, _ in enumerate(operator):
         # Warn when using default pool stride of 1, 1
         if pool_stride[ll][0] is None:
             if pooling_enabled[ll]:
                 wprint(f'Using default pool stride of 1 in layer {ll}.')
             pool_stride[ll] = [1, 1]
 
-        # Check that pass-through does not use activation
-        if e == op.NONE:
-            if activation[ll] is not None:
-                error_exit('Pass-through layers must not use activation', ll)
-            if padding[ll][0] != 0 or padding[ll][1] != 0:
-                error_exit('Padding must be zero for passthrough layers', ll)
-            if output_shift[ll] != 0 and output_shift[ll] is not None:
-                error_exit('`output_shift` must be zero for passthrough layers', ll)
         # Check that pooling isn't set for ConvTranspose2d:
-        elif e == op.CONVTRANSPOSE2D:
-            if pooling_enabled[ll]:
-                error_exit('ConvTranspose2d cannot be used with pooling', ll)
-        # Check that element-wise does not use Conv1d
-        if e == op.CONV1D and operands[ll] > 1:
-            error_exit('Element-wise operations cannot be combined with Conv1d', ll)
         if not pool_first[ll] and (operands[ll] == 1 or pool[ll][0] == 1 and pool[ll][1] == 1):
             error_exit('`pool_first: False` requires both pooling and element-wise operations', ll)
 
@@ -527,5 +523,6 @@ def parse(config_file):
     settings['conv_groups'] = conv_groups
     settings['write_gap'] = write_gap
     settings['bypass'] = bypass
+    settings['bias_group_map'] = bias_group_map
 
     return cfg, len(processor_map), settings

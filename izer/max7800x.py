@@ -154,6 +154,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         weight_start=0,
         wfi=True,
         bypass=None,
+        bias_group_map=None,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -368,11 +369,24 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             pool_stride_str[ll] = f'{pool_stride[ll][0]}'
             stride_str[ll] = f'{stride[ll][0]}'
 
+            if operands[ll] > 1:
+                eprint('Layer {ll}: Element-wise operations cannot be combined with Conv1d.')
+
         if operator[ll] == op.NONE:
+            if activation[ll] is not None:
+                eprint(f'Layer {ll}: Pass-through layers must not use activation.')
+            if padding[ll][0] != 0 or padding[ll][1] != 0:
+                eprint(f'Layer {ll}: Padding must be zero for passthrough layers.')
+            if output_shift[ll] != 0 and output_shift[ll] is not None:
+                eprint(f'Layer {ll}: `output_shift` must be zero for passthrough layers.')
+
             tram_max[ll] = 1
         else:
             tram_max[ll] = max(0, pooled_dim[ll][1] + 2*padding[ll][1] - kernel_size[ll][1]) + 1
             if operator[ll] == op.CONVTRANSPOSE2D:
+                if pool[ll][0] > 1 or pool[ll][1] > 1:
+                    eprint(f'Layer {ll}: ConvTranspose2d cannot be used with pooling.')
+
                 tram_max[ll] *= stride[ll][1]
 
         if input_chan[ll] % conv_groups[ll] != 0 or output_chan[ll] % conv_groups[ll] != 0:
@@ -396,7 +410,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                        f' channels ({output_chan[ll]}) must be equal to input channels.')
             if flatten[ll]:
                 eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) > 1 are not supported'
-                       f' when flattening.')
+                       ' when flattening.')
+            if bias_group_map[ll] is not None:
+                eprint(f'Layer {ll}: `bias_group` is not supported for depth-wise layers.')
             # if output_width[ll] != 8:
             #     eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) > 1 are not'
             #            f' supported when using `wide` output.')
@@ -504,6 +520,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             if (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO:
                 this_map.append(group)
         group_map[ll] = this_map
+
+        if bias_group_map[ll] is not None:
+            for _, e in bias_group_map[ll]:
+                if e not in group_map[ll]:
+                    eprint(f'Layer {ll}: `bias_group` references an unused group. Used groups for '
+                           f'this layer are: {group_map[ll]}.')
 
         # Ensure input and output map are the same for passthrough layers
         if operator[ll] == op.NONE:
@@ -766,6 +788,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 layers,
                 bias,
                 group_map,
+                bias_group_map,
                 output_chan,
                 streaming,
                 conv_groups,
@@ -964,6 +987,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 layers,
                 bias,
                 group_map,
+                bias_group_map,
                 output_chan,
                 streaming,
                 conv_groups,
