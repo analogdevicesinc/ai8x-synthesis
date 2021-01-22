@@ -38,6 +38,7 @@ class Dev:
     REQUIRE_SEMA_LPWKEN = False
     REQUIRE_ONESHOT_CLEAR = True
     REQUIRE_NEW_STREAMING = False
+    REQUIRE_FIFO_CPL = True
     EMULATE_ELTWISE_MP = False
     USE_PROCESSORS = True
     MODERN_SIM = False
@@ -366,6 +367,7 @@ class DevAI87(Dev):
     REQUIRE_SEMA_LPWKEN = True
     REQUIRE_ONESHOT_CLEAR = False
     REQUIRE_NEW_STREAMING = True
+    REQUIRE_FIFO_CPL = False
 
     SUPPORT_GCFR = True
     MODERN_SIM = True

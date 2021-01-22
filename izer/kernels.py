@@ -75,7 +75,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         debug=False,
         blocklevel=False,
         legacy_kernels=False,
-        calcx4=False,
+        calcx4=None,
         api=False,
         start_offs=0,
         bypass=None,
@@ -108,9 +108,9 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     if debug:
         print('\nLoading Kernels...')
 
-    if calcx4 and not tc.dev.SUPPORT_CALCX4:
-        eprint('--calcx4 is not supported on this device.')
-    assert not ((embedded_code or mexpress) and calcx4)  # FIXME Add support later
+    if any(calcx4) and not tc.dev.SUPPORT_CALCX4:
+        eprint('calcx4 is not supported on this device.')
+    assert not ((embedded_code or mexpress) and any(calcx4))  # FIXME Add support later
 
     for ll in range(start_layer, layers):
         if operator[ll] == op.NONE or bypass[ll]:
@@ -386,7 +386,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 ll = kernel_map[p][col]
                 if ll != _INVALID_VALUE:
                     k = kernel_data[p][col]
-                    apb.write_kern(ll, p, col, k, verify_only=verify, calcx4=calcx4)
+                    apb.write_kern(ll, p, col, k, verify_only=verify, calcx4=calcx4[ll])
         apb.function_footer()  # verify_weights()
 
     if not (embedded_code or mexpress):
@@ -397,7 +397,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 ll = kernel_map[p][col]
                 if ll != _INVALID_VALUE:
                     k = kernel_data[p][col]
-                    apb.write_kern(ll, p, col, k, calcx4=calcx4)
+                    apb.write_kern(ll, p, col, k, calcx4=calcx4[ll])
         apb.function_footer()  # load_weights()
 
     if embedded_code or mexpress:

@@ -251,6 +251,8 @@ def main():
     write_gap = params['write_gap'][:layers]
     bypass = params['bypass'][:layers]
     bias_group_map = params['bias_group_map'][:layers]
+    calcx4 = [True] * layers if args.calcx4 else params['calcx4'][:layers]
+    readahead = [True] * layers if args.rd_ahead else params['readahead'][:layers]
 
     # Command line override
     if args.input_offset is not None:
@@ -578,8 +580,8 @@ def main():
             measure_energy=args.energy,
             timer=args.timer,
             board_name=args.board_name,
-            rd_ahead=args.rd_ahead,
-            calcx4=args.calcx4,
+            rd_ahead=readahead,
+            calcx4=calcx4,
             rtl_preload=args.rtl_preload,
             result_output=args.result_output,
             weight_start=args.weight_start,

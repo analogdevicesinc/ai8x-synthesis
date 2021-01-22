@@ -113,6 +113,8 @@ def parse(config_file):
     write_gap = [0] * tc.dev.MAX_LAYERS
     bypass = [False] * tc.dev.MAX_LAYERS
     bias_group_map = [None] * tc.dev.MAX_LAYERS
+    calcx4 = [False] * tc.dev.MAX_LAYERS
+    readahead = [False] * tc.dev.MAX_LAYERS
 
     sequence = 0
     for ll in cfg['layers']:
@@ -124,7 +126,7 @@ def parse(config_file):
                                'operator', 'output_processors', 'output_width', 'output_shift',
                                'pool_first', 'processors', 'pad', 'quantization', 'next_sequence',
                                'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
-                               'bias_group'])):
+                               'bias_group', 'calcx4', 'readahead'])):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
 
         if 'sequence' in ll:
@@ -426,6 +428,20 @@ def parse(config_file):
             else:
                 bias_group_map[sequence] = val
 
+        if 'caclcx4' in ll:
+            val = ll['calcx4']
+            try:
+                calcx4[sequence] = bool(val)
+            except ValueError:
+                error_exit(f'Unsupported value `{val}` for `calcx4`', sequence)
+
+        if 'readahead' in ll:
+            val = ll['readahead']
+            try:
+                readahead[sequence] = bool(val)
+            except ValueError:
+                error_exit(f'Unsupported value `{val}` for `readahead`', sequence)
+
         # Fix up values for 1D convolution or no convolution
         if operator[sequence] == op.CONV1D:
             padding[sequence][1] = 0
@@ -476,6 +492,8 @@ def parse(config_file):
             del next_sequence[ll]
             del bypass[ll]
             del bias_group_map[ll]
+            del calcx4[ll]
+            del readahead[ll]
 
     for ll, _ in enumerate(operator):
         # Warn when using default pool stride of 1, 1
@@ -524,5 +542,7 @@ def parse(config_file):
     settings['write_gap'] = write_gap
     settings['bypass'] = bypass
     settings['bias_group_map'] = bias_group_map
+    settings['calcx4'] = calcx4
+    settings['readahead'] = readahead
 
     return cfg, len(processor_map), settings

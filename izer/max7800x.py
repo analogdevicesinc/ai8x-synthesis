@@ -147,8 +147,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         measure_energy=False,
         timer=None,
         board_name='',
-        rd_ahead=False,
-        calcx4=False,
+        rd_ahead=None,
+        calcx4=None,
         rtl_preload=False,
         result_output=False,
         weight_start=0,
@@ -185,11 +185,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     if link_layer and not tc.dev.SUPPORT_LINK_LAYER:
         eprint("`--link-layer` is not supported on this device.")
 
-    if rd_ahead and not tc.dev.SUPPORT_READ_AHEAD:
-        eprint("`--read-ahead` is not supported on this device.")
+    if any(rd_ahead) and not tc.dev.SUPPORT_READ_AHEAD:
+        eprint("`readahead` is not supported on this device.")
 
-    if calcx4 and not tc.dev.SUPPORT_CALCX4:
-        eprint("`--calcx4` is not supported on this device.")
+    if any(calcx4) and not tc.dev.SUPPORT_CALCX4:
+        eprint("`calcx4` is not supported on this device.")
 
     if pipeline and not tc.dev.SUPPORT_PIPELINE:
         eprint("`--pipeline` is not supported on this device.")
@@ -1372,7 +1372,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 sources |= 1 << t
                         val |= sources << 12
 
-                    if rd_ahead and hasattr(tc.dev, 'RD_AHEAD_OFFS'):
+                    if rd_ahead[ll] and hasattr(tc.dev, 'RD_AHEAD_OFFS'):
                         val |= 1 << tc.dev.RD_AHEAD_OFFS
 
                     if hasattr(tc.dev, 'CPRIME_MAX_OFFS') and operator[ll] != op.NONE:
@@ -1420,12 +1420,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             else output_chan[ll] // conv_groups[ll]  # FIXME: bypass corner cases
                         kl = (kc - 1) * quant
 
-                        if ll == start_layer and calcx4:
+                        if ll == start_layer and calcx4[ll]:
                             # FIXME: Handle fast_fifo_quad and calcx4
-                            if calcx4:
+                            if calcx4[ll]:
                                 kl += quant
                             kl = (kl + 3) // 4
-                            if calcx4:
+                            if calcx4[ll]:
                                 kl -= quant
                         koffs, oned_sad = divmod(9 * kern_offs[ll],
                                                  kernel_size[ll][0] * kernel_size[ll][1])
@@ -1466,7 +1466,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             val = output_chan[ll] - 1
                         elif operator[ll] != op.NONE and conv_groups[ll] == 1:
                             val = kern_ochan[ll] - 1
-                            if calcx4:
+                            if calcx4[ll]:
                                 val //= 4
                         elif conv_groups[ll] > 1:
                             val = (tscnt_max + 1) * in_expand[ll] - 1
@@ -1569,10 +1569,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     if conv_groups[ll] > 1:
                         val |= 1 << 30 | 1 << 24  # depthwise_ena, ts_ena
 
-                    if calcx4:
+                    if calcx4[ll]:
                         val |= 1 << 29
 
-                    if rd_ahead and in_expand[ll] > 1:
+                    if rd_ahead[ll] and in_expand[ll] > 1:
                         val |= 1 << 31  # tcalc
 
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_POST, val,
@@ -1868,7 +1868,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
             # FIFO control
             if not fast_fifo:
-                val = 0x02 << 2 | 0x02 << 7 | 1 << 11 | tc.dev.FIFO_READY_SEL
+                val = 0x02 << 2 | 0x02 << 7 | tc.dev.FIFO_READY_SEL
+                if tc.dev.REQUIRE_FIFO_CPL:
+                    val |= 1 << 11
                 for i in range(input_chan[start_layer]):
                     if processor_map_0 & 1 << (i % tc.dev.P_NUMGROUPS) * tc.dev.P_NUMPRO != 0:
                         val |= 1 << i % tc.dev.P_NUMGROUPS + 12
