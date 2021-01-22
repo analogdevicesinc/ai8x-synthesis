@@ -1613,7 +1613,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 * (kernel_size[prev_sequence[ll]][0] - 1 + pool[ll][0] - 1) \
                                 + kernel_size[prev_sequence[ll]][1] - 1 + pool[ll][1] \
                                 + increase_start
-                            assert stream_start < 2**tc.dev.MAX_ISVAL_BITS
 
                             # Delta 1: This layer's pooling stride
                             delta1 = pool_stride[ll][1] * operands[ll] + increase_delta1
@@ -1723,7 +1722,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     if ll > start_layer and streaming[ll]:
                         invol = sum(in_expand[:ll])
 
-                    assert stream_start < 2**14
+                    assert stream_start < 2**tc.dev.MAX_ISVAL_BITS
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM1, stream_start,
                                    verbose, comment=' // Stream processing start')
 
