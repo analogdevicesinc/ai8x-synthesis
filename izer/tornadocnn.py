@@ -106,6 +106,7 @@ class DevAI85(Dev):
     device = 85
     partnum = 'MAX78000'
 
+    SUPPORT_GCFR = True
     APB_BASE = 0x50000000
     MAX_LAYERS = 32
     MAX_STREAM_LAYERS = 8
