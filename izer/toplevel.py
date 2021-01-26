@@ -324,7 +324,8 @@ def main(
     if embedded_code and softmax or oneshot > 0:
         memfile.write('\n')
 
-    bbfc = 'BBFC' if not tc.dev.SUPPORT_GCFR else 'GCFR'
+    bbfc = 'BBFC' if not (embedded_code or embedded_arm) and not tc.dev.MODERN_SIM \
+        or not tc.dev.SUPPORT_GCFR else 'GCFR'
 
     if riscv is None or not riscv:
         if embedded_code or embedded_arm:
@@ -366,7 +367,7 @@ def main(
             memfile.write('  *((volatile uint32_t *) 0x40006c04) = 0x000001a0; // 96M trim\n')
             memfile.write('  *((volatile uint32_t *) 0x40000c00) = 0x00000000; '
                           '// Clear TME\n\n')
-            if tc.dev.SUPPORT_GCFR:
+            if tc.dev.SUPPORT_GCFR and tc.dev.MODERN_SIM:
                 memfile.write('  MXC_GCR->clkctrl |= MXC_F_GCR_CLKCTRL_IPO_EN;'
                               ' // Enable internal primary osc (IPO)\n')
                 if pll:
