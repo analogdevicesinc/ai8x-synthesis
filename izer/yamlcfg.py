@@ -428,7 +428,7 @@ def parse(config_file):
             else:
                 bias_group_map[sequence] = val
 
-        if 'caclcx4' in ll:
+        if 'calcx4' in ll:
             val = ll['calcx4']
             try:
                 calcx4[sequence] = bool(val)
