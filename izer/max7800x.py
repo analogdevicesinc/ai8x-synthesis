@@ -1690,6 +1690,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                     if big_data[ll]:
                                         # =(ROUNDUP(Delta1_0/4,0))
                                         delta1 = (delta1 + 3) // 4
+                                    if pipeline and delta1 > 0:
+                                        delta1 += 1
 
                                 if override_delta2 is not None:
                                     delta2 = override_delta2
@@ -1704,7 +1706,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                     if big_data[ll]:
                                         # =(ROUNDUP(Delta2_0/4,0))
                                         delta2 = (delta2 + 3) // 4
-                            else:
+                                    if pipeline and delta2 > 0:
+                                        delta2 += 1
+                            else:  # != start_layer
                                 # =Stride*Elementwise
                                 delta1 = pool_stride[ll][1] * operands[ll]
                                 if big_data[ll]:
