@@ -514,3 +514,5 @@ if [ "$DEVICE" = "78000" ]; then exit 0; fi
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fastfifostream-x4-cifar --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-ffsx4-cifar10-hwc.yaml --fast-fifo-quad --riscv --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fastfifostream-readahead-cifar --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-ffsreadahead-cifar10-hwc.yaml --fast-fifo-quad --riscv --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fastfifostream-x4-readahead-cifar --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-ffsx4readahead-cifar10-hwc.yaml --fast-fifo-quad --riscv --device "$DEVICE" "$@"
+
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-conv2d-pooldilation --config-file tests/test-conv2d-pooldilation.yaml --device "$DEVICE" $SHORT_LOG "$@"

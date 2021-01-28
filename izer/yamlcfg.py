@@ -115,6 +115,7 @@ def parse(config_file):
     bias_group_map = [None] * tc.dev.MAX_LAYERS
     calcx4 = [False] * tc.dev.MAX_LAYERS
     readahead = [False] * tc.dev.MAX_LAYERS
+    pool_dilation = [[1, 1]] * tc.dev.MAX_LAYERS
 
     sequence = 0
     for ll in cfg['layers']:
@@ -126,7 +127,7 @@ def parse(config_file):
                                'operator', 'output_processors', 'output_width', 'output_shift',
                                'pool_first', 'processors', 'pad', 'quantization', 'next_sequence',
                                'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
-                               'bias_group', 'calcx4', 'readahead'])):
+                               'bias_group', 'calcx4', 'readahead', 'pool_dilation'])):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
 
         if 'sequence' in ll:
@@ -442,6 +443,15 @@ def parse(config_file):
             except ValueError:
                 error_exit(f'Unsupported value `{val}` for `readahead`', sequence)
 
+        if 'pool_dilation' in ll:
+            val = ll['pool_dilation']
+            if not isinstance(val, list):
+                pool_dilation[sequence] = [val, val]
+            else:
+                pool_dilation[sequence] = val
+            if not pooling_enabled[sequence]:
+                error_exit('`pool_dilation` requires pooling', sequence)
+
         # Fix up values for 1D convolution or no convolution
         if operator[sequence] == op.CONV1D:
             padding[sequence][1] = 0
@@ -494,6 +504,7 @@ def parse(config_file):
             del bias_group_map[ll]
             del calcx4[ll]
             del readahead[ll]
+            del pool_dilation[ll]
 
     for ll, _ in enumerate(operator):
         # Warn when using default pool stride of 1, 1
@@ -544,5 +555,6 @@ def parse(config_file):
     settings['bias_group_map'] = bias_group_map
     settings['calcx4'] = calcx4
     settings['readahead'] = readahead
+    settings['pool_dilation'] = pool_dilation
 
     return cfg, len(processor_map), settings

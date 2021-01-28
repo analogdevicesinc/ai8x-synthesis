@@ -289,6 +289,7 @@ def pool2d(
         pool,
         stride,
         average,
+        dilation=(1, 1),
         floor=True,
         debug=False,
 ):
@@ -305,7 +306,8 @@ def pool2d(
             for row in range(0, output_size[1]*stride[0], stride[0]):
                 for col in range(0, output_size[2]*stride[1], stride[1]):
                     if average:
-                        avg = np.average(data[c][row:row+pool[0], col:col+pool[1]])
+                        avg = np.average(data[c][row:row+pool[0]*dilation[0]:dilation[0],
+                                                 col:col+pool[1]*dilation[1]:dilation[1]])
                         if floor:
                             if avg < 0:
                                 val = np.ceil(avg).astype(np.int64).clip(min=-128, max=127)
@@ -314,7 +316,8 @@ def pool2d(
                         else:
                             val = np.floor(avg + 0.5).astype(np.int64).clip(min=-128, max=127)
                     else:
-                        val = np.amax(data[c][row:row+pool[0], col:col+pool[1]])
+                        val = np.amax(data[c][row:row+pool[0]*dilation[0]:dilation[0],
+                                              col:col+pool[1]*dilation[1]:dilation[1]])
                     ref[c][row//stride[0]][col//stride[1]] = val
 
     # Fast computation using NumPy
@@ -324,10 +327,11 @@ def pool2d(
 
     view = as_strided(data_pad,
                       shape=(data_pad.shape[0],
-                             1 + (data_pad.shape[1]-pool[0]) // stride[0],
-                             1 + (data_pad.shape[2]-pool[1]) // stride[1],
+                             1 + (data_pad.shape[1] - pool[0] - dilation[0] + 1) // stride[0],
+                             1 + (data_pad.shape[2] - pool[1] - dilation[1] + 1) // stride[1],
                              pool[0], pool[1]),
-                      strides=(data_pad.strides[0], stride[0] * h, stride[1] * w, h, w),
+                      strides=(data_pad.strides[0], stride[0] * h,
+                               stride[1] * w, h * dilation[0], w * dilation[1]),
                       writeable=False)
 
     if average:
@@ -355,6 +359,7 @@ def pool1d(
         pool,
         stride,
         average,
+        dilation=1,
         floor=True,
         debug=False,
 ):  # pylint: disable=unused-argument
@@ -367,7 +372,7 @@ def pool1d(
     for c in range(input_size[0]):
         for x in range(0, output_size[1]*stride, stride):
             if average:
-                avg = np.average(data[c][x:x+pool])
+                avg = np.average(data[c][x:x+pool*dilation:dilation])
                 if avg < 0:
                     val = np.ceil(avg).astype(np.int64).clip(min=-128, max=127)
                 else:

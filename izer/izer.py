@@ -253,6 +253,7 @@ def main():
     bias_group_map = params['bias_group_map'][:layers]
     calcx4 = [True] * layers if args.calcx4 else params['calcx4'][:layers]
     readahead = [True] * layers if args.rd_ahead else params['readahead'][:layers]
+    pool_dilation = params['pool_dilation'][:layers]
 
     # Command line override
     if args.input_offset is not None:
@@ -371,13 +372,13 @@ def main():
                 eprint(f'{op.string(operator[ll])} in layer {ll} does not support non-square '
                        f'pooling stride (currently set to '
                        f'{pool_stride[ll][0]}x{pool_stride[ll][1]}).')
-            pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])
-                           // pool_stride[ll][0],
-                           (input_dim[ll][1] + pool_stride[ll][1] - pool[ll][1])
-                           // pool_stride[ll][1]]
+            pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0]
+                            - pool_dilation[ll][0] + 1) // pool_stride[ll][0],
+                           (input_dim[ll][1] + pool_stride[ll][1] - pool[ll][1]
+                            - pool_dilation[ll][1] + 1) // pool_stride[ll][1]]
         else:
-            pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])
-                           // pool_stride[ll][0],
+            pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0]
+                            - pool_dilation[ll][0] + 1) // pool_stride[ll][0],
                            1]
 
         pooled_dim[ll] = pooled_size
@@ -588,6 +589,7 @@ def main():
             wfi=args.wfi,
             bypass=bypass,
             bias_group_map=bias_group_map,
+            pool_dilation=pool_dilation,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

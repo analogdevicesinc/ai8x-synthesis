@@ -155,6 +155,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         wfi=True,
         bypass=None,
         bias_group_map=None,
+        pool_dilation=None,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -422,6 +423,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
            or dilation[ll][1] > tc.dev.MAX_DILATION:
             eprint(f'Layer {ll}: `dilation` values must be 1 or greater, and '
                    f'{tc.dev.MAX_DILATION} or smaller on this device.')
+
+        if pool_dilation[ll][0] < 1 or pool_dilation[ll][1] < 1 \
+           or pool_dilation[ll][0] > tc.dev.MAX_POOL_DILATION \
+           or pool_dilation[ll][1] > tc.dev.MAX_POOL_DILATION:
+            eprint(f'Layer {ll}: `pool_dilation` values must be 1 or greater, and '
+                   f'{tc.dev.MAX_POOL_DILATION} or smaller on this device.')
 
     # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
     test_name = prefix
@@ -1039,6 +1046,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             print(f'Expansion threshold = {in_expand_thresh}')
 
             print(f'Pooling             = {pool}')
+            if any(h != 1 or w != 1 for h, w in pool_dilation):
+                print(f'Pooling dilation    = {pool_dilation}')
             print(f'Pooling stride      = {pool_stride}')
             print(f'Pooled dimensions   = {pooled_dim}')
 
@@ -1182,7 +1191,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             in_row = input_dim[ll][0]
                             in_col = input_dim[ll][1]
                     if hasattr(tc.dev, 'CNT_DIFF_OFFS'):
-                        diff = (in_row - ((in_row - pool[ll][0])
+                        diff = (in_row - ((in_row - pool[ll][0] - pool_dilation[ll][0] + 1)
                                           // pool_stride[ll][0]) * pool_stride[ll][0])
                         val = in_row - diff  # Stop row, 0-based
                         assert val < 2**tc.dev.MAX_CNT_BITS
@@ -1191,7 +1200,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         if operator[ll] == op.CONV1D:
                             diff = 1
                         else:
-                            diff = (in_col - ((in_col - pool[ll][1])
+                            diff = (in_col - ((in_col - pool[ll][1] - pool_dilation[ll][1] + 1)
                                               // pool_stride[ll][1]) * pool_stride[ll][1])
                         # Bytes to next starting element
                         diff = (diff + (pool_stride[ll][0] - 1) * in_col) \
@@ -1214,7 +1223,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     # Configure column count (evaluates to 0 for 1D convolutions)
                     if hasattr(tc.dev, 'CNT_DIFF_OFFS'):
                         # Calculate last pooling fetch before advancing to next row
-                        diff = (in_col - ((in_col - pool[ll][1])
+                        diff = (in_col - ((in_col - pool[ll][1] - pool_dilation[ll][1] + 1)
                                           // pool_stride[ll][1]) * pool_stride[ll][1])
                         val = in_col - diff
                         assert val < 2**tc.dev.MAX_CNT_BITS
@@ -1234,17 +1243,25 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                     # Configure pooling row count
                     val = pool[ll][0] - 1
-                    assert val < 2**4
                     if hasattr(tc.dev, 'CNT_INC_OFFS'):
-                        val |= dilation[ll][0] - 1 << tc.dev.CNT_INC_OFFS
+                        if pool_dilation[ll][0] > 1:
+                            val += 1
+                        assert val < 2**4
+                        val |= pool_dilation[ll][0] - 1 << tc.dev.CNT_INC_OFFS
+                    else:
+                        assert val < 2**4
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PRCNT, val,
                                    verbose, comment=' // Pooling rows')
 
                     # Configure pooling column count
                     val = pool[ll][1] - 1
-                    assert val < 2**4
                     if hasattr(tc.dev, 'CNT_INC_OFFS'):
-                        val |= dilation[ll][1] - 1 << tc.dev.CNT_INC_OFFS
+                        if pool_dilation[ll][1] > 1:
+                            val += 1
+                        assert val < 2**4
+                        val |= pool_dilation[ll][1] - 1 << tc.dev.CNT_INC_OFFS
+                    else:
+                        assert val < 2**4
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PCCNT, val,
                                    verbose, comment=' // Pooling columns')
 
@@ -2115,6 +2132,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             pool_stride[ll],
             pool_average[ll],
             data,
+            dilation=pool_dilation[ll],
             debug=debug_computation,
             expand=in_expand[ll],
             expand_thresh=in_expand_thresh[ll],
