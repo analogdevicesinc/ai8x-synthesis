@@ -21,6 +21,7 @@ from .eprint import wprint
 
 CONV_SCALE_BITS = 8
 CONV_DEFAULT_WEIGHT_BITS = 8
+CONV_DEFAULT_BIAS_BITS = 8
 DEFAULT_SCALE = .85
 DEFAULT_STDDEV = 2.0
 
@@ -178,11 +179,14 @@ def convert_checkpoint(input_file, output_file, arguments):
                     torch.Tensor([CONV_DEFAULT_WEIGHT_BITS])
                 if new_masks_dict is not None:
                     new_masks_dict[weight_bits_name] = torch.Tensor([CONV_DEFAULT_WEIGHT_BITS])
+            elif int(unwrap(new_checkpoint_state[weight_bits_name])) == 0:
+                new_checkpoint_state[weight_bits_name] = \
+                    torch.Tensor([CONV_DEFAULT_WEIGHT_BITS])
 
             # Is there a bias for this layer? Use the same factor as for weights.
             bias_name = '.'.join([layer, operation, 'bias'])
             if bias_name in checkpoint_state:
-                clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Always 8 bits
+                bias_bits_name = '.'.join([layer, 'bias_bits'])
                 if arguments.verbose:
                     print(bias_name, 'avg_max:', unwrap(avg_max(checkpoint_state[bias_name])),
                           'max:', unwrap(max_max(checkpoint_state[bias_name])),
@@ -206,18 +210,25 @@ def convert_checkpoint(input_file, output_file, arguments):
                 # Store modified bias back into model
                 new_checkpoint_state[bias_name] = bias
 
+                # Set bias_bits to default
+                new_checkpoint_state[bias_bits_name] = \
+                    torch.Tensor([CONV_DEFAULT_BIAS_BITS])
+
             # Set output shift
-            out_shift_name = '.'.join([layer, 'output_shift'])
-            out_shift = torch.Tensor([-1 * get_max_bit_shift(checkpoint_state[k], True)])
-            new_checkpoint_state[out_shift_name] = out_shift
-            if new_masks_dict is not None:
-                new_masks_dict[out_shift_name] = out_shift
+            if arguments.clip_mode is None:
+                out_shift_name = '.'.join([layer, 'output_shift'])
+                out_shift = torch.Tensor([-1 * get_max_bit_shift(checkpoint_state[k], True)])
+                new_checkpoint_state[out_shift_name] = out_shift
+                if new_masks_dict is not None:
+                    new_masks_dict[out_shift_name] = out_shift
 
             layers += 1
         elif parameter in ['base_b_q']:
             del new_checkpoint_state[k]
         elif parameter == 'adjust_output_shift':
             new_checkpoint_state[k] = torch.Tensor([0.])
+        elif parameter == 'quantize_activation':
+            new_checkpoint_state[k] = torch.Tensor([1.])
 
     checkpoint['state_dict'] = new_checkpoint_state
     if compression_sched is not None and new_masks_dict is not None:
