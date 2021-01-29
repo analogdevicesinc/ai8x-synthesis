@@ -597,14 +597,14 @@ def pooling_layer(
                 )
                 if verbose:
                     if dilation[0] > 1 or dilation[1] > 1:
-                        dilation_str = f", DILATION {dilation[0]}/{dilation[1]} "
+                        dilation_str = f", DILATION {dilation[0]}/{dilation[1]}"
                     else:
                         dilation_str = ''
                     print_data(
                         verbose_data,
                         f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
-                        f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]} " + dilation_str +
-                        f"{input_size} -> {pooled_size}"
+                        f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]}" + dilation_str +
+                        f" {input_size} -> {pooled_size}"
                         + (f", POOLED DATA {i}" if operands > 1 else ""),
                         pooled[i],
                         pooled_size,

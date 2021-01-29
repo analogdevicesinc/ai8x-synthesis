@@ -321,8 +321,12 @@ def pool2d(
                     ref[c][row//stride[0]][col//stride[1]] = val
 
     # Fast computation using NumPy
-    data_pad = data[:, :(data.shape[1] - pool[0]) // stride[0] * stride[0] + pool[0],
-                    :(data.shape[2] - pool[1]) // stride[1] * stride[1] + pool[1], ...]
+    data_pad = data[
+        :,
+        :(data.shape[1] - pool[0] + dilation[0] - 1) // stride[0] * stride[0] + pool[0],
+        :(data.shape[2] - pool[1] + dilation[1] - 1) // stride[1] * stride[1] + pool[1],
+        ...
+    ]
     h, w = data_pad.strides[1:]
 
     view = as_strided(data_pad,
@@ -347,7 +351,7 @@ def pool2d(
         if not match:
             eprint('NumPy <-> Python mismatch in compute.pool2d')
 
-    assert pooled.shape == tuple(output_size)
+    assert pooled.shape == tuple(output_size), f'shape mismatch {pooled.shape} vs {output_size}'
 
     return pooled
 

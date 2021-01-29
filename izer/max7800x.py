@@ -174,6 +174,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     pool_str = [None] * layers
     padding_str = [None] * layers
     pool_stride_str = [None] * layers
+    pool_dilation_str = [None] * layers
+    dilation_str = [None] * layers
     stride_str = [None] * layers
 
     if start_layer > 0 and not tc.dev.SUPPORT_LINK_LAYER:
@@ -357,6 +359,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 if pool[ll][0] > 1 or pool[ll][1] > 1 else '0x0'
             padding_str[ll] = f'{padding[ll][0]}/{padding[ll][1]}'
             pool_stride_str[ll] = f'{pool_stride[ll][0]}/{pool_stride[ll][1]}'
+            pool_dilation_str[ll] = f'{pool_dilation[ll][0]}/{pool_dilation[ll][1]}'
+            dilation_str[ll] = f'{dilation[ll][0]}/{dilation[ll][1]}'
             stride_str[ll] = f'{stride[ll][0]}/{stride[ll][1]}'
         else:
             input_dim_str[ll] = f'{input_dim[ll][0]}'
@@ -366,6 +370,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 if pool[ll][0] > 1 or pool[ll][1] > 1 else '0'
             padding_str[ll] = f'{padding[ll][0]}'
             pool_stride_str[ll] = f'{pool_stride[ll][0]}'
+            pool_dilation_str[ll] = f'{pool_dilation[ll][0]}'
+            dilation_str[ll] = f'{dilation[ll][0]}'
             stride_str[ll] = f'{stride[ll][0]}'
 
             if operands[ll] > 1:
@@ -704,6 +710,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 if pool[ll][0] > 1 or pool[ll][1] > 1:
                     apb.output(f'{pool_str[ll]} {"avg" if pool_average[ll] else "max"} '
                                f'pool with stride {pool_stride_str[ll]}', embedded_code)
+                    if pool_dilation[ll][0] > 1 or pool_dilation[ll][1] > 1:
+                        apb.output(f' and dilation {pool_dilation_str[ll]}', embedded_code)
                 else:
                     apb.output('no pooling', embedded_code)
                 if operator[ll] != op.NONE:
@@ -711,6 +719,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                f'{kernel_size_str[ll]}, ' \
                                f'stride {stride_str[ll]}, ' \
                                f'pad {padding_str[ll]}, '
+                    if dilation[ll][0] > 1 or dilation[ll][1] > 1:
+                        conv_str += f'dilation {dilation_str[ll]}, '
                 else:
                     conv_str = ', no convolution, '
                 apb.output(conv_str +
