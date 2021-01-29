@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_January 14, 2020_
+_January 28, 2021_
 
 The Maxim Integrated AI project is comprised of four repositories:
 
@@ -2088,7 +2088,7 @@ To run locally, create a clean copy of the repository and run the following comm
 
 ```shell
 $ docker pull github/super-linter:latest
-$ docker run --rm -e RUN_LOCAL=true -e VALIDATE_MARKDOWN=false -e VALIDATE_PYTHON_BLACK=false -e VALIDATE_ANSIBLE=false -e VALIDATE_EDITORCONFIG=false -e FILTER_REGEX_EXCLUDE="attic/.*|inspect_ckpt.py" -v `pwd`:/tmp/lint github/super-linter
+$ docker run --rm -e RUN_LOCAL=true -e VALIDATE_MARKDOWN=false -e VALIDATE_PYTHON_BLACK=false -e VALIDATE_ANSIBLE=false -e VALIDATE_EDITORCONFIG=false -e VALIDATE_JSCPD=false -e FILTER_REGEX_EXCLUDE="attic/.*|inspect_ckpt.py" -v `pwd`:/tmp/lint github/super-linter
 ```
 
 ### Submitting Changes
