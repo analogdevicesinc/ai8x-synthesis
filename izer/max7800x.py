@@ -1456,6 +1456,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 kl -= quant
                         koffs, oned_sad = divmod(9 * kern_offs[ll],
                                                  kernel_size[ll][0] * kernel_size[ll][1])
+                        if calcx4[ll]:
+                            koffs = kernels.calcx4_index(koffs)
                         koffs *= 8
                     else:
                         kl = koffs = 0

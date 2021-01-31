@@ -9,6 +9,7 @@ Routines to read and write the APB peripherals.
 """
 import os
 
+from . import kernels
 from . import toplevel
 from . import tornadocnn as tc
 from . import unload
@@ -463,22 +464,11 @@ class APB():
         """
         assert p < tc.dev.MAX_PROC
         assert idx < tc.dev.mask_width(p)
-        if not calcx4:
-            addr = tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
-                + tc.dev.C_MRAM_BASE \
-                + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16 + idx * 16
-            idx_x4 = idx
-        else:
-            if idx < tc.dev.MASK_WIDTH_SMALL:
-                idx_x4 = (idx % 4) * (tc.dev.MASK_WIDTH_SMALL // 4) + idx // 4
-            else:
-                idx -= tc.dev.MASK_WIDTH_SMALL
-                idx_x4 = (idx % 4) * ((tc.dev.MASK_WIDTH_LARGE - tc.dev.MASK_WIDTH_SMALL) // 4) \
-                    + idx // 4
-                idx += tc.dev.MASK_WIDTH_SMALL
-            addr = tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
-                + tc.dev.C_MRAM_BASE \
-                + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16 + idx_x4 * 16
+
+        idx_x4 = idx if not calcx4 else kernels.calcx4_index(idx)
+        addr = tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
+            + tc.dev.C_MRAM_BASE \
+            + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16 + idx_x4 * 16
 
         if not verify_only:
             if self.kernel_mem is not None:

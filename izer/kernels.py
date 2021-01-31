@@ -156,6 +156,11 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 continue
             # Get highest offset for all used processors
             kern_offs[ll] = max(proc_kern_max[p], kern_offs[ll])
+        if ll > 0 and calcx4[ll] and not calcx4[ll-1]:
+            # FIXME: This is a quick workaround that should be properly addressed for mixed
+            # non-x4/x4 situations (most common: quad-fast-fifo input and calcx4 in the rest
+            # of the network)
+            kern_offs[ll] *= 4
 
         ksize = kernel_size[ll][0] * kernel_size[ll][1]
         qfactor = 8 // abs(quantization[ll])
@@ -581,3 +586,19 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             apb.function_footer()  # load_weights()
 
     return kern_offs, kern_len, kern_count, kern_ochan
+
+
+def calcx4_index(k):
+    """
+    Re-arranges a kernel offset `k` for calcx4 support.
+    """
+    if not tc.dev.SUPPORT_CALCX4:
+        return k
+
+    if k < tc.dev.MASK_WIDTH_SMALL:
+        return (k % 4) * (tc.dev.MASK_WIDTH_SMALL // 4) + k // 4
+
+    k -= tc.dev.MASK_WIDTH_SMALL
+    k = (k % 4) * ((tc.dev.MASK_WIDTH_LARGE - tc.dev.MASK_WIDTH_SMALL) // 4) \
+        + k // 4
+    return k + tc.dev.MASK_WIDTH_SMALL
