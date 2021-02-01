@@ -9,8 +9,7 @@ Routines to read and write the APB peripherals.
 """
 import os
 
-from . import kernels
-from . import toplevel
+from . import kernels, toplevel
 from . import tornadocnn as tc
 from . import unload
 from .eprint import eprint, wprint
