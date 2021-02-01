@@ -772,6 +772,7 @@ def main(
 def softmax_layer(
         memfile,
         output_width=8,
+        shift=0,
 ):
     """
     Write the call to the softmax layer to `memfile`.
@@ -786,8 +787,12 @@ def softmax_layer(
     memfile.write(f'  cnn_unload((uint32_t *) ml_data{"32" if output_width != 32 else ""});\n')
 
     if output_width == 32:
-        memfile.write('  softmax_q17p14_q15((const q31_t *) ml_data, '
-                      'CNN_NUM_OUTPUTS, ml_softmax);\n')
+        if shift == 0:
+            memfile.write('  softmax_q17p14_q15((const q31_t *) ml_data, '
+                          'CNN_NUM_OUTPUTS, ml_softmax);\n')
+        else:
+            memfile.write('  softmax_shift_q17p14_q15((q31_t *) ml_data, '
+                          f'CNN_NUM_OUTPUTS, {shift}, ml_softmax);\n')
     else:
         memfile.write('  arm_softmax_q7_q15((const q7_t *) ml_data32, '
                       'CNN_NUM_OUTPUTS, ml_softmax);\n')

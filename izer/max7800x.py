@@ -2265,6 +2265,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             if softmax:
                 apb.softmax_layer(
                     output_width=output_width[final_layer],
+                    shift=8 - abs(quantization[final_layer]) if not bypass[final_layer] else 0,
                 )
 
             summary_stats = '/*\n' + \
