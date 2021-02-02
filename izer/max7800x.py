@@ -156,6 +156,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         bypass=None,
         bias_group_map=None,
         pool_dilation=None,
+        input_pix_clk=9,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -2494,6 +2495,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             input_sync=input_sync,
             rtl_preload=rtl_preload,
             result_output=result_output,
+            input_pix_clk=input_pix_clk,
         )
         assets.copy('assets', 'rtlsim-ai' + str(device), base_directory, test_name)
         if riscv_cache:

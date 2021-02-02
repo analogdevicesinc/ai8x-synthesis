@@ -522,8 +522,6 @@ def loadcsv(
         if chw:
             apb.output('  int j;\n')
             apb.output('  uint32_t d[4], u;\n')
-        else:
-            apb.output('  uint32_t d;\n')
         apb.output('#else\n')
         apb.output('  int i = 0;\n')
         apb.output('  register int head = 0;\n')
@@ -537,22 +535,22 @@ def loadcsv(
             max_len = input_size[1] * input_size[2]
         apb.output('#ifndef USE_FIFO\n')
         apb.output(f'  for (i = 0; i < {max_len}; i++) {{\n')
+        fd = 'MXC_CAMERAIF0->dma_data' if not tc.dev.MODERN_SIM else 'MXC_PCIF->fifo_data'
         if not chw:
             for c in range(fifos):
                 if not tc.dev.MODERN_SIM:
                     apb.output('    while ((MXC_CAMERAIF0->int_fl & 0x80) == 0); '
-                               '// Wait for camera FIFO not empty\n'
-                               '    d = MXC_CAMERAIF0->dma_data; // Read camera\n')
+                               '// Wait for camera FIFO not empty\n')
                 else:
                     apb.output('    while ((MXC_PCIF->int_fl & 0x80) == 0); '
-                               '// Wait for camera FIFO not empty\n'
-                               '    d = MXC_PCIF->fifo_data; // Read camera\n')
-                apb.write(0, 'd', fifo=c, comment=f' // Write FIFO {c}', indent='    ')
+                               '// Wait for camera FIFO not empty\n')
+                apb.write(0, fd, fifo=c, comment=f' // Read camera, write FIFO {c}',
+                          indent='    ', fifo_wait=False)
         else:
             apb.output('    for (j = 0; j < 4; j++) {\n'
                        '      while ((MXC_PCIF->int_fl & 0x80) == 0); '
                        '// Wait for camera FIFO not empty\n'
-                       '      d[j] = MXC_PCIF->fifo_data; '
+                       f'      d[j] = {fd}; '
                        '// Read 24 bits RGB from camera\n'
                        '    }\n')
             for c in range(fifos):
@@ -566,7 +564,8 @@ def loadcsv(
                                f'| (((d[1] >> {c * 8}) & 0xff) << 8) '
                                f'| (((d[2] >> {c * 8}) & 0xff) << 16) '
                                f'| (((d[3] >> {c * 8}) & 0xff) << 24);\n')
-                apb.write(0, 'u', fifo=c, comment=f' // Write FIFO {c}', indent='    ')
+                apb.write(0, 'u', fifo=c, comment=f' // Write FIFO {c}',
+                          indent='    ', fifo_wait=False)
 
         apb.output('  }\n')
         apb.output('#else\n')

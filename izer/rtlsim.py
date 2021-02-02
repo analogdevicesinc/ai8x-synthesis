@@ -28,6 +28,7 @@ def create_runtest_sv(
         input_sync=False,
         rtl_preload=False,
         result_output=False,
+        input_pix_clk=9,
 ):
     """
     For for test `test_name`, create the runtest.sv file named `runtest_filename`, in the
@@ -203,7 +204,7 @@ def create_runtest_sv(
                 runfile.write('assign `PCIF_DATA_0  = data_val[0];\n')
 
                 if input_sync:
-                    runfile.write('\nparameter pclk_ai_per_pix = 9;\n\n')
+                    runfile.write(f'\nparameter pclk_ai_per_pix = {input_pix_clk};\n\n')
                     if tc.dev.MODERN_SIM:
                         runfile.write('`define PCLK_AI  `DIGITAL_TOP.pclk_ai\n')
                     else:

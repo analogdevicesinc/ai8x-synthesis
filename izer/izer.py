@@ -590,6 +590,7 @@ def main():
             bypass=bypass,
             bias_group_map=bias_group_map,
             pool_dilation=pool_dilation,
+            input_pix_clk=args.input_pix_clk,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

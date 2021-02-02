@@ -207,6 +207,8 @@ def get_parser():
                             f"(default: {camera.RETRACE})")
     group.add_argument('--input-csv-period', metavar='N', default=80,
                        help="period for .csv input data (default: 80)")
+    group.add_argument('--input-pix-clk', metavar='N', default=9,
+                       help="pixel clock for .csv input data (default: 9)")
     group.add_argument('--input-sync', action='store_true', default=False,
                        help="use synchronous camera input (default: false)")
     group.add_argument('--input-fifo', action='store_true', default=False,

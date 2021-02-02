@@ -232,6 +232,7 @@ class APB():
             no_verify=False,
             fifo=None,
             base=None,
+            fifo_wait=True,
     ):  # pylint: disable=unused-argument
         """
         Write address `addr` and data `val` to the output file.
@@ -786,6 +787,7 @@ class APBBlockLevel(APB):
             no_verify=False,
             fifo=None,
             base=None,
+            fifo_wait=True,
     ):  # pylint: disable=unused-argument
         """
         Write address `addr` and data `val` to the .mem file.
@@ -901,6 +903,7 @@ class APBTopLevel(APB):
             no_verify=False,
             fifo=None,
             base=None,
+            fifo_wait=True,
     ):
         """
         Write address `addr` and data `val` to the .c file.
@@ -930,17 +933,19 @@ class APBTopLevel(APB):
         else:
             if not self.fast_fifo:
                 addr = self.apb_base + tc.dev.C_FIFO_BASE
-                self.memfile.write(f'{indent}while (((*((volatile uint32_t *) '
-                                   f'0x{addr + tc.dev.FIFO_STAT*4:08x})'
-                                   f' & {1 << fifo})) != 0); // Wait for FIFO {fifo}\n')
+                if fifo_wait:
+                    self.memfile.write(f'{indent}while (((*((volatile uint32_t *) '
+                                       f'0x{addr + tc.dev.FIFO_STAT*4:08x})'
+                                       f' & {1 << fifo})) != 0); // Wait for FIFO {fifo}\n')
                 self.memfile.write(f'{indent}*((volatile uint32_t *) '
                                    f'0x{addr + tc.dev.FIFO_REG*4 + fifo*4:08x}) = '
                                    f'{val};{comment}\n')
             else:
                 addr = tc.dev.FAST_FIFO_BASE
-                self.memfile.write(f'{indent}while (((*((volatile uint32_t *) '
-                                   f'0x{addr + tc.dev.FAST_FIFO_SR*4:08x})'
-                                   f' & 2)) != 0); // Wait for FIFO\n')
+                if fifo_wait:
+                    self.memfile.write(f'{indent}while (((*((volatile uint32_t *) '
+                                       f'0x{addr + tc.dev.FAST_FIFO_SR*4:08x})'
+                                       f' & 2)) != 0); // Wait for FIFO\n')
                 self.memfile.write(f'{indent}*((volatile uint32_t *) '
                                    f'0x{addr + tc.dev.FAST_FIFO_DR*4:08x}) = '
                                    f'{val};{comment}\n')
