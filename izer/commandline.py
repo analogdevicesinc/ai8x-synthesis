@@ -213,6 +213,8 @@ def get_parser():
                        help="use software FIFO to buffer input (default: false)")
     group.add_argument('--autogen', default='None', metavar='S',
                        help="directory location for autogen_list (default: None)")
+    group.add_argument('--autogen_list', default='autogen_list', metavar='S',
+                       help="file name for autogen_list")
     group.add_argument('--input-filename', default='input', metavar='S',
                        help="input .mem file name base (default: 'input' -> 'input.mem')")
     group.add_argument('--output-filename', default='output', metavar='S',

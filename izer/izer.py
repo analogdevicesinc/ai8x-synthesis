@@ -597,6 +597,7 @@ def main():
                 tn,
                 args.queue_name,
                 args.autogen,
+                args.autogen_list,
             )
     else:
         cmsisnn.create_net(

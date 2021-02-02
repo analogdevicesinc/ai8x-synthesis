@@ -282,6 +282,7 @@ def append_regression(
         test_name,
         queue_name,
         autogen_dir,
+        autogen_list='autogen_list',
 ):
     """
     Append test `test_name` to the regression list in directory `autogen_dir` with
@@ -297,7 +298,7 @@ def append_regression(
         testname = f'tests/{top_level}/{test_name}/run_test:{queue_name}'
     found = False
     try:
-        with open(os.path.join(autogen_dir, 'autogen_list'), mode='r') as listfile:
+        with open(os.path.join(autogen_dir, autogen_list), mode='r') as listfile:
             for line in listfile:
                 if testname in line:
                     found = True
@@ -305,5 +306,5 @@ def append_regression(
     except FileNotFoundError:
         pass
     if not found:
-        with open(os.path.join(autogen_dir, 'autogen_list'), mode='a') as listfile:
+        with open(os.path.join(autogen_dir, autogen_list), mode='a') as listfile:
             listfile.write(f'{testname}\n')
