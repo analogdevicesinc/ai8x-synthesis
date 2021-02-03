@@ -232,30 +232,72 @@ def track_data_shape(model, out_dict):
     layer_num = -1
     save_perm = []
     save_shape = []
-    transpose_info = {}
+    pool_layer = False
     last_op = ''
-
+    node_list = []
+    conv_relu_pool = 0
+    last_pool_crp = False
+    
     for _, node in enumerate(model.graph.node):
+        node_list.append(node.op_type)
         if node.op_type == 'Conv':
+            pool_layer = False
             layer_num = layer_num + 1
+            conv_relu_pool = 1
             if node.output[0] in out_dict.keys():
                 save_shape = list(out_dict[node.output[0]].shape)
+
                 if save_shape[0] == 1:  # set batch size to unknown
                     save_shape[0] = -1
 
         elif node.op_type == 'ConvTranspose':
+            pool_layer = False
             layer_num = layer_num + 1
             if node.output[0] in out_dict.keys():
                 save_shape = list(out_dict[node.output[0]].shape)
                 if save_shape[0] == 1:  # set batch size to unknown
                     save_shape[0] = -1
 
+        if node.op_type == 'Relu':
+            if conv_relu_pool == 1:
+                conv_relu_pool = 2
+            else:
+                conv_relu_pool = 0
+
         elif node.op_type == 'Squeeze':
-            if last_op == 'Conv':
+            if last_op == 'Conv' or ((last_op == 'MaxPool' or last_op == 'AveragePool') and last_pool_crp):
                 for attr in node.attribute:
                     if attr.name == 'axes':
                         if attr.ints:
+                            #print(save_shape,conv_relu_pool)
                             save_shape.pop(attr.ints[0])
+
+        elif (node.op_type == 'MaxPool') or (node.op_type == 'AveragePool'): 
+            #print(node.op_type)
+            last_pool_crp = False
+            input_size = []
+            kernel = []
+            stride = []
+            for attr in node.attribute:
+                if attr.name == "kernel_shape":
+                    kernel_len =  len(attr.ints)
+                    for x in range(kernel_len):
+                        kernel.append(attr.ints[x])
+                if attr.name == "strides":
+                    stride_len =  len(attr.ints)
+                    for x in range(stride_len):
+                        stride.append(attr.ints[x])
+
+            if conv_relu_pool == 2:
+                last_pool_crp = True
+                save_shape = list(out_dict[node.output[0]].shape)
+                #print(save_shape)
+
+                if save_shape[0] == 1:  # set batch size to unknown
+                    save_shape[0] = -1
+
+                conv_relu_pool = 0
+                layer_num = layer_num + 1
 
         elif node.op_type == 'Transpose':
             for attr in node.attribute:
@@ -266,7 +308,6 @@ def track_data_shape(model, out_dict):
                         perm.append(attr.ints[x])
 
             if len(perm) > 0:
-                transpose_info[layer_num+1] = perm
                 save_perm = perm.copy()
 
             if len(save_shape) > 0:
@@ -279,7 +320,7 @@ def track_data_shape(model, out_dict):
             layer_num = layer_num + 1
 
         last_op = node.op_type
-    return save_shape, save_perm, transpose_info
+    return save_shape, save_perm
 
 
 def inv(perm):
@@ -547,7 +588,6 @@ def onnxrt(
 
     return inps, outs
 
-
 def load(
         checkpoint_file,
         cfg_layers,
@@ -645,6 +685,7 @@ def load(
     save_perm = None
     transpose_list = []  # pylint: disable=unused-variable
     op_list = []
+    conv_relu_pool = 0;
 
     # looking for conv1d/conv2d indications
     for x in range(cfg_layers):
@@ -656,7 +697,7 @@ def load(
         op_list.append(op)
 
     _, out_dict = onnxrt(checkpoint_file, model)
-    save_shape, save_perm, transpose_list = \
+    save_shape, save_perm = \
         track_data_shape(model, out_dict)
 
     # find Cast/Mul/Add sequences with connected in/outs
@@ -709,6 +750,44 @@ def load(
 
         if node.op_type == 'Mul':
             continue
+
+        if node.op_type == 'Conv':
+            conv_relu_pool = 1
+
+        if node.op_type == 'Relu':
+            if conv_relu_pool == 1:
+              conv_relu_pool = 2
+            else:
+              conv_relu_pool = 0 
+
+        if (node.op_type == 'MaxPool') or (node.op_type == 'AveragePool'): # TC
+            kernel = []
+            stride = []
+            for attr in node.attribute:
+                if attr.name == "kernel_shape":
+                    kernel_len =  len(attr.ints)
+                    for x in range(kernel_len):
+                        kernel.append(attr.ints[x])
+                if attr.name == "strides":
+                    stride_len =  len(attr.ints)
+                    for x in range(stride_len):
+                        stride.append(attr.ints[x])
+                        
+            if conv_relu_pool == 2:
+                conv_relu_pool = 0
+                seq += 1
+                layers += 1
+                kernel_shape = kernel
+                kernel_size_onnx.append(kernel_shape)
+                new_shape = out_dict[node.output[0]].shape
+                new_size1 = output_channels[-1]
+                new_size0 = new_shape[1]
+                input_channels.append(new_size1)
+                output_channels.append(new_size0)
+                weights.append(None)
+                bias.append(None)
+                quantization.append(None)
+                continue
 
         if node.op_type == 'Conv' or node.op_type == 'ConvTranspose' or node.op_type == 'Gemm' \
            or node.op_type == 'MatMul' or node.op_type == 'Add':

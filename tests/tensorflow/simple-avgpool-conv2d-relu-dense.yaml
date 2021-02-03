@@ -1,0 +1,25 @@
+arch: ai85net5
+dataset: simple-avgpool-conv2d-dense
+
+# Define layer parameters in order of the layer sequence
+layers:
+- pad: 1
+  #processors: 0x00000000000000ff
+  processors: 0x0000000000000001
+  activate: ReLU
+  #data_format: CHW
+  out_offset: 0x2000
+  op: conv2d
+  kernel_size: 3x3
+  stride: 1
+- processors: 0x0000000000000003
+  out_offset: 0x0000
+  op: passthrough
+  avg_pool: 2
+  pool_stride: 1
+- flatten: true
+  operation: MLP
+  out_offset: 0x2000
+  #processors: 0x0000000000000001f
+  processors: 0x00000000000000003
+  #output_width: 32
