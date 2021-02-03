@@ -99,7 +99,6 @@ def parse(config_file):
     big_data = [False] * tc.dev.MAX_LAYERS
     output_width = [8] * tc.dev.MAX_LAYERS
     operator = [op.CONV2D] * tc.dev.MAX_LAYERS
-    # We don't support changing the following (yet), but leave as parameters:
     dilation = [[1, 1]] * tc.dev.MAX_LAYERS
     kernel_size = [DEFAULT_2D_KERNEL] * tc.dev.MAX_LAYERS
     conv_groups = [1] * tc.dev.MAX_LAYERS
@@ -113,17 +112,22 @@ def parse(config_file):
     next_sequence = [None] * tc.dev.MAX_LAYERS
     write_gap = [0] * tc.dev.MAX_LAYERS
     bypass = [False] * tc.dev.MAX_LAYERS
+    bias_group_map = [None] * tc.dev.MAX_LAYERS
+    calcx4 = [False] * tc.dev.MAX_LAYERS
+    readahead = [False] * tc.dev.MAX_LAYERS
+    pool_dilation = [[1, 1]] * tc.dev.MAX_LAYERS
 
     sequence = 0
     for ll in cfg['layers']:
-        if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'conv_groups',
+        if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'conv_groups', 'dilation',
                                'groups', 'in_channels', 'in_dim', 'in_sequences', 'in_skip',
                                'in_channel_skip', 'in_offset', 'kernel_size', 'pool_stride',
                                'out_channels', 'out_offset', 'activate', 'activation',
                                'data_format', 'eltwise', 'flatten', 'op', 'operands', 'operation',
                                'operator', 'output_processors', 'output_width', 'output_shift',
                                'pool_first', 'processors', 'pad', 'quantization', 'next_sequence',
-                               'sequence', 'streaming', 'stride', 'write_gap', 'bypass'])):
+                               'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
+                               'bias_group', 'calcx4', 'readahead', 'pool_dilation'])):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
 
         if 'sequence' in ll:
@@ -284,6 +288,15 @@ def parse(config_file):
                 error_exit(f'Unsupported value {val} for `pad`', sequence)
             padding[sequence] = [val, val]
 
+        if 'dilation' in ll:
+            val = ll['dilation']
+            if not isinstance(val, list):
+                dilation[sequence] = [val, val]
+            else:
+                dilation[sequence] = val
+            if operator[sequence] == op.NONE:
+                error_exit('`dilation` requires a convolution operator', sequence)
+
         if 'eltwise' in ll:
             conv = ll['eltwise'].lower()
             if conv == 'add':
@@ -409,6 +422,36 @@ def parse(config_file):
             except ValueError:
                 error_exit(f'Unsupported value `{val}` for `bypass`', sequence)
 
+        if 'bias_group' in ll:
+            val = ll['bias_group']
+            if isinstance(val, int):
+                bias_group_map[sequence] = [val]
+            else:
+                bias_group_map[sequence] = val
+
+        if 'calcx4' in ll:
+            val = ll['calcx4']
+            try:
+                calcx4[sequence] = bool(val)
+            except ValueError:
+                error_exit(f'Unsupported value `{val}` for `calcx4`', sequence)
+
+        if 'readahead' in ll:
+            val = ll['readahead']
+            try:
+                readahead[sequence] = bool(val)
+            except ValueError:
+                error_exit(f'Unsupported value `{val}` for `readahead`', sequence)
+
+        if 'pool_dilation' in ll:
+            val = ll['pool_dilation']
+            if not isinstance(val, list):
+                pool_dilation[sequence] = [val, val]
+            else:
+                pool_dilation[sequence] = val
+            if not pooling_enabled[sequence]:
+                error_exit('`pool_dilation` requires pooling', sequence)
+
         # Fix up values for 1D convolution or no convolution
         if operator[sequence] == op.CONV1D:
             padding[sequence][1] = 0
@@ -458,35 +501,21 @@ def parse(config_file):
             del in_sequences[ll]
             del next_sequence[ll]
             del bypass[ll]
+            del bias_group_map[ll]
+            del calcx4[ll]
+            del readahead[ll]
+            del pool_dilation[ll]
 
-    for ll, e in enumerate(operator):
+    for ll, _ in enumerate(operator):
         # Warn when using default pool stride of 1, 1
         if pool_stride[ll][0] is None:
             if pooling_enabled[ll]:
                 wprint(f'Using default pool stride of 1 in layer {ll}.')
             pool_stride[ll] = [1, 1]
 
-        # Check that pass-through does not use activation
-        if e == op.NONE:
-            if activation[ll] is not None:
-                error_exit('Pass-through layers must not use activation', ll)
-            if padding[ll][0] != 0 or padding[ll][1] != 0:
-                error_exit('Padding must be zero for passthrough layers', ll)
-            if output_shift[ll] != 0 and output_shift[ll] is not None:
-                error_exit('`output_shift` must be zero for passthrough layers', ll)
         # Check that pooling isn't set for ConvTranspose2d:
-        elif e == op.CONVTRANSPOSE2D:
-            if pooling_enabled[ll]:
-                error_exit('ConvTranspose2d cannot be used with pooling', ll)
-        # Check that element-wise does not use Conv1d
-        if e == op.CONV1D and operands[ll] > 1:
-            error_exit('Element-wise operations cannot be combined with Conv1d', ll)
         if not pool_first[ll] and (operands[ll] == 1 or pool[ll][0] == 1 and pool[ll][1] == 1):
             error_exit('`pool_first: False` requires both pooling and element-wise operations', ll)
-
-        # Check we're not using binary weights on devices that don't support it
-        if quantization[ll] == -1 and not tc.dev.SUPPORT_BINARY_WEIGHTS:
-            error_exit('Binary weights (-1/+1) are not supported on this device', ll)
 
     settings = {}
     settings['padding'] = padding
@@ -523,5 +552,9 @@ def parse(config_file):
     settings['conv_groups'] = conv_groups
     settings['write_gap'] = write_gap
     settings['bypass'] = bypass
+    settings['bias_group_map'] = bias_group_map
+    settings['calcx4'] = calcx4
+    settings['readahead'] = readahead
+    settings['pool_dilation'] = pool_dilation
 
     return cfg, len(processor_map), settings

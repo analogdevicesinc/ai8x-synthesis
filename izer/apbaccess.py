@@ -9,7 +9,7 @@ Routines to read and write the APB peripherals.
 """
 import os
 
-from . import toplevel
+from . import kernels, toplevel
 from . import tornadocnn as tc
 from . import unload
 from .eprint import eprint, wprint
@@ -72,6 +72,7 @@ class APB():
             output_width=8,
             bias=False,
             wfi=True,
+            zero_sram=False,
     ):
         """
         Create an APB class object that writes to memfile.
@@ -105,7 +106,6 @@ class APB():
         self.blocklevel = blocklevel
         self.measure_energy = measure_energy
         self.timer = timer
-        self.mexpress = mexpress
         self.pll = pll
         self.boost = boost
         self.forever = forever
@@ -121,6 +121,7 @@ class APB():
         self.output_width = output_width
         self.bias = bias
         self.wfi = wfi
+        self.zero_sram = zero_sram
 
         self.data = 0
         self.num = 0
@@ -174,7 +175,7 @@ class APB():
                                 for (addr, val) in self.data_mem[group][proc][mem]:
                                     f.write(f'@{addr:04x} {val}\n')
 
-        if self.kernel_mem is not None:
+        if self.kernel_mem is not None and not self.zero_sram:
             try:
                 target_dir = target_dir = os.path.join(base_directory, test_name, 'masks')
                 os.makedirs(target_dir, exist_ok=False)
@@ -231,6 +232,7 @@ class APB():
             no_verify=False,
             fifo=None,
             base=None,
+            fifo_wait=True,
     ):  # pylint: disable=unused-argument
         """
         Write address `addr` and data `val` to the output file.
@@ -462,22 +464,11 @@ class APB():
         """
         assert p < tc.dev.MAX_PROC
         assert idx < tc.dev.mask_width(p)
-        if not calcx4:
-            addr = tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
-                + tc.dev.C_MRAM_BASE \
-                + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16 + idx * 16
-            idx_x4 = idx
-        else:
-            if idx < tc.dev.MASK_WIDTH_SMALL:
-                idx_x4 = (idx % 4) * (tc.dev.MASK_WIDTH_SMALL // 4) + idx // 4
-            else:
-                idx -= tc.dev.MASK_WIDTH_SMALL
-                idx_x4 = (idx % 4) * ((tc.dev.MASK_WIDTH_LARGE - tc.dev.MASK_WIDTH_SMALL) // 4) \
-                    + idx // 4
-                idx += tc.dev.MASK_WIDTH_SMALL
-            addr = tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
-                + tc.dev.C_MRAM_BASE \
-                + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16 + idx_x4 * 16
+
+        idx_x4 = idx if not calcx4 else kernels.calcx4_index(idx)
+        addr = tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
+            + tc.dev.C_MRAM_BASE \
+            + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16 + idx_x4 * 16
 
         if not verify_only:
             if self.kernel_mem is not None:
@@ -796,6 +787,7 @@ class APBBlockLevel(APB):
             no_verify=False,
             fifo=None,
             base=None,
+            fifo_wait=True,
     ):  # pylint: disable=unused-argument
         """
         Write address `addr` and data `val` to the .mem file.
@@ -911,6 +903,7 @@ class APBTopLevel(APB):
             no_verify=False,
             fifo=None,
             base=None,
+            fifo_wait=True,
     ):
         """
         Write address `addr` and data `val` to the .c file.
@@ -940,17 +933,19 @@ class APBTopLevel(APB):
         else:
             if not self.fast_fifo:
                 addr = self.apb_base + tc.dev.C_FIFO_BASE
-                self.memfile.write(f'{indent}while (((*((volatile uint32_t *) '
-                                   f'0x{addr + tc.dev.FIFO_STAT*4:08x})'
-                                   f' & {1 << fifo})) != 0); // Wait for FIFO {fifo}\n')
+                if fifo_wait:
+                    self.memfile.write(f'{indent}while (((*((volatile uint32_t *) '
+                                       f'0x{addr + tc.dev.FIFO_STAT*4:08x})'
+                                       f' & {1 << fifo})) != 0); // Wait for FIFO {fifo}\n')
                 self.memfile.write(f'{indent}*((volatile uint32_t *) '
                                    f'0x{addr + tc.dev.FIFO_REG*4 + fifo*4:08x}) = '
                                    f'{val};{comment}\n')
             else:
                 addr = tc.dev.FAST_FIFO_BASE
-                self.memfile.write(f'{indent}while (((*((volatile uint32_t *) '
-                                   f'0x{addr + tc.dev.FAST_FIFO_SR*4:08x})'
-                                   f' & 2)) != 0); // Wait for FIFO\n')
+                if fifo_wait:
+                    self.memfile.write(f'{indent}while (((*((volatile uint32_t *) '
+                                       f'0x{addr + tc.dev.FAST_FIFO_SR*4:08x})'
+                                       f' & 2)) != 0); // Wait for FIFO\n')
                 self.memfile.write(f'{indent}*((volatile uint32_t *) '
                                    f'0x{addr + tc.dev.FAST_FIFO_DR*4:08x}) = '
                                    f'{val};{comment}\n')

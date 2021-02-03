@@ -250,6 +250,10 @@ def main():
     conv_groups = params['conv_groups'][:layers]
     write_gap = params['write_gap'][:layers]
     bypass = params['bypass'][:layers]
+    bias_group_map = params['bias_group_map'][:layers]
+    calcx4 = [True] * layers if args.calcx4 else params['calcx4'][:layers]
+    readahead = [True] * layers if args.rd_ahead else params['readahead'][:layers]
+    pool_dilation = params['pool_dilation'][:layers]
 
     # Command line override
     if args.input_offset is not None:
@@ -304,6 +308,8 @@ def main():
     while ll < layers:
         if input_channels[ll] <= 0:
             eprint(f'Must specify `in_channels` for layer {ll}.')
+        if quantization[ll] is None:
+            quantization[ll] = 8 if not bypass[ll] and operator[ll] != op.NONE else 0  # Defaults
         if operator[ll] != op.NONE and not bypass[ll]:
             if quantization[ll] == -1:
                 w = np.abs(weights[ll])
@@ -366,13 +372,13 @@ def main():
                 eprint(f'{op.string(operator[ll])} in layer {ll} does not support non-square '
                        f'pooling stride (currently set to '
                        f'{pool_stride[ll][0]}x{pool_stride[ll][1]}).')
-            pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])
-                           // pool_stride[ll][0],
-                           (input_dim[ll][1] + pool_stride[ll][1] - pool[ll][1])
-                           // pool_stride[ll][1]]
+            pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0]
+                            - pool_dilation[ll][0] + 1) // pool_stride[ll][0],
+                           (input_dim[ll][1] + pool_stride[ll][1] - pool[ll][1]
+                            - pool_dilation[ll][1] + 1) // pool_stride[ll][1]]
         else:
-            pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0])
-                           // pool_stride[ll][0],
+            pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0]
+                            - pool_dilation[ll][0] + 1) // pool_stride[ll][0],
                            1]
 
         pooled_dim[ll] = pooled_size
@@ -575,13 +581,16 @@ def main():
             measure_energy=args.energy,
             timer=args.timer,
             board_name=args.board_name,
-            rd_ahead=args.rd_ahead,
-            calcx4=args.calcx4,
+            rd_ahead=readahead,
+            calcx4=calcx4,
             rtl_preload=args.rtl_preload,
             result_output=args.result_output,
             weight_start=args.weight_start,
             wfi=args.wfi,
             bypass=bypass,
+            bias_group_map=bias_group_map,
+            pool_dilation=pool_dilation,
+            input_pix_clk=args.input_pix_clk,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(
@@ -589,10 +598,9 @@ def main():
                 tn,
                 args.queue_name,
                 args.autogen,
+                args.autogen_list,
             )
     else:
-        wprint('CMSIS-NN code generation is unsupported.')
-
         cmsisnn.create_net(
             args.prefix,
             args.verbose,

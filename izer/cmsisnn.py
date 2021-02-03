@@ -64,6 +64,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     """
     Create the CMSIS NN network.
     """
+    wprint('CMSIS-NN code generation is unsupported.')
+
     if output_width[-1] != 8:
         wprint('CMSIS network generator does not currently support `output_width` that is not 8. '
                'Forcing to 8 bit.')  # FIXME: Support 32-bit output

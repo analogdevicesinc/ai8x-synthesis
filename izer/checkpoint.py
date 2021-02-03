@@ -211,7 +211,7 @@ def load(
     if verbose:
         print(f'Checkpoint for epoch {checkpoint["epoch"]}, model {checkpoint["arch"]} - '
               'weight and bias data:')
-        print('Layer  InCh OutCh  Weights         Quant Shift  Min Max   Size '
+        print(' InCh OutCh  Weights         Quant Shift  Min Max   Size '
               'Key                                 Bias       Quant  Min Max Size Key')
         for ll in range(layers):
             if ll < len(weights) and weights[ll] is not None:
@@ -224,8 +224,7 @@ def load(
                     output_shift_shape = output_shift[ll]
                 else:
                     output_shift_shape = 'N/A'
-                print(f'{ll:4}: '
-                      f'{input_channels[ll]:5} {output_channels[ll]:5}  '
+                print(f'{input_channels[ll]:5} {output_channels[ll]:5}  '
                       f'{weight_shape:15} '
                       f'{quant[ll]:5} {output_shift_shape:5} '
                       f'{weight_min[ll]:4} {weight_max[ll]:3} {weight_size[ll]:6} '

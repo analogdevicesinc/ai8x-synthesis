@@ -207,12 +207,16 @@ def get_parser():
                             f"(default: {camera.RETRACE})")
     group.add_argument('--input-csv-period', metavar='N', default=80,
                        help="period for .csv input data (default: 80)")
+    group.add_argument('--input-pix-clk', metavar='N', default=9,
+                       help="pixel clock for .csv input data (default: 9)")
     group.add_argument('--input-sync', action='store_true', default=False,
                        help="use synchronous camera input (default: false)")
     group.add_argument('--input-fifo', action='store_true', default=False,
                        help="use software FIFO to buffer input (default: false)")
     group.add_argument('--autogen', default='None', metavar='S',
                        help="directory location for autogen_list (default: None)")
+    group.add_argument('--autogen_list', default='autogen_list', metavar='S',
+                       help="file name for autogen_list")
     group.add_argument('--input-filename', default='input', metavar='S',
                        help="input .mem file name base (default: 'input' -> 'input.mem')")
     group.add_argument('--output-filename', default='output', metavar='S',
@@ -370,7 +374,7 @@ def get_parser():
         wprint('`--unload` is no longer needed, and is ignored.')
 
     if args.allow_streaming:
-        wprint('`--allow-streaming` is not supported.')
+        wprint('`--allow-streaming` is unsupported.')
 
     # Set disabled legacy arguments
     args.unload = False

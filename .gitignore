@@ -9,8 +9,8 @@
 /etc/
 /go
 /include/
-/lib/
-/lib64/
+/lib
+/lib64
 /ninja-python-distributions
 /pip-selfcheck.json
 /pyvenv.cfg

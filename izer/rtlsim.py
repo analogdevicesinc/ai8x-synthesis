@@ -28,6 +28,7 @@ def create_runtest_sv(
         input_sync=False,
         rtl_preload=False,
         result_output=False,
+        input_pix_clk=9,
 ):
     """
     For for test `test_name`, create the runtest.sv file named `runtest_filename`, in the
@@ -203,14 +204,20 @@ def create_runtest_sv(
                 runfile.write('assign `PCIF_DATA_0  = data_val[0];\n')
 
                 if input_sync:
-                    runfile.write('\nparameter pclk_ai_per_pix = 9;\n\n')
-                    runfile.write('logic        pclk_ai;\n')
+                    runfile.write(f'\nparameter pclk_ai_per_pix = {input_pix_clk};\n\n')
+                    if tc.dev.MODERN_SIM:
+                        runfile.write('`define PCLK_AI  `DIGITAL_TOP.pclk_ai\n')
+                    else:
+                        runfile.write('logic        pclk_ai;\n')
                     runfile.write('logic        clk_pix;\n')
                     runfile.write('logic        start_io;\n')
                     runfile.write('logic        end_of_file;\n')
                     runfile.write('integer      clk_pix_i;\n\n')
-                    runfile.write('assign pclk_ai = tb.xchip.pclk_ai;\n\n')
-                    runfile.write('always @(posedge pclk_ai) begin\n')
+                    if not tc.dev.MODERN_SIM:
+                        runfile.write('assign pclk_ai = tb.xchip.pclk_ai;\n\n')
+                        runfile.write('always @(posedge pclk_ai) begin\n')
+                    else:
+                        runfile.write('always @(posedge `PCLK_AI) begin\n')
                     runfile.write('  if (clk_pix_i == pclk_ai_per_pix)\n')
                     runfile.write('    clk_pix_i = 0;\n')
                     runfile.write('  else\n')
@@ -276,6 +283,7 @@ def append_regression(
         test_name,
         queue_name,
         autogen_dir,
+        autogen_list='autogen_list',
 ):
     """
     Append test `test_name` to the regression list in directory `autogen_dir` with
@@ -291,7 +299,7 @@ def append_regression(
         testname = f'tests/{top_level}/{test_name}/run_test:{queue_name}'
     found = False
     try:
-        with open(os.path.join(autogen_dir, 'autogen_list'), mode='r') as listfile:
+        with open(os.path.join(autogen_dir, autogen_list), mode='r') as listfile:
             for line in listfile:
                 if testname in line:
                     found = True
@@ -299,5 +307,5 @@ def append_regression(
     except FileNotFoundError:
         pass
     if not found:
-        with open(os.path.join(autogen_dir, 'autogen_list'), mode='a') as listfile:
+        with open(os.path.join(autogen_dir, autogen_list), mode='a') as listfile:
             listfile.write(f'{testname}\n')

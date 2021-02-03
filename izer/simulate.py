@@ -57,6 +57,40 @@ def print_data(
     print('')
 
 
+def print_data1d(
+        verbose_data,
+        header,
+        data,
+        step=16,
+):
+    """
+    Print 1-dimensional `data` `step`-elements at a time, prefixed by `header`.
+    This function is intended for bias data.
+    """
+    size = len(data) if data is not None else 0
+
+    if verbose_data:
+        if size <= step:
+            print(f'{header}:', data)
+        else:
+            int8_format = '{0:4}' if np.any(data < 0) else '{0:3}'
+
+            print(f'{header}:')
+            with np.printoptions(formatter={'int': int8_format.format}):
+                for i in range(0, size, step):
+                    last = min(i + step, size)
+                    if last - 1 > i:
+                        print(f'Output channels #{i} to #{last-1}:')
+                    else:
+                        print(f'Output channel #{i}"')
+                    print(np.squeeze(data[i:last]))
+        print('')
+    elif size > 0:
+        print(f"\n{header} SIZE: {size}")
+    else:
+        print('')
+
+
 def conv2d_layer(
         layer,  # pylint: disable=unused-argument
         verbose,
@@ -94,12 +128,7 @@ def conv2d_layer(
                         print(np.squeeze(kernel[i]))
                     else:
                         print(kernel[i])
-        if verbose_data:
-            print(f"BIAS: {bias}\n")
-        elif bias is not None:
-            print(f"\nBIAS SIZE: {len(bias)}")
-        else:
-            print('')
+        print_data1d(verbose_data, "BIAS", bias)
 
     out_size = [output_channels,
                 (input_size[1] - dilation[0] * (kernel_size[0] - 1) - 1 +
@@ -212,12 +241,7 @@ def convtranspose2d_layer(
                         print(np.squeeze(kernel[i]))
                     else:
                         print(kernel[i])
-        if verbose_data:
-            print(f"BIAS: {bias}\n")
-        elif bias is not None:
-            print(f"\nBIAS SIZE: {len(bias)}")
-        else:
-            print('')
+        print_data1d(verbose_data, "BIAS", bias)
 
     out_size = [output_channels,
                 (input_size[1] - 1) * fractional_stride[0] - 2 * padding[0]
@@ -325,12 +349,7 @@ def conv1d_layer(
         if verbose_data and not bypass:
             print(':')
             print(kernel)
-        if verbose_data:
-            print(f"BIAS: {bias}\n")
-        elif bias is not None:
-            print(f"\nBIAS SIZE: {len(bias)}")
-        else:
-            print('')
+        print_data1d(verbose_data, "BIAS", bias)
 
     out_size = [output_channels,
                 (input_size[1] - dilation * (kernel_size - 1) - 1 +
@@ -422,11 +441,7 @@ def linear_layer(
         if verbose_data:
             print(':')
             print(weight)
-            print(f"BIAS: {bias}\n")
-        elif bias is not None:
-            print(f"\nBIAS SIZE: {len(bias)}")
-        else:
-            print('')
+        print_data1d(verbose_data, "BIAS", bias)
 
     out_buf = linear(data=data, weight=weight, bias=bias,
                      in_features=in_features, out_features=out_features,
@@ -557,6 +572,7 @@ def pooling_layer(
         operands=1,
         rounding=False,
         debug_data=None,
+        dilation=(1, 1),
 ):
     """
     Perform pooling for one layer.
@@ -564,11 +580,14 @@ def pooling_layer(
     # Always apply stride
     if operation != op.CONV1D:
         pooled_size = [input_size[0],
-                       (input_size[1] + pool_stride[0] - pool[0]) // pool_stride[0],
-                       (input_size[2] + pool_stride[1] - pool[1]) // pool_stride[1]]
+                       (input_size[1] + pool_stride[0]
+                        - pool[0] - dilation[0] + 1) // pool_stride[0],
+                       (input_size[2] + pool_stride[1]
+                        - pool[1] - dilation[1] + 1) // pool_stride[1]]
     else:
         pooled_size = [input_size[0],
-                       (input_size[1] + pool_stride[0] - pool[0]) // pool_stride[0]]
+                       (input_size[1] + pool_stride[0] - pool[0]
+                        - dilation[0] + 1) // pool_stride[0]]
 
     # Actual pooling operation?
     if pool[0] > 1 or pool[1] > 1:
@@ -587,15 +606,20 @@ def pooling_layer(
                     pool,
                     pool_stride,
                     pool_average,
+                    dilation=dilation,
                     floor=not rounding,
                     debug=debug
                 )
                 if verbose:
+                    if dilation[0] > 1 or dilation[1] > 1:
+                        dilation_str = f", DILATION {dilation[0]}/{dilation[1]}"
+                    else:
+                        dilation_str = ''
                     print_data(
                         verbose_data,
                         f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
-                        f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]} "
-                        f"{input_size} -> {pooled_size}"
+                        f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]}" + dilation_str +
+                        f" {input_size} -> {pooled_size}"
                         + (f", POOLED DATA {i}" if operands > 1 else ""),
                         pooled[i],
                         pooled_size,
@@ -620,13 +644,16 @@ def pooling_layer(
                 pool[0],
                 pool_stride[0],
                 pool_average,
+                dilation=dilation[0],
                 floor=not rounding,
                 debug=debug,
             )
             if verbose:
                 print(f"{pool[0]} {'AVERAGE' if pool_average else 'MAX'} "
-                      f"POOLING, STRIDE {pool_stride[0]} "
-                      f"{input_size} -> {pooled_size}", end='')
+                      f"POOLING, STRIDE {pool_stride[0]} ", end='')
+                if dilation[0] > 1:
+                    print(f", DILATION {dilation[0]} ", end='')
+                print(f"{input_size} -> {pooled_size}", end='')
                 if verbose_data:
                     print(':')
                     print(pooled)

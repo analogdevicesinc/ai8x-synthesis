@@ -56,6 +56,7 @@ def load(
         return loadcsv(
             embedded_code,
             apb,
+            chw,
             input_size,
             operands,
             data,
@@ -480,6 +481,7 @@ def loadfifo(
 def loadcsv(
         embedded_code,
         apb,
+        chw,
         input_size,
         operands,
         data,
@@ -503,10 +505,11 @@ def loadcsv(
         apb.output('\n\n  ')
 
     # HWC ("Little Data") - (Up to) four channels packed into a word (0BGR0BGR0BGR0BGR0BGR....)
-    apb.output('// Data input: HWC '
+    # CHW ("Big Data") - One channel per word
+    apb.output(f'// Data input: {"CHW" if chw else "HWC"} '
                f'{input_size[0]}x{input_size[1]}x{input_size[2]}\n')
 
-    fifos = (input_size[0] + 3) // 4
+    fifos = input_size[0] if chw else (input_size[0] + 3) // 4
 
     if embedded_code:
         apb.output('\n#ifdef USE_FIFO\n')
@@ -516,7 +519,9 @@ def loadcsv(
         apb.output('void load_input(void)\n{\n')
         apb.output('#ifndef USE_FIFO\n')
         apb.output('  int i;\n')
-        apb.output('  uint32_t d;\n')
+        if chw:
+            apb.output('  int j;\n')
+            apb.output('  uint32_t d[4], u;\n')
         apb.output('#else\n')
         apb.output('  int i = 0;\n')
         apb.output('  register int head = 0;\n')
@@ -524,20 +529,44 @@ def loadcsv(
         apb.output('#endif\n')
         apb.output('  // Tell tb to start sending pcif data\n')
         apb.output('  sim->trig = 0;\n\n')
-        max_len = input_size[1] * input_size[2]
-
+        if chw:
+            max_len = input_size[1] * ((input_size[2] + 3) // 4)
+        else:
+            max_len = input_size[1] * input_size[2]
         apb.output('#ifndef USE_FIFO\n')
         apb.output(f'  for (i = 0; i < {max_len}; i++) {{\n')
-        for c in range(fifos):
-            if not tc.dev.MODERN_SIM:
-                apb.output('    while ((MXC_CAMERAIF0->int_fl & 0x80) == 0); '
-                           '// Wait for camera FIFO not empty\n'
-                           '    d = MXC_CAMERAIF0->dma_data; // Read camera\n')
-            else:
-                apb.output('    while ((MXC_PCIF->int_fl & 0x80) == 0); '
-                           '// Wait for camera FIFO not empty\n'
-                           '    d = MXC_PCIF->fifo_data; // Read camera\n')
-            apb.write(0, 'd', fifo=c, comment=f' // Write FIFO {c}', indent='    ')
+        fd = 'MXC_CAMERAIF0->dma_data' if not tc.dev.MODERN_SIM else 'MXC_PCIF->fifo_data'
+        if not chw:
+            for c in range(fifos):
+                if not tc.dev.MODERN_SIM:
+                    apb.output('    while ((MXC_CAMERAIF0->int_fl & 0x80) == 0); '
+                               '// Wait for camera FIFO not empty\n')
+                else:
+                    apb.output('    while ((MXC_PCIF->int_fl & 0x80) == 0); '
+                               '// Wait for camera FIFO not empty\n')
+                apb.write(0, fd, fifo=c, comment=f' // Read camera, write FIFO {c}',
+                          indent='    ', fifo_wait=False)
+        else:
+            apb.output('    for (j = 0; j < 4; j++) {\n'
+                       '      while ((MXC_PCIF->int_fl & 0x80) == 0); '
+                       '// Wait for camera FIFO not empty\n'
+                       f'      d[j] = {fd}; '
+                       '// Read 24 bits RGB from camera\n'
+                       '    }\n')
+            for c in range(fifos):
+                if c == 0:
+                    apb.output('    u = (d[0] & 0xff) '
+                               '| ((d[1] & 0xff) << 8) '
+                               '| ((d[2] & 0xff) << 16) '
+                               '| ((d[3] & 0xff) << 24);\n')
+                else:
+                    apb.output(f'    u = ((d[0] >> {c * 8}) & 0xff) '
+                               f'| (((d[1] >> {c * 8}) & 0xff) << 8) '
+                               f'| (((d[2] >> {c * 8}) & 0xff) << 16) '
+                               f'| (((d[3] >> {c * 8}) & 0xff) << 24);\n')
+                apb.write(0, 'u', fifo=c, comment=f' // Write FIFO {c}',
+                          indent='    ', fifo_wait=False)
+
         apb.output('  }\n')
         apb.output('#else\n')
         apb.output(f'  while (i < {max_len}) {{\n')
@@ -575,6 +604,11 @@ def loadcsv(
                     for col in range(input_size[2]):
                         for c in range(0, input_size[0]):
                             camera.pixel(f, s2u(data[c][row][col]) & 0xff)
+                    if chw:
+                        # Round up so we have a full 4 bytes
+                        for _ in range(input_size[2] % 4):
+                            for _ in range(0, input_size[0]):
+                                camera.pixel(f, 0)
                     camera.finish_row(f, retrace=camera_retrace)
             elif camera_format == 555:
                 for row in range(input_size[1]):
