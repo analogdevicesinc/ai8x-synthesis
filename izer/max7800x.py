@@ -161,6 +161,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     """
     Chain multiple CNN layers, create and save input and output
     """
+    if not os.path.isdir('assets'):
+        eprint('The assets folder is missing from the current directory.')
+
     device = tc.dev.device
 
     in_expand = [0] * layers
@@ -707,11 +710,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
         for r in range(repeat_layers):
             for ll in range(first_layer_used, layers):
+                flatten_str = "" if not flatten[ll] else \
+                    f"flattened to {input_chan[ll]*input_dim[ll][0]*input_dim[ll][1]}x1x1, "
                 apb.output(f'// Layer {r * layers + ll}: '
                            f'{str(operands[ll])+"x" if operands[ll] > 1 else ""}'
                            f'{input_chan[ll]}x{input_dim_str[ll]} ('
-                           f'{"streaming " if streaming[ll] else ""}'
-                           f'{"flattened " if flatten[ll] else ""}'
+                           f'{"streaming " if streaming[ll] else ""}{flatten_str}'
                            f'{"CHW data)" if big_data[ll] else "HWC data)"}, ',
                            embedded_code)
                 if pool[ll][0] > 1 or pool[ll][1] > 1:

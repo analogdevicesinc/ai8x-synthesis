@@ -383,8 +383,8 @@ def main():
 
         pooled_dim[ll] = pooled_size
         if any(dim == 0 for dim in pooled_dim[ll]):
-            eprint(f'Pooling in layer {ll} results in a zero data dimension '
-                   f'(input {input_dim[ll]}, pooled {pooled_dim[ll]}).')
+            eprint(f'Pooling or zero-padding in layer {ll} results in a zero data dimension '
+                   f'(input {input_dim[ll]}, result {pooled_dim[ll]}).')
 
         if operator[ll] != op.CONV1D:
             if stride[ll][0] != stride[ll][1]:
