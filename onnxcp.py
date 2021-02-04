@@ -219,7 +219,7 @@ def manage_bias(
     w_count = np.prod(w.shape)
     param_count += w_count
     w_size = (
-              w_count * 8 + (bias_quantization[seq]-1)
+        w_count * 8 + (bias_quantization[seq]-1)
     ) // bias_quantization[seq]
     bias_size.append(w_size)
     param_size += w_size
@@ -232,16 +232,14 @@ def track_data_shape(model, out_dict):
     layer_num = -1
     save_perm = []
     save_shape = []
-    pool_layer = False
     last_op = ''
     node_list = []
     conv_relu_pool = 0
     last_pool_crp = False
-    
+
     for _, node in enumerate(model.graph.node):
         node_list.append(node.op_type)
         if node.op_type == 'Conv':
-            pool_layer = False
             layer_num = layer_num + 1
             conv_relu_pool = 1
             if node.output[0] in out_dict.keys():
@@ -251,7 +249,6 @@ def track_data_shape(model, out_dict):
                     save_shape[0] = -1
 
         elif node.op_type == 'ConvTranspose':
-            pool_layer = False
             layer_num = layer_num + 1
             if node.output[0] in out_dict.keys():
                 save_shape = list(out_dict[node.output[0]].shape)
@@ -265,26 +262,24 @@ def track_data_shape(model, out_dict):
                 conv_relu_pool = 0
 
         elif node.op_type == 'Squeeze':
-            if last_op == 'Conv' or ((last_op == 'MaxPool' or last_op == 'AveragePool') and last_pool_crp):
+            if last_op == 'Conv' or ((last_op == 'MaxPool' or last_op == 'AveragePool') \
+                and last_pool_crp):
                 for attr in node.attribute:
                     if attr.name == 'axes':
                         if attr.ints:
-                            #print(save_shape,conv_relu_pool)
                             save_shape.pop(attr.ints[0])
 
-        elif (node.op_type == 'MaxPool') or (node.op_type == 'AveragePool'): 
-            #print(node.op_type)
+        elif (node.op_type == 'MaxPool') or (node.op_type == 'AveragePool'):
             last_pool_crp = False
-            input_size = []
             kernel = []
             stride = []
             for attr in node.attribute:
                 if attr.name == "kernel_shape":
-                    kernel_len =  len(attr.ints)
+                    kernel_len = len(attr.ints)
                     for x in range(kernel_len):
                         kernel.append(attr.ints[x])
                 if attr.name == "strides":
-                    stride_len =  len(attr.ints)
+                    stride_len = len(attr.ints)
                     for x in range(stride_len):
                         stride.append(attr.ints[x])
 
@@ -450,11 +445,11 @@ def expose_node_outputs(model_path, overwrite, run_checker=True, verbose=False):
             # Added to expose Intermediate Node data
             intermediate_layer_value_info = \
                 onnx.helper.make_tensor_value_info(
-                                                   output,  # FIXME: linter below
-                                                   onnx.TensorProto.UNDEFINED,  # pylint: disable=E1101, # noqa:E501
-                                                   None,
-                                                   node.op_type
-                                                  )
+                    output,  # FIXME: linter below
+                    onnx.TensorProto.UNDEFINED,  # pylint: disable=E1101, # noqa:E501
+                    None,
+                    node.op_type,
+                )
             model.graph.output.extend([intermediate_layer_value_info])
 
     if verbose:
@@ -501,8 +496,8 @@ def expose_node_outputs(model_path, overwrite, run_checker=True, verbose=False):
 
 
 def onnxrt(
-          model_path,
-          model
+        model_path,
+        model,
 ):
     '''
     execute onnxruntime to validate onnx file and to extract data shapes needed
@@ -588,7 +583,7 @@ def onnxrt(
 
     return inps, outs
 
-def load(
+def load( # pylint: disable=R0914
         checkpoint_file,
         cfg_layers,
         cfg,
@@ -683,9 +678,9 @@ def load(
     add_in = None
     save_shape = []
     save_perm = None
-    transpose_list = []  # pylint: disable=unused-variable
     op_list = []
-    conv_relu_pool = 0;
+    conv_relu_pool = 0
+
 
     # looking for conv1d/conv2d indications
     for x in range(cfg_layers):
@@ -756,23 +751,23 @@ def load(
 
         if node.op_type == 'Relu':
             if conv_relu_pool == 1:
-              conv_relu_pool = 2
+                conv_relu_pool = 2
             else:
-              conv_relu_pool = 0 
+                conv_relu_pool = 0
 
         if (node.op_type == 'MaxPool') or (node.op_type == 'AveragePool'): # TC
             kernel = []
             stride = []
             for attr in node.attribute:
                 if attr.name == "kernel_shape":
-                    kernel_len =  len(attr.ints)
+                    kernel_len = len(attr.ints)
                     for x in range(kernel_len):
                         kernel.append(attr.ints[x])
                 if attr.name == "strides":
-                    stride_len =  len(attr.ints)
+                    stride_len = len(attr.ints)
                     for x in range(stride_len):
                         stride.append(attr.ints[x])
-                        
+
             if conv_relu_pool == 2:
                 conv_relu_pool = 0
                 seq += 1
@@ -988,7 +983,7 @@ def load(
                         weight_keys.append(inp)
 
                     if len(inputs) < 3 or \
-                       ((inp == inputs[2] or cast_ref == inputs[2])
+                       ((inp == inputs[2] or cast_ref == inputs[2]) \
                        and seq in no_bias):  # no bias input
                         bias.append(None)
                         bias_min.append(0)
