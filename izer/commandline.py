@@ -119,6 +119,8 @@ def get_parser():
     group.add_argument('--fast-fifo-quad', action='store_true', default=False,
                        help="use fast FIFO in quad fanout mode (implies --fast-fifo; "
                             "default: false)")
+    group.add_argument('--fifo-go', action='store_true', default=False,
+                       help="start processing before first FIFO push (default: false)")
     group.add_argument('--slow-load', type=int, metavar='N', default=0,
                        help="slow down FIFO loads (default: 0)")
 
@@ -295,6 +297,8 @@ def get_parser():
                        help="initialize TRAM to 0 (default: false)")
     group.add_argument('--zero-sram', action='store_true', default=False,
                        help="zero memories (default: false)")
+    group.add_argument('--pretend-zero-sram', action='store_true', default=False,
+                       help="simulate --zero-sram, but block BIST (default: false)")
     group.add_argument('--zero-unused', action='store_true', default=False,
                        help="zero unused registers (default: do not touch)")
     group.add_argument('--apb-base', type=lambda x: int(x, 0), metavar='N',

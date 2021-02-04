@@ -157,6 +157,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         bias_group_map=None,
         pool_dilation=None,
         input_pix_clk=9,
+        fifo_go=False,
+        pretend_zero_sram=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -204,13 +206,16 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     if pll and not tc.dev.SUPPORT_PLL:
         eprint("`--pll` is not supported on this device.")
 
+    if fifo_go and not tc.dev.SUPPORT_FIFO_GO:
+        eprint("`--fifo-go` is not supported on this device.")
+
     if pipeline is None:
         pipeline = tc.dev.SUPPORT_PIPELINE
 
     if pll is None:
         pll = pipeline
 
-    if zero_sram:
+    if zero_sram or pretend_zero_sram:
         # Clear kernels to 0x55 so the data matches what is in hardware
         for i, _ in enumerate(kernel):
             kernel[i] = np.full(shape=kernel[i].shape, fill_value=0x55, dtype=np.int64)
@@ -1772,7 +1777,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         invol = sum(in_expand[:ll])
 
                     assert stream_start < 2**tc.dev.MAX_ISVAL_BITS
-                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM1, stream_start,
+                    val = stream_start
+                    if fifo_go and ll == start_layer:
+                        val |= 1 << 25
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM1, val,
                                    verbose, comment=' // Stream processing start')
 
                     assert invol < 2**4

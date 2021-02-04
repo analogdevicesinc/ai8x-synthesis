@@ -591,6 +591,8 @@ def main():
             bias_group_map=bias_group_map,
             pool_dilation=pool_dilation,
             input_pix_clk=args.input_pix_clk,
+            fifo_go=args.fifo_go,
+            pretend_zero_sram=args.pretend_zero_sram,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(
