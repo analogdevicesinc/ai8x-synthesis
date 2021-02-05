@@ -2626,7 +2626,7 @@ def main():
     while ll < layers:
         if input_channels[ll] <= 0:
             eprint(f'Must specify `in_channels` for layer {ll}.')
-        if operator[ll] != op.NONE and quantization[ll] is not None:
+        if operator[ll] != op.NONE:
             if quantization[ll] is None:
                 quantization[ll] = 8  # Set default
             if quantization[ll] == -1:
