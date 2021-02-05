@@ -120,13 +120,22 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
 
         if flatten[ll]:
             kernel_reshaped = kernel[ll].reshape(
-                output_chan[ll] * input_chan[ll],
+                output_chan[ll],
+                in_expand[ll],
+                -1,
+            ).swapaxes(1, 2).reshape(
+                output_chan[ll] * in_expand_thresh[ll],
                 -1,
                 kernel_size[ll][0],
                 kernel_size[ll][1],
             )
+
+            in_exp = 1
+            in_chan = in_expand_thresh[ll]
         else:
             kernel_reshaped = kernel[ll]
+            in_exp = in_expand[ll]
+            in_chan = input_chan[ll]
 
         if quantization[ll] == -1:
             kernel_reshaped = kernel_reshaped.copy().clip(-1, 0)
@@ -186,13 +195,13 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         # equal to output channels.
         if conv_groups[ll] == 1:
             kc = (1 + fls(next_layer_map) - first_output_proc) \
-                * out_expand[ll] * in_expand[ll]
-            kern_ochan[ll] = kern_count[ll] = kc + start_col * out_expand[ll] * in_expand[ll]
+                * out_expand[ll] * in_exp
+            kern_ochan[ll] = kern_count[ll] = kc + start_col * out_expand[ll] * in_exp
         else:
-            kc = in_expand[ll]
-            kern_count[ll] = kc + start_col * in_expand[ll]
+            kc = in_exp
+            kern_count[ll] = kc + start_col * in_exp
             kern_ochan[ll] = (1 + fls(next_layer_map) - first_output_proc) \
-                * in_expand[ll] + start_col * in_expand[ll]
+                * in_exp + start_col * in_exp
 
         if not legacy_kernels and flatten[ll]:
             kc *= kernel_reshaped.shape[1]
@@ -266,7 +275,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 continue
             # Skip start_col processors. Each takes up ksize bytes, or ksize // 9 full
             # kernel words. There are col_bytes leftover bytes.
-            col_target, col_bytes = divmod(start_col * ksize * in_expand[ll], 9)
+            col_target, col_bytes = divmod(start_col * ksize * in_exp, 9)
             # Pad out the leftovers
             for _ in range(col_bytes // qfactor):  # FIXME for quantization
                 col_target = add_kernel_data(ll, p, col_target, 0)
@@ -292,31 +301,29 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                     this_mask = this_map & proc_mask
                     this_map >>= qfactor
 
-                    in_ch = input_chan[ll]
+                    in_ch = in_chan
                     if flatten[ll]:
                         in_ch *= qfactor
                     src_offs = ch + m * in_ch
 
-                    for ie in range(in_expand[ll]):
+                    for ie in range(in_exp):
                         mask = this_mask
 
                         n = 0
                         if ie * in_expand_thresh[ll] + ch < in_ch \
                            and src_offs < len(kernel_reshaped):
                             if not flatten[ll]:
-                                k = np.zeros_like(kernel_reshaped[src_offs].flatten())
+                                k = np.zeros_like(kernel_reshaped[src_offs].reshape(-1))
                             else:
                                 k = np.empty((0), dtype=np.int64)
                             for i in range(qfactor):
                                 if m < output_chan[ll]:
                                     # Cycle through phases
                                     idx = n + ie * qfactor
-                                    koffs = src_offs + (idx % in_expand[ll]) \
-                                        * in_expand_thresh[ll] \
-                                        + (idx // in_expand[ll]) \
-                                        * input_chan[ll]
+                                    koffs = src_offs + (idx % in_exp) * in_expand_thresh[ll] \
+                                        + (idx // in_exp) * in_chan
                                     if koffs < len(kernel_reshaped):
-                                        this_kern = kernel_reshaped[koffs].flatten() \
+                                        this_kern = kernel_reshaped[koffs].reshape(-1) \
                                             & (2**abs(quantization[ll])-1)
                                         if not flatten[ll]:
                                             k |= this_kern << (i * abs(quantization[ll]))

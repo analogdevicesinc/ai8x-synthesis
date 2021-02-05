@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_February 3, 2021_
+_February 5, 2021_
 
 The Maxim Integrated AI project is comprised of four repositories:
 
@@ -734,7 +734,7 @@ The MAX78000 hardware does not support arbitrary network parameters. Specificall
   
   * `Flatten` functionality is available to convert 2D input data for use by fully connected layers, see [Fully Connected Layers](#Fully Connected \(Linear\) Layers).
   
-  * When “flattening” two-dimensional data, the input dimensions (C×H×W) must satisfy H×W ≤ 256 and C ≤ 64. Pooling cannot be used at the same time as flattening.
+  * When “flattening” two-dimensional data, the input dimensions (C×H×W) must satisfy C×H×W ≤ 16384. Pooling cannot be used at the same time as flattening.
   
   * Element-wise operators support from 2 up to 16 inputs.
   
@@ -750,7 +750,7 @@ The MAX78000 hardware does not support arbitrary network parameters. Specificall
 
 m×n fully connected layers can be realized in hardware by “flattening” 2D input data of dimensions C×H×W into m=C×H×W channels of 1×1 input data. The hardware will produce n channels of 1×1 output data. When chaining multiple fully connected layers, the flattening step is omitted. The following picture shows 2D data, the equivalent flattened 1D data, and the output.
 
-For MAX78000/MAX78002, the product H×W must not exceed 256, and C must not exceed 64.
+For MAX78000/MAX78002, the product C×H×W must not exceed 16384.
 
 ![MLP](docs/MLP.png)
 
