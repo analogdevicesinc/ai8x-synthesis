@@ -74,3 +74,14 @@ def nthone(n, x):
             return r
         n -= 1
     return len(b) - r - 1
+
+
+def overlap(a, b):
+    """
+    Return true if range `a`[0]/`a`[1] and range `b`[0]/`b`[1] overlap.
+    [0] is the start and [1] is the end of the ranges.
+    """
+    return a[0] >= b[0] and a[0] <= b[1] \
+        or a[1] >= b[0] and a[1] <= b[1] \
+        or b[0] >= a[0] and b[0] <= a[1] \
+        or b[1] >= a[0] and b[1] <= a[1]

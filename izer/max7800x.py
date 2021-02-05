@@ -18,7 +18,7 @@ from . import tornadocnn as tc
 from .eprint import eprint, wprint
 from .simulate import (conv1d_layer, conv2d_layer, convtranspose2d_layer, eltwise_layer,
                        passthrough_layer, pooling_layer, print_data, show_data)
-from .utils import ffs, fls, popcount
+from .utils import ffs, fls, overlap, popcount
 
 
 def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches
@@ -183,6 +183,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     pool_dilation_str = [None] * layers
     dilation_str = [None] * layers
     stride_str = [None] * layers
+    stream_buf = [None] * layers
 
     if start_layer > 0 and not tc.dev.SUPPORT_LINK_LAYER:
         eprint("`--start-layer` is not supported on this device.")
@@ -1845,6 +1846,33 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                    f'rollover 0x{val:08x}, '
                                    f'instance size 0x{tc.dev.INSTANCE_WIDTH*4:08x}.',
                                    error=not no_error_stop)
+
+                        # Check streaming buffers for overlap
+                        # FIXME: This should be refined to take cases into account that do not
+                        # make use of all processors (note the special case when the quad FIFO
+                        # is used where multiple memories are needed).
+                        stream_buf[ll] = (in_offset[ll], in_offset[ll] + val * 4)
+                        for pl in range(ll):
+                            if stream_buf[pl] is None:
+                                continue
+                            if overlap(stream_buf[ll], stream_buf[pl]):
+                                eprint(f'Streaming buffer for layer {ll} '
+                                       f'({stream_buf[ll][0]:04x}-{stream_buf[ll][1]:04x}) '
+                                       f'overlaps layer {pl} '
+                                       f'({stream_buf[pl][0]:04x}-{stream_buf[pl][1]:04x}).',
+                                       error=not overwrite_ok)
+                        if ll == final_layer or not streaming[next_sequence[ll]]:
+                            for pl in range(ll + 1):
+                                if stream_buf[pl] is None:
+                                    continue
+                                if overlap((out_offset[ll], out_offset[ll]
+                                            + output_dim[ll][0] * output_dim[ll][1]
+                                            * output_width[ll] // 8), stream_buf[pl]):
+                                    eprint(f'Output for layer {ll} '
+                                           f'({out_offset[ll]:04x}-{stream_buf[ll][1]:04x}) '
+                                           f'overlaps streaming buffer for layer {pl} '
+                                           f'({stream_buf[pl][0]:04x}-{stream_buf[pl][1]:04x}).',
+                                           error=not overwrite_ok)
 
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_FMAX, val,
                                        verbose, comment=' // Rollover')
