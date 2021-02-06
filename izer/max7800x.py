@@ -394,8 +394,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 eprint(f'Layer {ll}: Padding must be zero for passthrough layers.')
             if output_shift[ll] != 0 and output_shift[ll] is not None:
                 eprint(f'Layer {ll}: `output_shift` must be zero for passthrough layers.')
-            if (pool[ll][0] > 1 or pool[ll][1] > 1) and in_expand[ll] > tc.dev.MAX_POOL_PASSES:
-                wprint(f'Layer {ll}: pooling in passthrough layer uses {in_expand[ll]} passes, '
+            if (pool[ll][0] > 1 or pool[ll][1] > 1) and in_expand[ll] > tc.dev.MAX_POOL_PASSES \
+               and (pooled_dim[ll][0] > 1 or pooled_dim[ll][1] > 1):
+                eprint(f'Layer {ll}: pooling in passthrough layer uses {in_expand[ll]} passes, '
                        f'which exceeds the maximum of {tc.dev.MAX_POOL_PASSES} on this device.')
 
             tram_max[ll] = 1

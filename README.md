@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_February 5, 2021_
+_February 6, 2021_
 
 The Maxim Integrated AI project is comprised of four repositories:
 
@@ -696,7 +696,7 @@ The MAX78000 hardware does not support arbitrary network parameters. Specificall
   
   * Pooling does not support padding.
   
-  * Pooling more than 64 channels requires use of a “fused” convolution in the same layer.
+  * Pooling more than 64 channels requires use of a “fused” convolution in the same layer, unless the pooled dimensions are 1×1.
   
   * Pooling strides can be 1 through 16. For 2D pooling, the stride is the same for both dimensions.
   
