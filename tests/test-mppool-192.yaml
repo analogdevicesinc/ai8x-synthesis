@@ -1,0 +1,18 @@
+arch: test
+dataset: test_mppool-192
+
+layers:
+# Layer 0
+- processors: 0x0000000000000007
+  operation: conv2d
+  kernel_size: 3x3
+  pad: 1
+  out_offset: 0x1000
+  data_format: HWC
+# Layer 1
+- max_pool: [3, 3]
+  pool_stride: 1
+  operation: None
+  out_offset: 0x0000
+  processors: 0xffffffffffffffff
+

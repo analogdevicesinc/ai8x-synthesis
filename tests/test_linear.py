@@ -10,6 +10,7 @@ Test the linear operator.
 """
 import os
 import sys
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -314,22 +315,24 @@ def test_linear():
 
     linear(d1, w1, None, e1)
 
+    test_dir = Path(__file__).parent
+
     # d = np.random.randint(-128, 127, (64, 3, 2*5), dtype=np.int64)
     # np.save('test_linear_d2', d, allow_pickle=False, fix_imports=False)
-    d2 = np.load('test_linear_d2.npy')
+    d2 = np.load(os.path.join(test_dir, 'test_linear_d2.npy'))
     # d = np.random.randint(-128, 127, (2, 64*3*2*5), dtype=np.int64)
     # np.save('test_linear_w2', d, allow_pickle=False, fix_imports=False)
-    w2 = np.load('test_linear_w2.npy')
+    w2 = np.load(os.path.join(test_dir, 'test_linear_w2.npy'))
     e2 = np.array([-308289, -135375], dtype=np.int64)
 
     linear(d2, w2, None, e2)
 
     # d = np.random.randint(-128, 127, (128, 3, 5), dtype=np.int64)
     # np.save('test_linear_d3', d, allow_pickle=False, fix_imports=False)
-    d3 = np.load('test_linear_d3.npy')
+    d3 = np.load(os.path.join(test_dir, 'test_linear_d3.npy'))
     # d = np.random.randint(-128, 127, (2, 128*3*5), dtype=np.int64)
     # np.save('test_linear_w3', d, allow_pickle=False, fix_imports=False)
-    w3 = np.load('test_linear_w3.npy')
+    w3 = np.load(os.path.join(test_dir, 'test_linear_w3.npy'))
     e3 = np.array([168678, 169365], dtype=np.int64)
 
     linear(d3, w3, None, e3)
