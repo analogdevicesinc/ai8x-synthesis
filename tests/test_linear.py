@@ -314,7 +314,6 @@ def test_linear():
 
     linear(d1, w1, None, e1)
 
-    
     # d = np.random.randint(-128, 127, (64, 3, 2*5), dtype=np.int64)
     # np.save('test_linear_d2', d, allow_pickle=False, fix_imports=False)
     d2 = np.load('test_linear_d2.npy')
@@ -334,6 +333,7 @@ def test_linear():
     e3 = np.array([168678, 169365], dtype=np.int64)
 
     linear(d3, w3, None, e3)
+
 
 if __name__ == '__main__':
     test_linear()
