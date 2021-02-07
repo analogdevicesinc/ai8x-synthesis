@@ -1848,31 +1848,38 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                    f'instance size 0x{tc.dev.INSTANCE_WIDTH*4:08x}.',
                                    error=not no_error_stop)
 
-                        # Check streaming buffers for overlap
-                        # FIXME: This should be refined to take cases into account that do not
-                        # make use of all processors (note the special case when the quad FIFO
-                        # is used where multiple memories are needed).
-                        stream_buf[ll] = (in_offset[ll], in_offset[ll] + val * 4)
+                        # Check streaming buffers for overlap across all streaming layers and the
+                        # data memories used by the processors in the streaming layers, as well as
+                        # the output of the last streaming layer.
+                        dmap = tc.dev.datamem_map(processor_map[ll], fast_fifo_quad and ll == 0)
+                        stream_buf[ll] = (in_offset[ll], in_offset[ll] + val * 4, dmap)
                         for pl in range(ll):
                             if stream_buf[pl] is None:
                                 continue
-                            if overlap(stream_buf[ll], stream_buf[pl]):
+                            if stream_buf[pl][2] & dmap != 0\
+                               and overlap(stream_buf[ll], stream_buf[pl]):
                                 eprint(f'Streaming buffer for layer {ll} '
-                                       f'({stream_buf[ll][0]:04x}-{stream_buf[ll][1]:04x}) '
+                                       f'({stream_buf[ll][0]:04x}-{stream_buf[ll][1]:04x}, '
+                                       f'processors {processor_map[ll]:016x}) '
                                        f'overlaps layer {pl} '
-                                       f'({stream_buf[pl][0]:04x}-{stream_buf[pl][1]:04x}).',
+                                       f'({stream_buf[pl][0]:04x}-{stream_buf[pl][1]:04x}, ',
+                                       f'processors {processor_map[pl]:016x}).',
                                        error=not overwrite_ok)
                         if ll == final_layer or not streaming[next_sequence[ll]]:
+                            dmap = tc.dev.datamem_map(output_processor_map[ll])
                             for pl in range(ll + 1):
                                 if stream_buf[pl] is None:
                                     continue
-                                if overlap((out_offset[ll], out_offset[ll]
-                                            + output_dim[ll][0] * output_dim[ll][1]
-                                            * output_width[ll] // 8), stream_buf[pl]):
+                                if stream_buf[pl][2] & dmap != 0 \
+                                   and overlap((out_offset[ll], out_offset[ll]
+                                               + output_dim[ll][0] * output_dim[ll][1]
+                                               * output_width[ll] // 8), stream_buf[pl]):
                                     eprint(f'Output for layer {ll} '
-                                           f'({out_offset[ll]:04x}-{stream_buf[ll][1]:04x}) '
+                                           f'({out_offset[ll]:04x}-{stream_buf[ll][1]:04x}, '
+                                           f'output processors {output_processor_map[ll]:016x}) '
                                            f'overlaps streaming buffer for layer {pl} '
-                                           f'({stream_buf[pl][0]:04x}-{stream_buf[pl][1]:04x}).',
+                                           f'({stream_buf[pl][0]:04x}-{stream_buf[pl][1]:04x}, '
+                                           f'processors {processor_map[pl]:016x}).',
                                            error=not overwrite_ok)
 
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_FMAX, val,

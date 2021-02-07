@@ -48,6 +48,11 @@ class Dev:
     MAX_POOL_DILATION = 1
     MAX_POOL_PASSES = 1
 
+    P_NUMGROUPS = 0
+    P_NUMPRO = 0
+    P_SHARED = 0
+    MAX_PROC = 0
+
     MASK_INSTANCES = MASK_INSTANCES_EACH = 1
     C_SRAM_BASE = C_GROUP_OFFS = INSTANCE_SIZE = INSTANCE_COUNT = INSTANCE_WIDTH = 0
     MASK_WIDTH_SMALL = MASK_WIDTH_LARGE = P_NUMPRO = 0  # These will be overridden by child classes
@@ -75,6 +80,21 @@ class Dev:
         mem = addr // (self.INSTANCE_WIDTH * 4 // self.INSTANCE_COUNT)
         addr %= self.INSTANCE_WIDTH * 4 // self.INSTANCE_COUNT
         return group, proc, mem, addr
+
+    def datamem_map(self, proc, quad=False):
+        """
+        Return a map of used data memory instances given processors `proc` (and, optionally,
+        whether `quad` fifo mode is enabled).
+        """
+        rv = 0
+
+        if quad:
+            proc |= 0x1000100010001
+        for p in range(self.P_NUMPRO * self.P_NUMGROUPS):
+            if proc & 1 << p:
+                rv |= 1 << p // self.P_SHARED
+
+        return rv
 
     def __str__(self):
         return self.__class__.__name__
@@ -427,6 +447,7 @@ def get_device(
     Change implementation configuration to match, depending on the `device`
     integer input value.
     """
+    d = None
     if device == 85:
         d = DevAI85()
     elif device == 87:
