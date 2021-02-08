@@ -1676,10 +1676,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 + pool[ll][1] * operands[ll] + increase_delta2
                     else:
                         # MAX78002
-                        # =IF(Row_Pool>Stride,Row_Pool,Stride)
-                        row_inc = max(pool[ll][0], pool_stride[ll][0])
-                        # =IF(Col_Pool>Stride,Col_Pool,Stride)
-                        col_inc = max(pool[ll][1], pool_stride[ll][1])
+                        # =IF((Row_Pool*Row_Dilation_Stride)>Stride,
+                        #     Row_Pool*Row_Dilation_Stride,Stride)
+                        row_inc = max(pool[ll][0] * pool_dilation[ll][0], pool_stride[ll][0])
+                        # =IF((Col_Pool*Col_Dilation_Stride)>Stride,
+                        #     (Col_Pool*Col_Dilation_Stride),Stride)
+                        col_inc = max(pool[ll][1] * pool_dilation[ll][1], pool_stride[ll][1])
 
                         # Prefill
                         if ll == start_layer and override_start is not None:
@@ -1702,10 +1704,13 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             # =(Pad*(Cols+(Pad*2)))
                             #   +(((Row_Inc*(Cols+(Pad*2)))
                             #   +(Pad+(2*Col_Inc)))*Elementwise)
+                            #   +(Read_Ahead*Stride)
                             stream_start_hwc = stream_start = \
                                 padding[ll][1] * (input_dim[ll][1] + 2 * padding[ll][1]) \
                                 + (row_inc * (input_dim[ll][1] + 2 * padding[ll][1])
                                    + padding[ll][1] + 2 * col_inc) * operands[ll]
+                            if rd_ahead[ll]:
+                                stream_start_hwc += pool_stride[ll][1] * in_expand[ll]
                             if big_data[ll]:
                                 # =(ROUNDUP(Prefill/4,0))
                                 stream_start = (stream_start + 3) // 4
