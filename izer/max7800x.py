@@ -600,7 +600,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
         # Warn if hidden layers use channel count that is not divisible by 4
         if ll != start_layer and input_chan[ll] % 4 != 0:
-            wprint(f'The hidden layer {ll} uses a channel count ({input_chan[ll]}) that is not '
+            wprint(f'Layer {ll} uses an input channel count ({input_chan[ll]}) that is not '
                    'a multiple of 4. Best energy performance is achieved with multiples of 4.')
 
     groups_used = []
