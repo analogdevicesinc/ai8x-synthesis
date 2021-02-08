@@ -66,6 +66,12 @@ class Dev:
         """
         return self.MASK_WIDTH_LARGE if proc % self.P_NUMPRO == 0 else self.MASK_WIDTH_SMALL
 
+    def datainstance_from_offs(self, offs):
+        """
+        Return the memory instance for the offset `offs` (in bytes).
+        """
+        return offs // (self.INSTANCE_WIDTH * self.P_SHARED * 4 // self.INSTANCE_COUNT)
+
     def datainstance_from_addr(self, addr):
         """
         Unpack the address `addr` into an individual memory instance and offset and

@@ -1865,6 +1865,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                        f'({stream_buf[pl][0]:04x}-{stream_buf[pl][1]:04x}, ',
                                        f'processors {processor_map[pl]:016x}).',
                                        error=not overwrite_ok)
+                            if rd_ahead[ll] and tc.dev.datainstance_from_offs(stream_buf[ll][0]) \
+                               == tc.dev.datainstance_from_offs(stream_buf[pl][0]):
+                                eprint(f'Layer {ll}: In streaming mode with read-ahead, all '
+                                       'streaming read-ahead layers must use separate memory '
+                                       f'instances. Layer {ll} conflicts with layer {pl}.')
+
                         if ll == final_layer or not streaming[next_sequence[ll]]:
                             dmap = tc.dev.datamem_map(output_processor_map[ll])
                             for pl in range(ll + 1):
@@ -1884,6 +1890,20 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_FMAX, val,
                                        verbose, comment=' // Rollover')
+
+                    # In read-ahead mode, ensure that input and output use separate
+                    # instances. First, check the start addresses, then the end addresses.
+                    if rd_ahead[ll] and (tc.dev.datainstance_from_offs(in_offset[ll])
+                       == tc.dev.datainstance_from_offs(out_offset[ll])
+                       or tc.dev.datainstance_from_offs(in_offset[ll] + 4 * operands[ll]
+                                                        * in_expand[ll] * input_dim[ll][0]
+                                                        * input_dim[ll][1])
+                       == tc.dev.datainstance_from_offs(out_offset[ll] + 4 * out_expand[ll]
+                                                        * output_dim[ll][0] * output_dim[ll][1])):
+                        eprint(f'Layer {ll}: Input and output cannot use the same data '
+                               'memory instances in read-ahead mode. '
+                               f'in_offset: {in_offset[ll]:04x}, '
+                               f'out_offset: {out_offset[ll]:04x}')
 
                     if ll == start_layer and fifo:
                         val = input_dim[ll][0] * input_dim[ll][1]

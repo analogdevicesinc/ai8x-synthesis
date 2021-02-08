@@ -17,7 +17,7 @@ layers:
   pool_stride: 2
   pad: 1
   activate: ReLU
-  out_offset: 0x3000
+  out_offset: 0x8000
   processors: 0xfffffffffffffff0
   op: Conv2d
   streaming: True
@@ -27,7 +27,7 @@ layers:
   pool_stride: 2
   pad: 1
   activate: ReLU
-  out_offset: 0x2000
+  out_offset: 0xC000
   processors: 0xfffffffffffffff0
   op: Conv2d
   streaming: True
@@ -37,7 +37,7 @@ layers:
   pool_stride: 2
   pad: 1
   activate: ReLU
-  out_offset: 0x1000
+  out_offset: 0x10000
   processors: 0x0ffffffffffffff0
   op: Conv2d
   streaming: True
