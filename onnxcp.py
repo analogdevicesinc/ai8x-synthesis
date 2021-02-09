@@ -306,9 +306,9 @@ def track_data_shape(model, out_dict):
             if len(save_shape) > 0:
                 temp = save_shape.copy()
                 if len(save_perm) == len(save_shape):
-                    for x in range(
+                    for x in range(  # pylint: disable=C0200
                         len(save_perm)
-                    ):  # pylint: disable=consider-using-enumerate
+                    ):
                         save_shape[x] = temp[save_perm[x]]
 
         elif node.op_type == "MatMul" or node.op_type == "Gemm":
