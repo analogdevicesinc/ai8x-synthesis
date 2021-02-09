@@ -34,6 +34,7 @@ class Dev:
     SUPPORT_ARBITRARY_PADDING = False
     SUPPORT_ARBITRARY_STRIDE = False
     SUPPORT_ARBITRARY_OUTPUT_WIDTH = False
+    SUPPORT_FIFO_GO = False
     REQUIRE_REG_CLEAR = False
     REQUIRE_SEMA_LPWKEN = False
     REQUIRE_ONESHOT_CLEAR = True
@@ -45,6 +46,12 @@ class Dev:
 
     MAX_DILATION = 1
     MAX_POOL_DILATION = 1
+    MAX_POOL_PASSES = 1
+
+    P_NUMGROUPS = 0
+    P_NUMPRO = 0
+    P_SHARED = 0
+    MAX_PROC = 0
 
     MASK_INSTANCES = MASK_INSTANCES_EACH = 1
     C_SRAM_BASE = C_GROUP_OFFS = INSTANCE_SIZE = INSTANCE_COUNT = INSTANCE_WIDTH = 0
@@ -58,6 +65,12 @@ class Dev:
         Returns the number of kernels (x9 bytes) for processor `proc`.
         """
         return self.MASK_WIDTH_LARGE if proc % self.P_NUMPRO == 0 else self.MASK_WIDTH_SMALL
+
+    def datainstance_from_offs(self, offs):
+        """
+        Return the memory instance for the offset `offs` (in bytes).
+        """
+        return offs // (self.INSTANCE_WIDTH * self.P_SHARED * 4 // self.INSTANCE_COUNT)
 
     def datainstance_from_addr(self, addr):
         """
@@ -73,6 +86,21 @@ class Dev:
         mem = addr // (self.INSTANCE_WIDTH * 4 // self.INSTANCE_COUNT)
         addr %= self.INSTANCE_WIDTH * 4 // self.INSTANCE_COUNT
         return group, proc, mem, addr
+
+    def datamem_map(self, proc, quad=False):
+        """
+        Return a map of used data memory instances given processors `proc` (and, optionally,
+        whether `quad` fifo mode is enabled).
+        """
+        rv = 0
+
+        if quad:
+            proc |= 0x1000100010001
+        for p in range(self.P_NUMPRO * self.P_NUMGROUPS):
+            if proc & 1 << p:
+                rv |= 1 << p // self.P_SHARED
+
+        return rv
 
     def __str__(self):
         return self.__class__.__name__
@@ -365,6 +393,7 @@ class DevAI87(Dev):
     SUPPORT_READ_AHEAD = True
     SUPPORT_MULTIPASS_STRIDE = True
     SUPPORT_KERNEL_BYPASS = True
+    SUPPORT_FIFO_GO = True
     REQUIRE_REG_CLEAR = True
     REQUIRE_SEMA_LPWKEN = True
     REQUIRE_ONESHOT_CLEAR = False
@@ -372,6 +401,7 @@ class DevAI87(Dev):
     REQUIRE_FIFO_CPL = False
 
     MAX_POOL_DILATION = 2**4
+    MAX_POOL_PASSES = 2**16
 
     SUPPORT_GCFR = True
     MODERN_SIM = True
@@ -423,6 +453,7 @@ def get_device(
     Change implementation configuration to match, depending on the `device`
     integer input value.
     """
+    d = None
     if device == 85:
         d = DevAI85()
     elif device == 87:

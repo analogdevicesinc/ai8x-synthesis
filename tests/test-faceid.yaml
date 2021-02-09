@@ -1,0 +1,71 @@
+# FaceNet sequential model ending with avg_pool, CHW(big data) data_format
+
+arch: ai85faceidnet
+dataset: FaceID
+
+layers:
+- out_offset: 0x1000
+  processors: 0x0000000000000007
+  operation: conv2d
+  kernel_size: 3x3
+  pad: 1
+  activate: ReLU
+  data_format: HWC
+  streaming: true
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  operation: conv2d
+  kernel_size: 3x3
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0x00000000000ffff0
+  streaming: true
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  operation: conv2d
+  kernel_size: 3x3
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0x00000000ffffffff
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  operation: conv2d
+  kernel_size: 3x3
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0xffffffff00000000
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  operation: conv2d
+  kernel_size: 3x3
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0xffffffffffffffff
+- pad: 1
+  operation: conv2d
+  kernel_size: 3x3
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0xffffffffffffffff
+- pad: 1
+  operation: conv2d
+  kernel_size: 3x3
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0xffffffffffffffff
+- max_pool: 2
+  pool_stride: 2
+  pad: 0
+  operation: conv2d
+  kernel_size: 1x1
+  out_offset: 0x2000
+  processors: 0xffffffffffffffff
+- avg_pool: [5, 3]
+  pool_stride: 1
+  operation: None
+  out_offset: 0x0000
+  processors: 0xffffffffffffffff

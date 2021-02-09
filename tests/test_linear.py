@@ -10,6 +10,7 @@ Test the linear operator.
 """
 import os
 import sys
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -25,16 +26,16 @@ def linear(data, weight, bias, expected):
     print('Input:', data)
 
     t = torch.nn.functional.linear(
-        torch.as_tensor(data, dtype=torch.float).unsqueeze(0),  # Add batch dimension
+        torch.as_tensor(data, dtype=torch.float).flatten().unsqueeze(0),  # Add batch dimension
         torch.as_tensor(weight, dtype=torch.float),
         torch.as_tensor(bias, dtype=torch.float) if bias is not None else None,
     ).int().squeeze().numpy()
 
     output = compute.linear(
-        data,
+        data.reshape(-1),
         weight,
         bias,
-        in_features=len(data),
+        in_features=data.size,
         out_features=weight.shape[0],
         debug=True,
     )
@@ -44,10 +45,10 @@ def linear(data, weight, bias, expected):
 
     # MLP emulation
     emu_output = compute.conv2d(
-        data[:, np.newaxis, np.newaxis],
+        data.reshape(-1)[:, np.newaxis, np.newaxis],
         weight[:, :, np.newaxis, np.newaxis],
         bias,
-        [data.shape[0], 1, 1],
+        [data.size, 1, 1],
         [expected.shape[0], 1, 1],
         kernel_size=[1, 1],
         stride=[1, 1],
@@ -62,6 +63,7 @@ def linear(data, weight, bias, expected):
     print("MLP EMULATION OK" if np.array_equal(emu_output, t) else "*** FAILURE ***")
     assert np.array_equal(emu_output, t)
 
+    print(output)
     assert np.array_equal(output, expected)
 
     print('Output before division:', output)
@@ -284,10 +286,10 @@ def test_linear():
           [56, 100, 83, 39],
           [16, 23, 10, 0],
           [8, 0, 10, 0]]],
-        dtype=np.int64).flatten()
+        dtype=np.int64)
 
-    assert len(d0) == 12*4*4
-    assert len(b0) == w0.shape[0] == 10
+    assert d0.size == 12*4*4
+    assert b0.size == w0.shape[0] == 10
 
     e0 = np.array([-34711, 37520, 22738, 16559, 2293,
                    -48963, -85140, 136144, -38265, -9148],
@@ -302,7 +304,7 @@ def test_linear():
           [29, 44]],
          [[82, 99],
           [85, 66]]],
-        dtype=np.int64).flatten()
+        dtype=np.int64)
     w1 = np.array(
         [[-29, -101, 67, -37, 19, -89, 121, 63, 116, 44, 51, 84],
          [-99, -2, 24, 41, -31, 71, 71, 82, 41, 2, -128, 68]],
@@ -312,6 +314,28 @@ def test_linear():
         dtype=np.int64)
 
     linear(d1, w1, None, e1)
+
+    test_dir = Path(__file__).parent
+
+    # d = np.random.randint(-128, 127, (64, 3, 2*5), dtype=np.int64)
+    # np.save('test_linear_d2', d, allow_pickle=False, fix_imports=False)
+    d2 = np.load(os.path.join(test_dir, 'test_linear_d2.npy'))
+    # d = np.random.randint(-128, 127, (2, 64*3*2*5), dtype=np.int64)
+    # np.save('test_linear_w2', d, allow_pickle=False, fix_imports=False)
+    w2 = np.load(os.path.join(test_dir, 'test_linear_w2.npy'))
+    e2 = np.array([-308289, -135375], dtype=np.int64)
+
+    linear(d2, w2, None, e2)
+
+    # d = np.random.randint(-128, 127, (128, 3, 5), dtype=np.int64)
+    # np.save('test_linear_d3', d, allow_pickle=False, fix_imports=False)
+    d3 = np.load(os.path.join(test_dir, 'test_linear_d3.npy'))
+    # d = np.random.randint(-128, 127, (2, 128*3*5), dtype=np.int64)
+    # np.save('test_linear_w3', d, allow_pickle=False, fix_imports=False)
+    w3 = np.load(os.path.join(test_dir, 'test_linear_w3.npy'))
+    e3 = np.array([168678, 169365], dtype=np.int64)
+
+    linear(d3, w3, None, e3)
 
 
 if __name__ == '__main__':
