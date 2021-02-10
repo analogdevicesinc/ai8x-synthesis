@@ -223,7 +223,7 @@ def manage_bias(
     param_size += w_size
 
 
-def track_data_shape(model, out_dict):
+def track_data_shape(model, out_dict, operator):
     """
     Trace data shape through the conv layers
     """
@@ -232,14 +232,12 @@ def track_data_shape(model, out_dict):
     save_shape = []
     last_op = ""
     node_list = []
-    conv_relu_pool = 0
     last_pool_crp = False
 
     for _, node in enumerate(model.graph.node):
         node_list.append(node.op_type)
         if node.op_type == "Conv":
             layer_num = layer_num + 1
-            conv_relu_pool = 1
             if node.output[0] in out_dict.keys():
                 save_shape = list(out_dict[node.output[0]].shape)
 
@@ -252,12 +250,6 @@ def track_data_shape(model, out_dict):
                 save_shape = list(out_dict[node.output[0]].shape)
                 if save_shape[0] == 1:  # set batch size to unknown
                     save_shape[0] = -1
-
-        if node.op_type == "Relu":
-            if conv_relu_pool == 1:
-                conv_relu_pool = 2
-            else:
-                conv_relu_pool = 0
 
         elif node.op_type == "Squeeze":
             if last_op == "Conv" or (
@@ -282,14 +274,13 @@ def track_data_shape(model, out_dict):
                     for x in range(stride_len):
                         stride.append(attr.ints[x])
 
-            if conv_relu_pool == 2:
+            if operator[layer_num+1] == opn.NONE:
                 last_pool_crp = True
                 save_shape = list(out_dict[node.output[0]].shape)
 
                 if save_shape[0] == 1:  # set batch size to unknown
                     save_shape[0] = -1
 
-                conv_relu_pool = 0
                 layer_num = layer_num + 1
 
         elif node.op_type == "Transpose":
@@ -719,7 +710,6 @@ def load(  # pylint: disable=R0914
     save_shape = []
     save_perm = None
     op_list = []
-    conv_relu_pool = 0
 
     # looking for conv1d/conv2d indications
     for x in range(cfg_layers):
@@ -731,7 +721,7 @@ def load(  # pylint: disable=R0914
         op_list.append(op)
 
     _, out_dict = onnxrt(checkpoint_file, model)
-    save_shape, save_perm = track_data_shape(model, out_dict)
+    save_shape, save_perm = track_data_shape(model, out_dict, operator)
 
     # find Cast/Mul/Add sequences with connected in/outs
     # and integer initializers in Cast node
@@ -786,15 +776,6 @@ def load(  # pylint: disable=R0914
         if node.op_type == "Mul":
             continue
 
-        if node.op_type == "Conv":
-            conv_relu_pool = 1
-
-        if node.op_type == "Relu":
-            if conv_relu_pool == 1:
-                conv_relu_pool = 2
-            else:
-                conv_relu_pool = 0
-
         if (node.op_type == "MaxPool") or (node.op_type == "AveragePool"):
             kernel = []
             stride = []
@@ -808,8 +789,7 @@ def load(  # pylint: disable=R0914
                     for x in range(stride_len):
                         stride.append(attr.ints[x])
 
-            if conv_relu_pool == 2:
-                conv_relu_pool = 0
+            if operator[seq] == opn.NONE:
                 seq += 1
                 layers += 1
                 kernel_shape = kernel
