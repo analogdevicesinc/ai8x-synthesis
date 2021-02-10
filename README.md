@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_February 9, 2021_
+_February 10, 2021_
 
 The Maxim Integrated AI project is comprised of four repositories:
 
@@ -649,6 +649,10 @@ For each layer, the weight memory start column is automatically configured by th
 The following example shows the weight memory layout for two layers. The first layer (L0) has 8 inputs and 10 outputs, and the second layer (L1) has 10 inputs and 2 outputs.
 
 ![Layers and Weight Memory](docs/KernelMemoryLayers.png)
+
+#### Bias Memories
+
+Bias values are stored in separate bias memories. There are four bias memory instances available, and a layer can access any bias memory instance where at least one processor is enabled. By default, bias memories are automatically allocated using a modified Fit-First Descending (FFD) algorithm. Before considering the required resource sizes in descending order, and placing values in the bias memory with most available resources, the algorithm places those bias values that require a single specified bias memory. The bias memory allocation can optionally be controlled using the [`bias_group`](#`bias_group` (Optional)) configuration option.
 
 
 ### Weight Storage Example
@@ -1555,10 +1559,10 @@ For layers that use a bias, this key can specify one or more bias memories that 
 
 “Available groups” is layer specific and is a list of the groups that have enabled processors for the respective layer. `bias_group` must reference one or more of the available groups. This check can be overridden using the command line option `--ignore-bias-groups` that allows any group or list of groups for any layer.
 
-`bias_groups` can be a list of integers or a single integer.
+`bias_group` can be a list of integers or a single integer.
 
 Example:
-	`bias_groups: 0`
+	`bias_group: 0`
 
 #### Example
 
