@@ -49986,4 +49986,3 @@ Hardware: 12,148,288 ops (11,987,328 macc; 157,376 comp; 3,584 add; 0 mul; 0 bit
 RESOURCE USAGE
 Weight memory: 72,228 bytes out of 442,368 bytes total (16%)
 Bias memory:   0 bytes out of 2,048 bytes total (0%)
-
