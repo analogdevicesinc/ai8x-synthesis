@@ -179,7 +179,7 @@ def load(
     bias_map = sorted(bias_map, key=bias_sort)
 
     for _, (ll, gmap, blen) in enumerate(bias_map):
-        group = group_map[ll][argmin(group_bias_max[t] for t in gmap)]
+        group = gmap[argmin(group_bias_max[t] for t in gmap)]
         if group_bias_max[group] + blen > tc.dev.BIAS_SIZE:
             eprint(f'Layer {ll}: bias memory capacity exceeded - available groups: '
                    f'{gmap}, used so far: {group_bias_max}, needed: {blen}, '

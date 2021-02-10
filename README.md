@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_February 6, 2021_
+_February 9, 2021_
 
 The Maxim Integrated AI project is comprised of four repositories:
 
@@ -1548,6 +1548,17 @@ Set `write_gap` to `1` to produce output for a subsequent two-input element-wise
 
 Example:
 	`write_gap: 1`
+
+##### `bias_group` (Optional)
+
+For layers that use a bias, this key can specify one or more bias memories that should be used. By default, the software uses a “Fit First Descending (FFD)” allocation algorithm that considers largest bias lengths first, and then the layer number, and places each bias in the available group with the most available space, descending to the smallest bias length.
+
+“Available groups” is layer specific and is a list of the groups that have enabled processors for the respective layer. `bias_group` must reference one or more of the available groups. This check can be overridden using the command line option `--ignore-bias-groups` that allows any group or list of groups for any layer.
+
+`bias_groups` can be a list of integers or a single integer.
+
+Example:
+	`bias_groups: 0`
 
 #### Example
 

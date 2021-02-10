@@ -593,6 +593,7 @@ def main():
             input_pix_clk=args.input_pix_clk,
             fifo_go=args.fifo_go,
             pretend_zero_sram=args.pretend_zero_sram,
+            ignore_bias_groups=args.ignore_bias_groups,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(
