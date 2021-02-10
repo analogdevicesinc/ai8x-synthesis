@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_February 6, 2021_
+_February 10, 2021_
 
 The Maxim Integrated AI project is comprised of four repositories:
 
@@ -650,6 +650,10 @@ The following example shows the weight memory layout for two layers. The first l
 
 ![Layers and Weight Memory](docs/KernelMemoryLayers.png)
 
+#### Bias Memories
+
+Bias values are stored in separate bias memories. There are four bias memory instances available, and a layer can access any bias memory instance where at least one processor is enabled. By default, bias memories are automatically allocated using a modified Fit-First Descending (FFD) algorithm. Before considering the required resource sizes in descending order, and placing values in the bias memory with most available resources, the algorithm places those bias values that require a single specified bias memory. The bias memory allocation can optionally be controlled using the [`bias_group`](#`bias_group` (Optional)) configuration option.
+
 
 ### Weight Storage Example
 
@@ -1192,6 +1196,7 @@ The following table describes the most important command line arguments for `ai8
 | `--debug-computation`    | Debug computation (SLOW)                                     |                                 |
 | `--stop-after`           | Stop after layer                                             | `--stop-after 2`                |
 | `--one-shot`             | Use layer-by-layer one-shot mechanism                        |                                 |
+| `--ignore-bias-groups`   | Do not force `bias_group` to only available x16 groups       |                                 |
 | *Streaming tweaks*       |                                                              |                                 |
 | `--overlap-data`         | Allow output to overwrite input                              |                                 |
 | `--override-start`       | Override auto-computed streaming start value (x8 hex)        |                                 |
@@ -1548,6 +1553,17 @@ Set `write_gap` to `1` to produce output for a subsequent two-input element-wise
 
 Example:
 	`write_gap: 1`
+
+##### `bias_group` (Optional)
+
+For layers that use a bias, this key can specify one or more bias memories that should be used. By default, the software uses a “Fit First Descending (FFD)” allocation algorithm that considers largest bias lengths first, and then the layer number, and places each bias in the available group with the most available space, descending to the smallest bias length.
+
+“Available groups” is layer specific and is a list of the groups that have enabled processors for the respective layer. `bias_group` must reference one or more of the available groups. This check can be overridden using the command line option `--ignore-bias-groups` that allows any group or list of groups for any layer.
+
+`bias_group` can be a list of integers or a single integer.
+
+Example:
+	`bias_group: 0`
 
 #### Example
 

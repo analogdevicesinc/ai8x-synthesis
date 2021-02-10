@@ -159,6 +159,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         input_pix_clk=9,
         fifo_go=False,
         pretend_zero_sram=False,
+        ignore_bias_groups=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -550,10 +551,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         group_map[ll] = this_map
 
         if bias_group_map[ll] is not None:
-            for _, e in bias_group_map[ll]:
+            for _, e in enumerate(bias_group_map[ll]):
                 if e not in group_map[ll]:
-                    eprint(f'Layer {ll}: `bias_group` references an unused group. Used groups for '
-                           f'this layer are: {group_map[ll]}.')
+                    eprint(f'Layer {ll}: `bias_group` references the unused group {e}. '
+                           f'Used groups for this layer are: {group_map[ll]}.',
+                           error=not ignore_bias_groups)
 
         # Ensure input and output map are the same for passthrough layers
         if operator[ll] == op.NONE:

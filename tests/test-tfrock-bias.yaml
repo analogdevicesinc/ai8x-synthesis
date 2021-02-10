@@ -1,0 +1,59 @@
+# CHW (big data) configuration for Rock-Paper-Scissors 
+
+arch: test
+dataset: test_tfrock-bias
+bias: tfrock-bias
+
+# Define layer parameters in order of the layer sequence
+layers:
+- pad: 1
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0x0000000000000007
+  data_format: HWC
+  op: conv2d
+  bias_group: 0
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0x000000000007fff0
+  op: conv2d
+  bias_group: 1
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0x0003fffffff00000
+  op: conv2d
+  bias_group: 1
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0xfffffffffffffff0
+  op: conv2d
+  bias_group: 2
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0x000000003fffffff
+  op: conv2d
+  bias_group: 0
+- pad: 1
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0x3fffffff00000000
+  op: conv2d
+  bias_group: 1
+- op: mlp
+  flatten: true
+  out_offset: 0x1000
+  output_width: 32
+  processors: 0x000000003fffffff
+  bias_group: 0
