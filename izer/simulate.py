@@ -13,7 +13,7 @@ import numpy as np
 
 from . import op, stats
 from . import tornadocnn as tc
-from .compute import conv1d, conv2d, eltwise, linear, pool1d, pool2d
+from .compute import conv1d, conv2d, convtranspose2d, eltwise, linear, pool1d, pool2d
 
 
 def print_data(
@@ -254,7 +254,7 @@ def convtranspose2d_layer(
     if bias is not None:
         bias = bias * tc.dev.BIAS_DIV
 
-    out_buf = conv2d(
+    out_buf = convtranspose2d(
         data=data,
         weight=kernel,
         bias=bias,

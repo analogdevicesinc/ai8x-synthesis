@@ -67,6 +67,7 @@ def conv2d(
         output_pad,
         groups=1,
         debug=False,
+        pad_out=None,
 ):
     """
     Compute a 2D convolution.
@@ -78,17 +79,21 @@ def conv2d(
     out_channels = output_size[0]
 
     if debug:
+        if pad_out is None:
+            pad_out = pad
+
         # Slow route using pure Python
         ref = np.full(shape=output_size, fill_value=np.nan, dtype=np.int64)
         debug_print('k,c,x,y,weight,data,prod,cacc,acc')
 
         for k in range(out_channels):
             for y in range(-pad[0],
-                           input_size[1] - dilation[0] * (kernel_size[0] - 1) + pad[0],
+                           input_size[1] - dilation[0] * (kernel_size[0] - 1) + pad_out[0],
                            stride[0]):
                 for y_frac in range(fractional_stride[0]):
                     for x in range(-pad[1],
-                                   input_size[2] - dilation[1] * (kernel_size[1] - 1) + pad[1],
+                                   input_size[2]
+                                   - dilation[1] * (kernel_size[1] - 1) + pad_out[1],
                                    stride[1]):
                         for x_frac in range(fractional_stride[1]):
                             val = np.int64(0)
@@ -98,10 +103,10 @@ def conv2d(
                                 sval = np.int(0)
                                 for h in range(kernel_size[0]):
                                     for w in range(kernel_size[1]):
-                                        ypos = (y + pad[0])*fractional_stride[0] - pad[0] \
+                                        ypos = (y + pad[0]) * fractional_stride[0] - pad[0] \
                                             + y_frac + h * dilation[0]
                                         yd, yr = divmod(ypos, fractional_stride[0])
-                                        xpos = (x + pad[1])*fractional_stride[1] - pad[1] \
+                                        xpos = (x + pad[1]) * fractional_stride[1] - pad[1] \
                                             + x_frac + w * dilation[1]
                                         xd, xr = divmod(xpos, fractional_stride[1])
                                         if yr == 0 and 0 <= yd < input_size[1] and \
@@ -127,9 +132,9 @@ def conv2d(
                                 )
 
                             ref[k][
-                                ((y + pad[0])*fractional_stride[0] + y_frac) // stride[0]
+                                ((y + pad[0]) * fractional_stride[0] + y_frac) // stride[0]
                             ][
-                                ((x + pad[1])*fractional_stride[1] + x_frac) // stride[1]
+                                ((x + pad[1]) * fractional_stride[1] + x_frac) // stride[1]
                             ] = val
 
     # Fast computation using NumPy
@@ -186,9 +191,54 @@ def conv2d(
         if not (ref == output).all():
             eprint('NumPy <-> Python mismatch in compute.conv2d')
 
-    assert output.shape == tuple(output_size), f'Shape mismatch: {output.shape} vs {output_size}'
+    print((output + 64) // 128)
+    assert output.shape == tuple(output_size), \
+        f'Shape mismatch: NumPy result {output.shape} vs expected {output_size}'
 
     return output
+
+
+def convtranspose2d(
+        data,
+        weight,
+        bias,
+        input_size,
+        output_size,
+        kernel_size,
+        stride,
+        pad,
+        dilation,
+        fractional_stride,
+        output_pad,
+        groups=1,
+        debug=False,
+):
+    """
+    Compute a transposed 2D convolution.
+    """
+    true_pad = (
+        dilation[0] * (kernel_size[0] - 1) - pad[0],
+        dilation[1] * (kernel_size[1] - 1) - pad[1]
+    )
+
+    assert output_pad == [1, 1]
+
+    return conv2d(
+        data,
+        weight,
+        bias,
+        input_size,
+        output_size,
+        kernel_size,
+        stride,
+        true_pad,
+        dilation,
+        fractional_stride,
+        output_pad,
+        groups,
+        debug,
+        pad_out=output_pad,
+    )
 
 
 def conv1d(

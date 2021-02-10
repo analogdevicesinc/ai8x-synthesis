@@ -115,7 +115,7 @@ def load(
             weight_min.append(w_min)
             weight_max.append(w_max)
 
-            if op == 'conv2d' and operator[seq] == opn.CONVTRANSPOSE2D:
+            if operator[seq] == opn.CONVTRANSPOSE2D:
                 # For ConvTranspose2d, flip the weights as follows:
                 w = np.flip(w, axis=(2, 3)).swapaxes(0, 1)
 

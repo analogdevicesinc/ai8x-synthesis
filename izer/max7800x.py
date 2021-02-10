@@ -160,6 +160,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         fifo_go=False,
         pretend_zero_sram=False,
         ignore_bias_groups=False,
+        output_padding=None,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -174,6 +175,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     in_expand_thresh = [0] * layers
     out_expand_thresh = [0] * layers
     tram_max = [0] * layers
+    effective_pad = padding.copy()
 
     input_dim_str = [None] * layers
     output_dim_str = [None] * layers
@@ -402,7 +404,17 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
             tram_max[ll] = 1
         else:
-            tram_max[ll] = max(0, pooled_dim[ll][1] + 2*padding[ll][1] - kernel_size[ll][1]) + 1
+            if operator[ll] == op.CONVTRANSPOSE2D:
+                # Flip padding around to match PyTorch conventions for ConvTranspose2d
+                effective_pad[ll] = (dilation[ll][0] * (kernel_size[ll][0] - 1) - padding[ll][0],
+                                     dilation[ll][1] * (kernel_size[ll][1] - 1) - padding[ll][1])
+                if padding[ll][0] not in tc.dev.SUPPORTED_X2D_PADS \
+                   or padding[ll][1] not in tc.dev.SUPPORTED_X2D_PADS:
+                    eprint(f'Layer {ll}: The selected padding ({padding[ll]}) for '
+                        'ConvTranspose2d is not supported on this device.')
+
+            tram_max[ll] = max(0, pooled_dim[ll][1] + 2*effective_pad[ll][1]
+                               - kernel_size[ll][1]) + 1
             if operator[ll] == op.CONVTRANSPOSE2D:
                 if pool[ll][0] > 1 or pool[ll][1] > 1:
                     eprint(f'Layer {ll}: ConvTranspose2d cannot be used with pooling.')
@@ -774,7 +786,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 operands[start_layer],
                 in_expand_thresh[start_layer],
                 data,
-                padding[start_layer],
+                effective_pad[start_layer],
                 split=split,
                 fifo=fifo,
                 slowdown=slow_load,
@@ -1237,16 +1249,16 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             * (input_skip[ll] + 1) * operands[ll] * in_expand[ll]
 
                         val |= diff << tc.dev.CNT_DIFF_OFFS
-                        if padding[ll][0] > 0:
-                            assert padding[ll][0] - 1 < 2**2
+                        if effective_pad[ll][0] > 0:
+                            assert effective_pad[ll][0] - 1 < 2**2
                             val |= 1 << tc.dev.PAD_ENA_OFFS
-                            val |= padding[ll][0] - 1 << tc.dev.PAD_CNT_OFFS
+                            val |= effective_pad[ll][0] - 1 << tc.dev.PAD_CNT_OFFS
                     else:
                         val = in_row - 1
-                        assert padding[ll][0] < 2**2
-                        assert val + 2*padding[ll][0] < 2**tc.dev.MAX_CNT_BITS
-                        val |= padding[ll][0] << tc.dev.PAD_CNT_OFFS
-                        val += 2*padding[ll][0]
+                        assert effective_pad[ll][0] < 2**2
+                        assert val + 2*effective_pad[ll][0] < 2**tc.dev.MAX_CNT_BITS
+                        val |= effective_pad[ll][0] << tc.dev.PAD_CNT_OFFS
+                        val += 2*effective_pad[ll][0]
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_RCNT, val,
                                    verbose, comment=' // Rows')
 
@@ -1258,16 +1270,16 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         val = in_col - diff
                         assert val < 2**tc.dev.MAX_CNT_BITS
                         val |= diff << tc.dev.CNT_DIFF_OFFS
-                        if padding[ll][1] > 0:
-                            assert padding[ll][1] - 1 < 2**2
+                        if effective_pad[ll][1] > 0:
+                            assert effective_pad[ll][1] - 1 < 2**2
                             val |= 1 << tc.dev.PAD_ENA_OFFS
-                            val |= padding[ll][1] - 1 << tc.dev.PAD_CNT_OFFS
+                            val |= effective_pad[ll][1] - 1 << tc.dev.PAD_CNT_OFFS
                     else:
                         val = in_col - 1
-                        assert padding[ll][1] < 2**2
-                        assert val + 2 * padding[ll][1] < 2**tc.dev.MAX_CNT_BITS
-                        val |= padding[ll][1] << tc.dev.PAD_CNT_OFFS
-                        val += 2 * padding[ll][1]
+                        assert effective_pad[ll][1] < 2**2
+                        assert val + 2 * effective_pad[ll][1] < 2**tc.dev.MAX_CNT_BITS
+                        val |= effective_pad[ll][1] << tc.dev.PAD_CNT_OFFS
+                        val += 2 * effective_pad[ll][1]
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_CCNT, val,
                                    verbose, comment=' // Columns')
 
@@ -1662,7 +1674,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             # Start: Prior layer's padded pooled row width * prior layer's kernel
                             # height + prior layer's kernel width + prior layer's pad
                             stream_start = (pooled_dim[prev_sequence[ll]][1]
-                                            + 2 * padding[prev_sequence[ll]][1]) \
+                                            + 2 * effective_pad[prev_sequence[ll]][1]) \
                                 * (kernel_size[prev_sequence[ll]][0] - 1 + pool[ll][0] - 1) \
                                 + kernel_size[prev_sequence[ll]][1] - 1 + pool[ll][1] \
                                 + increase_start
@@ -1674,7 +1686,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             # + prior layer's pad
                             delta2 = (pool_stride[ll][0] - 1) \
                                 * (pooled_dim[prev_sequence[ll]][1]
-                                    + 2 * padding[prev_sequence[ll]][1]) \
+                                    + 2 * effective_pad[prev_sequence[ll]][1]) \
                                 + pool[ll][1] * operands[ll] + increase_delta2
                     else:
                         # MAX78002
@@ -1695,8 +1707,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 if pool_stride[ll][0] == 1 and pool[ll][0] == 1:
                                     stream_start = col_inc
                                 else:
-                                    stream_start = (row_inc - 1) * (input_dim[ll][1]
-                                                                    + 2 * padding[ll][1]) + col_inc
+                                    stream_start = (row_inc - 1) * \
+                                        (input_dim[ll][1] + 2 * effective_pad[ll][1]) + col_inc
                             else:  # fifo only
                                 stream_start = input_dim[ll][0] * input_dim[ll][1]
                             stream_start_hwc = stream_start
@@ -1708,9 +1720,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             #   +(Pad+(2*Col_Inc)))*Elementwise)
                             #   +(Read_Ahead*Stride)
                             stream_start_hwc = stream_start = \
-                                padding[ll][1] * (input_dim[ll][1] + 2 * padding[ll][1]) \
-                                + (row_inc * (input_dim[ll][1] + 2 * padding[ll][1])
-                                   + padding[ll][1] + 2 * col_inc) * operands[ll]
+                                effective_pad[ll][1] * \
+                                (input_dim[ll][1] + 2 * effective_pad[ll][1]) \
+                                + (row_inc * (input_dim[ll][1] + 2 * effective_pad[ll][1])
+                                   + effective_pad[ll][1] + 2 * col_inc) * operands[ll]
                             if rd_ahead[ll]:
                                 stream_start_hwc += pool_stride[ll][1] * in_expand[ll]
                             if big_data[ll]:
@@ -1824,7 +1837,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 # =Prefill+((Passes-1)*((Row_Inc*Cols)+Pad+Col_Inc))+Col_Inc
                                 val = stream_start_hwc \
                                     + (in_expand[ll] - 1) * (row_inc * input_dim[ll][1]
-                                                             + padding[ll][1] + col_inc) \
+                                                             + effective_pad[ll][1] + col_inc) \
                                     + col_inc
                                 if big_data[ll]:
                                     # =(ROUNDUP(Buffer/4,0))
@@ -1961,7 +1974,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     operands[start_layer],
                     in_expand_thresh[start_layer],
                     data,
-                    padding[start_layer],
+                    effective_pad[start_layer],
                     split=split,
                     fifo=fifo,
                     slowdown=slow_load,
@@ -2098,7 +2111,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     operands[start_layer],
                     in_expand_thresh[start_layer],
                     data,
-                    padding[start_layer],
+                    effective_pad[start_layer],
                     split=split,
                     fifo=fifo,
                     slowdown=slow_load,
@@ -2328,7 +2341,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 padding[ll],
                 dilation[ll],
                 stride[ll],
-                [1, 1],  # output_padding
+                output_padding[ll],
                 activation[ll],
                 k,
                 bias[ll],
