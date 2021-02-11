@@ -411,7 +411,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 if padding[ll][0] not in tc.dev.SUPPORTED_X2D_PADS \
                    or padding[ll][1] not in tc.dev.SUPPORTED_X2D_PADS:
                     eprint(f'Layer {ll}: The selected padding ({padding[ll]}) for '
-                        'ConvTranspose2d is not supported on this device.')
+                           'ConvTranspose2d is not supported on this device.')
 
             tram_max[ll] = max(0, pooled_dim[ll][1] + 2*effective_pad[ll][1]
                                - kernel_size[ll][1]) + 1

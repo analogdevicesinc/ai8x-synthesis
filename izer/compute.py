@@ -191,7 +191,6 @@ def conv2d(
         if not (ref == output).all():
             eprint('NumPy <-> Python mismatch in compute.conv2d')
 
-    print((output + 64) // 128)
     assert output.shape == tuple(output_size), \
         f'Shape mismatch: NumPy result {output.shape} vs expected {output_size}'
 
