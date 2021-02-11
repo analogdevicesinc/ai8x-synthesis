@@ -517,3 +517,13 @@
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-conv2d-pooldilation-stride3 --config-file tests/test-conv2d-pooldilation-stride3.yaml --device "$DEVICE" $SHORT_LOG "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-conv2d-pooldilation-mixed-stride3 --config-file tests/test-conv2d-pooldilation-mixed-stride3.yaml --device "$DEVICE" $SHORT_LOG "$@"
 
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-flatten-bias --config-file tests/test-flatten-bias.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mpflatten-128 --config-file tests/test-mpflatten-128.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mpflatten-192 --config-file tests/test-mpflatten-256.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mpflatten-256 --config-file tests/test-mpflatten-256.yaml --device "$DEVICE" "$@"
+
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mppool-1x1 --config-file tests/test-mppool-1x1.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mppool-128 --config-file tests/test-mppool-128.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mppool-192 --config-file tests/test-mppool-192.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mppool-256 --config-file tests/test-mppool-256.yaml --device "$DEVICE" "$@"
+
