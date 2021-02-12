@@ -1,5 +1,5 @@
 arch: ai85net5
-dataset: simple-avgpool-conv2d-dense
+dataset: simple-conv2drelu-maxpool-dense
 
 # Define layer parameters in order of the layer sequence
 layers:
@@ -15,7 +15,7 @@ layers:
 - processors: 0x0000000000000003
   out_offset: 0x0000
   op: passthrough
-  avg_pool: 2
+  max_pool: 2
   pool_stride: 1
 - flatten: true
   operation: MLP
