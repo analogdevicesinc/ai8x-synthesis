@@ -1,7 +1,5 @@
 #!/bin/sh
 
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-tfrock-bias --config-file tests/test-tfrock-bias.yaml --ignore-bias-groups --device "$DEVICE" "$@"
-
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-riscv-csv-qfastfifostream-x4-likecifar --config-file tests/test-ffsx4-likecifar10-hwc.yaml --fast-fifo-quad --riscv --device "$DEVICE" "$@"
 
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-qfastfifostream-readahead-multipass --config-file tests/test-ffsreadahead-multipass.yaml --fast-fifo-quad --riscv --device "$DEVICE" "$@"

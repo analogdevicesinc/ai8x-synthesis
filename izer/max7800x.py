@@ -560,13 +560,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 this_map.append(group)
         group_map[ll] = this_map
 
-        if bias_group_map[ll] is not None:
-            for _, e in enumerate(bias_group_map[ll]):
-                if e not in group_map[ll]:
-                    eprint(f'Layer {ll}: `bias_group` references the unused group {e}. '
-                           f'Used groups for this layer are: {group_map[ll]}.',
-                           error=not ignore_bias_groups)
-
         # Ensure input and output map are the same for passthrough layers
         if operator[ll] == op.NONE:
             for group in range(tc.dev.P_NUMGROUPS):
@@ -623,6 +616,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
     if 0 not in groups_used:
         eprint('Group 0 is not used, this currently does not work.')
+
+    for ll in range(first_layer_used, layers):
+        if bias_group_map[ll] is not None:
+            for _, e in enumerate(bias_group_map[ll]):
+                if e not in groups_used:
+                    eprint(f'Layer {ll}: `bias_group` references the unused group {e}. '
+                           f'Used x16 groups for this network are: {groups_used}.',
+                           error=not ignore_bias_groups)
 
     # Create ARM code wrapper if needed
     if riscv and not block_mode:
@@ -846,6 +847,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 processor_map,
                 output_processor_map,
                 out_expand,
+                list(set().union(groups_used)),
                 debug,
             )
 
@@ -1045,6 +1047,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 processor_map,
                 output_processor_map,
                 out_expand,
+                list(set().union(groups_used)),
                 debug,
             )
 
@@ -1427,6 +1430,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             # and set the cnnsiena bit if true
                             if (processor_map[ll] >> (t * tc.dev.P_NUMPRO)) % 2**tc.dev.P_NUMPRO:
                                 sources |= 1 << t
+
+                        # Also set cnnsiena if we get the bias from that group
+                        if bias_group[ll] is not None and bias_group[ll] != group:
+                            sources |= 1 << bias_group[ll]
                         val |= sources << 12
 
                     if rd_ahead[ll] and hasattr(tc.dev, 'RD_AHEAD_OFFS'):

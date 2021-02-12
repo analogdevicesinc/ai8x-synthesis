@@ -527,3 +527,5 @@
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mppool-192 --config-file tests/test-mppool-192.yaml --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mppool-256 --config-file tests/test-mppool-256.yaml --device "$DEVICE" "$@"
 
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-tfrock-bias --config-file tests/test-tfrock-bias.yaml --device "$DEVICE" "$@"
+
