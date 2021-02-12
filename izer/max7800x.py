@@ -1285,26 +1285,18 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                    verbose, comment=' // Columns')
 
                     # Configure pooling row count
-                    val = pool[ll][0] - 1
+                    val = (pool[ll][0] - 1) * pool_dilation[ll][0]
+                    assert val < 2**4
                     if hasattr(tc.dev, 'CNT_INC_OFFS'):
-                        if pool_dilation[ll][0] > 1:
-                            val += 1
-                        assert val < 2**4
                         val |= pool_dilation[ll][0] - 1 << tc.dev.CNT_INC_OFFS
-                    else:
-                        assert val < 2**4
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PRCNT, val,
                                    verbose, comment=' // Pooling rows')
 
                     # Configure pooling column count
-                    val = pool[ll][1] - 1
+                    val = (pool[ll][1] - 1) * pool_dilation[ll][1]
+                    assert val < 2**4
                     if hasattr(tc.dev, 'CNT_INC_OFFS'):
-                        if pool_dilation[ll][1] > 1:
-                            val += 1
-                        assert val < 2**4
                         val |= pool_dilation[ll][1] - 1 << tc.dev.CNT_INC_OFFS
-                    else:
-                        assert val < 2**4
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PCCNT, val,
                                    verbose, comment=' // Pooling columns')
 
