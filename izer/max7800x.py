@@ -415,10 +415,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
             tram_max[ll] = max(0, pooled_dim[ll][1] + 2*effective_pad[ll][1]
                                - kernel_size[ll][1]) + 1
-            if operator[ll] == op.CONVTRANSPOSE2D:
-                if pool[ll][0] > 1 or pool[ll][1] > 1:
-                    eprint(f'Layer {ll}: ConvTranspose2d cannot be used with pooling.')
 
+            if operator[ll] == op.CONVTRANSPOSE2D:
                 tram_max[ll] *= stride[ll][1]
 
         if input_chan[ll] % conv_groups[ll] != 0 or output_chan[ll] % conv_groups[ll] != 0:

@@ -66,8 +66,7 @@ def conv2d(
         fractional_stride,
         output_pad,
         groups=1,
-        debug=False,
-        pad_out=None,
+        debug=False,  # pylint: disable=unused-argument
 ):
     """
     Compute a 2D convolution.
@@ -78,84 +77,24 @@ def conv2d(
     in_channels = input_size[0]
     out_channels = output_size[0]
 
-    if debug:
-        if pad_out is None:
-            pad_out = pad
-
-        # Slow route using pure Python
-        ref = np.full(shape=output_size, fill_value=np.nan, dtype=np.int64)
-        debug_print('k,c,x,y,weight,data,prod,cacc,acc')
-
-        for k in range(out_channels):
-            for y in range(-pad[0],
-                           input_size[1] - dilation[0] * (kernel_size[0] - 1) + pad_out[0],
-                           stride[0]):
-                for y_frac in range(fractional_stride[0]):
-                    for x in range(-pad[1],
-                                   input_size[2]
-                                   - dilation[1] * (kernel_size[1] - 1) + pad_out[1],
-                                   stride[1]):
-                        for x_frac in range(fractional_stride[1]):
-                            val = np.int64(0)
-                            c = 0
-                            while True:
-                                dc = c if groups == 1 else c + k * (in_channels // groups)
-                                sval = np.int(0)
-                                for h in range(kernel_size[0]):
-                                    for w in range(kernel_size[1]):
-                                        ypos = (y + pad[0]) * fractional_stride[0] - pad[0] \
-                                            + y_frac + h * dilation[0]
-                                        yd, yr = divmod(ypos, fractional_stride[0])
-                                        xpos = (x + pad[1]) * fractional_stride[1] - pad[1] \
-                                            + x_frac + w * dilation[1]
-                                        xd, xr = divmod(xpos, fractional_stride[1])
-                                        if yr == 0 and 0 <= yd < input_size[1] and \
-                                           xr == 0 and 0 <= xd < input_size[2]:
-                                            prod = weight[k][c][h][w] * data[dc][yd][xd]
-                                            sval += prod
-                                            val += prod
-                                            stats.true_macc += 1
-                                            debug_print(
-                                                f'{k},{c},{x},{y},{weight[k][c][h][w]},'
-                                                f'{data[dc][yd][xd]},{prod},{sval},{val}'
-                                            )
-                                c += 16
-                                if c >= in_channels // groups:
-                                    c = (c + 1) % 16
-                                    if c in (0, in_channels // groups):
-                                        break
-
-                            if bias is not None:
-                                val += bias[k]
-                                debug_print(
-                                    f'     adding bias: {bias[k]} -> result: {val}'
-                                )
-
-                            ref[k][
-                                ((y + pad[0]) * fractional_stride[0] + y_frac) // stride[0]
-                            ][
-                                ((x + pad[1]) * fractional_stride[1] + x_frac) // stride[1]
-                            ] = val
-
-    # Fast computation using NumPy
-
     # Stretch data for fractionally-strided convolution
     if fractional_stride[0] > 1 or fractional_stride[1] > 1:
         ndata = np.zeros((data.shape[0],
-                          data.shape[1] * fractional_stride[0],
-                          data.shape[2] * fractional_stride[1]),
+                          data.shape[1] * fractional_stride[0] - 1,
+                          data.shape[2] * fractional_stride[1] - 1),
                          dtype=data.dtype)
         ndata[:, 0::fractional_stride[0], 0::fractional_stride[1]] = data
         data = ndata
 
-    # Create zero padding around data and stretch weights for dilation.
+    # Create zero padding around data
     if pad[0] or pad[1] or output_pad[0] or output_pad[1]:
         data = np.pad(data, pad_width=((0, 0),
-                                       (pad[0], pad[0]),
-                                       (pad[1], pad[1])),
+                                       (pad[0], pad[0] + output_pad[0]),
+                                       (pad[1], pad[1] + output_pad[1])),
                       mode='constant', constant_values=0)
 
     if dilation[0] > 1 or dilation[1] > 1:
+        # Stretch weights for dilation
         nweight = np.zeros((weight.shape[0], weight.shape[1],
                             (kernel_size[0] - 1) * dilation[0] + 1,
                             (kernel_size[1] - 1) * dilation[1] + 1),
@@ -187,10 +126,6 @@ def conv2d(
         for k in range(out_channels):
             output[k] += bias[k]
 
-    if debug:
-        if not (ref == output).all():
-            eprint('NumPy <-> Python mismatch in compute.conv2d')
-
     assert output.shape == tuple(output_size), \
         f'Shape mismatch: NumPy result {output.shape} vs expected {output_size}'
 
@@ -215,12 +150,6 @@ def convtranspose2d(
     """
     Compute a transposed 2D convolution.
     """
-    true_pad = (
-        dilation[0] * (kernel_size[0] - 1) - pad[0],
-        dilation[1] * (kernel_size[1] - 1) - pad[1]
-    )
-
-    assert output_pad == [1, 1]
 
     return conv2d(
         data,
@@ -230,13 +159,15 @@ def convtranspose2d(
         output_size,
         kernel_size,
         stride,
-        true_pad,
+        (
+            dilation[0] * (kernel_size[0] - 1) - pad[0],
+            dilation[1] * (kernel_size[1] - 1) - pad[1]
+        ),
         dilation,
         fractional_stride,
         output_pad,
         groups,
         debug,
-        pad_out=output_pad,
     )
 
 
