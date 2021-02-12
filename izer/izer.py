@@ -594,6 +594,7 @@ def main():
             pretend_zero_sram=args.pretend_zero_sram,
             ignore_bias_groups=args.ignore_bias_groups,
             output_padding=output_padding,
+            kernel_format=args.kernel_format,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

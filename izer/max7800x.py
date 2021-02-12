@@ -161,6 +161,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         pretend_zero_sram=False,
         ignore_bias_groups=False,
         output_padding=None,
+        kernel_format='{0:04}',
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -2309,8 +2310,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 data,
                 output_width=output_width[ll],
                 groups=conv_groups[ll],
-                debug=debug_computation,
                 bypass=bypass[ll],
+                kernel_format=kernel_format,
+                debug=debug_computation,
             )
         elif operator[ll] == op.CONVTRANSPOSE2D:
             if not bypass[ll]:
@@ -2345,8 +2347,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 data,
                 output_width=output_width[ll],
                 groups=conv_groups[ll],
-                debug=debug_computation,
                 bypass=bypass[ll],
+                kernel_format=kernel_format,
+                debug=debug_computation,
             )
         elif operator[ll] == op.CONV1D:
             if not bypass[ll]:
@@ -2379,8 +2382,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 data,
                 output_width=output_width[ll],
                 groups=conv_groups[ll],
-                debug=debug_computation,
                 bypass=bypass[ll],
+                kernel_format=kernel_format,
+                debug=debug_computation,
             )
         elif operator[ll] == op.NONE:  # '0'D (pooling only or passthrough)
             out_buf, out_size = passthrough_layer(
