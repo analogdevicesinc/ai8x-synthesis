@@ -133,12 +133,15 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             in_exp = 1
             in_chan = in_expand_thresh[ll]
         elif calcx4[ll]:
+            # FIXME for output channels % 4 != 0
             kernel_reshaped = kernel[ll].reshape(
-                output_chan[ll],
+                output_chan[ll] // 4,
+                4,
                 in_expand[ll],
-                -1,
-            ).swapaxes(0, 1).reshape(
-                kernel[ll].shape,
+                in_expand_thresh[ll],
+                kernel_size[ll][0] * kernel_size[ll][1],
+            ).transpose(0, 2, 1, 3, -1).reshape(
+                kernel[ll].shape
             )
             in_exp = in_expand[ll]
             in_chan = input_chan[ll]
