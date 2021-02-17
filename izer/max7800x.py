@@ -189,6 +189,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     stride_str = [None] * layers
     stream_buf = [None] * layers
 
+    if zero_sram:
+        rtl_preload = False
+
     if start_layer > 0 and not tc.dev.SUPPORT_LINK_LAYER:
         eprint("`--start-layer` is not supported on this device.")
 
@@ -221,9 +224,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         pll = pipeline
 
     if zero_sram or pretend_zero_sram:
-        # Clear kernels to 0x55 so the data matches what is in hardware
+        # Clear every seventh kernel so we can test the BIST
         for i, _ in enumerate(kernel):
-            kernel[i] = np.full(shape=kernel[i].shape, fill_value=0x55, dtype=np.int64)
+            kernel[i][::7] = np.full(shape=kernel[i][0].shape, fill_value=0, dtype=np.int64)
 
     if riscv_debug:
         riscv = True
@@ -831,6 +834,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 api=embedded_code,
                 start_offs=weight_start,
                 bypass=bypass,
+                zero_sram=zero_sram,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
                 verbose,
@@ -899,11 +903,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                            verbose, comment=' // AON control', force_write=True)
 
         if tc.dev.REQUIRE_REG_CLEAR:
+            bist_clear = tc.dev.BIST_ZERO_BOTH_EX if any(b is not None for b in bias) \
+                else tc.dev.BIST_ZERO_EX
             for _, group in enumerate(groups_used):
-                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 7,
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, bist_clear,
                               verbose, comment=' // Clear registers', no_verify=True)
             for _, group in enumerate(groups_used):
-                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 25, 1 << 25,
+                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST,
+                             tc.dev.BIST_ZERO_WAIT, tc.dev.BIST_ZERO_WAIT,
                              comment=' // Wait for clear')
             for _, group in enumerate(groups_used):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
@@ -946,52 +953,56 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
         if zero_sram:
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 0,
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, tc.dev.BIST_DATA_EX,
                               verbose, comment=' // Data SRAM BIST')
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 27 | 1 << 18, 1 << 27 | 1 << 18,
+                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST,
+                             tc.dev.BIST_DATA_WAIT, tc.dev.BIST_DATA_WAIT,
                              comment=' // Wait for BIST')
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 14, 0,
+                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, tc.dev.BIST_DATA_ERR, 0,
                                comment=' // Return on BIST error')
             for group in range(tc.dev.P_NUMGROUPS):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
                               verbose, comment=' // Reset BIST', force_write=True)
             apb.output('\n', embedded_code)
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 2,
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, tc.dev.BIST_MASK_EX,
                               verbose, comment=' // Mask SRAM BIST')
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 27 | 1 << 19, 1 << 27 | 1 << 19,
+                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST,
+                             tc.dev.BIST_MASK_WAIT, tc.dev.BIST_MASK_WAIT,
                              comment=' // Wait for BIST')
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 15, 0,
+                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, tc.dev.BIST_MASK_ERR, 0,
                                comment=' // Return on BIST error')
             for group in range(tc.dev.P_NUMGROUPS):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
                               verbose, comment=' // Reset BIST', force_write=True)
             apb.output('\n', embedded_code)
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 4,
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, tc.dev.BIST_TRAM_EX,
                               verbose, comment=' // Tornado SRAM BIST')
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 27 | 1 << 20, 1 << 27 | 1 << 20,
+                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST,
+                             tc.dev.BIST_TRAM_WAIT, tc.dev.BIST_TRAM_WAIT,
                              comment=' // Wait for BIST')
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 16, 0,
+                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, tc.dev.BIST_TRAM_ERR, 0,
                                comment=' // Return on BIST error')
             for group in range(tc.dev.P_NUMGROUPS):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
                               verbose, comment=' // Reset BIST', force_write=True)
             apb.output('\n', embedded_code)
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 6,
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, tc.dev.BIST_BIAS_EX,
                               verbose, comment=' // Bias Rfile BIST')
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 27 | 1 << 21, 1 << 27 | 1 << 21,
+                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST,
+                             tc.dev.BIST_BIAS_WAIT, tc.dev.BIST_BIAS_WAIT,
                              comment=' // Wait for BIST')
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 17, 0,
+                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, tc.dev.BIST_BIAS_ERR, 0,
                                comment=' // Return on BIST error')
             for group in range(tc.dev.P_NUMGROUPS):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
@@ -1031,6 +1042,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 calcx4=calcx4,
                 start_offs=weight_start,
                 bypass=bypass,
+                zero_sram=zero_sram,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
                 verbose,

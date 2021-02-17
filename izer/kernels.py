@@ -79,6 +79,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         api=False,
         start_offs=0,
         bypass=None,
+        zero_sram=False,
 ):
     """
     Stack `kernel` values and write them to C code (for `embedded_code` if `True` or
@@ -422,7 +423,8 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 ll = kernel_map[p][col]
                 if ll != _INVALID_VALUE:
                     k = kernel_data[p][col]
-                    apb.write_kern(ll, p, col, k, calcx4=calcx4[ll])
+                    if not zero_sram or np.any(k != 0):
+                        apb.write_kern(ll, p, col, k, calcx4=calcx4[ll])
         apb.function_footer()  # load_weights()
 
     if embedded_code or mexpress:
