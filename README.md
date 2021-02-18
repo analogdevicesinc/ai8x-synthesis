@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_December 24, 2020_
+*Feb 10, 2021*
 
 The Maxim Integrated AI project is comprised of four repositories:
 
@@ -219,11 +219,13 @@ To create the virtual environment and install basic wheels:
 ```shell
 $ cd ai8x-training
 ```
-If you want to use the “develop” branch, switch to “develop” using this optional step:
+If you want to use the “develop” branch (PyTorch), switch to “develop” using this optional step:
 
 ```shell
 $ git checkout develop  # optional
 ```
+
+***For TensorFlow, make sure to switch to "develop-tf"*.**
 
 Then continue with the following:
 
@@ -235,26 +237,27 @@ $ source bin/activate
 (ai8x-training) $ pip3 install -U pip wheel setuptools
 ```
 
-The next step differs depending on whether the system uses Linux with CUDA 11.1, or any other setup.
+The next step differs depending on whether the system uses Linux with CUDA 11.1, or any other setup, and whether PyTorch or TensorFlow is used.
+**For PyTorch CUDA 11.1 on Linux:**
 
-For CUDA 11.1 on Linux:
 
 ```shell
 (ai8x-training) $ pip3 install -r requirements-cu111.txt
 ```
 
-For all other systems, including CUDA 10.2 on Linux:
+**For all other PyTorch systems, including CUDA 10.2 on Linux:**
 
 ```shell
 (ai8x-training) $ pip3 install -r requirements.txt
 ```
-
-For TensorFlow (CUDA or CPU, all operating systems):
+**For TensorFlow (CUDA 11.0 or CPU, all operating systems):**
 
 ```shell
 (ai8x-training) $ cd TensorFlow
 (ai8x-training) $ pip3 install -r requirements_tf.txt
 ```
+
+*For more information on TensorFlow installation, please refer to /aix8-training/TensorFlow/README.md.*
 
 ##### Repository Branches
 
@@ -302,11 +305,13 @@ $ cd $AI_PROJECT_ROOT
 $ cd ai8x-synthesis
 ```
 
-If you want to use the “develop” branch, switch to “develop” using this optional step:
+If you want to use the “develop” branch (PyTorch), switch to “develop” using this optional step:
 
 ```shell
 $ git checkout develop  # optional
 ```
+
+***For TensorFlow, make sure to switch to "develop-tf"*.**
 
 Then continue:
 
@@ -1023,7 +1028,7 @@ The following table describes the command line arguments for `batchnormfuser.py`
 
 ### Quantization
 
-There are two main approaches to quantization — quantization-aware training (only PyTorch support) and post-training quantization (both PyTorch and Tensorflow). The MAX78000/MAX78002 support both approaches.
+There are two main approaches to quantization — quantization-aware training and post-training quantization. The MAX78000/MAX78002 support both approaches.
 
 The `quantize.py` software quantizes an existing PyTorch checkpoint file and writes out a new PyTorch checkpoint file that can then be used to evaluate the quality of the quantized network, using the same PyTorch framework used for training. The same new checkpoint file will also be used to feed the [Network Loader](#Network-Loader).
 
