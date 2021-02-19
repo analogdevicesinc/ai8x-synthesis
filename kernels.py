@@ -132,11 +132,11 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             kernel_reshaped = kernel_reshaped.copy().clip(-1, 0)
 
         if np.ndim(kernel_reshaped) > 2:
-            if kernel_reshaped.shape[-2] != kernel_size[ll][0] \
-               or kernel_reshaped.shape[-1] != kernel_size[ll][1]:
+            if kernel_reshaped.shape[-1] != kernel_size[ll][0] \
+               or kernel_reshaped.shape[-2] != kernel_size[ll][1]:
                 eprint(f'The configured kernel dimensions ({kernel_size[ll][0]}x'
                        f'{kernel_size[ll][1]}) for layer {ll} do not match the binary weights '
-                       f'({kernel_reshaped.shape[-2]}x{kernel_reshaped.shape[-1]})!')
+                       f'({kernel_reshaped.shape[-1]}x{kernel_reshaped.shape[-2]})!')
         else:
             if kernel_reshaped.shape[-1] != kernel_size[ll][0]:
                 eprint(f'The configured kernel dimensions ({kernel_size[ll][0]}) '
