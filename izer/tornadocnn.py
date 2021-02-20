@@ -205,6 +205,19 @@ class DevAI85(Dev):
     FIFO_READY_SEL = 0
     AON_READY_SEL = 0
 
+    BIST_DATA_EX = 1 << 0
+    BIST_DATA_WAIT = 1 << 27 | 1 << 18
+    BIST_DATA_ERR = 1 << 14
+    BIST_MASK_EX = 1 << 2
+    BIST_MASK_WAIT = 1 << 27 | 1 << 19
+    BIST_MASK_ERR = 1 << 15
+    BIST_TRAM_EX = 1 << 4
+    BIST_TRAM_WAIT = 1 << 27 | 1 << 20
+    BIST_TRAM_ERR = 1 << 16
+    BIST_BIAS_EX = 1 << 6
+    BIST_BIAS_WAIT = 1 << 27 | 1 << 21
+    BIST_BIAS_ERR = 1 << 17
+
     DEFAULT_WEIGHT_BITS = 8
     ACTIVATION_BITS = 8
     TRAM_SIZE = 3072
@@ -243,6 +256,7 @@ class DevAI85(Dev):
     FAST_FIFO_DMA = 5  # DMA register (reserved function, not yet supported)
 
     EMULATE_ELTWISE_MP = True
+    SUPPORTED_X2D_PADS = [1]
 
     FLASH_SIZE = 0x8000
     RISCV_SRAM_ORIGIN = 0x2001C000
@@ -342,6 +356,22 @@ class DevAI87(Dev):
     FIFO_READY_SEL = 0
     AON_READY_SEL = 0
 
+    BIST_ZERO_BOTH_EX = 1 << 12 | 1 << 11 | 1 << 10 | 1 << 7
+    BIST_ZERO_EX = 1 << 12 | 1 << 11 | 1 << 7
+    BIST_ZERO_WAIT = 1 << 25
+    BIST_DATA_EX = 1 << 12 | 1 << 0
+    BIST_DATA_WAIT = 1 << 18
+    BIST_DATA_ERR = 1 << 14
+    BIST_MASK_EX = 1 << 13 | 1 << 2
+    BIST_MASK_WAIT = 1 << 19
+    BIST_MASK_ERR = 1 << 15
+    BIST_TRAM_EX = 1 << 13 | 1 << 12 | 1 << 4
+    BIST_TRAM_WAIT = 1 << 20
+    BIST_TRAM_ERR = 1 << 16
+    BIST_BIAS_EX = 1 << 12 | 1 << 11 | 1 << 10 | 1 << 6
+    BIST_BIAS_WAIT = 1 << 21
+    BIST_BIAS_ERR = 1 << 17
+
     DEFAULT_WEIGHT_BITS = 8
     ACTIVATION_BITS = 8
     TRAM_SIZE = 12288
@@ -394,6 +424,7 @@ class DevAI87(Dev):
     SUPPORT_MULTIPASS_STRIDE = True
     SUPPORT_KERNEL_BYPASS = True
     SUPPORT_FIFO_GO = True
+    SUPPORTED_X2D_PADS = [0, 1, 2]
     REQUIRE_REG_CLEAR = True
     REQUIRE_SEMA_LPWKEN = True
     REQUIRE_ONESHOT_CLEAR = False

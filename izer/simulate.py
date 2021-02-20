@@ -13,7 +13,7 @@ import numpy as np
 
 from . import op, stats
 from . import tornadocnn as tc
-from .compute import conv1d, conv2d, eltwise, linear, pool1d, pool2d
+from .compute import conv1d, conv2d, convtranspose2d, eltwise, linear, pool1d, pool2d
 
 
 def print_data(
@@ -109,8 +109,9 @@ def conv2d_layer(
         bits=8,
         output_width=8,
         groups=1,
-        debug=False,
         bypass=False,
+        kernel_format='{0:4}',
+        debug=False,
 ):
     """
     Perform 2D convolution for one layer.
@@ -121,13 +122,20 @@ def conv2d_layer(
             print(' (BYPASS)')
         if verbose_data and not bypass:
             print(":")
-            with np.printoptions(formatter={'int': '{0:4}'.format}):
+            with np.printoptions(formatter={'int': kernel_format.format}):
                 for i in range(output_channels):
-                    print(f'Output channel #{i}')
                     if kernel_size[0] == kernel_size[1] == 1:
-                        print(np.squeeze(kernel[i]))
+                        print(f'Output channel #{i}')
+                        print(np.squeeze(kernel[i]) & 0xff)
                     else:
-                        print(kernel[i])
+                        if kernel[i].shape[0] < 8:
+                            print(f'Output channel #{i}')
+                            print(kernel[i] & 0xff)
+                        else:
+                            for j in range(0, kernel[i].shape[0], 8):
+                                print(f'Output channel #{i} (input channels {j}-'
+                                      f'{min(kernel[i].shape[0], j+8) - 1})')
+                                print(kernel[i][j:j+8] & 0xff)
         print_data1d(verbose_data, "BIAS", bias)
 
     out_size = [output_channels,
@@ -222,8 +230,9 @@ def convtranspose2d_layer(
         bits=8,
         output_width=8,
         groups=1,
-        debug=False,
         bypass=False,
+        kernel_format='{0:4}',
+        debug=False,
 ):
     """
     Perform a fractionally strided 2D convolution for one layer.
@@ -234,13 +243,21 @@ def convtranspose2d_layer(
             print(' (BYPASS)')
         if verbose_data and not bypass:
             print(':')
-            with np.printoptions(formatter={'int': '{0:4}'.format}):
+            with np.printoptions(formatter={'int': kernel_format.format}):
                 for i in range(output_channels):
-                    print(f'Output channel #{i}')
                     if kernel_size[0] == kernel_size[1] == 1:
-                        print(np.squeeze(kernel[i]))
+                        print(f'Output channel #{i}')
+                        print(np.squeeze(kernel[i]) & 0xff)
                     else:
-                        print(kernel[i])
+                        if kernel[i].shape[0] < 8:
+                            print(f'Output channel #{i}')
+                            print(kernel[i] & 0xff)
+                        else:
+                            for j in range(0, kernel[i].shape[0], 8):
+                                print(f'Output channel #{i} (input channels {j}-'
+                                      f'{min(kernel[i].shape[0], j+8) - 1})')
+                                print(kernel[i][j:j+8] & 0xff)
+
         print_data1d(verbose_data, "BIAS", bias)
 
     out_size = [output_channels,
@@ -254,7 +271,7 @@ def convtranspose2d_layer(
     if bias is not None:
         bias = bias * tc.dev.BIAS_DIV
 
-    out_buf = conv2d(
+    out_buf = convtranspose2d(
         data=data,
         weight=kernel,
         bias=bias,
@@ -336,8 +353,9 @@ def conv1d_layer(
         bits=8,
         output_width=8,
         groups=1,
-        debug=False,
         bypass=False,
+        kernel_format='{0:4}',
+        debug=False,
 ):
     """
     Perform 1D convolution for one layer.
@@ -348,7 +366,8 @@ def conv1d_layer(
             print(' (BYPASS)')
         if verbose_data and not bypass:
             print(':')
-            print(kernel)
+            with np.printoptions(formatter={'int': kernel_format.format}):
+                print(kernel & 0xff)
         print_data1d(verbose_data, "BIAS", bias)
 
     out_size = [output_channels,

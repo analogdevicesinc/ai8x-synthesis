@@ -229,6 +229,7 @@ def main():
     pool = params['pool'][:layers]
     pool_stride = params['pool_stride'][:layers]
     padding = params['padding'][:layers]
+    output_padding = params['output_padding'][:layers]
     stride = params['stride'][:layers]
     dilation = params['dilation'][:layers]
     big_data = params['big_data'][:layers]
@@ -399,14 +400,12 @@ def main():
                                   (pooled_size[1] - dilation[ll][1] * (kernel_size[ll][1] - 1)
                                    - 1 + 2 * padding[ll][1]) // stride[ll][1] + 1]
             elif operator[ll] == op.CONVTRANSPOSE2D:
-                # output padding is always 1
-                output_padding = 1
                 output_dim[ll] = [(pooled_size[0] - 1) * stride[ll][0] - 2 * padding[ll][0]
                                   + dilation[ll][0] * (kernel_size[ll][0] - 1)
-                                  + output_padding + 1,
+                                  + output_padding[ll][0] + 1,
                                   (pooled_size[1] - 1) * stride[ll][1] - 2 * padding[ll][1]
                                   + dilation[ll][1] * (kernel_size[ll][1] - 1)
-                                  + output_padding + 1]
+                                  + output_padding[ll][1] + 1]
             else:  # Element-wise
                 output_dim[ll] = [pooled_size[0], pooled_size[1]]
             if flatten[ll]:
@@ -594,6 +593,8 @@ def main():
             fifo_go=args.fifo_go,
             pretend_zero_sram=args.pretend_zero_sram,
             ignore_bias_groups=args.ignore_bias_groups,
+            output_padding=output_padding,
+            kernel_format=args.kernel_format,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

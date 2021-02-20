@@ -115,7 +115,7 @@ def load(
             weight_min.append(w_min)
             weight_max.append(w_max)
 
-            if op == 'conv2d' and operator[seq] == opn.CONVTRANSPOSE2D:
+            if operator[seq] == opn.CONVTRANSPOSE2D:
                 # For ConvTranspose2d, flip the weights as follows:
                 w = np.flip(w, axis=(2, 3)).swapaxes(0, 1)
 
@@ -211,8 +211,8 @@ def load(
     if verbose:
         print(f'Checkpoint for epoch {checkpoint["epoch"]}, model {checkpoint["arch"]} - '
               'weight and bias data:')
-        print(' InCh OutCh  Weights         Quant Shift  Min Max   Size '
-              'Key                                 Bias       Quant  Min Max Size Key')
+        print(' InCh OutCh  Weights         Quant Shift  Min  Max   Size '
+              'Key                                 Bias       Quant  Min  Max Size Key')
         for ll in range(layers):
             if ll < len(weights) and weights[ll] is not None:
                 weight_shape = str(weights[ll].shape)
@@ -227,10 +227,10 @@ def load(
                 print(f'{input_channels[ll]:5} {output_channels[ll]:5}  '
                       f'{weight_shape:15} '
                       f'{quant[ll]:5} {output_shift_shape:5} '
-                      f'{weight_min[ll]:4} {weight_max[ll]:3} {weight_size[ll]:6} '
+                      f'{weight_min[ll]:4} {weight_max[ll]:4} {weight_size[ll]:6} '
                       f'{weight_keys[ll]:35} '
                       f'{bias_shape:10} '
-                      f'{bias_quant[ll]:5} {bias_min[ll]:4} {bias_max[ll]:3} {bias_size[ll]:4} '
+                      f'{bias_quant[ll]:5} {bias_min[ll]:4} {bias_max[ll]:4} {bias_size[ll]:4} '
                       f'{bias_keys[ll]:25}')
         print(f'TOTAL: {layers} layers, {param_count:,} parameters, {param_size:,} bytes')
 

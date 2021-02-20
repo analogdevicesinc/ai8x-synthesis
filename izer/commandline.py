@@ -198,6 +198,8 @@ def get_parser():
                        help="specify start offset for weights (debug, default: 0)")
     group.add_argument('--ignore-bias-groups', action='store_true', default=False,
                        help="do not force `bias_group` to use an active group (default: false)")
+    group.add_argument('--kernel-format', default='{0:4}', metavar='S',
+                       help="print format for kernels (default: '{0:4}')")
 
     # RTL sim
     group = parser.add_argument_group('RTL simulation')

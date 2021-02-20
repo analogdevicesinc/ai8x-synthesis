@@ -87,6 +87,7 @@ def parse(config_file):
     output_chan = [None] * tc.dev.MAX_LAYERS
     # All other variables are initialized with the default values
     padding = [[1, 1]] * tc.dev.MAX_LAYERS
+    output_padding = [[0, 0]] * tc.dev.MAX_LAYERS
     pool = [[1, 1]] * tc.dev.MAX_LAYERS
     pooling_enabled = [False] * tc.dev.MAX_LAYERS
     average = [0] * tc.dev.MAX_LAYERS
@@ -462,6 +463,7 @@ def parse(config_file):
             kernel_size[sequence] = [1, 1]
         elif operator[sequence] == op.CONVTRANSPOSE2D:
             stride[sequence] = [2, 2]
+            output_padding[sequence] = [1, 1]
 
         sequence += 1
 
@@ -556,5 +558,6 @@ def parse(config_file):
     settings['calcx4'] = calcx4
     settings['readahead'] = readahead
     settings['pool_dilation'] = pool_dilation
+    settings['output_padding'] = output_padding
 
     return cfg, len(processor_map), settings

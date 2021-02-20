@@ -25,3 +25,4 @@ COMMON_ARGS="--device $DEVICE --compact-data --mexpress --timer 0 --display-chec
 ./ai8xize.py --verbose --log --test-dir $TARGET --prefix test-mpflatten-192 --config-file tests/test-mpflatten-256.yaml $COMMON_ARGS "$@"
 ./ai8xize.py --verbose --log --test-dir $TARGET --prefix test-mpflatten-256 --config-file tests/test-mpflatten-256.yaml $COMMON_ARGS "$@"
 ./ai8xize.py --verbose --log --test-dir $TARGET --prefix test-mppool-1x1 --config-file tests/test-mppool-1x1.yaml $COMMON_ARGS "$@"
+./ai8xize.py --verbose --log --test-dir $TARGET --prefix test-tfrock-bias --config-file tests/test-tfrock-bias.yaml $COMMON_ARGS "$@"

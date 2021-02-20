@@ -160,6 +160,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         fifo_go=False,
         pretend_zero_sram=False,
         ignore_bias_groups=False,
+        output_padding=None,
+        kernel_format='{0:04}',
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -174,6 +176,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     in_expand_thresh = [0] * layers
     out_expand_thresh = [0] * layers
     tram_max = [0] * layers
+    effective_pad = padding.copy()
 
     input_dim_str = [None] * layers
     output_dim_str = [None] * layers
@@ -185,6 +188,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     dilation_str = [None] * layers
     stride_str = [None] * layers
     stream_buf = [None] * layers
+
+    if zero_sram:
+        rtl_preload = False
 
     if start_layer > 0 and not tc.dev.SUPPORT_LINK_LAYER:
         eprint("`--start-layer` is not supported on this device.")
@@ -218,9 +224,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         pll = pipeline
 
     if zero_sram or pretend_zero_sram:
-        # Clear kernels to 0x55 so the data matches what is in hardware
+        # Clear every seventh kernel so we can test the BIST
         for i, _ in enumerate(kernel):
-            kernel[i] = np.full(shape=kernel[i].shape, fill_value=0x55, dtype=np.int64)
+            kernel[i][::7] = np.full(shape=kernel[i][0].shape, fill_value=0, dtype=np.int64)
 
     if riscv_debug:
         riscv = True
@@ -402,11 +408,19 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
             tram_max[ll] = 1
         else:
-            tram_max[ll] = max(0, pooled_dim[ll][1] + 2*padding[ll][1] - kernel_size[ll][1]) + 1
             if operator[ll] == op.CONVTRANSPOSE2D:
-                if pool[ll][0] > 1 or pool[ll][1] > 1:
-                    eprint(f'Layer {ll}: ConvTranspose2d cannot be used with pooling.')
+                # Flip padding around to match PyTorch conventions for ConvTranspose2d
+                effective_pad[ll] = (dilation[ll][0] * (kernel_size[ll][0] - 1) - padding[ll][0],
+                                     dilation[ll][1] * (kernel_size[ll][1] - 1) - padding[ll][1])
+                if padding[ll][0] not in tc.dev.SUPPORTED_X2D_PADS \
+                   or padding[ll][1] not in tc.dev.SUPPORTED_X2D_PADS:
+                    eprint(f'Layer {ll}: The selected padding ({padding[ll]}) for '
+                           'ConvTranspose2d is not supported on this device.')
 
+            tram_max[ll] = max(0, pooled_dim[ll][1] + 2*effective_pad[ll][1]
+                               - kernel_size[ll][1]) + 1
+
+            if operator[ll] == op.CONVTRANSPOSE2D:
                 tram_max[ll] *= stride[ll][1]
 
         if input_chan[ll] % conv_groups[ll] != 0 or output_chan[ll] % conv_groups[ll] != 0:
@@ -550,13 +564,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 this_map.append(group)
         group_map[ll] = this_map
 
-        if bias_group_map[ll] is not None:
-            for _, e in enumerate(bias_group_map[ll]):
-                if e not in group_map[ll]:
-                    eprint(f'Layer {ll}: `bias_group` references the unused group {e}. '
-                           f'Used groups for this layer are: {group_map[ll]}.',
-                           error=not ignore_bias_groups)
-
         # Ensure input and output map are the same for passthrough layers
         if operator[ll] == op.NONE:
             for group in range(tc.dev.P_NUMGROUPS):
@@ -613,6 +620,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
     if 0 not in groups_used:
         eprint('Group 0 is not used, this currently does not work.')
+
+    for ll in range(first_layer_used, layers):
+        if bias_group_map[ll] is not None:
+            for _, e in enumerate(bias_group_map[ll]):
+                if e not in groups_used:
+                    eprint(f'Layer {ll}: `bias_group` references the unused group {e}. '
+                           f'Used x16 groups for this network are: {groups_used}.',
+                           error=not ignore_bias_groups)
 
     # Create ARM code wrapper if needed
     if riscv and not block_mode:
@@ -774,7 +789,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 operands[start_layer],
                 in_expand_thresh[start_layer],
                 data,
-                padding[start_layer],
+                effective_pad[start_layer],
                 split=split,
                 fifo=fifo,
                 slowdown=slow_load,
@@ -819,6 +834,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 api=embedded_code,
                 start_offs=weight_start,
                 bypass=bypass,
+                zero_sram=zero_sram,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
                 verbose,
@@ -836,6 +852,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 processor_map,
                 output_processor_map,
                 out_expand,
+                list(set().union(groups_used)),
                 debug,
             )
 
@@ -886,11 +903,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                            verbose, comment=' // AON control', force_write=True)
 
         if tc.dev.REQUIRE_REG_CLEAR:
+            bist_clear = tc.dev.BIST_ZERO_BOTH_EX if any(b is not None for b in bias) \
+                else tc.dev.BIST_ZERO_EX
             for _, group in enumerate(groups_used):
-                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 7,
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, bist_clear,
                               verbose, comment=' // Clear registers', no_verify=True)
             for _, group in enumerate(groups_used):
-                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 25, 1 << 25,
+                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST,
+                             tc.dev.BIST_ZERO_WAIT, tc.dev.BIST_ZERO_WAIT,
                              comment=' // Wait for clear')
             for _, group in enumerate(groups_used):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
@@ -933,52 +953,56 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
         if zero_sram:
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 0,
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, tc.dev.BIST_DATA_EX,
                               verbose, comment=' // Data SRAM BIST')
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 27 | 1 << 18, 1 << 27 | 1 << 18,
+                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST,
+                             tc.dev.BIST_DATA_WAIT, tc.dev.BIST_DATA_WAIT,
                              comment=' // Wait for BIST')
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 14, 0,
+                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, tc.dev.BIST_DATA_ERR, 0,
                                comment=' // Return on BIST error')
             for group in range(tc.dev.P_NUMGROUPS):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
                               verbose, comment=' // Reset BIST', force_write=True)
             apb.output('\n', embedded_code)
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 2,
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, tc.dev.BIST_MASK_EX,
                               verbose, comment=' // Mask SRAM BIST')
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 27 | 1 << 19, 1 << 27 | 1 << 19,
+                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST,
+                             tc.dev.BIST_MASK_WAIT, tc.dev.BIST_MASK_WAIT,
                              comment=' // Wait for BIST')
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 15, 0,
+                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, tc.dev.BIST_MASK_ERR, 0,
                                comment=' // Return on BIST error')
             for group in range(tc.dev.P_NUMGROUPS):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
                               verbose, comment=' // Reset BIST', force_write=True)
             apb.output('\n', embedded_code)
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 4,
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, tc.dev.BIST_TRAM_EX,
                               verbose, comment=' // Tornado SRAM BIST')
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 27 | 1 << 20, 1 << 27 | 1 << 20,
+                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST,
+                             tc.dev.BIST_TRAM_WAIT, tc.dev.BIST_TRAM_WAIT,
                              comment=' // Wait for BIST')
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 16, 0,
+                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, tc.dev.BIST_TRAM_ERR, 0,
                                comment=' // Return on BIST error')
             for group in range(tc.dev.P_NUMGROUPS):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
                               verbose, comment=' // Reset BIST', force_write=True)
             apb.output('\n', embedded_code)
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 6,
+                apb.write_ctl(group, tc.dev.REG_SRAM_TEST, tc.dev.BIST_BIAS_EX,
                               verbose, comment=' // Bias Rfile BIST')
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 27 | 1 << 21, 1 << 27 | 1 << 21,
+                apb.wait_ctl(group, tc.dev.REG_SRAM_TEST,
+                             tc.dev.BIST_BIAS_WAIT, tc.dev.BIST_BIAS_WAIT,
                              comment=' // Wait for BIST')
             for group in range(tc.dev.P_NUMGROUPS):
-                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, 1 << 17, 0,
+                apb.verify_ctl(group, tc.dev.REG_SRAM_TEST, tc.dev.BIST_BIAS_ERR, 0,
                                comment=' // Return on BIST error')
             for group in range(tc.dev.P_NUMGROUPS):
                 apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
@@ -1018,6 +1042,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 calcx4=calcx4,
                 start_offs=weight_start,
                 bypass=bypass,
+                zero_sram=zero_sram,
             )
             bias_offs, bias_group, group_bias_max = kbias.load(
                 verbose,
@@ -1035,6 +1060,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 processor_map,
                 output_processor_map,
                 out_expand,
+                list(set().union(groups_used)),
                 debug,
             )
 
@@ -1237,16 +1263,16 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             * (input_skip[ll] + 1) * operands[ll] * in_expand[ll]
 
                         val |= diff << tc.dev.CNT_DIFF_OFFS
-                        if padding[ll][0] > 0:
-                            assert padding[ll][0] - 1 < 2**2
+                        if effective_pad[ll][0] > 0:
+                            assert effective_pad[ll][0] - 1 < 2**2
                             val |= 1 << tc.dev.PAD_ENA_OFFS
-                            val |= padding[ll][0] - 1 << tc.dev.PAD_CNT_OFFS
+                            val |= effective_pad[ll][0] - 1 << tc.dev.PAD_CNT_OFFS
                     else:
                         val = in_row - 1
-                        assert padding[ll][0] < 2**2
-                        assert val + 2*padding[ll][0] < 2**tc.dev.MAX_CNT_BITS
-                        val |= padding[ll][0] << tc.dev.PAD_CNT_OFFS
-                        val += 2*padding[ll][0]
+                        assert effective_pad[ll][0] < 2**2
+                        assert val + 2*effective_pad[ll][0] < 2**tc.dev.MAX_CNT_BITS
+                        val |= effective_pad[ll][0] << tc.dev.PAD_CNT_OFFS
+                        val += 2*effective_pad[ll][0]
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_RCNT, val,
                                    verbose, comment=' // Rows')
 
@@ -1258,40 +1284,32 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         val = in_col - diff
                         assert val < 2**tc.dev.MAX_CNT_BITS
                         val |= diff << tc.dev.CNT_DIFF_OFFS
-                        if padding[ll][1] > 0:
-                            assert padding[ll][1] - 1 < 2**2
+                        if effective_pad[ll][1] > 0:
+                            assert effective_pad[ll][1] - 1 < 2**2
                             val |= 1 << tc.dev.PAD_ENA_OFFS
-                            val |= padding[ll][1] - 1 << tc.dev.PAD_CNT_OFFS
+                            val |= effective_pad[ll][1] - 1 << tc.dev.PAD_CNT_OFFS
                     else:
                         val = in_col - 1
-                        assert padding[ll][1] < 2**2
-                        assert val + 2 * padding[ll][1] < 2**tc.dev.MAX_CNT_BITS
-                        val |= padding[ll][1] << tc.dev.PAD_CNT_OFFS
-                        val += 2 * padding[ll][1]
+                        assert effective_pad[ll][1] < 2**2
+                        assert val + 2 * effective_pad[ll][1] < 2**tc.dev.MAX_CNT_BITS
+                        val |= effective_pad[ll][1] << tc.dev.PAD_CNT_OFFS
+                        val += 2 * effective_pad[ll][1]
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_CCNT, val,
                                    verbose, comment=' // Columns')
 
                     # Configure pooling row count
-                    val = pool[ll][0] - 1
+                    val = (pool[ll][0] - 1) * pool_dilation[ll][0]
+                    assert val < 2**4
                     if hasattr(tc.dev, 'CNT_INC_OFFS'):
-                        if pool_dilation[ll][0] > 1:
-                            val += 1
-                        assert val < 2**4
                         val |= pool_dilation[ll][0] - 1 << tc.dev.CNT_INC_OFFS
-                    else:
-                        assert val < 2**4
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PRCNT, val,
                                    verbose, comment=' // Pooling rows')
 
                     # Configure pooling column count
-                    val = pool[ll][1] - 1
+                    val = (pool[ll][1] - 1) * pool_dilation[ll][1]
+                    assert val < 2**4
                     if hasattr(tc.dev, 'CNT_INC_OFFS'):
-                        if pool_dilation[ll][1] > 1:
-                            val += 1
-                        assert val < 2**4
                         val |= pool_dilation[ll][1] - 1 << tc.dev.CNT_INC_OFFS
-                    else:
-                        assert val < 2**4
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PCCNT, val,
                                    verbose, comment=' // Pooling columns')
 
@@ -1417,6 +1435,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             # and set the cnnsiena bit if true
                             if (processor_map[ll] >> (t * tc.dev.P_NUMPRO)) % 2**tc.dev.P_NUMPRO:
                                 sources |= 1 << t
+
+                        # Also set cnnsiena if we get the bias from that group
+                        if bias_group[ll] is not None and bias_group[ll] != group:
+                            sources |= 1 << bias_group[ll]
                         val |= sources << 12
 
                     if rd_ahead[ll] and hasattr(tc.dev, 'RD_AHEAD_OFFS'):
@@ -1662,7 +1684,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             # Start: Prior layer's padded pooled row width * prior layer's kernel
                             # height + prior layer's kernel width + prior layer's pad
                             stream_start = (pooled_dim[prev_sequence[ll]][1]
-                                            + 2 * padding[prev_sequence[ll]][1]) \
+                                            + 2 * effective_pad[prev_sequence[ll]][1]) \
                                 * (kernel_size[prev_sequence[ll]][0] - 1 + pool[ll][0] - 1) \
                                 + kernel_size[prev_sequence[ll]][1] - 1 + pool[ll][1] \
                                 + increase_start
@@ -1674,7 +1696,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             # + prior layer's pad
                             delta2 = (pool_stride[ll][0] - 1) \
                                 * (pooled_dim[prev_sequence[ll]][1]
-                                    + 2 * padding[prev_sequence[ll]][1]) \
+                                    + 2 * effective_pad[prev_sequence[ll]][1]) \
                                 + pool[ll][1] * operands[ll] + increase_delta2
                     else:
                         # MAX78002
@@ -1695,8 +1717,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 if pool_stride[ll][0] == 1 and pool[ll][0] == 1:
                                     stream_start = col_inc
                                 else:
-                                    stream_start = (row_inc - 1) * (input_dim[ll][1]
-                                                                    + 2 * padding[ll][1]) + col_inc
+                                    stream_start = (row_inc - 1) * \
+                                        (input_dim[ll][1] + 2 * effective_pad[ll][1]) + col_inc
                             else:  # fifo only
                                 stream_start = input_dim[ll][0] * input_dim[ll][1]
                             stream_start_hwc = stream_start
@@ -1708,9 +1730,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             #   +(Pad+(2*Col_Inc)))*Elementwise)
                             #   +(Read_Ahead*Stride)
                             stream_start_hwc = stream_start = \
-                                padding[ll][1] * (input_dim[ll][1] + 2 * padding[ll][1]) \
-                                + (row_inc * (input_dim[ll][1] + 2 * padding[ll][1])
-                                   + padding[ll][1] + 2 * col_inc) * operands[ll]
+                                effective_pad[ll][1] * \
+                                (input_dim[ll][1] + 2 * effective_pad[ll][1]) \
+                                + (row_inc * (input_dim[ll][1] + 2 * effective_pad[ll][1])
+                                   + effective_pad[ll][1] + 2 * col_inc) * operands[ll]
                             if rd_ahead[ll]:
                                 stream_start_hwc += pool_stride[ll][1] * in_expand[ll]
                             if big_data[ll]:
@@ -1824,7 +1847,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 # =Prefill+((Passes-1)*((Row_Inc*Cols)+Pad+Col_Inc))+Col_Inc
                                 val = stream_start_hwc \
                                     + (in_expand[ll] - 1) * (row_inc * input_dim[ll][1]
-                                                             + padding[ll][1] + col_inc) \
+                                                             + effective_pad[ll][1] + col_inc) \
                                     + col_inc
                                 if big_data[ll]:
                                     # =(ROUNDUP(Buffer/4,0))
@@ -1961,7 +1984,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     operands[start_layer],
                     in_expand_thresh[start_layer],
                     data,
-                    padding[start_layer],
+                    effective_pad[start_layer],
                     split=split,
                     fifo=fifo,
                     slowdown=slow_load,
@@ -2098,7 +2121,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     operands[start_layer],
                     in_expand_thresh[start_layer],
                     data,
-                    padding[start_layer],
+                    effective_pad[start_layer],
                     split=split,
                     fifo=fifo,
                     slowdown=slow_load,
@@ -2299,8 +2322,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 data,
                 output_width=output_width[ll],
                 groups=conv_groups[ll],
-                debug=debug_computation,
                 bypass=bypass[ll],
+                kernel_format=kernel_format,
+                debug=debug_computation,
             )
         elif operator[ll] == op.CONVTRANSPOSE2D:
             if not bypass[ll]:
@@ -2328,15 +2352,16 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 padding[ll],
                 dilation[ll],
                 stride[ll],
-                [1, 1],  # output_padding
+                output_padding[ll],
                 activation[ll],
                 k,
                 bias[ll],
                 data,
                 output_width=output_width[ll],
                 groups=conv_groups[ll],
-                debug=debug_computation,
                 bypass=bypass[ll],
+                kernel_format=kernel_format,
+                debug=debug_computation,
             )
         elif operator[ll] == op.CONV1D:
             if not bypass[ll]:
@@ -2369,8 +2394,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 data,
                 output_width=output_width[ll],
                 groups=conv_groups[ll],
-                debug=debug_computation,
                 bypass=bypass[ll],
+                kernel_format=kernel_format,
+                debug=debug_computation,
             )
         elif operator[ll] == op.NONE:  # '0'D (pooling only or passthrough)
             out_buf, out_size = passthrough_layer(

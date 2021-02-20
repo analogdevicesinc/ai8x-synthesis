@@ -79,6 +79,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         api=False,
         start_offs=0,
         bypass=None,
+        zero_sram=False,
 ):
     """
     Stack `kernel` values and write them to C code (for `embedded_code` if `True` or
@@ -133,12 +134,15 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             in_exp = 1
             in_chan = in_expand_thresh[ll]
         elif calcx4[ll]:
+            # FIXME for output channels % 4 != 0
             kernel_reshaped = kernel[ll].reshape(
-                output_chan[ll],
+                output_chan[ll] // 4,
+                4,
                 in_expand[ll],
-                -1,
-            ).swapaxes(0, 1).reshape(
-                kernel[ll].shape,
+                in_expand_thresh[ll],
+                kernel_size[ll][0] * kernel_size[ll][1],
+            ).transpose(0, 2, 1, 3, -1).reshape(
+                kernel[ll].shape
             )
             in_exp = in_expand[ll]
             in_chan = input_chan[ll]
@@ -151,15 +155,15 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             kernel_reshaped = kernel_reshaped.copy().clip(-1, 0)
 
         if np.ndim(kernel_reshaped) > 2:
-            if kernel_reshaped.shape[-2] != kernel_size[ll][0] \
-               or kernel_reshaped.shape[-1] != kernel_size[ll][1]:
+            if kernel_reshaped.shape[-1] != kernel_size[ll][0] \
+               or kernel_reshaped.shape[-2] != kernel_size[ll][1]:
                 eprint(f'The configured kernel dimensions ({kernel_size[ll][0]}x'
-                       f'{kernel_size[ll][1]}) for layer {ll} do not match the binary weights '
-                       f'({kernel_reshaped.shape[-2]}x{kernel_reshaped.shape[-1]})!')
+                       f'{kernel_size[ll][1]}) for layer {ll} do not match the weights file '
+                       f'({kernel_reshaped.shape[-1]}x{kernel_reshaped.shape[-2]})!')
         else:
             if kernel_reshaped.shape[-1] != kernel_size[ll][0]:
                 eprint(f'The configured kernel dimensions ({kernel_size[ll][0]}) '
-                       f'for layer {ll} do not match the binary weights '
+                       f'for layer {ll} do not match the weights file '
                        f'({kernel_reshaped.shape[-1]})!')
 
         proc_map = processor_map[ll]
@@ -419,7 +423,8 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 ll = kernel_map[p][col]
                 if ll != _INVALID_VALUE:
                     k = kernel_data[p][col]
-                    apb.write_kern(ll, p, col, k, calcx4=calcx4[ll])
+                    if not zero_sram or np.any(k != 0):
+                        apb.write_kern(ll, p, col, k, calcx4=calcx4[ll])
         apb.function_footer()  # load_weights()
 
     if embedded_code or mexpress:

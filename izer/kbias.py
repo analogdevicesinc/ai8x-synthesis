@@ -32,6 +32,7 @@ def load(
         processor_map,
         output_processor_map,
         out_expand,
+        groups_used,
         debug,  # pylint: disable=unused-argument
 ):
     """
@@ -74,7 +75,7 @@ def load(
             if ll == 0 and streaming[ll] and not tc.dev.SUPPORT_STREAM_BIAS:
                 bias_len[ll] += 1  # Work around a problem on AI85
 
-            bias_map += [(ll, group_map[ll] if bias_group_map[ll] is None else bias_group_map[ll],
+            bias_map += [(ll, groups_used if bias_group_map[ll] is None else bias_group_map[ll],
                           bias_len[ll])]
             continue
 
