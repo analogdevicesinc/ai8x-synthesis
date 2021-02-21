@@ -390,9 +390,9 @@
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-negate --config-file tests/test-negate.yaml --stop-after 0 --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-negate --config-file tests/test-negate.yaml --device "$DEVICE" "$@"
 
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant2 --config-file tests/test-flatten-fc-quant2.yaml --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant4 --config-file tests/test-flatten-fc-quant4.yaml --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant8 --config-file tests/test-flatten-fc-quant8.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant2 --config-file tests/test-flatten-fc-quant2.yaml --no-wfi --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant4 --config-file tests/test-flatten-fc-quant4.yaml --no-wfi --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-flatten-fc-quant8 --config-file tests/test-flatten-fc-quant8.yaml --no-wfi --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mlpflatten768to100-quant2 --config-file tests/test-mlpflatten768to100-quant2.yaml --device "$DEVICE" "$@"
 
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-cifar-100-simplewide2x-mixed --checkpoint-file tests/test-cifar100-simplenetwide2x-qat-mixed-q.pth.tar --config-file tests/test-cifar100-simplewide2x.yaml --device "$DEVICE" "$@"
@@ -424,8 +424,8 @@
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-linklayer-hoparound --checkpoint-file tests/test-cifar10-bias.pth.tar --config-file tests/test-linklayer-hoparound.yaml --device "$DEVICE" "$@" --start-layer 1
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-linklayer-ffq4f-linear --config-file tests/test-flatten-fc-quant4-fc.yaml --link-layer --device "$DEVICE" --timeout 100 "$@"
 
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-k3 --config-file tests/test-depthwise2x2x2.yaml --stop-after 0 --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-k3 --config-file tests/test-depthwise3x4x4.yaml --stop-after 0 --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-k3 --config-file tests/test-depthwise2x2x2.yaml --no-wfi --stop-after 0 --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-k3 --config-file tests/test-depthwise3x4x4.yaml --no-wfi --stop-after 0 --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-k1 --config-file tests/test-depthwise1x1.yaml --stop-after 0 --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-k1-move --config-file tests/test-depthwise1x1-move.yaml --stop-after 0 --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise1d-k3 --config-file tests/test-depthwise1d.yaml --stop-after 0 --no-wfi --device "$DEVICE" "$@"

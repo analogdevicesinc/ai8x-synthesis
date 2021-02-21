@@ -128,7 +128,8 @@ def parse(config_file):
                                'operator', 'output_processors', 'output_width', 'output_shift',
                                'pool_first', 'processors', 'pad', 'quantization', 'next_sequence',
                                'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
-                               'bias_group', 'calcx4', 'readahead', 'pool_dilation'])):
+                               'bias_group', 'calcx4', 'readahead', 'pool_dilation',
+                               'output_pad'])):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
 
         if 'sequence' in ll:
@@ -453,6 +454,14 @@ def parse(config_file):
             if not pooling_enabled[sequence]:
                 error_exit('`pool_dilation` requires pooling', sequence)
 
+        if 'output_pad' in ll:
+            val = ll['output_pad']
+            if val < 0:
+                error_exit(f'Unsupported value {val} for `output_pad`', sequence)
+            output_padding[sequence] = [val, val]
+        elif operator[sequence] == op.CONVTRANSPOSE2D:
+            output_padding[sequence] = [1, 1]
+
         # Fix up values for 1D convolution or no convolution
         if operator[sequence] == op.CONV1D:
             padding[sequence][1] = 0
@@ -463,7 +472,6 @@ def parse(config_file):
             kernel_size[sequence] = [1, 1]
         elif operator[sequence] == op.CONVTRANSPOSE2D:
             stride[sequence] = [2, 2]
-            output_padding[sequence] = [1, 1]
 
         sequence += 1
 

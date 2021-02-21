@@ -155,7 +155,8 @@ def get_parser():
     group.add_argument('--log-pooling', action='store_true', default=False,
                        help="log unpooled and pooled data between layers in CSV format "
                             "(default: false)")
-    group.add_argument('--log-last-only', action='store_false', dest='verbose_all', default=True,
+    group.add_argument('--log-last-only', '--verbose-all',
+                       action='store_false', dest='verbose_all', default=True,
                        help="log data for last layer only (default: all layers)")
     group.add_argument('--log-filename', default='log.txt', metavar='S',
                        help="log file name (default: 'log.txt')")

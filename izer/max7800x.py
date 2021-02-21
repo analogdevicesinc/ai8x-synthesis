@@ -416,12 +416,20 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                    or padding[ll][1] not in tc.dev.SUPPORTED_X2D_PADS:
                     eprint(f'Layer {ll}: The selected padding ({padding[ll]}) for '
                            'ConvTranspose2d is not supported on this device.')
+                if output_padding[ll][0] not in tc.dev.SUPPORTED_X2D_OUTPUT_PADS \
+                   or output_padding[ll][1] not in tc.dev.SUPPORTED_X2D_OUTPUT_PADS:
+                    eprint(f'Layer {ll}: The selected output padding ({output_padding[ll]}) for '
+                           'ConvTranspose2d is not supported on this device.')
+                tram_max[ll] = max(0, (pooled_dim[ll][1] - 1) * stride[ll][1] + 1
+                                   + output_padding[ll][1] + 2 * effective_pad[ll][1]
+                                   - kernel_size[ll][1]) + 1
+            else:
+                tram_max[ll] = max(0, pooled_dim[ll][1] + 2 * effective_pad[ll][1]
+                                   - kernel_size[ll][1]) + 1
 
-            tram_max[ll] = max(0, pooled_dim[ll][1] + 2*effective_pad[ll][1]
-                               - kernel_size[ll][1]) + 1
-
-            if operator[ll] == op.CONVTRANSPOSE2D:
-                tram_max[ll] *= stride[ll][1]
+        if operator[ll] != op.CONVTRANSPOSE2D and (output_padding[ll][0] != 0
+                                                   or output_padding[ll][1] != 0):
+            eprint(f'Layer {ll}: Output padding must be 0 for this operator.')
 
         if input_chan[ll] % conv_groups[ll] != 0 or output_chan[ll] % conv_groups[ll] != 0:
             eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) does not divide'
@@ -2577,7 +2585,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         weight_header.close()
     if apifile is not None:
         apifile.close()
-    if rtl_preload:
+    if rtl_preload or result_output:
         apb.write_mem(base_directory, test_name)
 
     # Create run_test.sv

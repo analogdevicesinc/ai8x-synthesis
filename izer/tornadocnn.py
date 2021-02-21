@@ -256,7 +256,8 @@ class DevAI85(Dev):
     FAST_FIFO_DMA = 5  # DMA register (reserved function, not yet supported)
 
     EMULATE_ELTWISE_MP = True
-    SUPPORTED_X2D_PADS = [1]
+    SUPPORTED_X2D_PADS = [0, 1, 2]
+    SUPPORTED_X2D_OUTPUT_PADS = [1]
 
     FLASH_SIZE = 0x8000
     RISCV_SRAM_ORIGIN = 0x2001C000
@@ -425,6 +426,7 @@ class DevAI87(Dev):
     SUPPORT_KERNEL_BYPASS = True
     SUPPORT_FIFO_GO = True
     SUPPORTED_X2D_PADS = [0, 1, 2]
+    SUPPORTED_X2D_OUTPUT_PADS = [1]
     REQUIRE_REG_CLEAR = True
     REQUIRE_SEMA_LPWKEN = True
     REQUIRE_ONESHOT_CLEAR = False
