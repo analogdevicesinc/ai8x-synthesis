@@ -172,6 +172,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     device = tc.dev.device
 
     in_expand = [0] * layers
+    in_expand_invol = [0] * layers
     out_expand = [0] * layers
     in_expand_thresh = [0] * layers
     out_expand_thresh = [0] * layers
@@ -342,6 +343,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 min((out_expand_thresh[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1),
                     tc.dev.MAX_PROC)
         in_expand[ll] = (input_chan[ll] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
+        in_expand_invol[ll] = in_expand[ll] + in_expand[ll] % 4 if calcx4[ll] else in_expand[ll]
         in_expand_thresh[ll] = (input_chan[ll] + in_expand[ll]-1) // in_expand[ll]
 
         if input_chan[ll] > tc.dev.MAX_PROC:
@@ -1757,12 +1759,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                input_dim[ll][1]:
                                 effective_cols -= 1
 
-                            # =IF(((Cols-(Effective_Cols*Stride))*Passes)<0,0,
-                            #      ((Cols-(Effective_Cols*Stride))*Passes))
+                            # =IF((Cols-(Effective_Cols*Stride))<0,0,
+                            #      (Cols-(Effective_Cols*Stride)))
                             skipped_cols = max(
                                 0,
                                 (input_dim[ll][1] - (effective_cols * pool_stride[ll][1]))
-                                * in_expand[ll]
                             )
 
                             if ll == start_layer:
@@ -1813,7 +1814,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                     # strm_invol[3:0]: Per stream invol offset - based on stream count
                     if ll > start_layer and streaming[ll]:
-                        invol = sum(in_expand[:ll])
+                        invol = sum(in_expand_invol[:ll])
 
                     assert stream_start < 2**tc.dev.MAX_ISVAL_BITS
                     val = stream_start
