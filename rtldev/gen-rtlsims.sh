@@ -172,7 +172,7 @@
 
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fifostream-transition --config-file tests/test-stream-transition.yaml --device "$DEVICE" --fifo "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fifostream-cifar-transition --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-stream-cifar-transition.yaml --device "$DEVICE" --fifo "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fifostream-cifar-transition-zeroize --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-stream-cifar-transition.yaml --device "$DEVICE" --zero-sram --fifo "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fifostream-cifar-transition-zeroize --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-stream-cifar-transition.yaml --device "$DEVICE" --zero-sram --fifo --queue-name long "$@"
 
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-eltwise-add --config-file tests/test-eltwiseadd.yaml --device "$DEVICE" --legacy-test "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-eltwise-sub --config-file tests/test-eltwisesub.yaml --device "$DEVICE" --legacy-test "$@"
@@ -529,3 +529,12 @@
 
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-tfrock-bias --config-file tests/test-tfrock-bias.yaml --device "$DEVICE" "$@"
 
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-upsample-pad0a --config-file tests/test-upsample-nonsquare-pad0A.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-upsample-pad0b --config-file tests/test-upsample-nonsquare-pad0B.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-upsample-pad0c --config-file tests/test-upsample-nonsquare-pad0C.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-upsample-pad1a --config-file tests/test-upsample-nonsquare-pad1A.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-upsample-pad1b --config-file tests/test-upsample-nonsquare-pad1B.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-upsample-pad1c --config-file tests/test-upsample-nonsquare-pad1C.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-upsample-pad2a --config-file tests/test-upsample-nonsquare-pad2A.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-upsample-pad2b --config-file tests/test-upsample-nonsquare-pad2B.yaml --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-upsample-pad2c --config-file tests/test-upsample-nonsquare-pad2C.yaml --device "$DEVICE" "$@"

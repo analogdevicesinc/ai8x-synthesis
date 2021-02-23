@@ -343,8 +343,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 min((out_expand_thresh[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1),
                     tc.dev.MAX_PROC)
         in_expand[ll] = (input_chan[ll] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
-        in_expand_invol[ll] = in_expand[ll] + in_expand[ll] % 4 if calcx4[ll] else in_expand[ll]
-        in_expand_thresh[ll] = (input_chan[ll] + in_expand[ll]-1) // in_expand[ll]
+        in_expand_invol[ll] = (in_expand[ll] + 3) & ~3 \
+            if rd_ahead[ll] and in_expand[ll] > 1 else in_expand[ll]
+        in_expand_thresh[ll] = (input_chan[ll] + in_expand[ll] - 1) // in_expand[ll]
 
         if input_chan[ll] > tc.dev.MAX_PROC:
             in_expand_thresh[ll] = \
@@ -1739,13 +1740,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             #   +(((Row_Inc*(Cols+(Pad*2)))
                             #   +(Pad+(2*Col_Inc)))*Elementwise)
                             #   +(Read_Ahead*Stride)
-                            stream_start_hwc = stream_start = \
+                            stream_start = \
                                 effective_pad[ll][1] * \
                                 (input_dim[ll][1] + 2 * effective_pad[ll][1]) \
                                 + (row_inc * (input_dim[ll][1] + 2 * effective_pad[ll][1])
                                    + effective_pad[ll][1] + 2 * col_inc) * operands[ll]
                             if rd_ahead[ll]:
-                                stream_start_hwc += pool_stride[ll][1] * in_expand[ll]
+                                stream_start += pool_stride[ll][1]
+                            stream_start_hwc = stream_start
                             if big_data[ll]:
                                 # =(ROUNDUP(Prefill/4,0))
                                 stream_start = (stream_start + 3) // 4
@@ -1853,11 +1855,13 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                     # =Buffer0*4*Stride
                                     val *= pool_stride[ll][1] * 4
                             else:
-                                # =Prefill+((Passes-1)*((Row_Inc*Cols)+Pad+Col_Inc))+Col_Inc
+                                # =(MROUND(Prefill+((Passes-1)*((Row_Inc*Cols)+Pad+Col_Inc))
+                                #   +Col_Inc,Passes))
                                 val = stream_start_hwc \
                                     + (in_expand[ll] - 1) * (row_inc * input_dim[ll][1]
                                                              + effective_pad[ll][1] + col_inc) \
                                     + col_inc
+                                val += (in_expand[ll] - val % in_expand[ll]) % in_expand[ll]
                                 if big_data[ll]:
                                     # =(ROUNDUP(Buffer/4,0))
                                     val = (val + 3) // 4
@@ -2520,7 +2524,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 out_expand[ll],
                 out_expand_thresh[ll],
                 output_width[ll],
-                overwrite_ok or streaming[ll],
+                overwrite_ok or (streaming[ll] if ll != start_layer else (streaming[ll] and fifo)),
                 no_error_stop,
                 mlator=mlator if ll == final_layer else False,
                 max_count=max_count,
