@@ -1,0 +1,29 @@
+#!/bin/sh
+./tests/tensorflow/test_avgpool_conv1d_relu_dense.sh
+./tests/tensorflow/test_avgpool_conv2d_relu_dense.sh
+./tests/tensorflow/test_conv1d_conv1d_dense.sh
+./tests/tensorflow/test_conv1d_conv1d.sh
+./tests/tensorflow/test_conv1d_conv2d_dense.sh
+./tests/tensorflow/test_conv1d_conv2d.sh
+./tests/tensorflow/test_conv1drelu_avgpool_dense.sh
+./tests/tensorflow/test_conv1d_relu_avgpool.sh
+./tests/tensorflow/test_conv1d_relu_bias.sh
+./tests/tensorflow/test_conv1drelu_maxpool_dense.sh
+./tests/tensorflow/test_conv1d_relu_maxpool.sh
+./tests/tensorflow/test_conv1d.sh
+./tests/tensorflow/test_conv2d_conv2d_dense.sh
+./tests/tensorflow/test_conv2drelu_avgpool_dense.sh
+./tests/tensorflow/test_conv2drelu_maxpool_dense.sh
+./tests/tensorflow/test_conv2dReluMaxPool.sh
+./tests/tensorflow/test_conv2dRelu.sh
+./tests/tensorflow/test_conv2d.sh
+./tests/tensorflow/test_conv2dTranspose.sh
+./tests/tensorflow/test_dense.sh
+./tests/tensorflow/test_fusedmaxpoolconv1d_relu_dense.sh
+./tests/tensorflow/test_fusedmaxpoolconv2d_relu_dense.sh
+./tests/tensorflow/test_maxpool_conv1d_relu_dense.sh
+./tests/tensorflow/test_maxpool_conv2d_relu_dense.sh
+./tests/tensorflow/test_simpleNet1.sh
+./tests/tensorflow/test_simpleNet2.sh
+# ./tests/tensorflow/test_simpleNet3.sh
+# ./tests/tensorflow/test_tr_conv2d_tr_dense.sh
