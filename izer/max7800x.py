@@ -864,7 +864,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 output_processor_map,
                 out_expand,
                 list(set().union(groups_used)),
-                debug,
+                fast_fifo_quad=fast_fifo_quad,
+                calcx4=calcx4,
+                debug=debug,
             )
 
         apb.function_header(function='init')
@@ -1072,7 +1074,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 output_processor_map,
                 out_expand,
                 list(set().union(groups_used)),
-                debug,
+                fast_fifo_quad=fast_fifo_quad,
+                calcx4=calcx4,
+                debug=debug,
             )
 
         if verbose:
@@ -1622,14 +1626,19 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                     if conv_groups[ll] == 1 and group == bias_group[ll]:
                         # Enable bias only for one group
-                        assert bias_offs[ll][group] < 2**12
-                        val |= 1 << 12 | bias_offs[ll][group]
-                    elif bias_offs[ll][group] is not None and conv_groups[ll] > 1:
+                        offs = bias_offs[ll][group]
+                        if calcx4[ll]:
+                            offs //= 4
+                        assert offs < 2**12
+                        val |= 1 << 12 | offs
+                    elif bias_offs[ll][group] is not None and (
+                        conv_groups[ll] > 1 or fast_fifo_quad and ll == 0
+                    ):
                         # Enable bias for all groups
-                        assert bias_offs[ll][group] < 2**12
                         offs = bias_offs[ll][group]
                         if broadcast_mode[ll]:
                             offs //= 4
+                        assert offs < 2**12
                         val |= 1 << 12 | offs
 
                     if operator[ll] == op.NONE:
