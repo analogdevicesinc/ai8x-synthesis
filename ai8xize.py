@@ -1322,6 +1322,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             # and set the cnnsiena bit if true
                             if (processor_map[ll] >> (t * tc.dev.P_NUMPRO)) % 2**tc.dev.P_NUMPRO:
                                 sources |= 1 << t
+                        # Also set cnnsiena if we get the bias from that group
+                        if bias_group[ll] is not None and bias_group[ll] != group:
+                            sources |= 1 << bias_group[ll]
                         val |= sources << 12
 
                     if rd_ahead and hasattr(tc.dev, 'RD_AHEAD_OFFS'):
