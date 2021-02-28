@@ -68,7 +68,8 @@ def parse(config_file):
         print(f'Reading {config_file} to configure network...')
         cfg = yaml.load(cfg_file, Loader=UniqueKeyLoader)
 
-    if bool(set(cfg) - set(['bias', 'dataset', 'layers', 'output_map', 'arch', 'weights'])):
+    if bool(set(cfg) - set(['bias', 'dataset', 'layers',
+                            'output_map', 'arch', 'weights', 'snoop'])):
         eprint(f'Configuration file {config_file} contains unknown key(s).')
 
     if 'layers' not in cfg or 'arch' not in cfg or 'dataset' not in cfg:
@@ -111,12 +112,15 @@ def parse(config_file):
     pool_first = [True] * tc.dev.MAX_LAYERS
     in_sequences = [None] * tc.dev.MAX_LAYERS
     next_sequence = [None] * tc.dev.MAX_LAYERS
+    simulated_sequence = [None] * tc.dev.MAX_LAYERS
+    snoop_sequence = [None] * tc.dev.MAX_LAYERS
     write_gap = [0] * tc.dev.MAX_LAYERS
     bypass = [False] * tc.dev.MAX_LAYERS
     bias_group_map = [None] * tc.dev.MAX_LAYERS
     calcx4 = [False] * tc.dev.MAX_LAYERS
     readahead = [False] * tc.dev.MAX_LAYERS
     pool_dilation = [[1, 1]] * tc.dev.MAX_LAYERS
+    tcalc = [None] * tc.dev.MAX_LAYERS
 
     sequence = 0
     for ll in cfg['layers']:
@@ -127,9 +131,10 @@ def parse(config_file):
                                'data_format', 'eltwise', 'flatten', 'op', 'operands', 'operation',
                                'operator', 'output_processors', 'output_width', 'output_shift',
                                'pool_first', 'processors', 'pad', 'quantization', 'next_sequence',
+                               'snoop_sequence', 'simulated_sequence',
                                'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
                                'bias_group', 'calcx4', 'readahead', 'pool_dilation',
-                               'output_pad'])):
+                               'output_pad', 'tcalc'])):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
 
         if 'sequence' in ll:
@@ -405,10 +410,21 @@ def parse(config_file):
             in_sequences[sequence] = ll['in_sequences']
 
         if 'next_sequence' in ll:
-            if isinstance(ll['next_sequence'], str) and ll['next_sequence'].lower() == 'stop':
+            if isinstance(ll['next_sequence'], str) \
+               and ll['next_sequence'].lower() == 'stop':
                 next_sequence[sequence] = -1
             else:
                 next_sequence[sequence] = ll['next_sequence']
+
+        if 'simulated_sequence' in ll:
+            if isinstance(ll['simulated_sequence'], str) \
+               and ll['simulated_sequence'].lower() == 'stop':
+                simulated_sequence[sequence] = -1
+            else:
+                simulated_sequence[sequence] = ll['simulated_sequence']
+
+        if 'snoop_sequence' in ll:
+            snoop_sequence[sequence] = ll['snoop_sequence']
 
         if 'conv_groups' in ll or 'groups' in ll:
             key = 'conv_groups' if 'conv_groups' in ll else 'groups'
@@ -437,6 +453,13 @@ def parse(config_file):
                 calcx4[sequence] = bool(val)
             except ValueError:
                 error_exit(f'Unsupported value `{val}` for `calcx4`', sequence)
+
+        if 'tcalc' in ll:
+            val = ll['tcalc']
+            try:
+                tcalc[sequence] = bool(val)
+            except ValueError:
+                error_exit(f'Unsupported value `{val}` for `tcalc`', sequence)
 
         if 'readahead' in ll:
             val = ll['readahead']
@@ -481,10 +504,11 @@ def parse(config_file):
             del processor_map[ll]
             del padding[ll]
             del pool[ll]
+            del pooling_enabled[ll]
             del pool_stride[ll]
             del input_chan[ll]
-            del input_skip[ll]
             del input_chan_skip[ll]
+            del input_skip[ll]
             del input_dim[ll]
             del input_offset[ll]
             del output_chan[ll]
@@ -501,20 +525,24 @@ def parse(config_file):
             del dilation[ll]
             del kernel_size[ll]
             del stride[ll]
-            del pooling_enabled[ll]
             del streaming[ll]
             del flatten[ll]
             del operands[ll]
             del eltwise[ll]
-            del conv_groups[ll]
-            del write_gap[ll]
+            del pool_first[ll]
             del in_sequences[ll]
             del next_sequence[ll]
+            del simulated_sequence[ll]
+            del snoop_sequence[ll]
+            del conv_groups[ll]
+            del write_gap[ll]
             del bypass[ll]
             del bias_group_map[ll]
             del calcx4[ll]
             del readahead[ll]
             del pool_dilation[ll]
+            del output_padding[ll]
+            del tcalc[ll]
 
     for ll, _ in enumerate(operator):
         # Warn when using default pool stride of 1, 1
@@ -528,6 +556,7 @@ def parse(config_file):
             error_exit('`pool_first: False` requires both pooling and element-wise operations', ll)
 
     settings = {}
+    settings['processor_map'] = processor_map
     settings['padding'] = padding
     settings['pool'] = pool
     settings['pooling_enabled'] = pooling_enabled
@@ -539,7 +568,6 @@ def parse(config_file):
     settings['input_offset'] = input_offset
     settings['output_chan'] = output_chan
     settings['output_offset'] = output_offset
-    settings['processor_map'] = processor_map
     settings['average'] = average
     settings['activation'] = activation
     settings['big_data'] = big_data
@@ -559,6 +587,8 @@ def parse(config_file):
     settings['pool_first'] = pool_first
     settings['in_sequences'] = in_sequences
     settings['next_sequence'] = next_sequence
+    settings['simulated_sequence'] = simulated_sequence
+    settings['snoop_sequence'] = snoop_sequence
     settings['conv_groups'] = conv_groups
     settings['write_gap'] = write_gap
     settings['bypass'] = bypass
@@ -567,5 +597,6 @@ def parse(config_file):
     settings['readahead'] = readahead
     settings['pool_dilation'] = pool_dilation
     settings['output_padding'] = output_padding
+    settings['tcalc'] = tcalc
 
     return cfg, len(processor_map), settings

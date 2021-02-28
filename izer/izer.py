@@ -256,6 +256,9 @@ def main():
     calcx4 = [True] * layers if args.calcx4 else params['calcx4'][:layers]
     readahead = [True] * layers if args.rd_ahead else params['readahead'][:layers]
     pool_dilation = params['pool_dilation'][:layers]
+    tcalc = params['tcalc'][:layers]
+    snoop_sequence = params['snoop_sequence'][:layers]
+    simulated_sequence = params['simulated_sequence'][:layers]
 
     # Command line override
     if args.input_offset is not None:
@@ -598,6 +601,12 @@ def main():
             ignore_bias_groups=args.ignore_bias_groups,
             output_padding=output_padding,
             kernel_format=args.kernel_format,
+            debug_new_streaming=args.debug_new_streaming,
+            snoop=cfg['snoop'] if 'snoop' in cfg else None,
+            tcalc=tcalc,
+            snoop_sequence=snoop_sequence,
+            simulated_sequence=simulated_sequence,
+            debug_snoop=args.debug_snoop,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

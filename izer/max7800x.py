@@ -162,6 +162,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         ignore_bias_groups=False,
         output_padding=None,
         kernel_format='{0:04}',
+        debug_new_streaming=False,
+        snoop=None,
+        tcalc=None,
+        snoop_sequence=None,
+        simulated_sequence=None,
+        debug_snoop=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -343,8 +349,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 min((out_expand_thresh[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1),
                     tc.dev.MAX_PROC)
         in_expand[ll] = (input_chan[ll] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
-        in_expand_invol[ll] = (in_expand[ll] + 3) & ~3 \
-            if rd_ahead[ll] and in_expand[ll] > 1 else in_expand[ll]
+        in_expand_invol[ll] = (in_expand[ll] + 3) & ~3 if tcalc[ll] else in_expand[ll]
         in_expand_thresh[ll] = (input_chan[ll] + in_expand[ll] - 1) // in_expand[ll]
 
         if input_chan[ll] > tc.dev.MAX_PROC:
@@ -478,6 +483,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
            or pool_dilation[ll][1] > tc.dev.MAX_POOL_DILATION:
             eprint(f'Layer {ll}: `pool_dilation` values must be 1 or greater, and '
                    f'{tc.dev.MAX_POOL_DILATION} or smaller on this device.')
+
+        if rd_ahead[ll] and in_expand[ll] > 1 and tcalc[ll] is None:
+            # Set default
+            tcalc[ll] = True
 
     # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
     test_name = prefix
@@ -1244,6 +1253,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                     val = 1 << 8
                             elif next_sequence[ll] != ll + 1:
                                 val = 1 << 7 | next_sequence[ll]
+                            elif snoop_sequence[ll] is not None:
+                                val = 1 << 7 | snoop_sequence[ll]
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_NXTLYR, val,
                                        verbose, comment=' // Next Layer')
 
@@ -1463,6 +1474,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         val |= kernel_size[ll][0] - 1 << tc.dev.RPRIME_MAX_OFFS
                         val |= kernel_size[ll][1] - 1 << tc.dev.CPRIME_MAX_OFFS
 
+                    if rd_ahead[ll] and hasattr(tc.dev, 'SHIFT_CNT_OFFS'):
+                        val |= (in_expand[ll] // 4 if tcalc[ll] else in_expand[ll]) \
+                            << tc.dev.SHIFT_CNT_OFFS
+
                     if bypass[ll]:
                         val |= 1 << 30
 
@@ -1662,8 +1677,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     if calcx4[ll]:
                         val |= 1 << 29
 
-                    if rd_ahead[ll] and in_expand[ll] > 1:
-                        val |= 1 << 31  # tcalc
+                    if tcalc[ll]:
+                        val |= 1 << 31
 
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_POST, val,
                                    verbose, comment=' // Post processing register')
@@ -1677,6 +1692,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                    verbose, comment=' // Mask and processor enables')
 
                     delta1 = delta2 = stream_start = invol = 0
+                    last_layer = False
                     if not tc.dev.REQUIRE_NEW_STREAMING:
                         if ll == start_layer and fifo:
                             # Start: 1
@@ -1720,12 +1736,38 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 + pool[ll][1] * operands[ll] + increase_delta2
                     else:
                         # MAX78002
+                        # =IF(Pad=0,Stride,Pad)
+                        row_prim = effective_pad[ll][1] or pool_stride[ll][0]
                         # =IF((Row_Pool*Row_Dilation_Stride)>Stride,
                         #     Row_Pool*Row_Dilation_Stride,Stride)
                         row_inc = max(pool[ll][0] * pool_dilation[ll][0], pool_stride[ll][0])
                         # =IF((Col_Pool*Col_Dilation_Stride)>Stride,
                         #     (Col_Pool*Col_Dilation_Stride),Stride)
                         col_inc = max(pool[ll][1] * pool_dilation[ll][1], pool_stride[ll][1])
+
+                        if streaming[ll]:
+                            if ll == final_layer or not streaming[next_sequence[ll]]:
+                                last_layer = True
+                            if debug_new_streaming and ll > 0:
+                                # Cols_Stride=ROUNDDOWN(Cols/Col_Inc,0)
+                                # =IF(Cols_Stride*Stride+Pool>Cols,Cols_Stride-1,Cols_Stride)
+                                effective_cols = input_dim[ll][1] // col_inc
+                                if effective_cols * pool_stride[ll][1] + pool[ll][1] > \
+                                   input_dim[ll][1]:
+                                    effective_cols -= 1
+                                # =IF(Col_Inc=1,0,Cols-(Effective_Cols*Col_Inc))
+                                col_adjust = 0 if col_inc == 1 \
+                                    else input_dim[ll][1] - effective_cols * col_inc
+                            else:
+                                # =IF(((ROUNDDOWN(Cols/Stride,0)*Stride)+(Pool-1))>Cols,
+                                #     (ROUNDDOWN((Cols/Stride),0))-1,
+                                #     (ROUNDDOWN((Cols/Stride),0)))
+                                effective_cols = input_dim[ll][1] // pool_stride[ll][1]
+                                if effective_cols * pool_stride[ll][1] + pool[ll][1] - 1 > \
+                                   input_dim[ll][1]:
+                                    effective_cols -= 1
+                                # =(Cols-(Effective_Cols*Col_Inc))
+                                col_adjust = input_dim[ll][1] - effective_cols * col_inc
 
                         # Prefill
                         if ll == start_layer and override_start is not None:
@@ -1745,17 +1787,34 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             if big_data[ll]:
                                 stream_start = (stream_start + 3) // 4
                         elif ll > start_layer and streaming[ll]:
-                            # =(Pad*(Cols+(Pad*2)))
-                            #   +(((Row_Inc*(Cols+(Pad*2)))
-                            #   +(Pad+(2*Col_Inc)))*Elementwise)
-                            #   +(Read_Ahead*Stride)
-                            stream_start = \
-                                effective_pad[ll][1] * \
-                                (input_dim[ll][1] + 2 * effective_pad[ll][1]) \
-                                + (row_inc * (input_dim[ll][1] + 2 * effective_pad[ll][1])
-                                   + effective_pad[ll][1] + 2 * col_inc) * operands[ll]
+                            if debug_new_streaming and ll > 0:
+                                # =(Row_Prim*(Cols+(Pad*2)))
+                                #   +(((Row_Inc*(Cols+(Pad*2)))
+                                #   +(Pad+(2*Col_Inc)))*Elementwise)
+                                #   +(Read_Ahead*Stride)
+                                # if last_layer:
+                                #   += (Col_Adj*Stride)
+                                stream_start = \
+                                    row_prim * \
+                                    (input_dim[ll][1] + 2 * effective_pad[ll][1]) \
+                                    + (row_inc * (input_dim[ll][1] + 2 * effective_pad[ll][1])
+                                       + effective_pad[ll][1] + 2 * col_inc) * operands[ll]
+                            else:
+                                # =(Pad*(Cols+(Pad*2)))
+                                #   +(((Row_Inc*(Cols+(Pad*2)))
+                                #   +(Pad+(2*Col_Inc)))*Elementwise)
+                                #   +(Read_Ahead*Stride)
+                                # if last_layer:
+                                #   += (Col_Adj*Stride)
+                                stream_start = \
+                                    effective_pad[ll][1] * \
+                                    (input_dim[ll][1] + 2 * effective_pad[ll][1]) \
+                                    + (row_inc * (input_dim[ll][1] + 2 * effective_pad[ll][1])
+                                       + effective_pad[ll][1] + 2 * col_inc) * operands[ll]
                             if rd_ahead[ll]:
                                 stream_start += pool_stride[ll][1]
+                            if last_layer and debug_new_streaming:
+                                stream_start += col_adjust * pool_stride[ll][1]
                             stream_start_hwc = stream_start
                             if big_data[ll]:
                                 # =(ROUNDUP(Prefill/4,0))
@@ -1763,13 +1822,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                         # Delta 1 Count, Delta 2 Count
                         if streaming[ll]:
-                            # =IF(((ROUNDDOWN(Cols/Stride,0)*Stride)+(Pool-1))>Cols,
-                            #     (ROUNDDOWN((Cols/Stride),0))-1,(ROUNDDOWN((Cols/Stride),0)))
-                            effective_cols = input_dim[ll][1] // pool_stride[ll][1]
-                            if effective_cols * pool_stride[ll][1] + pool[ll][1] - 1 > \
-                               input_dim[ll][1]:
-                                effective_cols -= 1
-
                             # =IF((Cols-(Effective_Cols*Stride))<0,0,
                             #      (Cols-(Effective_Cols*Stride)))
                             skipped_cols = max(
@@ -1792,13 +1844,22 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 if override_delta2 is not None:
                                     delta2 = override_delta2
                                 else:
-                                    # =IF(Stride=1,Delta1_0+Skipped_Cols,
-                                    #              (((Stride-1)*Cols))+Skipped_Cols+(Col_Pool-1))
-                                    if pool_stride[ll][0] == 1:
-                                        delta2 = delta1 + skipped_cols
+                                    if debug_new_streaming and ll > 0:
+                                        # =IF(Stride=1,Delta1_0+Col_Adj,
+                                        #     (((Stride-1)*Cols))+Col_Adj)
+                                        if pool_stride[ll][0] == 1:
+                                            delta2 = delta1 + col_adjust
+                                        else:
+                                            delta2 = (pool_stride[ll][0] - 1) * input_dim[ll][1] \
+                                                + col_adjust
                                     else:
-                                        delta2 = (pool_stride[ll][0] - 1) * input_dim[ll][1] \
-                                            + skipped_cols + pool[ll][1] - 1
+                                        # =IF(Stride=1,Delta1_0+Skipped_Cols,
+                                        #            (((Stride-1)*Cols))+Skipped_Cols+(Col_Pool-1))
+                                        if pool_stride[ll][0] == 1:
+                                            delta2 = delta1 + skipped_cols
+                                        else:
+                                            delta2 = (pool_stride[ll][0] - 1) * input_dim[ll][1] \
+                                                + skipped_cols + pool[ll][1] - 1
                                     if big_data[ll]:
                                         # =(ROUNDUP(Delta2_0/4,0))
                                         delta2 = (delta2 + 3) // 4
@@ -1812,12 +1873,21 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                     delta1 = (delta1 + 3) // 4
                                 delta1 += increase_delta1
 
-                                # =IF(Stride=1,Delta1+Skipped_Cols,((Stride-1)*Cols)+Skipped_Cols)
-                                if pool_stride[ll][0] == 1:
-                                    delta2 = delta1 + skipped_cols
+                                if debug_new_streaming and ll > 0:
+                                    # =IF(Stride=1,Delta1+Col_Adj,((Stride-1)*Cols)+Col_Adj)
+                                    if pool_stride[ll][0] == 1:
+                                        delta2 = delta1 + col_adjust
+                                    else:
+                                        delta2 = (pool_stride[ll][0] - 1) * input_dim[ll][1] \
+                                            + col_adjust
                                 else:
-                                    delta2 = (pool_stride[ll][0] - 1) * input_dim[ll][1] \
-                                        + skipped_cols
+                                    # =IF(Stride=1,Delta1+Skipped_Cols,
+                                    #     ((Stride-1)*Cols)+Skipped_Cols)
+                                    if pool_stride[ll][0] == 1:
+                                        delta2 = delta1 + skipped_cols
+                                    else:
+                                        delta2 = (pool_stride[ll][0] - 1) * input_dim[ll][1] \
+                                            + skipped_cols
                                 if big_data[ll]:
                                     # =(ROUNDUP(Delta2/4,0))
                                     delta2 = (delta2 + 3) // 4
@@ -1856,7 +1926,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             if rem > 0:
                                 val = val + in_expand[ll] - rem
                         else:
-                            # MAX78002
+                            # MAX78002 - Buffer
                             if ll == start_layer:
                                 # =Prefill0 + Col_Inc
                                 val = stream_start_hwc + col_inc
@@ -1964,6 +2034,56 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         assert val < 2**tc.dev.MAX_IFRM_BITS
                         apb.write_ctl(group, tc.dev.REG_IFRM, val, verbose,
                                       comment=' // Input frame size')
+
+                    if snoop is not None:
+                        apb.write_ctl(group, tc.dev.REG_SNP1_A1, snoop[0], verbose,
+                                      comment=' // Address snoop 1 register 1')
+                        apb.write_ctl(group, tc.dev.REG_SNP1_A2, snoop[1], verbose,
+                                      comment=' // Address snoop 1 register 2')
+                        apb.write_ctl(group, tc.dev.REG_SNP1_D1, snoop[2], verbose,
+                                      comment=' // Data snoop 1 register 1')
+                        apb.write_ctl(group, tc.dev.REG_SNP1_D2, snoop[3], verbose,
+                                      comment=' // Data snoop 1 register 2')
+                        apb.write_ctl(group, tc.dev.REG_SNP1_X1, snoop[4], verbose,
+                                      comment=' // Count snoop 1 register 1')
+                        apb.write_ctl(group, tc.dev.REG_SNP1_X2, snoop[5], verbose,
+                                      comment=' // Count snoop 1 register 2')
+                        apb.write_ctl(group, tc.dev.REG_SNP1_C1, snoop[6], verbose,
+                                      comment=' // Snoop 1 control register 1')
+                        apb.write_ctl(group, tc.dev.REG_SNP1_C2, snoop[7], verbose,
+                                      comment=' // Snoop 1 control register 2')
+                        apb.write_ctl(group, tc.dev.REG_SNP1_ACC, snoop[8], verbose,
+                                      comment=' // Snoop 1 data accumulator')
+                        apb.write_ctl(group, tc.dev.REG_SNP1_HIT, snoop[9], verbose,
+                                      comment=' // Snoop 1 match hit accumulator')
+                        apb.write_ctl(group, tc.dev.REG_SNP1_MAX, snoop[10], verbose,
+                                      comment=' // Snoop 1 match max accumulator')
+                        apb.write_ctl(group, tc.dev.REG_SNP1_AM, snoop[11], verbose,
+                                      comment=' // Snoop 1 match address register')
+                        apb.write_ctl(group, tc.dev.REG_SNP2_A1, snoop[12], verbose,
+                                      comment=' // Address snoop 2 register 1')
+                        apb.write_ctl(group, tc.dev.REG_SNP2_A2, snoop[13], verbose,
+                                      comment=' // Address snoop 2 register 2')
+                        apb.write_ctl(group, tc.dev.REG_SNP2_D1, snoop[14], verbose,
+                                      comment=' // Data snoop 2 register 1')
+                        apb.write_ctl(group, tc.dev.REG_SNP2_D2, snoop[15], verbose,
+                                      comment=' // Data snoop 2 register 2')
+                        apb.write_ctl(group, tc.dev.REG_SNP2_X1, snoop[16], verbose,
+                                      comment=' // Count snoop 2 register 1')
+                        apb.write_ctl(group, tc.dev.REG_SNP2_X2, snoop[17], verbose,
+                                      comment=' // Count snoop 2 register 2')
+                        apb.write_ctl(group, tc.dev.REG_SNP2_C1, snoop[18], verbose,
+                                      comment=' // Snoop 2 control register 1')
+                        apb.write_ctl(group, tc.dev.REG_SNP2_C2, snoop[19], verbose,
+                                      comment=' // Snoop 2 control register 2')
+                        apb.write_ctl(group, tc.dev.REG_SNP2_ACC, snoop[20], verbose,
+                                      comment=' // Snoop 2 data accumulator')
+                        apb.write_ctl(group, tc.dev.REG_SNP2_HIT, snoop[21], verbose,
+                                      comment=' // Snoop 2 match hit accumulator')
+                        apb.write_ctl(group, tc.dev.REG_SNP2_MAX, snoop[22], verbose,
+                                      comment=' // Snoop 2 match max accumulator')
+                        apb.write_ctl(group, tc.dev.REG_SNP2_AM, snoop[23], verbose,
+                                      comment=' // Snoop 2 match address register')
 
                     apb.output('\n', embedded_code)  # End of group
 
@@ -2540,6 +2660,23 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 write_gap=write_gap[ll],
                 final_layer=final_layer,
             )
+            if debug_snoop:
+                apb.verify_ctl(group, tc.dev.REG_SNP1_ACC, 0xffffffff, snoop[8],
+                               comment=' // Verify snoop 1 data accumulator')
+                apb.verify_ctl(group, tc.dev.REG_SNP1_HIT, 0xffffffff, snoop[9],
+                               comment=' // Verify snoop 1 match hit accumulator')
+                apb.verify_ctl(group, tc.dev.REG_SNP1_MAX, 0xffffffff, snoop[10],
+                               comment=' // Verify snoop 1 match max accumulator')
+                apb.verify_ctl(group, tc.dev.REG_SNP1_AM, 0xffffffff, snoop[24],
+                               comment=' // Verify snoop 1 match address register')
+                apb.verify_ctl(group, tc.dev.REG_SNP2_ACC, 0xffffffff, snoop[20],
+                               comment=' // Verify snoop 2 data accumulator')
+                apb.verify_ctl(group, tc.dev.REG_SNP2_HIT, 0xffffffff, snoop[21],
+                               comment=' // Verify snoop 2 match hit accumulator')
+                apb.verify_ctl(group, tc.dev.REG_SNP2_MAX, 0xffffffff, snoop[22],
+                               comment=' // Verify snoop 2 match max accumulator')
+                apb.verify_ctl(group, tc.dev.REG_SNP2_AM, 0xffffffff, snoop[25],
+                               comment=' // Verify snoop 2 match address register')
             apb.function_footer(dest='wrapper')  # check_output()
         finally:
             if memfile:
@@ -2556,9 +2693,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         if debug_computation:
             compute.debug_close()
 
-        if next_sequence[ll] == -1:
-            break
-        ll = next_sequence[ll]
+        if simulated_sequence[ll] is not None:
+            if simulated_sequence[ll] == -1:
+                break
+            ll = simulated_sequence[ll]
+        else:
+            if next_sequence[ll] == -1:
+                break
+            ll = next_sequence[ll]
 
     data = data_buf[-1]
 

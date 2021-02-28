@@ -1,0 +1,46 @@
+# Allow for readahead memory organization
+
+arch: test
+dataset: test_ffs-multipass5
+
+layers:
+- pad: 0
+  in_offset: 0x10000
+  out_offset: 0xc000
+  processors: 0x0000000000000007
+  data_format: HWC
+  op: Conv2d
+  streaming: True
+  quantization: 2
+  output_shift: -6
+- max_pool: 2
+  pool_stride: 2
+  pad: 0
+  out_offset: 0x8000
+  processors: 0xffffffffffffffff
+  op: Conv2d
+  streaming: True
+  readahead: True
+  calcx4: True
+  quantization: 2
+  output_shift: -6
+- avg_pool: 2
+  pool_stride: 2
+  pad: 0
+  out_offset: 0x4000
+  processors: 0xffffffffffffffff
+  op: Conv2d
+  streaming: True
+  readahead: True
+  calcx4: True
+  quantization: 2
+  output_shift: -7
+- pad: 0
+  out_offset: 0x0000
+  processors: 0xffffffffffffffff
+  op: Conv2d
+  streaming: True
+  readahead: True
+  calcx4: True
+  quantization: 2
+  output_shift: -7
