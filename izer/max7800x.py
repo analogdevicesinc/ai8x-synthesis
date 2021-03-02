@@ -1834,7 +1834,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM1, val,
                                    verbose, comment=' // Stream processing start')
 
-                    assert invol < 2**4
+                    assert invol < 2**4, f'Layer {ll} invol ({invol:04x}) exceeds supported range.'
                     assert delta1 < 2**5
                     assert delta2 < 2**tc.dev.MAX_DSVAL2_BITS
                     val = delta2 << 16 | delta1 << 4 | invol

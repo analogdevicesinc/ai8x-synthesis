@@ -122,8 +122,9 @@ def main():
         eprint(f"Number of layers in the YAML configuration file ({cfg_layers}) "
                f"does not match the checkpoint file ({layers}).")
 
-    if any(p < 0 or p > 4*tc.dev.MEM_SIZE for p in params['output_offset']):
-        eprint('Unsupported value for `out_offset` in YAML configuration.')
+    if any(p < 0 or p >= 4*tc.dev.MEM_SIZE for p in params['output_offset']):
+        eprint('Unsupported value for `out_offset` in YAML configuration. Supported on this '
+               f'device: 0 to 0x{4*tc.dev.MEM_SIZE:04x}.')
 
     if any(q != 8 for q in params['bias_quantization']):
         eprint('All bias quantization configuration values must be 8.')
@@ -443,6 +444,8 @@ def main():
         if any(dim > tc.dev.MAX_ROW_COL for dim in output_dim[ll]):
             eprint(f'Output dimension {output_dim[ll]} exceeds system maximum of '
                    f'{tc.dev.MAX_ROW_COL} in layer {ll}.')
+        if any(dim == 0 for dim in output_dim[ll]):
+            eprint(f'Output dimension {output_dim[ll]} is zero in layer {ll}.')
 
         assert input_channels[ll] > 0
 
