@@ -83,6 +83,7 @@ def main():
                     args.display_checkpoint,
                     args.no_bias,
                     params['conv_groups'],
+                    params['bypass'],
                 )
     else:  # Get some hard-coded sample weights
         layers, weights, output_shift, \
@@ -95,6 +96,7 @@ def main():
                 cfg['weights'] if 'weights' in cfg else None,
                 params['conv_groups'],
                 params['operator'],
+                params['bypass'],
             )
         bias = sampleweight.load_bias(
             cfg_layers,
@@ -129,6 +131,20 @@ def main():
     if any(q != 8 for q in params['bias_quantization']):
         eprint('All bias quantization configuration values must be 8.')
 
+    print(f"Configuring data set: {cfg['dataset']}.")
+    if args.sample_input is None:
+        sampledata_file = os.path.join('tests', f'sample_{cfg["dataset"].lower()}.npy')
+    else:
+        sampledata_file = args.sample_input
+    data = sampledata.get(sampledata_file)
+    if np.max(data) > 127 or np.min(data) < -128:
+        raise ValueError(f'Input data {sampledata_file} contains values that exceed 8-bit!')
+    # Work with 1D input data
+    if len(data.shape) < 3:
+        data = np.expand_dims(data, axis=2)
+
+    input_size = list(data.shape)
+
     processor_map = params['processor_map'][:layers]
     output_processor_map = params['output_processor_map'][:layers]
     in_sequences = params['in_sequences'][:layers]
@@ -162,7 +178,10 @@ def main():
                 input_channels[ll] = output_channels[in_sequences[ll]]
 
         if input_channels[ll] <= 0:
-            input_channels[ll] = output_channels[prev_ll]
+            if ll == 0:
+                input_channels[ll] = input_size[0] // params['operands'][0]
+            else:
+                input_channels[ll] = output_channels[prev_ll]
         if params['input_chan'][ll] is not None:
             input_channels[ll] = params['input_chan'][ll]
         if output_channels[ll] <= 0:
@@ -266,20 +285,6 @@ def main():
 
     # Derived configuration options
     pool_average = [bool(x) for x in params['average']]
-
-    print(f"Configuring data set: {cfg['dataset']}.")
-    if args.sample_input is None:
-        sampledata_file = os.path.join('tests', f'sample_{cfg["dataset"].lower()}.npy')
-    else:
-        sampledata_file = args.sample_input
-    data = sampledata.get(sampledata_file)
-    if np.max(data) > 127 or np.min(data) < -128:
-        raise ValueError(f'Input data {sampledata_file} contains values that exceed 8-bit!')
-    # Work with 1D input data
-    if len(data.shape) < 3:
-        data = np.expand_dims(data, axis=2)
-
-    input_size = list(data.shape)
 
     if args.input_csv_format == 555:
         assert input_size[0] == 3

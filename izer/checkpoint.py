@@ -29,6 +29,7 @@ def load(
         verbose=False,
         no_bias=None,
         conv_groups=None,
+        bypass=None,
 ):
     """
     Load weights and biases from `checkpoint_file`. If `arch` is not None and does not match
@@ -76,7 +77,7 @@ def load(
 
     for _, k in enumerate(checkpoint_state.keys()):
         # Skip over non-weight layers
-        while seq < len(operator) and operator[seq] == opn.NONE:
+        while seq < len(operator) and (operator[seq] == opn.NONE or bypass[seq]):
             seq += 1
 
         operation, parameter = k.rsplit(sep='.', maxsplit=1)

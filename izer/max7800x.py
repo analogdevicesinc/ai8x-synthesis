@@ -196,6 +196,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     stride_str = [None] * layers
     stream_buf = [None] * layers
 
+    terminating_layer = final_layer
+    for i, s in enumerate(simulated_sequence):
+        if s == -1:
+            terminating_layer = i
+            break
+
     if zero_sram:
         rtl_preload = False
 
@@ -223,6 +229,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
     if fifo_go and not tc.dev.SUPPORT_FIFO_GO:
         eprint("`--fifo-go` is not supported on this device.")
+
+    if snoop is not None and not tc.dev.SUPPORT_SNOOP:
+        eprint("`snoop` is not supported on this device.")
 
     if pipeline is None:
         pipeline = tc.dev.SUPPORT_PIPELINE
@@ -290,8 +299,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             eprint(f'`next_sequence` must be {ll+1} when using streaming in layer {ll}. '
                    f'Currently configured: {next_sequence[ll]}')
 
-    if mlator and (output_dim[final_layer][start_layer] * output_dim[final_layer][1] < 4
-                   or output_width[final_layer] > 8):
+    if mlator and (output_dim[terminating_layer][start_layer]
+                   * output_dim[terminating_layer][1] < 4 or output_width[terminating_layer] > 8):
         wprint('--mlator should only be used with 4 or more 8-bit outputs per channel; ignoring.')
         mlator = False
 
@@ -312,6 +321,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     if fast_fifo_quad:
         processor_map[start_layer] = processor_map_0 << 48 | processor_map_0 << 32 \
             | processor_map_0 << 16 | processor_map_0
+
+    for i, e in enumerate(quantization):
+        if e is None:
+            quantization[i] = 0  # Only in unused layers
 
     binary_quantization = any(quantization[ll] == -1 for ll in range(first_layer_used, layers))
     # Check we're not using binary weights on devices that don't support it
@@ -369,7 +382,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                    f'exceeds data memory instance size of {tc.dev.INSTANCE_WIDTH*16}.')
         out_size = output_dim[ll][0] * output_dim[ll][1] * out_expand[ll] \
             * 4 * output_width[ll] // 8
-        if (not streaming[ll] or ll == final_layer) \
+        if (not streaming[ll] or ll == terminating_layer) \
            and out_size + out_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
             eprint(f'Layer {ll}: 4-channel, {output_width[ll]}-bit {output_dim[ll][0]}x'
                    f'{output_dim[ll][1]} output (size {out_size}) '
@@ -639,7 +652,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             groups_used.append(group)
 
     if 0 not in groups_used:
-        eprint('Group 0 is not used, this currently does not work.')
+        eprint('Group 0 is not used, this is currently unsupported.')
 
     for ll in range(first_layer_used, layers):
         if bias_group_map[ll] is not None:
@@ -729,11 +742,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             fail_indicator=forever,
             groups=list(set().union(groups_used)),
             clock_trim=clock_trim,
-            oneshot=final_layer if oneshot else 0,
+            oneshot=terminating_layer if oneshot else 0,
             softmax=softmax,
             stopstart=stopstart,
-            num_classes=output_chan[final_layer],
-            output_width=output_width[final_layer],
+            num_classes=output_chan[terminating_layer],
+            output_width=output_width[terminating_layer],
             bias=any(b is not None for b in bias),
             wfi=wfi,
             zero_sram=zero_sram,
@@ -1248,13 +1261,32 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             else:
                                 val = 1 << 8  # Stop
                         else:
-                            if next_sequence[ll] == -1:
+                            lt = next_sequence[ll]
+                            if lt == -1:
                                 if ll != layers - 1:  # Don't set stop bit when we don't have to
                                     val = 1 << 8
-                            elif next_sequence[ll] != ll + 1:
-                                val = 1 << 7 | next_sequence[ll]
+                            elif lt != ll + 1:
+                                val = 1 << 7 | lt
                             elif snoop_sequence[ll] is not None:
-                                val = 1 << 7 | snoop_sequence[ll]
+                                lt = snoop_sequence[ll]
+                                assert lt >= 0
+                                val = 1 << 7 | lt
+                            if lt != -1:
+                                if in_sequences[lt] is not None and ll in in_sequences[lt] \
+                                   and operands[lt] == 1:
+                                    if in_offset[lt] != out_offset[ll]:
+                                        wprint(f'Layer {ll}: The input offset of the next '
+                                               f'sequence (layer {lt}, 0x{in_offset[lt]:04x}) '
+                                               "does not match the current layer's output offset "
+                                               f'(0x{out_offset[ll]:04x}).')
+                                    if input_chan[lt] != output_chan[ll] * len(in_sequences[lt]) \
+                                       or input_dim[lt] != output_dim[ll]:
+                                        wprint(f'Layer {ll}: The input dimensions of the next '
+                                               f'sequence (layer {lt}, {len(in_sequences[lt])} '
+                                               f'inputs, {input_chan[lt]}x{input_dim_str[lt]}) do '
+                                               "not match the current layer's output dimensions "
+                                               f'({output_chan[ll]}x{output_dim_str[ll]}).')
+
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_NXTLYR, val,
                                        verbose, comment=' // Next Layer')
 
@@ -1475,7 +1507,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         val |= kernel_size[ll][1] - 1 << tc.dev.CPRIME_MAX_OFFS
 
                     if rd_ahead[ll] and hasattr(tc.dev, 'SHIFT_CNT_OFFS'):
-                        val |= (in_expand[ll] // 4 if tcalc[ll] else in_expand[ll]) \
+                        val |= ((in_expand[ll] - 1) // 4 if tcalc[ll] else in_expand[ll] - 1) \
                             << tc.dev.SHIFT_CNT_OFFS
 
                     if bypass[ll]:
@@ -1962,6 +1994,15 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                        f'rollover 0x{val:08x} * 4 >= '
                                        f'in_offset 0x{in_offset[ll]:08x}.',
                                        error=not no_error_stop)
+                            if ll == terminating_layer:
+                                osize = output_dim[ll][0] * output_dim[ll][1]
+                                if out_offset[ll] + osize * out_expand[ll] * 4 >= in_offset[ll]:
+                                    eprint(f'Layer {ll}: Overlapping input and output: '
+                                           f'out_offset 0x{out_offset[ll]:08x} + '
+                                           f'output of size {osize} ({output_dim_str[ll]}) '
+                                           f'* {out_expand[ll]} * 4 >= '
+                                           f'in_offset 0x{in_offset[ll]:08x}.',
+                                           error=not no_error_stop)
                         if in_offset[ll] + val * 4 >= tc.dev.INSTANCE_WIDTH * tc.dev.P_SHARED * 4:
                             eprint('Input plus rollover exceeds instance size: '
                                    f'in_offset 0x{in_offset[ll]:08x}, '
@@ -1991,7 +2032,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                == tc.dev.datainstance_from_offs(stream_buf[pl][0]):
                                 eprint(f'Layer {ll}: In streaming mode with read-ahead, all '
                                        'streaming read-ahead layers must use separate memory '
-                                       f'instances. Layer {ll} conflicts with layer {pl}.')
+                                       f'instances. Layer {ll} conflicts with layer {pl}; both '
+                                       'use instance '
+                                       f'{tc.dev.datainstance_from_offs(stream_buf[pl][0])}.')
 
                         if ll == final_layer or not streaming[next_sequence[ll]]:
                             dmap = tc.dev.datamem_map(output_processor_map[ll])
@@ -2015,17 +2058,23 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                     # In read-ahead mode, ensure that input and output use separate
                     # instances. First, check the start addresses, then the end addresses.
-                    if rd_ahead[ll] and (tc.dev.datainstance_from_offs(in_offset[ll])
-                       == tc.dev.datainstance_from_offs(out_offset[ll])
-                       or tc.dev.datainstance_from_offs(in_offset[ll] + 4 * operands[ll]
-                                                        * in_expand[ll] * input_dim[ll][0]
-                                                        * input_dim[ll][1])
-                       == tc.dev.datainstance_from_offs(out_offset[ll] + 4 * out_expand[ll]
-                                                        * output_dim[ll][0] * output_dim[ll][1])):
-                        eprint(f'Layer {ll}: Input and output cannot use the same data '
-                               'memory instances in read-ahead mode. '
-                               f'in_offset: {in_offset[ll]:04x}, '
-                               f'out_offset: {out_offset[ll]:04x}')
+                    if rd_ahead[ll]:
+                        in_instance = (
+                            tc.dev.datainstance_from_offs(in_offset[ll]),
+                            tc.dev.datainstance_from_offs(in_offset[ll] + 4 * operands[ll]
+                                                          * in_expand[ll] * input_dim[ll][0]
+                                                          * input_dim[ll][1])
+                        )
+                        out_instance = (
+                            tc.dev.datainstance_from_offs(out_offset[ll]),
+                            tc.dev.datainstance_from_offs(out_offset[ll] + 4 * out_expand[ll]
+                                                          * output_dim[ll][0] * output_dim[ll][1])
+                        )
+                        if in_instance[0] == out_instance[0] or in_instance[1] == out_instance[1]:
+                            eprint(f'Layer {ll}: Input and output cannot use the same data '
+                                   'memory instances in read-ahead mode. '
+                                   f'in_offset: {in_offset[ll]:04x}/instance(s) {in_instance}, '
+                                   f'out_offset: {out_offset[ll]:04x}/instance(s) {out_instance}.')
 
                     if ll == start_layer and fifo:
                         val = input_dim[ll][0] * input_dim[ll][1]
@@ -2034,56 +2083,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         assert val < 2**tc.dev.MAX_IFRM_BITS
                         apb.write_ctl(group, tc.dev.REG_IFRM, val, verbose,
                                       comment=' // Input frame size')
-
-                    if snoop is not None:
-                        apb.write_ctl(group, tc.dev.REG_SNP1_A1, snoop[0], verbose,
-                                      comment=' // Address snoop 1 register 1')
-                        apb.write_ctl(group, tc.dev.REG_SNP1_A2, snoop[1], verbose,
-                                      comment=' // Address snoop 1 register 2')
-                        apb.write_ctl(group, tc.dev.REG_SNP1_D1, snoop[2], verbose,
-                                      comment=' // Data snoop 1 register 1')
-                        apb.write_ctl(group, tc.dev.REG_SNP1_D2, snoop[3], verbose,
-                                      comment=' // Data snoop 1 register 2')
-                        apb.write_ctl(group, tc.dev.REG_SNP1_X1, snoop[4], verbose,
-                                      comment=' // Count snoop 1 register 1')
-                        apb.write_ctl(group, tc.dev.REG_SNP1_X2, snoop[5], verbose,
-                                      comment=' // Count snoop 1 register 2')
-                        apb.write_ctl(group, tc.dev.REG_SNP1_C1, snoop[6], verbose,
-                                      comment=' // Snoop 1 control register 1')
-                        apb.write_ctl(group, tc.dev.REG_SNP1_C2, snoop[7], verbose,
-                                      comment=' // Snoop 1 control register 2')
-                        apb.write_ctl(group, tc.dev.REG_SNP1_ACC, snoop[8], verbose,
-                                      comment=' // Snoop 1 data accumulator')
-                        apb.write_ctl(group, tc.dev.REG_SNP1_HIT, snoop[9], verbose,
-                                      comment=' // Snoop 1 match hit accumulator')
-                        apb.write_ctl(group, tc.dev.REG_SNP1_MAX, snoop[10], verbose,
-                                      comment=' // Snoop 1 match max accumulator')
-                        apb.write_ctl(group, tc.dev.REG_SNP1_AM, snoop[11], verbose,
-                                      comment=' // Snoop 1 match address register')
-                        apb.write_ctl(group, tc.dev.REG_SNP2_A1, snoop[12], verbose,
-                                      comment=' // Address snoop 2 register 1')
-                        apb.write_ctl(group, tc.dev.REG_SNP2_A2, snoop[13], verbose,
-                                      comment=' // Address snoop 2 register 2')
-                        apb.write_ctl(group, tc.dev.REG_SNP2_D1, snoop[14], verbose,
-                                      comment=' // Data snoop 2 register 1')
-                        apb.write_ctl(group, tc.dev.REG_SNP2_D2, snoop[15], verbose,
-                                      comment=' // Data snoop 2 register 2')
-                        apb.write_ctl(group, tc.dev.REG_SNP2_X1, snoop[16], verbose,
-                                      comment=' // Count snoop 2 register 1')
-                        apb.write_ctl(group, tc.dev.REG_SNP2_X2, snoop[17], verbose,
-                                      comment=' // Count snoop 2 register 2')
-                        apb.write_ctl(group, tc.dev.REG_SNP2_C1, snoop[18], verbose,
-                                      comment=' // Snoop 2 control register 1')
-                        apb.write_ctl(group, tc.dev.REG_SNP2_C2, snoop[19], verbose,
-                                      comment=' // Snoop 2 control register 2')
-                        apb.write_ctl(group, tc.dev.REG_SNP2_ACC, snoop[20], verbose,
-                                      comment=' // Snoop 2 data accumulator')
-                        apb.write_ctl(group, tc.dev.REG_SNP2_HIT, snoop[21], verbose,
-                                      comment=' // Snoop 2 match hit accumulator')
-                        apb.write_ctl(group, tc.dev.REG_SNP2_MAX, snoop[22], verbose,
-                                      comment=' // Snoop 2 match max accumulator')
-                        apb.write_ctl(group, tc.dev.REG_SNP2_AM, snoop[23], verbose,
-                                      comment=' // Snoop 2 match address register')
 
                     apb.output('\n', embedded_code)  # End of group
 
@@ -2105,6 +2104,61 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 apb.write_lreg(group, r * layers + ll, reg, 0,
                                                verbose, force_write=True,
                                                comment=f' // Zero unused layer {ll} registers')
+
+        if snoop is not None:
+            apb.output('  // Configure conditional execution\n', embedded_code)
+            for _, group in enumerate(groups_used):
+                assert len(snoop) == 32
+                apb.write_ctl(group, tc.dev.REG_SNP1_A1, snoop[0], verbose,
+                              comment=' // Address snoop 1 register 1')
+                apb.write_ctl(group, tc.dev.REG_SNP1_A2, snoop[1], verbose,
+                              comment=' // Address snoop 1 register 2')
+                apb.write_ctl(group, tc.dev.REG_SNP1_D1, snoop[2], verbose,
+                              comment=' // Data snoop 1 register 1')
+                apb.write_ctl(group, tc.dev.REG_SNP1_D2, snoop[3], verbose,
+                              comment=' // Data snoop 1 register 2')
+                apb.write_ctl(group, tc.dev.REG_SNP1_X1, snoop[4], verbose,
+                              comment=' // Count snoop 1 register 1')
+                apb.write_ctl(group, tc.dev.REG_SNP1_X2, snoop[5], verbose,
+                              comment=' // Count snoop 1 register 2')
+                apb.write_ctl(group, tc.dev.REG_SNP1_C1, snoop[6], verbose,
+                              comment=' // Snoop 1 control register 1')
+                apb.write_ctl(group, tc.dev.REG_SNP1_C2, snoop[7], verbose,
+                              comment=' // Snoop 1 control register 2')
+                apb.write_ctl(group, tc.dev.REG_SNP1_ACC, snoop[8], verbose,
+                              comment=' // Snoop 1 data accumulator')
+                apb.write_ctl(group, tc.dev.REG_SNP1_HIT, snoop[9], verbose,
+                              comment=' // Snoop 1 match hit accumulator')
+                apb.write_ctl(group, tc.dev.REG_SNP1_MAX, snoop[10], verbose,
+                              comment=' // Snoop 1 match max accumulator')
+                apb.write_ctl(group, tc.dev.REG_SNP1_AM, snoop[11], verbose,
+                              comment=' // Snoop 1 match address register')
+                apb.write_ctl(group, tc.dev.REG_SNP2_A1, snoop[12], verbose,
+                              comment=' // Address snoop 2 register 1')
+                apb.write_ctl(group, tc.dev.REG_SNP2_A2, snoop[13], verbose,
+                              comment=' // Address snoop 2 register 2')
+                apb.write_ctl(group, tc.dev.REG_SNP2_D1, snoop[14], verbose,
+                              comment=' // Data snoop 2 register 1')
+                apb.write_ctl(group, tc.dev.REG_SNP2_D2, snoop[15], verbose,
+                              comment=' // Data snoop 2 register 2')
+                apb.write_ctl(group, tc.dev.REG_SNP2_X1, snoop[16], verbose,
+                              comment=' // Count snoop 2 register 1')
+                apb.write_ctl(group, tc.dev.REG_SNP2_X2, snoop[17], verbose,
+                              comment=' // Count snoop 2 register 2')
+                apb.write_ctl(group, tc.dev.REG_SNP2_C1, snoop[18], verbose,
+                              comment=' // Snoop 2 control register 1')
+                apb.write_ctl(group, tc.dev.REG_SNP2_C2, snoop[19], verbose,
+                              comment=' // Snoop 2 control register 2')
+                apb.write_ctl(group, tc.dev.REG_SNP2_ACC, snoop[20], verbose,
+                              comment=' // Snoop 2 data accumulator')
+                apb.write_ctl(group, tc.dev.REG_SNP2_HIT, snoop[21], verbose,
+                              comment=' // Snoop 2 match hit accumulator')
+                apb.write_ctl(group, tc.dev.REG_SNP2_MAX, snoop[22], verbose,
+                              comment=' // Snoop 2 match max accumulator')
+                apb.write_ctl(group, tc.dev.REG_SNP2_AM, snoop[23], verbose,
+                              comment=' // Snoop 2 match address register')
+
+                apb.output('\n', embedded_code)
 
         if not fifo:
             # Load data memory
@@ -2187,6 +2241,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 val |= 1 << tc.dev.CTL_PIPELINE_OFFS
             if streaming[start_layer] and big_data[start_layer]:
                 val |= 1 << 6
+        if snoop is not None:
+            val |= 1 << 7
 
         if embedded_code:
             apb.function_footer()
@@ -2322,13 +2378,13 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
         # Concatenate input data if needed
         if in_sequences[ll] is not None:
-            if isinstance(in_sequences[ll], list):
+            if len(in_sequences[ll]) > 1:
                 try:
                     data = np.concatenate([data_buf[i + 1] for i in in_sequences[ll]], axis=0)
                 except ValueError as err:
                     eprint('Error in input data concatenation layer:', err)
             else:
-                data = data_buf[in_sequences[ll] + 1]
+                data = data_buf[in_sequences[ll][0] + 1]
         else:
             data = data_buf[-1]
 
@@ -2558,13 +2614,13 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         # Write .mem file for output or create the C check_output() function to verify the output
         out_map = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
         if block_mode:
-            if ll == final_layer:
+            if ll == terminating_layer:
                 filename = output_filename + '.mem'  # Final output
             else:
                 filename = f'{output_filename}-{ll}.mem'  # Intermediate output
             filemode = 'w'
         else:
-            if ll == final_layer:
+            if ll == terminating_layer:
                 filename = c_filename + ('_riscv' if riscv else '') + '.c'  # Final output
             else:
                 filename = None  # Intermediate output - used for layer overwrite check
@@ -2580,7 +2636,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             apb.output(f'// Expected output of layer {ll} for {test_name} '
                        'given the sample input\n')
             apb.function_header(dest='wrapper', prefix='', function='check_output')
-            if ll == final_layer and mlator and not mlator_noverify:
+            if ll == terminating_layer and mlator and not mlator_noverify:
                 apb.verify_unload(
                     ll,
                     in_map,
@@ -2639,7 +2695,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     output_width[ll],
                     overwrite_ok or streaming[ll],
                     no_error_stop,
-                    mlator=mlator if ll == final_layer else False,
+                    mlator=mlator if ll == terminating_layer else False,
                     write_gap=write_gap[ll],
                 )
             apb.verify_unload(
@@ -2655,27 +2711,27 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 output_width[ll],
                 overwrite_ok or (streaming[ll] if ll != start_layer else (streaming[ll] and fifo)),
                 no_error_stop,
-                mlator=mlator if ll == final_layer else False,
+                mlator=mlator if ll == terminating_layer else False,
                 max_count=max_count,
                 write_gap=write_gap[ll],
-                final_layer=final_layer,
+                final_layer=terminating_layer,
             )
             if debug_snoop:
-                apb.verify_ctl(group, tc.dev.REG_SNP1_ACC, 0xffffffff, snoop[8],
+                apb.verify_ctl(group, tc.dev.REG_SNP1_ACC, None, snoop[24],
                                comment=' // Verify snoop 1 data accumulator')
-                apb.verify_ctl(group, tc.dev.REG_SNP1_HIT, 0xffffffff, snoop[9],
+                apb.verify_ctl(group, tc.dev.REG_SNP1_HIT, None, snoop[25],
                                comment=' // Verify snoop 1 match hit accumulator')
-                apb.verify_ctl(group, tc.dev.REG_SNP1_MAX, 0xffffffff, snoop[10],
+                apb.verify_ctl(group, tc.dev.REG_SNP1_MAX, None, snoop[26],
                                comment=' // Verify snoop 1 match max accumulator')
-                apb.verify_ctl(group, tc.dev.REG_SNP1_AM, 0xffffffff, snoop[24],
+                apb.verify_ctl(group, tc.dev.REG_SNP1_AM, None, snoop[27],
                                comment=' // Verify snoop 1 match address register')
-                apb.verify_ctl(group, tc.dev.REG_SNP2_ACC, 0xffffffff, snoop[20],
+                apb.verify_ctl(group, tc.dev.REG_SNP2_ACC, None, snoop[28],
                                comment=' // Verify snoop 2 data accumulator')
-                apb.verify_ctl(group, tc.dev.REG_SNP2_HIT, 0xffffffff, snoop[21],
+                apb.verify_ctl(group, tc.dev.REG_SNP2_HIT, None, snoop[29],
                                comment=' // Verify snoop 2 match hit accumulator')
-                apb.verify_ctl(group, tc.dev.REG_SNP2_MAX, 0xffffffff, snoop[22],
+                apb.verify_ctl(group, tc.dev.REG_SNP2_MAX, None, snoop[30],
                                comment=' // Verify snoop 2 match max accumulator')
-                apb.verify_ctl(group, tc.dev.REG_SNP2_AM, 0xffffffff, snoop[25],
+                apb.verify_ctl(group, tc.dev.REG_SNP2_AM, None, snoop[31],
                                comment=' // Verify snoop 2 match address register')
             apb.function_footer(dest='wrapper')  # check_output()
         finally:
@@ -2710,20 +2766,21 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
             if softmax or embedded_code:
                 apb.unload(
-                    output_processor_map[final_layer],
+                    output_processor_map[terminating_layer],
                     out_size,
-                    out_offset[final_layer],
-                    out_expand[final_layer],
-                    out_expand_thresh[final_layer],
-                    output_width[final_layer],
+                    out_offset[terminating_layer],
+                    out_expand[terminating_layer],
+                    out_expand_thresh[terminating_layer],
+                    output_width[terminating_layer],
                     mlator=mlator,
-                    write_gap=write_gap[final_layer],
+                    write_gap=write_gap[terminating_layer],
                 )
 
             if softmax:
                 apb.softmax_layer(
-                    output_width=output_width[final_layer],
-                    shift=8 - abs(quantization[final_layer]) if not bypass[final_layer] else 0,
+                    output_width=output_width[terminating_layer],
+                    shift=8 - abs(quantization[terminating_layer])
+                    if not bypass[terminating_layer] else 0,
                 )
 
             summary_stats = '/*\n' + \
@@ -2779,8 +2836,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     elif block_mode:
         assets.copy('assets', 'blocklevel-ai' + str(device), base_directory, test_name)
     elif embedded_code:
-        output_count = output_chan[final_layer] \
-            * output_dim[final_layer][0] * output_dim[final_layer][1]
+        output_count = output_chan[terminating_layer] \
+            * output_dim[terminating_layer][0] * output_dim[terminating_layer][1]
         insert = summary_stats + \
             '\n/* Number of outputs for this network */\n' \
             f'#define CNN_NUM_OUTPUTS {output_count}'

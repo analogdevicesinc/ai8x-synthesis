@@ -123,7 +123,7 @@ def get_parser():
                        help="start processing before first FIFO push (default: false)")
     group.add_argument('--slow-load', type=int, metavar='N', default=0,
                        help="slow down FIFO loads (default: 0)")
-    group.add_argument('--debug-new-streaming', action='store_true', default=False,
+    group.add_argument('--debug-new-streaming', action='store_true', default=True,
                        help="modify streaming equation (default: false)")
 
     # RISC-V

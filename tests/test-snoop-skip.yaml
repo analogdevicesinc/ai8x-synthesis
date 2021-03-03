@@ -1,6 +1,6 @@
 arch: test
 dataset: test_snoop-skip
-snoop: [0x1001, 0, 0x7f49baec, 0, 0, 0, 0x81022005, 0, 17, 22, 55, 22, 0, 0, 0, 0, 0, 0, 0, 0, 9, 8, 7, 6, 0x1001, 6]
+snoop: [0x201001, 0, 0x7f49baec, 0, 0, 0, 0x82022005, 0x3000, 17, 22, 55, 22, 0, 0, 0, 0, 0, 0, 0, 0, 9, 8, 7, 6, 17, 22, 55, 22, 9, 8, 7, 6]
 
 layers:
 - out_offset: 0x4000
@@ -23,7 +23,6 @@ layers:
   processors: 0xffffffffffffffff
   out_offset: 0x4000
 - out_offset: 0x0
-  in_channels: 64
   processors: 0xffffffffffffffff
   operation: conv2d
   kernel_size: 1x1

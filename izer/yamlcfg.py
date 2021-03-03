@@ -408,6 +408,8 @@ def parse(config_file):
 
         if 'in_sequences' in ll:
             in_sequences[sequence] = ll['in_sequences']
+            if not isinstance(in_sequences[sequence], list):
+                in_sequences[sequence] = [in_sequences[sequence]]
 
         if 'next_sequence' in ll:
             if isinstance(ll['next_sequence'], str) \
