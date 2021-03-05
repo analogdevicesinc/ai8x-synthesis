@@ -338,7 +338,7 @@ def main():
         # Check all but last layer
         if ll != final_layer:
             if output_width[ll] != 8:
-                eprint(f'`output_width` must be 8 for intermediate layer {ll}.')
+                wprint(f'`output_width` should be 8 for intermediate layer {ll}.')
 
         if in_sequences[ll] is not None:
             if tc.dev.SUPPORT_LINK_LAYER:
