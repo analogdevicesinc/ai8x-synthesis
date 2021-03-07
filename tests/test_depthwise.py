@@ -82,7 +82,6 @@ def depthwise1d(groups, data, weight, expected, kernel_size=9, padding=0):
         None,
         data.shape,
         expected.shape,
-        weight.shape[0],
         kernel_size=kernel_size,
         stride=1,
         pad=padding,

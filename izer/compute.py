@@ -177,20 +177,23 @@ def conv1d(
         bias,
         input_size,
         output_size,
-        out_channels,
         kernel_size,
         stride,
         pad,
         dilation,
+        fractional_stride=1,
+        output_pad=0,
         groups=1,
-        debug=False,
+        debug=False,  # pylint: disable=unused-argument
 ):
     """
     Compute a 1D convolution.
 
     Note that all PyTorch numbers are ordered (C, L)
     """
+    assert data.shape == tuple(input_size)
     in_channels = input_size[0]
+    out_channels = output_size[0]
 
     weight = weight.reshape(out_channels, input_size[0] // groups, -1)
     data = data.reshape(input_size[0], -1)
@@ -198,36 +201,90 @@ def conv1d(
     output = np.full(shape=(output_size[0], output_size[1]),
                      fill_value=np.nan, dtype=np.int64)
 
-    # Compute 1D convolution
-    if debug:
-        debug_print('k,c,x,src_offs,wt_offs,weight,data,acc')
-    for k in range(out_channels):
-        out_offs = 0
-        for x in range(-pad, input_size[1] - dilation * (kernel_size - 1) + pad, stride):
-            val = np.int64(0)
-            for c in range(in_channels // groups):
-                dc = c if groups == 1 else c + k * (in_channels // groups)
-                for w in range(kernel_size):
-                    src_offs = x + w * dilation
-                    if 0 <= src_offs < input_size[1]:
-                        val += weight[k][c][w] * data[dc][src_offs]
-                        stats.true_macc += 1
-                        if debug:
-                            debug_print(
-                                f'{k},{c},{x},{src_offs},{w},{weight[k][c][w]},'
-                                f'{data[dc][src_offs]},{val}'
-                            )
+    # Stretch data for fractionally-strided convolution
+    if fractional_stride > 1:
+        ndata = np.zeros((data.shape[0],
+                          data.shape[1] * fractional_stride - 1),
+                         dtype=data.dtype)
+        ndata[:, 0::fractional_stride] = data
+        data = ndata
 
-            if bias is not None:
-                val += bias[k]
-                if debug:
-                    debug_print(
-                        f'+bias {bias[k]} --> output[{k}][{out_offs}] = {val}',
-                    )
-            output[k][out_offs] = val
-            out_offs += 1
+    # Create zero padding around data
+    if pad or output_pad:
+        data = np.pad(data, pad_width=((0, 0), (pad, pad + output_pad)),
+                      mode='constant', constant_values=0)
 
-    return output.reshape((output_size))
+    if dilation > 1:
+        # Stretch weights for dilation
+        nweight = np.zeros((weight.shape[0], weight.shape[1],
+                            (kernel_size - 1) * dilation + 1),
+                           dtype=weight.dtype)
+        nweight[:, :, 0::dilation] = weight
+        weight = nweight
+
+    ll = (data.shape[1] - weight.shape[2] + 1) // stride  # Resulting output length
+
+    view = as_strided(data,
+                      shape=(ll, data.shape[0], weight.shape[2]),
+                      strides=((data.strides[1] * stride,
+                                data.strides[0], data.strides[1])),
+                      writeable=False)
+
+    if groups > 1:
+        nweight = np.zeros((weight.shape[0], in_channels, weight.shape[2]),
+                           dtype=weight.dtype)
+        for i in range(weight.shape[0]):
+            for j in range(in_channels // groups):
+                nweight[i, i * (in_channels // groups) + j, :] = weight[i, j, :]
+        weight = nweight
+
+    output = np.tensordot(view, weight, axes=((1, 2), (1, 2))).transpose(1, 0)
+
+    # Apply bias
+    if bias is not None:
+        for k in range(out_channels):
+            output[k] += bias[k]
+
+    assert output.shape == tuple(output_size[:2]), \
+        f'Shape mismatch: NumPy result {output.shape} vs expected {output_size}'
+
+    return output
+
+
+def convtranspose1d(
+        data,
+        weight,
+        bias,
+        input_size,
+        output_size,
+        kernel_size,
+        stride,
+        pad,
+        dilation,
+        fractional_stride,
+        output_pad,
+        groups=1,
+        debug=False,
+):
+    """
+    Compute a transposed 1D convolution.
+    """
+
+    return conv1d(
+        data,
+        weight,
+        bias,
+        input_size,
+        output_size,
+        kernel_size,
+        stride,
+        dilation * (kernel_size - 1) - pad,
+        dilation,
+        fractional_stride=fractional_stride,
+        output_pad=output_pad,
+        groups=groups,
+        debug=debug,
+    )
 
 
 def linear(

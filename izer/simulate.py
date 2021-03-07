@@ -384,14 +384,15 @@ def conv1d_layer(
         bias=bias,
         input_size=input_size,
         output_size=out_size,
-        out_channels=output_channels,
         kernel_size=kernel_size,
         stride=stride,
         pad=padding,
         dilation=dilation,
+        fractional_stride=1,
+        output_pad=0,
         groups=groups,
         debug=debug,
-    )
+    )[:, :, np.newaxis]
 
     if verbose and verbose_data:
         print(f"{out_size[0]}x{out_size[1]} FULL-RES OUTPUT:")
