@@ -162,6 +162,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         ignore_bias_groups=False,
         output_padding=None,
         kernel_format='{0:04}',
+        debug_new_streaming=False,
+        snoop=None,
+        tcalc=None,
+        snoop_sequence=None,
+        simulated_sequence=None,
+        debug_snoop=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -172,6 +178,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     device = tc.dev.device
 
     in_expand = [0] * layers
+    in_expand_invol = [0] * layers
     out_expand = [0] * layers
     in_expand_thresh = [0] * layers
     out_expand_thresh = [0] * layers
@@ -188,6 +195,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     dilation_str = [None] * layers
     stride_str = [None] * layers
     stream_buf = [None] * layers
+
+    terminating_layer = final_layer
+    for i, s in enumerate(simulated_sequence):
+        if s == -1:
+            terminating_layer = i
+            break
 
     if zero_sram:
         rtl_preload = False
@@ -216,6 +229,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
     if fifo_go and not tc.dev.SUPPORT_FIFO_GO:
         eprint("`--fifo-go` is not supported on this device.")
+
+    if snoop is not None and not tc.dev.SUPPORT_SNOOP:
+        eprint("`snoop` is not supported on this device.")
 
     if pipeline is None:
         pipeline = tc.dev.SUPPORT_PIPELINE
@@ -283,8 +299,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             eprint(f'`next_sequence` must be {ll+1} when using streaming in layer {ll}. '
                    f'Currently configured: {next_sequence[ll]}')
 
-    if mlator and (output_dim[final_layer][start_layer] * output_dim[final_layer][1] < 4
-                   or output_width[final_layer] > 8):
+    if mlator and (output_dim[terminating_layer][start_layer]
+                   * output_dim[terminating_layer][1] < 4 or output_width[terminating_layer] > 8):
         wprint('--mlator should only be used with 4 or more 8-bit outputs per channel; ignoring.')
         mlator = False
 
@@ -305,6 +321,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     if fast_fifo_quad:
         processor_map[start_layer] = processor_map_0 << 48 | processor_map_0 << 32 \
             | processor_map_0 << 16 | processor_map_0
+
+    for i, e in enumerate(quantization):
+        if e is None:
+            quantization[i] = 0  # Only in unused layers
 
     binary_quantization = any(quantization[ll] == -1 for ll in range(first_layer_used, layers))
     # Check we're not using binary weights on devices that don't support it
@@ -342,7 +362,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 min((out_expand_thresh[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1),
                     tc.dev.MAX_PROC)
         in_expand[ll] = (input_chan[ll] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
-        in_expand_thresh[ll] = (input_chan[ll] + in_expand[ll]-1) // in_expand[ll]
+        if tcalc[ll] is None:
+            tcalc[ll] = rd_ahead[ll] and in_expand[ll] > 1  # Set default
+        in_expand_invol[ll] = (in_expand[ll] + 3) & ~3 if tcalc[ll] else in_expand[ll]
+        in_expand_thresh[ll] = (input_chan[ll] + in_expand[ll] - 1) // in_expand[ll]
 
         if input_chan[ll] > tc.dev.MAX_PROC:
             in_expand_thresh[ll] = \
@@ -361,7 +384,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                    f'exceeds data memory instance size of {tc.dev.INSTANCE_WIDTH*16}.')
         out_size = output_dim[ll][0] * output_dim[ll][1] * out_expand[ll] \
             * 4 * output_width[ll] // 8
-        if (not streaming[ll] or ll == final_layer) \
+        if (not streaming[ll] or ll == terminating_layer) \
            and out_size + out_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
             eprint(f'Layer {ll}: 4-channel, {output_width[ll]}-bit {output_dim[ll][0]}x'
                    f'{output_dim[ll][1]} output (size {out_size}) '
@@ -416,12 +439,20 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                    or padding[ll][1] not in tc.dev.SUPPORTED_X2D_PADS:
                     eprint(f'Layer {ll}: The selected padding ({padding[ll]}) for '
                            'ConvTranspose2d is not supported on this device.')
+                if output_padding[ll][0] not in tc.dev.SUPPORTED_X2D_OUTPUT_PADS \
+                   or output_padding[ll][1] not in tc.dev.SUPPORTED_X2D_OUTPUT_PADS:
+                    eprint(f'Layer {ll}: The selected output padding ({output_padding[ll]}) for '
+                           'ConvTranspose2d is not supported on this device.')
+                tram_max[ll] = max(0, (pooled_dim[ll][1] - 1) * stride[ll][1] + 1
+                                   + output_padding[ll][1] + 2 * effective_pad[ll][1]
+                                   - kernel_size[ll][1]) + 1
+            else:
+                tram_max[ll] = max(0, pooled_dim[ll][1] + 2 * effective_pad[ll][1]
+                                   - kernel_size[ll][1]) + 1
 
-            tram_max[ll] = max(0, pooled_dim[ll][1] + 2*effective_pad[ll][1]
-                               - kernel_size[ll][1]) + 1
-
-            if operator[ll] == op.CONVTRANSPOSE2D:
-                tram_max[ll] *= stride[ll][1]
+        if operator[ll] != op.CONVTRANSPOSE2D and (output_padding[ll][0] != 0
+                                                   or output_padding[ll][1] != 0):
+            eprint(f'Layer {ll}: Output padding must be 0 for this operator.')
 
         if input_chan[ll] % conv_groups[ll] != 0 or output_chan[ll] % conv_groups[ll] != 0:
             eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) does not divide'
@@ -619,7 +650,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             groups_used.append(group)
 
     if 0 not in groups_used:
-        eprint('Group 0 is not used, this currently does not work.')
+        eprint('Group 0 is not used, this is currently unsupported.')
 
     for ll in range(first_layer_used, layers):
         if bias_group_map[ll] is not None:
@@ -709,11 +740,11 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             fail_indicator=forever,
             groups=list(set().union(groups_used)),
             clock_trim=clock_trim,
-            oneshot=final_layer if oneshot else 0,
+            oneshot=terminating_layer if oneshot else 0,
             softmax=softmax,
             stopstart=stopstart,
-            num_classes=output_chan[final_layer],
-            output_width=output_width[final_layer],
+            num_classes=output_chan[terminating_layer],
+            output_width=output_width[terminating_layer],
             bias=any(b is not None for b in bias),
             wfi=wfi,
             zero_sram=zero_sram,
@@ -853,7 +884,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 output_processor_map,
                 out_expand,
                 list(set().union(groups_used)),
-                debug,
+                fast_fifo_quad=fast_fifo_quad,
+                calcx4=calcx4,
+                debug=debug,
             )
 
         apb.function_header(function='init')
@@ -1061,7 +1094,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 output_processor_map,
                 out_expand,
                 list(set().union(groups_used)),
-                debug,
+                fast_fifo_quad=fast_fifo_quad,
+                calcx4=calcx4,
+                debug=debug,
             )
 
         if verbose:
@@ -1224,11 +1259,32 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             else:
                                 val = 1 << 8  # Stop
                         else:
-                            if next_sequence[ll] == -1:
+                            lt = next_sequence[ll]
+                            if lt == -1:
                                 if ll != layers - 1:  # Don't set stop bit when we don't have to
                                     val = 1 << 8
-                            elif next_sequence[ll] != ll + 1:
-                                val = 1 << 7 | next_sequence[ll]
+                            elif lt != ll + 1:
+                                val = 1 << 7 | lt
+                            elif snoop_sequence[ll] is not None:
+                                lt = snoop_sequence[ll]
+                                assert lt >= 0
+                                val = 1 << 7 | lt
+                            if lt != -1:
+                                if in_sequences[lt] is not None and ll in in_sequences[lt] \
+                                   and operands[lt] == 1:
+                                    if in_offset[lt] != out_offset[ll]:
+                                        wprint(f'Layer {ll}: The input offset of the next '
+                                               f'sequence (layer {lt}, 0x{in_offset[lt]:04x}) '
+                                               "does not match the current layer's output offset "
+                                               f'(0x{out_offset[ll]:04x}).')
+                                    if input_chan[lt] != output_chan[ll] * len(in_sequences[lt]) \
+                                       or input_dim[lt] != output_dim[ll]:
+                                        wprint(f'Layer {ll}: The input dimensions of the next '
+                                               f'sequence (layer {lt}, {len(in_sequences[lt])} '
+                                               f'inputs, {input_chan[lt]}x{input_dim_str[lt]}) do '
+                                               "not match the current layer's output dimensions "
+                                               f'({output_chan[ll]}x{output_dim_str[ll]}).')
+
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_NXTLYR, val,
                                        verbose, comment=' // Next Layer')
 
@@ -1448,6 +1504,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         val |= kernel_size[ll][0] - 1 << tc.dev.RPRIME_MAX_OFFS
                         val |= kernel_size[ll][1] - 1 << tc.dev.CPRIME_MAX_OFFS
 
+                    if rd_ahead[ll] and hasattr(tc.dev, 'SHIFT_CNT_OFFS'):
+                        val |= ((in_expand[ll] - 1) // 4 if tcalc[ll] else in_expand[ll] - 1) \
+                            << tc.dev.SHIFT_CNT_OFFS
+
                     if bypass[ll]:
                         val |= 1 << 30
 
@@ -1611,14 +1671,19 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                     if conv_groups[ll] == 1 and group == bias_group[ll]:
                         # Enable bias only for one group
-                        assert bias_offs[ll][group] < 2**12
-                        val |= 1 << 12 | bias_offs[ll][group]
-                    elif bias_offs[ll][group] is not None and conv_groups[ll] > 1:
+                        offs = bias_offs[ll][group]
+                        if calcx4[ll]:
+                            offs //= 4
+                        assert offs < 2**12
+                        val |= 1 << 12 | offs
+                    elif bias_offs[ll][group] is not None and (
+                        conv_groups[ll] > 1 or fast_fifo_quad and ll == 0
+                    ):
                         # Enable bias for all groups
-                        assert bias_offs[ll][group] < 2**12
                         offs = bias_offs[ll][group]
                         if broadcast_mode[ll]:
                             offs //= 4
+                        assert offs < 2**12
                         val |= 1 << 12 | offs
 
                     if operator[ll] == op.NONE:
@@ -1642,8 +1707,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     if calcx4[ll]:
                         val |= 1 << 29
 
-                    if rd_ahead[ll] and in_expand[ll] > 1:
-                        val |= 1 << 31  # tcalc
+                    if tcalc[ll]:
+                        val |= 1 << 31
 
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_POST, val,
                                    verbose, comment=' // Post processing register')
@@ -1657,6 +1722,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                    verbose, comment=' // Mask and processor enables')
 
                     delta1 = delta2 = stream_start = invol = 0
+                    last_layer = False
                     if not tc.dev.REQUIRE_NEW_STREAMING:
                         if ll == start_layer and fifo:
                             # Start: 1
@@ -1700,12 +1766,38 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 + pool[ll][1] * operands[ll] + increase_delta2
                     else:
                         # MAX78002
+                        # =IF(Pad=0,Stride,Pad)
+                        row_prim = effective_pad[ll][1] or pool_stride[ll][0]
                         # =IF((Row_Pool*Row_Dilation_Stride)>Stride,
                         #     Row_Pool*Row_Dilation_Stride,Stride)
                         row_inc = max(pool[ll][0] * pool_dilation[ll][0], pool_stride[ll][0])
                         # =IF((Col_Pool*Col_Dilation_Stride)>Stride,
                         #     (Col_Pool*Col_Dilation_Stride),Stride)
                         col_inc = max(pool[ll][1] * pool_dilation[ll][1], pool_stride[ll][1])
+
+                        if streaming[ll]:
+                            if ll == final_layer or not streaming[next_sequence[ll]]:
+                                last_layer = True
+                            if debug_new_streaming and ll > 0:
+                                # Cols_Stride=ROUNDDOWN(Cols/Col_Inc,0)
+                                # =IF(Cols_Stride*Stride+Pool>Cols,Cols_Stride-1,Cols_Stride)
+                                effective_cols = input_dim[ll][1] // col_inc
+                                if effective_cols * pool_stride[ll][1] + pool[ll][1] > \
+                                   input_dim[ll][1]:
+                                    effective_cols -= 1
+                                # =IF(Col_Inc=1,0,Cols-(Effective_Cols*Col_Inc))
+                                col_adjust = 0 if col_inc == 1 \
+                                    else input_dim[ll][1] - effective_cols * col_inc
+                            else:
+                                # =IF(((ROUNDDOWN(Cols/Stride,0)*Stride)+(Pool-1))>Cols,
+                                #     (ROUNDDOWN((Cols/Stride),0))-1,
+                                #     (ROUNDDOWN((Cols/Stride),0)))
+                                effective_cols = input_dim[ll][1] // pool_stride[ll][1]
+                                if effective_cols * pool_stride[ll][1] + pool[ll][1] - 1 > \
+                                   input_dim[ll][1]:
+                                    effective_cols -= 1
+                                # =(Cols-(Effective_Cols*Col_Inc))
+                                col_adjust = input_dim[ll][1] - effective_cols * col_inc
 
                         # Prefill
                         if ll == start_layer and override_start is not None:
@@ -1725,36 +1817,46 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             if big_data[ll]:
                                 stream_start = (stream_start + 3) // 4
                         elif ll > start_layer and streaming[ll]:
-                            # =(Pad*(Cols+(Pad*2)))
-                            #   +(((Row_Inc*(Cols+(Pad*2)))
-                            #   +(Pad+(2*Col_Inc)))*Elementwise)
-                            #   +(Read_Ahead*Stride)
-                            stream_start_hwc = stream_start = \
-                                effective_pad[ll][1] * \
-                                (input_dim[ll][1] + 2 * effective_pad[ll][1]) \
-                                + (row_inc * (input_dim[ll][1] + 2 * effective_pad[ll][1])
-                                   + effective_pad[ll][1] + 2 * col_inc) * operands[ll]
+                            if debug_new_streaming and ll > 0:
+                                # =(Row_Prim*(Cols+(Pad*2)))
+                                #   +(((Row_Inc*(Cols+(Pad*2)))
+                                #   +(Pad+(2*Col_Inc)))*Elementwise)
+                                #   +(Read_Ahead*Stride)
+                                # if last_layer:
+                                #   += (Col_Adj*Stride)
+                                stream_start = \
+                                    row_prim * \
+                                    (input_dim[ll][1] + 2 * effective_pad[ll][1]) \
+                                    + (row_inc * (input_dim[ll][1] + 2 * effective_pad[ll][1])
+                                       + effective_pad[ll][1] + 2 * col_inc) * operands[ll]
+                            else:
+                                # =(Pad*(Cols+(Pad*2)))
+                                #   +(((Row_Inc*(Cols+(Pad*2)))
+                                #   +(Pad+(2*Col_Inc)))*Elementwise)
+                                #   +(Read_Ahead*Stride)
+                                # if last_layer:
+                                #   += (Col_Adj*Stride)
+                                stream_start = \
+                                    effective_pad[ll][1] * \
+                                    (input_dim[ll][1] + 2 * effective_pad[ll][1]) \
+                                    + (row_inc * (input_dim[ll][1] + 2 * effective_pad[ll][1])
+                                       + effective_pad[ll][1] + 2 * col_inc) * operands[ll]
                             if rd_ahead[ll]:
-                                stream_start_hwc += pool_stride[ll][1] * in_expand[ll]
+                                stream_start += pool_stride[ll][1]
+                            if last_layer and debug_new_streaming:
+                                stream_start += col_adjust * pool_stride[ll][1]
+                            stream_start_hwc = stream_start
                             if big_data[ll]:
                                 # =(ROUNDUP(Prefill/4,0))
                                 stream_start = (stream_start + 3) // 4
 
                         # Delta 1 Count, Delta 2 Count
                         if streaming[ll]:
-                            # =IF(((ROUNDDOWN(Cols/Stride,0)*Stride)+(Pool-1))>Cols,
-                            #     (ROUNDDOWN((Cols/Stride),0))-1,(ROUNDDOWN((Cols/Stride),0)))
-                            effective_cols = input_dim[ll][1] // pool_stride[ll][1]
-                            if effective_cols * pool_stride[ll][1] + pool[ll][1] - 1 > \
-                               input_dim[ll][1]:
-                                effective_cols -= 1
-
-                            # =IF(((Cols-(Effective_Cols*Stride))*Passes)<0,0,
-                            #      ((Cols-(Effective_Cols*Stride))*Passes))
+                            # =IF((Cols-(Effective_Cols*Stride))<0,0,
+                            #      (Cols-(Effective_Cols*Stride)))
                             skipped_cols = max(
                                 0,
                                 (input_dim[ll][1] - (effective_cols * pool_stride[ll][1]))
-                                * in_expand[ll]
                             )
 
                             if ll == start_layer:
@@ -1772,13 +1874,22 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 if override_delta2 is not None:
                                     delta2 = override_delta2
                                 else:
-                                    # =IF(Stride=1,Delta1_0+Skipped_Cols,
-                                    #              (((Stride-1)*Cols))+Skipped_Cols+(Col_Pool-1))
-                                    if pool_stride[ll][0] == 1:
-                                        delta2 = delta1 + skipped_cols
+                                    if debug_new_streaming and ll > 0:
+                                        # =IF(Stride=1,Delta1_0+Col_Adj,
+                                        #     (((Stride-1)*Cols))+Col_Adj)
+                                        if pool_stride[ll][0] == 1:
+                                            delta2 = delta1 + col_adjust
+                                        else:
+                                            delta2 = (pool_stride[ll][0] - 1) * input_dim[ll][1] \
+                                                + col_adjust
                                     else:
-                                        delta2 = (pool_stride[ll][0] - 1) * input_dim[ll][1] \
-                                            + skipped_cols + pool[ll][1] - 1
+                                        # =IF(Stride=1,Delta1_0+Skipped_Cols,
+                                        #            (((Stride-1)*Cols))+Skipped_Cols+(Col_Pool-1))
+                                        if pool_stride[ll][0] == 1:
+                                            delta2 = delta1 + skipped_cols
+                                        else:
+                                            delta2 = (pool_stride[ll][0] - 1) * input_dim[ll][1] \
+                                                + skipped_cols + pool[ll][1] - 1
                                     if big_data[ll]:
                                         # =(ROUNDUP(Delta2_0/4,0))
                                         delta2 = (delta2 + 3) // 4
@@ -1792,12 +1903,21 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                     delta1 = (delta1 + 3) // 4
                                 delta1 += increase_delta1
 
-                                # =IF(Stride=1,Delta1+Skipped_Cols,((Stride-1)*Cols)+Skipped_Cols)
-                                if pool_stride[ll][0] == 1:
-                                    delta2 = delta1 + skipped_cols
+                                if debug_new_streaming and ll > 0:
+                                    # =IF(Stride=1,Delta1+Col_Adj,((Stride-1)*Cols)+Col_Adj)
+                                    if pool_stride[ll][0] == 1:
+                                        delta2 = delta1 + col_adjust
+                                    else:
+                                        delta2 = (pool_stride[ll][0] - 1) * input_dim[ll][1] \
+                                            + col_adjust
                                 else:
-                                    delta2 = (pool_stride[ll][0] - 1) * input_dim[ll][1] \
-                                        + skipped_cols
+                                    # =IF(Stride=1,Delta1+Skipped_Cols,
+                                    #     ((Stride-1)*Cols)+Skipped_Cols)
+                                    if pool_stride[ll][0] == 1:
+                                        delta2 = delta1 + skipped_cols
+                                    else:
+                                        delta2 = (pool_stride[ll][0] - 1) * input_dim[ll][1] \
+                                            + skipped_cols
                                 if big_data[ll]:
                                     # =(ROUNDUP(Delta2/4,0))
                                     delta2 = (delta2 + 3) // 4
@@ -1805,7 +1925,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                     # strm_invol[3:0]: Per stream invol offset - based on stream count
                     if ll > start_layer and streaming[ll]:
-                        invol = sum(in_expand[:ll])
+                        invol = sum(in_expand_invol[:ll])
 
                     assert stream_start < 2**tc.dev.MAX_ISVAL_BITS
                     val = stream_start
@@ -1814,7 +1934,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM1, val,
                                    verbose, comment=' // Stream processing start')
 
-                    assert invol < 2**4
+                    assert invol < 2**4, f'Layer {ll} invol ({invol:04x}) exceeds supported range.'
                     assert delta1 < 2**5
                     assert delta2 < 2**tc.dev.MAX_DSVAL2_BITS
                     val = delta2 << 16 | delta1 << 4 | invol
@@ -1836,7 +1956,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             if rem > 0:
                                 val = val + in_expand[ll] - rem
                         else:
-                            # MAX78002
+                            # MAX78002 - Buffer
                             if ll == start_layer:
                                 # =Prefill0 + Col_Inc
                                 val = stream_start_hwc + col_inc
@@ -1844,11 +1964,13 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                     # =Buffer0*4*Stride
                                     val *= pool_stride[ll][1] * 4
                             else:
-                                # =Prefill+((Passes-1)*((Row_Inc*Cols)+Pad+Col_Inc))+Col_Inc
+                                # =(MROUND(Prefill+((Passes-1)*((Row_Inc*Cols)+Pad+Col_Inc))
+                                #   +Col_Inc,Passes))
                                 val = stream_start_hwc \
                                     + (in_expand[ll] - 1) * (row_inc * input_dim[ll][1]
                                                              + effective_pad[ll][1] + col_inc) \
                                     + col_inc
+                                val += (in_expand[ll] - val % in_expand[ll]) % in_expand[ll]
                                 if big_data[ll]:
                                     # =(ROUNDUP(Buffer/4,0))
                                     val = (val + 3) // 4
@@ -1870,6 +1992,15 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                        f'rollover 0x{val:08x} * 4 >= '
                                        f'in_offset 0x{in_offset[ll]:08x}.',
                                        error=not no_error_stop)
+                            if ll == terminating_layer:
+                                osize = output_dim[ll][0] * output_dim[ll][1]
+                                if out_offset[ll] + osize * out_expand[ll] * 4 >= in_offset[ll]:
+                                    eprint(f'Layer {ll}: Overlapping input and output: '
+                                           f'out_offset 0x{out_offset[ll]:08x} + '
+                                           f'output of size {osize} ({output_dim_str[ll]}) '
+                                           f'* {out_expand[ll]} * 4 >= '
+                                           f'in_offset 0x{in_offset[ll]:08x}.',
+                                           error=not no_error_stop)
                         if in_offset[ll] + val * 4 >= tc.dev.INSTANCE_WIDTH * tc.dev.P_SHARED * 4:
                             eprint('Input plus rollover exceeds instance size: '
                                    f'in_offset 0x{in_offset[ll]:08x}, '
@@ -1899,7 +2030,9 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                == tc.dev.datainstance_from_offs(stream_buf[pl][0]):
                                 eprint(f'Layer {ll}: In streaming mode with read-ahead, all '
                                        'streaming read-ahead layers must use separate memory '
-                                       f'instances. Layer {ll} conflicts with layer {pl}.')
+                                       f'instances. Layer {ll} conflicts with layer {pl}; both '
+                                       'use instance '
+                                       f'{tc.dev.datainstance_from_offs(stream_buf[pl][0])}.')
 
                         if ll == final_layer or not streaming[next_sequence[ll]]:
                             dmap = tc.dev.datamem_map(output_processor_map[ll])
@@ -1923,17 +2056,23 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                     # In read-ahead mode, ensure that input and output use separate
                     # instances. First, check the start addresses, then the end addresses.
-                    if rd_ahead[ll] and (tc.dev.datainstance_from_offs(in_offset[ll])
-                       == tc.dev.datainstance_from_offs(out_offset[ll])
-                       or tc.dev.datainstance_from_offs(in_offset[ll] + 4 * operands[ll]
-                                                        * in_expand[ll] * input_dim[ll][0]
-                                                        * input_dim[ll][1])
-                       == tc.dev.datainstance_from_offs(out_offset[ll] + 4 * out_expand[ll]
-                                                        * output_dim[ll][0] * output_dim[ll][1])):
-                        eprint(f'Layer {ll}: Input and output cannot use the same data '
-                               'memory instances in read-ahead mode. '
-                               f'in_offset: {in_offset[ll]:04x}, '
-                               f'out_offset: {out_offset[ll]:04x}')
+                    if rd_ahead[ll]:
+                        in_instance = (
+                            tc.dev.datainstance_from_offs(in_offset[ll]),
+                            tc.dev.datainstance_from_offs(in_offset[ll] + 4 * operands[ll]
+                                                          * in_expand[ll] * input_dim[ll][0]
+                                                          * input_dim[ll][1])
+                        )
+                        out_instance = (
+                            tc.dev.datainstance_from_offs(out_offset[ll]),
+                            tc.dev.datainstance_from_offs(out_offset[ll] + 4 * out_expand[ll]
+                                                          * output_dim[ll][0] * output_dim[ll][1])
+                        )
+                        if in_instance[0] == out_instance[0] or in_instance[1] == out_instance[1]:
+                            eprint(f'Layer {ll}: Input and output cannot use the same data '
+                                   'memory instances in read-ahead mode. '
+                                   f'in_offset: {in_offset[ll]:04x}/instance(s) {in_instance}, '
+                                   f'out_offset: {out_offset[ll]:04x}/instance(s) {out_instance}.')
 
                     if ll == start_layer and fifo:
                         val = input_dim[ll][0] * input_dim[ll][1]
@@ -1963,6 +2102,61 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 apb.write_lreg(group, r * layers + ll, reg, 0,
                                                verbose, force_write=True,
                                                comment=f' // Zero unused layer {ll} registers')
+
+        if snoop is not None:
+            apb.output('  // Configure conditional execution\n', embedded_code)
+            for _, group in enumerate(groups_used):
+                assert len(snoop) == 32
+                apb.write_ctl(group, tc.dev.REG_SNP1_A1, snoop[0], verbose,
+                              comment=' // Address snoop 1 register 1')
+                apb.write_ctl(group, tc.dev.REG_SNP1_A2, snoop[1], verbose,
+                              comment=' // Address snoop 1 register 2')
+                apb.write_ctl(group, tc.dev.REG_SNP1_D1, snoop[2], verbose,
+                              comment=' // Data snoop 1 register 1')
+                apb.write_ctl(group, tc.dev.REG_SNP1_D2, snoop[3], verbose,
+                              comment=' // Data snoop 1 register 2')
+                apb.write_ctl(group, tc.dev.REG_SNP1_X1, snoop[4], verbose,
+                              comment=' // Count snoop 1 register 1')
+                apb.write_ctl(group, tc.dev.REG_SNP1_X2, snoop[5], verbose,
+                              comment=' // Count snoop 1 register 2')
+                apb.write_ctl(group, tc.dev.REG_SNP1_C1, snoop[6], verbose,
+                              comment=' // Snoop 1 control register 1')
+                apb.write_ctl(group, tc.dev.REG_SNP1_C2, snoop[7], verbose,
+                              comment=' // Snoop 1 control register 2')
+                apb.write_ctl(group, tc.dev.REG_SNP1_ACC, snoop[8], verbose,
+                              comment=' // Snoop 1 data accumulator')
+                apb.write_ctl(group, tc.dev.REG_SNP1_HIT, snoop[9], verbose,
+                              comment=' // Snoop 1 match hit accumulator')
+                apb.write_ctl(group, tc.dev.REG_SNP1_MAX, snoop[10], verbose,
+                              comment=' // Snoop 1 match max accumulator')
+                apb.write_ctl(group, tc.dev.REG_SNP1_AM, snoop[11], verbose,
+                              comment=' // Snoop 1 match address register')
+                apb.write_ctl(group, tc.dev.REG_SNP2_A1, snoop[12], verbose,
+                              comment=' // Address snoop 2 register 1')
+                apb.write_ctl(group, tc.dev.REG_SNP2_A2, snoop[13], verbose,
+                              comment=' // Address snoop 2 register 2')
+                apb.write_ctl(group, tc.dev.REG_SNP2_D1, snoop[14], verbose,
+                              comment=' // Data snoop 2 register 1')
+                apb.write_ctl(group, tc.dev.REG_SNP2_D2, snoop[15], verbose,
+                              comment=' // Data snoop 2 register 2')
+                apb.write_ctl(group, tc.dev.REG_SNP2_X1, snoop[16], verbose,
+                              comment=' // Count snoop 2 register 1')
+                apb.write_ctl(group, tc.dev.REG_SNP2_X2, snoop[17], verbose,
+                              comment=' // Count snoop 2 register 2')
+                apb.write_ctl(group, tc.dev.REG_SNP2_C1, snoop[18], verbose,
+                              comment=' // Snoop 2 control register 1')
+                apb.write_ctl(group, tc.dev.REG_SNP2_C2, snoop[19], verbose,
+                              comment=' // Snoop 2 control register 2')
+                apb.write_ctl(group, tc.dev.REG_SNP2_ACC, snoop[20], verbose,
+                              comment=' // Snoop 2 data accumulator')
+                apb.write_ctl(group, tc.dev.REG_SNP2_HIT, snoop[21], verbose,
+                              comment=' // Snoop 2 match hit accumulator')
+                apb.write_ctl(group, tc.dev.REG_SNP2_MAX, snoop[22], verbose,
+                              comment=' // Snoop 2 match max accumulator')
+                apb.write_ctl(group, tc.dev.REG_SNP2_AM, snoop[23], verbose,
+                              comment=' // Snoop 2 match address register')
+
+                apb.output('\n', embedded_code)
 
         if not fifo:
             # Load data memory
@@ -2045,6 +2239,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 val |= 1 << tc.dev.CTL_PIPELINE_OFFS
             if streaming[start_layer] and big_data[start_layer]:
                 val |= 1 << 6
+        if snoop is not None:
+            val |= 1 << 7
 
         if embedded_code:
             apb.function_footer()
@@ -2180,13 +2376,13 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
         # Concatenate input data if needed
         if in_sequences[ll] is not None:
-            if isinstance(in_sequences[ll], list):
+            if len(in_sequences[ll]) > 1:
                 try:
                     data = np.concatenate([data_buf[i + 1] for i in in_sequences[ll]], axis=0)
                 except ValueError as err:
                     eprint('Error in input data concatenation layer:', err)
             else:
-                data = data_buf[in_sequences[ll] + 1]
+                data = data_buf[in_sequences[ll][0] + 1]
         else:
             data = data_buf[-1]
 
@@ -2416,13 +2612,13 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         # Write .mem file for output or create the C check_output() function to verify the output
         out_map = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
         if block_mode:
-            if ll == final_layer:
+            if ll == terminating_layer:
                 filename = output_filename + '.mem'  # Final output
             else:
                 filename = f'{output_filename}-{ll}.mem'  # Intermediate output
             filemode = 'w'
         else:
-            if ll == final_layer:
+            if ll == terminating_layer:
                 filename = c_filename + ('_riscv' if riscv else '') + '.c'  # Final output
             else:
                 filename = None  # Intermediate output - used for layer overwrite check
@@ -2438,7 +2634,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             apb.output(f'// Expected output of layer {ll} for {test_name} '
                        'given the sample input\n')
             apb.function_header(dest='wrapper', prefix='', function='check_output')
-            if ll == final_layer and mlator and not mlator_noverify:
+            if ll == terminating_layer and mlator and not mlator_noverify:
                 apb.verify_unload(
                     ll,
                     in_map,
@@ -2497,7 +2693,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     output_width[ll],
                     overwrite_ok or streaming[ll],
                     no_error_stop,
-                    mlator=mlator if ll == final_layer else False,
+                    mlator=mlator if ll == terminating_layer else False,
                     write_gap=write_gap[ll],
                 )
             apb.verify_unload(
@@ -2511,13 +2707,30 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 out_expand[ll],
                 out_expand_thresh[ll],
                 output_width[ll],
-                overwrite_ok or streaming[ll],
+                overwrite_ok or (streaming[ll] if ll != start_layer else (streaming[ll] and fifo)),
                 no_error_stop,
-                mlator=mlator if ll == final_layer else False,
+                mlator=mlator if ll == terminating_layer else False,
                 max_count=max_count,
                 write_gap=write_gap[ll],
-                final_layer=final_layer,
+                final_layer=terminating_layer,
             )
+            if debug_snoop:
+                apb.verify_ctl(group, tc.dev.REG_SNP1_ACC, None, snoop[24],
+                               comment=' // Verify snoop 1 data accumulator')
+                apb.verify_ctl(group, tc.dev.REG_SNP1_HIT, None, snoop[25],
+                               comment=' // Verify snoop 1 match hit accumulator')
+                apb.verify_ctl(group, tc.dev.REG_SNP1_MAX, None, snoop[26],
+                               comment=' // Verify snoop 1 match max accumulator')
+                apb.verify_ctl(group, tc.dev.REG_SNP1_AM, None, snoop[27],
+                               comment=' // Verify snoop 1 match address register')
+                apb.verify_ctl(group, tc.dev.REG_SNP2_ACC, None, snoop[28],
+                               comment=' // Verify snoop 2 data accumulator')
+                apb.verify_ctl(group, tc.dev.REG_SNP2_HIT, None, snoop[29],
+                               comment=' // Verify snoop 2 match hit accumulator')
+                apb.verify_ctl(group, tc.dev.REG_SNP2_MAX, None, snoop[30],
+                               comment=' // Verify snoop 2 match max accumulator')
+                apb.verify_ctl(group, tc.dev.REG_SNP2_AM, None, snoop[31],
+                               comment=' // Verify snoop 2 match address register')
             apb.function_footer(dest='wrapper')  # check_output()
         finally:
             if memfile:
@@ -2534,9 +2747,14 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         if debug_computation:
             compute.debug_close()
 
-        if next_sequence[ll] == -1:
-            break
-        ll = next_sequence[ll]
+        if simulated_sequence[ll] is not None:
+            if simulated_sequence[ll] == -1:
+                break
+            ll = simulated_sequence[ll]
+        else:
+            if next_sequence[ll] == -1:
+                break
+            ll = next_sequence[ll]
 
     data = data_buf[-1]
 
@@ -2546,20 +2764,21 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
             if softmax or embedded_code:
                 apb.unload(
-                    output_processor_map[final_layer],
+                    output_processor_map[terminating_layer],
                     out_size,
-                    out_offset[final_layer],
-                    out_expand[final_layer],
-                    out_expand_thresh[final_layer],
-                    output_width[final_layer],
+                    out_offset[terminating_layer],
+                    out_expand[terminating_layer],
+                    out_expand_thresh[terminating_layer],
+                    output_width[terminating_layer],
                     mlator=mlator,
-                    write_gap=write_gap[final_layer],
+                    write_gap=write_gap[terminating_layer],
                 )
 
             if softmax:
                 apb.softmax_layer(
-                    output_width=output_width[final_layer],
-                    shift=8 - abs(quantization[final_layer]) if not bypass[final_layer] else 0,
+                    output_width=output_width[terminating_layer],
+                    shift=8 - abs(quantization[terminating_layer])
+                    if not bypass[terminating_layer] else 0,
                 )
 
             summary_stats = '/*\n' + \
@@ -2577,7 +2796,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         weight_header.close()
     if apifile is not None:
         apifile.close()
-    if rtl_preload:
+    if rtl_preload or result_output:
         apb.write_mem(base_directory, test_name)
 
     # Create run_test.sv
@@ -2615,8 +2834,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     elif block_mode:
         assets.copy('assets', 'blocklevel-ai' + str(device), base_directory, test_name)
     elif embedded_code:
-        output_count = output_chan[final_layer] \
-            * output_dim[final_layer][0] * output_dim[final_layer][1]
+        output_count = output_chan[terminating_layer] \
+            * output_dim[terminating_layer][0] * output_dim[terminating_layer][1]
         insert = summary_stats + \
             '\n/* Number of outputs for this network */\n' \
             f'#define CNN_NUM_OUTPUTS {output_count}'

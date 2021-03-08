@@ -23,12 +23,8 @@ def deconvolve(groups, data, weight, expected, pad=1, output_pad=1):
     """Upsample data"""
     print('Input:\n', data)
 
-    wflip = np.flip(weight, axis=(2, 3)).swapaxes(0, 1)
-    wunflip = np.flip(wflip, axis=(2, 3)).swapaxes(0, 1)
-    assert np.array_equal(wunflip, weight)
-
     t = torch.nn.functional.conv_transpose2d(
-        torch.as_tensor(data, dtype=torch.float).unsqueeze(0),
+        torch.as_tensor(data, dtype=torch.float).unsqueeze(axis=0),
         torch.as_tensor(np.flip(weight, axis=(2, 3)).swapaxes(0, 1).copy(), dtype=torch.float),
         bias=None,
         stride=2,

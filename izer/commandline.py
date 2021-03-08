@@ -123,6 +123,8 @@ def get_parser():
                        help="start processing before first FIFO push (default: false)")
     group.add_argument('--slow-load', type=int, metavar='N', default=0,
                        help="slow down FIFO loads (default: 0)")
+    group.add_argument('--debug-new-streaming', action='store_true', default=True,
+                       help="modify streaming equation (default: false)")
 
     # RISC-V
     group = parser.add_argument_group('RISC-V')
@@ -155,7 +157,8 @@ def get_parser():
     group.add_argument('--log-pooling', action='store_true', default=False,
                        help="log unpooled and pooled data between layers in CSV format "
                             "(default: false)")
-    group.add_argument('--log-last-only', action='store_false', dest='verbose_all', default=True,
+    group.add_argument('--log-last-only', '--verbose-all',
+                       action='store_false', dest='verbose_all', default=True,
                        help="log data for last layer only (default: all layers)")
     group.add_argument('--log-filename', default='log.txt', metavar='S',
                        help="log file name (default: 'log.txt')")
@@ -200,6 +203,8 @@ def get_parser():
                        help="do not force `bias_group` to use an active group (default: false)")
     group.add_argument('--kernel-format', default='{0:4}', metavar='S',
                        help="print format for kernels (default: '{0:4}')")
+    group.add_argument('--debug-snoop', action='store_true', default=False,
+                       help="insert snoop register debug code (default: False)")
 
     # RTL sim
     group = parser.add_argument_group('RTL simulation')

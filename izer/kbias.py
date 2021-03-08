@@ -33,7 +33,9 @@ def load(
         output_processor_map,
         out_expand,
         groups_used,
-        debug,  # pylint: disable=unused-argument
+        fast_fifo_quad=False,
+        calcx4=None,
+        debug=False,  # pylint: disable=unused-argument
 ):
     """
     Write `bias` values for the network to C code.
@@ -56,7 +58,7 @@ def load(
     bias_map = []
     bias_len = [0] * layers
 
-    # Allocate all depth-wise layers first since they are bound to a single group
+    # Allocate all depth-wise and qupac layers first since they are bound to a single group
     for ll in range(start_layer, layers):
         if bias[ll] is None or group_map[ll] is None:
             continue
@@ -67,7 +69,7 @@ def load(
         if not np.any(bias[ll] != 0):
             wprint(f'Layer {ll}: All bias values are zero. Ignoring the input.')
             continue
-        if conv_groups[ll] == 1:
+        if conv_groups[ll] == 1 and not (fast_fifo_quad and ll == start_layer):
             # For regular convolutions, collect length data
             # Round up the divided length of bias values
             bias_len[ll] = output_chan[ll] \
@@ -79,7 +81,7 @@ def load(
                           bias_len[ll])]
             continue
 
-        # For depth-wise convolutions, each group needs to have 'its own' bias values
+        # For depth-wise convolutions, and qupac, each group needs to have 'its own' bias values
         bias_group[ll] = 'all'
 
         def bias_add_byte(layer, group, val):
@@ -108,6 +110,12 @@ def load(
                 used_groups += 1
             else:
                 bias_offs[ll][group] = None
+
+        if conv_groups[ll] == 1:
+            # Qupac mode
+            for i, e in enumerate(bias[ll]):
+                bias_add_byte(ll, i % 4, e)
+            continue
 
         map_used = processor_map[ll]
         if not broadcast_mode[ll]:
@@ -180,7 +188,12 @@ def load(
     bias_map = sorted(bias_map, key=bias_sort)
 
     for _, (ll, gmap, blen) in enumerate(bias_map):
-        group = gmap[argmin(group_bias_max[t] for t in gmap)]
+        if not calcx4[ll]:
+            group = gmap[argmin(group_bias_max[t] for t in gmap)]
+        else:
+            group = gmap[argmin((group_bias_max[t] + 3) & ~3 for t in gmap)]
+            group_bias_max[group] = (group_bias_max[group] + 3) & ~3  # Round up for x4 mode
+
         if group_bias_max[group] + blen > tc.dev.BIAS_SIZE:
             eprint(f'Layer {ll}: bias memory capacity exceeded - available groups: '
                    f'{gmap}, used so far: {group_bias_max}, needed: {blen}, '
@@ -192,7 +205,7 @@ def load(
 
     for ll in range(start_layer, layers):
         if bias[ll] is None or group_map[ll] is None or conv_groups[ll] > 1 \
-           or not np.any(bias[ll] != 0):
+           or not np.any(bias[ll] != 0) or fast_fifo_quad and ll == start_layer:
             continue
 
         # Round up the divided length of bias values

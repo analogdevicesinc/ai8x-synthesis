@@ -83,6 +83,7 @@ def main():
                     args.display_checkpoint,
                     args.no_bias,
                     params['conv_groups'],
+                    params['bypass'],
                 )
     else:  # Get some hard-coded sample weights
         layers, weights, output_shift, \
@@ -95,6 +96,7 @@ def main():
                 cfg['weights'] if 'weights' in cfg else None,
                 params['conv_groups'],
                 params['operator'],
+                params['bypass'],
             )
         bias = sampleweight.load_bias(
             cfg_layers,
@@ -122,11 +124,26 @@ def main():
         eprint(f"Number of layers in the YAML configuration file ({cfg_layers}) "
                f"does not match the checkpoint file ({layers}).")
 
-    if any(p < 0 or p > 4*tc.dev.MEM_SIZE for p in params['output_offset']):
-        eprint('Unsupported value for `out_offset` in YAML configuration.')
+    if any(p < 0 or p >= 4*tc.dev.MEM_SIZE for p in params['output_offset']):
+        eprint('Unsupported value for `out_offset` in YAML configuration. Supported on this '
+               f'device: 0 to 0x{4*tc.dev.MEM_SIZE:04x}.')
 
     if any(q != 8 for q in params['bias_quantization']):
         eprint('All bias quantization configuration values must be 8.')
+
+    print(f"Configuring data set: {cfg['dataset']}.")
+    if args.sample_input is None:
+        sampledata_file = os.path.join('tests', f'sample_{cfg["dataset"].lower()}.npy')
+    else:
+        sampledata_file = args.sample_input
+    data = sampledata.get(sampledata_file)
+    if np.max(data) > 127 or np.min(data) < -128:
+        raise ValueError(f'Input data {sampledata_file} contains values that exceed 8-bit!')
+    # Work with 1D input data
+    if len(data.shape) < 3:
+        data = np.expand_dims(data, axis=2)
+
+    input_size = list(data.shape)
 
     processor_map = params['processor_map'][:layers]
     output_processor_map = params['output_processor_map'][:layers]
@@ -161,7 +178,10 @@ def main():
                 input_channels[ll] = output_channels[in_sequences[ll]]
 
         if input_channels[ll] <= 0:
-            input_channels[ll] = output_channels[prev_ll]
+            if ll == 0:
+                input_channels[ll] = input_size[0] // params['operands'][0]
+            else:
+                input_channels[ll] = output_channels[prev_ll]
         if params['input_chan'][ll] is not None:
             input_channels[ll] = params['input_chan'][ll]
         if output_channels[ll] <= 0:
@@ -255,6 +275,9 @@ def main():
     calcx4 = [True] * layers if args.calcx4 else params['calcx4'][:layers]
     readahead = [True] * layers if args.rd_ahead else params['readahead'][:layers]
     pool_dilation = params['pool_dilation'][:layers]
+    tcalc = params['tcalc'][:layers]
+    snoop_sequence = params['snoop_sequence'][:layers]
+    simulated_sequence = params['simulated_sequence'][:layers]
 
     # Command line override
     if args.input_offset is not None:
@@ -262,20 +285,6 @@ def main():
 
     # Derived configuration options
     pool_average = [bool(x) for x in params['average']]
-
-    print(f"Configuring data set: {cfg['dataset']}.")
-    if args.sample_input is None:
-        sampledata_file = os.path.join('tests', f'sample_{cfg["dataset"].lower()}.npy')
-    else:
-        sampledata_file = args.sample_input
-    data = sampledata.get(sampledata_file)
-    if np.max(data) > 127 or np.min(data) < -128:
-        raise ValueError(f'Input data {sampledata_file} contains values that exceed 8-bit!')
-    # Work with 1D input data
-    if len(data.shape) < 3:
-        data = np.expand_dims(data, axis=2)
-
-    input_size = list(data.shape)
 
     if args.input_csv_format == 555:
         assert input_size[0] == 3
@@ -334,7 +343,7 @@ def main():
         # Check all but last layer
         if ll != final_layer:
             if output_width[ll] != 8:
-                eprint(f'`output_width` must be 8 for intermediate layer {ll}.')
+                wprint(f'`output_width` should be 8 for intermediate layer {ll}.')
 
         if in_sequences[ll] is not None:
             if tc.dev.SUPPORT_LINK_LAYER:
@@ -419,8 +428,6 @@ def main():
                 eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
                        f'(currently set to {padding[ll][0]}).')
         else:
-            # We don't have to consider padding for the width calculation,
-            # since padding has to be a multiple of 3 and we check for that.
             if padding[ll][0] >= 3 and not tc.dev.SUPPORT_ARBITRARY_PADDING:
                 eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
                        f'(currently set to {padding[ll][0]}).')
@@ -443,6 +450,8 @@ def main():
         if any(dim > tc.dev.MAX_ROW_COL for dim in output_dim[ll]):
             eprint(f'Output dimension {output_dim[ll]} exceeds system maximum of '
                    f'{tc.dev.MAX_ROW_COL} in layer {ll}.')
+        if any(dim == 0 for dim in output_dim[ll]):
+            eprint(f'Output dimension {output_dim[ll]} is zero in layer {ll}.')
 
         assert input_channels[ll] > 0
 
@@ -595,6 +604,12 @@ def main():
             ignore_bias_groups=args.ignore_bias_groups,
             output_padding=output_padding,
             kernel_format=args.kernel_format,
+            debug_new_streaming=args.debug_new_streaming,
+            snoop=cfg['snoop'] if 'snoop' in cfg else None,
+            tcalc=tcalc,
+            snoop_sequence=snoop_sequence,
+            simulated_sequence=simulated_sequence,
+            debug_snoop=args.debug_snoop,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

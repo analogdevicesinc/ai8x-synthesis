@@ -23,6 +23,7 @@ def load(
         cfg_weights=None,
         conv_groups=None,
         operator=None,
+        bypass=None,
 ):
     """
     Return sample weights.
@@ -30,7 +31,6 @@ def load(
     weights = []
     output_channels = []
     input_channels = []
-    layers = 0
 
     dataset = dataset.lower()
 
@@ -39,7 +39,6 @@ def load(
     #    np.save(f'tests/{dataset}', w)
 
     w = []
-    layers = 0
     if cfg_weights is None:
         fname = os.path.join('tests', f'weights_{dataset}.npy')
     else:
@@ -49,22 +48,24 @@ def load(
         try:
             while True:
                 w.append(np.load(file))
-                layers += 1
         except ValueError:
             pass
 
-    if layers == 1:  # If the weights file wasn't a list
+    if len(w) == 1:  # If the weights file wasn't a list
         w = w[0]
-        layers = w.shape[0]
 
-    layers = min(layers, cfg_layers)
+    ll = 0
+    seq = 0
+    while seq < cfg_layers:
+        while seq < cfg_layers and (operator[seq] == op.NONE or bypass[ll]):
+            seq += 1
+        if seq >= cfg_layers:
+            break
 
-    for ll in range(layers):
         # Set to default?
-        if quantization[ll] is None:
-            quantization[ll] = 8
+        quant = 8 if quantization[seq] is None else quantization[seq]
 
-        # Re-quantize if needed (these random sample weights, so no need to round etc.)
+        # Re-quantize if needed (these are random sample weights, so no need to round etc.)
         max_w = int(w[ll].max())
         if max_w < 0:
             max_w += 1
@@ -74,28 +75,31 @@ def load(
         current_quant = max(fls(abs(min_w)), fls(abs(max_w))) + 2
         if current_quant > 8:  # Either way, more than 8 bits is an error
             raise ValueError('ERROR: Weight file includes values larger than 8 bit!')
-        if quantization[ll] == -1:
+        if quant == -1:
             w[ll][np.where(w[ll] >= 0)] = 1
             w[ll][np.where(w[ll] < 0)] = -1
-        elif current_quant > quantization[ll]:
-            w[ll] >>= current_quant - quantization[ll]
+        elif current_quant > abs(quant):
+            w[ll] >>= current_quant - abs(quant)
 
         # Specified output_shift?
-        if output_shift[ll] is None:
-            output_shift[ll] = 0
+        if output_shift[seq] is None:
+            output_shift[seq] = 0
         # Add based on quantization
-        output_shift[ll] += 8 - abs(quantization[ll])
+        output_shift[seq] += 8 - abs(quant)
 
-        mult = conv_groups[ll] if operator[ll] == op.CONVTRANSPOSE2D else 1
+        mult = conv_groups[seq] if operator[seq] == op.CONVTRANSPOSE2D else 1
         output_channels.append(w[ll].shape[0] * mult)  # Output channels
-        mult = conv_groups[ll] if operator[ll] != op.CONVTRANSPOSE2D else 1
+        mult = conv_groups[seq] if operator[seq] != op.CONVTRANSPOSE2D else 1
         input_channels.append(w[ll].shape[1] * mult)  # Input channels
         if len(w[ll].shape) == 4:
             weights.append(w[ll].reshape(-1, w[ll].shape[-2], w[ll].shape[-1]))
         else:
             weights.append(w[ll].reshape(-1, w[ll].shape[-1]))
 
-    return layers, weights, output_shift, \
+        ll += 1
+        seq += 1
+
+    return len(weights), weights, output_shift, \
         input_channels, output_channels
 
 
