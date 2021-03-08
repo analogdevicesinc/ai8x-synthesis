@@ -362,6 +362,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 min((out_expand_thresh[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1),
                     tc.dev.MAX_PROC)
         in_expand[ll] = (input_chan[ll] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
+        if tcalc[ll] is None:
+            tcalc[ll] = rd_ahead[ll] and in_expand[ll] > 1  # Set default
         in_expand_invol[ll] = (in_expand[ll] + 3) & ~3 if tcalc[ll] else in_expand[ll]
         in_expand_thresh[ll] = (input_chan[ll] + in_expand[ll] - 1) // in_expand[ll]
 
@@ -496,10 +498,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
            or pool_dilation[ll][1] > tc.dev.MAX_POOL_DILATION:
             eprint(f'Layer {ll}: `pool_dilation` values must be 1 or greater, and '
                    f'{tc.dev.MAX_POOL_DILATION} or smaller on this device.')
-
-        if rd_ahead[ll] and in_expand[ll] > 1 and tcalc[ll] is None:
-            # Set default
-            tcalc[ll] = True
 
     # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
     test_name = prefix
