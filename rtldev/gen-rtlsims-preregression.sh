@@ -1,29 +1,6 @@
 #!/bin/sh
 AUTOGEN_LIST=untested_autogen_list
 
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop-skip --config-file tests/test-snoop-skip.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop-noskip --config-file tests/test-snoop-noskip.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop-stop --config-file tests/test-snoop-stop.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop-nostop --config-file tests/test-snoop-nostop.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop-count --config-file tests/test-snoop-count.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop-nocount --config-file tests/test-snoop-nocount.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop-range --config-file tests/test-snoop-range.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop-norange --config-file tests/test-snoop-norange.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop-xval --config-file tests/test-snoop-xval.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop-noxval --config-file tests/test-snoop-noxval.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop-skipl1 --config-file tests/test-snoop-skipl1.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop2-skip --config-file tests/test-snoop2-skip.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop2-noskip --config-file tests/test-snoop2-noskip.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop2-stop --config-file tests/test-snoop2-stop.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop2-nostop --config-file tests/test-snoop2-nostop.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop2-count --config-file tests/test-snoop2-count.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop2-nocount --config-file tests/test-snoop2-nocount.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop2-range --config-file tests/test-snoop2-range.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop2-norange --config-file tests/test-snoop2-norange.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop2-xval --config-file tests/test-snoop2-xval.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop2-noxval --config-file tests/test-snoop2-noxval.yaml --debug-snoop --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-snoop2-skipl1 --config-file tests/test-snoop2-skipl1.yaml --debug-snoop --device "$DEVICE" "$@"
-
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-conv2d-id --config-file tests/test-conv2d-id.yaml --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --autogen_list $AUTOGEN_LIST --log --test-dir $TARGET --prefix $PREFIX-x4-readahead-cifar --checkpoint-file tests/test-cifar10.pth.tar --config-file tests/test-readahead-cifar10-hwc.yaml --stop-after 1 --device "$DEVICE" --calcx4 --read-ahead "$@"
 
