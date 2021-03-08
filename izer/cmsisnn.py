@@ -62,13 +62,13 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         legacy_test=False,
 ):
     """
-    Create the CMSIS NN network.
+    Create the CMSIS-NN network.
     """
     wprint('CMSIS-NN code generation is unsupported.')
 
     if output_width[-1] != 8:
-        wprint('CMSIS network generator does not currently support `output_width` that is not 8. '
-               'Forcing to 8 bit.')  # FIXME: Support 32-bit output
+        wprint('CMSIS-NN network generator does not currently support `output_width` that '
+               'is not 8. Forcing to 8 bit.')  # FIXME: Support 32-bit output
         output_width[-1] = 8
 
     input_dim_str = [None] * layers
@@ -83,7 +83,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         if quantization[ll] is None:
             quantization[ll] = 8  # Set default
         elif quantization[ll] != 8:  # FIXME: Support quantization
-            eprint('CMSIS network generator does not currently support `quantization` != 8.')
+            eprint('CMSIS-NN network generator does not currently support `quantization` != 8.')
 
         if output_shift[ll] is None:
             output_shift[ll] = 0  # Set default

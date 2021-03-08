@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 import izer.compute as compute  # noqa: E402 pylint: disable=wrong-import-position, import-error
 
 
-def convolve1d(groups, data, weight, bias, pad, expected):
+def convolve1d(groups, data, weight, bias, pad, expected, stride=1):
     """Convolve 1d data"""
     print('Input:\n', data)
 
@@ -27,7 +27,7 @@ def convolve1d(groups, data, weight, bias, pad, expected):
         torch.as_tensor(data, dtype=torch.float).unsqueeze(0),  # Add batch dimension
         torch.as_tensor(weight, dtype=torch.float),
         bias=torch.as_tensor(bias, dtype=torch.float) if bias is not None else None,
-        stride=1,
+        stride=stride,
         padding=pad,
         groups=groups,
         dilation=1,
@@ -40,7 +40,7 @@ def convolve1d(groups, data, weight, bias, pad, expected):
         data.shape,
         expected.shape,
         kernel_size=9,
-        stride=1,
+        stride=stride,
         pad=pad,
         dilation=1,
         groups=groups,
@@ -117,10 +117,36 @@ def test_conv1d():
          [-3311, -73880, -13630, 77478, 3115, -9839, -25421,
           -89124, -25032, 3245, 69909, -42416, 20639]],
         dtype=np.int64)
+    e06 = np.array(
+        [[-16821, -58373, 3847, 69949, 50031, -10105, 28176, -23269, -80134,
+          -5457, 20372, 60838, 43704, -25237, -29043, -72560, 50788, -49841,
+          34629, -971, 13255],
+         [-22370, -19874, 14910, 16757, -57260, -32032, 5219, -24047, -24911,
+          13560, 35007, 24223, -106564, -18514, -51368, 26843, 49440, -61755,
+          -3474, -33109, 20187],
+         [19737, 13245, 35841, 7580, 36496, -60506, -31662, -18736, 38504,
+          49859, 95049, -6485, -21362, -18296, 23517, -17603, 28969, -3082,
+          -11840, -18915, 8622],
+         [15283, 26137, -13012, -22805, -10400, -40116, 14631, 45702, -15616,
+          -18696, -32693, -79537, 12559, 4471, 51313, 8520, -21330, -60662,
+          7915, -10600, 57618],
+         [-4645, 23736, 7925, -17220, -3311, -73880, -13630, 77478, 3115,
+          -9839, -25421, -89124, -25032, 3245, 69909, -42416, 20639, -87881,
+          18736, -42547, 32737]],
+        dtype=np.int64)
+    e06s = np.array(
+        [[-16821, 69949, 28176, -5457, 43704, -72560, 34629],
+         [-22370, 16757, 5219, 13560, -106564, 26843, -3474],
+         [19737, 7580, -31662, 49859, -21362, -17603, -11840],
+         [15283, -22805, 14631, -18696, 12559, 8520, 7915],
+         [-4645, -17220, -13630, -9839, -25032, -42416, 18736]],
+        dtype=np.int64)
 
     convolve1d(1, d0, w0, None, 0, e00)
     convolve1d(1, d0, w0, None, 1, e01)
     convolve1d(1, d0, w0, None, 2, e02)
+    convolve1d(1, d0, w0, None, 6, e06)
+    convolve1d(1, d0, w0, None, 6, e06s, stride=3)
 
     d1 = np.array(
         [[-31, 45, 119, 29, 103, 127, -92, -42, 13, 127, 127, 105, -128, 40, -128, 25, -34],

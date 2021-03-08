@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 import izer.compute as compute  # noqa: E402 pylint: disable=wrong-import-position, import-error
 
 
-def convolve(data, weight, expected):
+def convolve(data, weight, pad, stride, expected):
     """Convolve data"""
     print('Input:\n', data)
 
@@ -27,8 +27,8 @@ def convolve(data, weight, expected):
         torch.as_tensor(data, dtype=torch.float).unsqueeze(0),  # Add batch dimension
         torch.as_tensor(weight, dtype=torch.float),
         bias=None,
-        stride=1,
-        padding=1,  # Keep data dimensions
+        stride=stride,
+        padding=pad,  # Keep data dimensions
         groups=1,
         dilation=1,
     ).int().squeeze().numpy()
@@ -40,8 +40,8 @@ def convolve(data, weight, expected):
         data.shape,
         expected.shape,
         kernel_size=[3, 3],
-        stride=[1, 1],
-        pad=[1, 1],
+        stride=[stride, stride],
+        pad=[pad, pad],
         dilation=[1, 1],
         fractional_stride=[1, 1],
         output_pad=[0, 0],
@@ -133,7 +133,7 @@ def test_conv2d():
     )
 
     # 5x4x4
-    e0 = np.array(
+    e011 = np.array(
         [[[140, -183, -31, -86],
           [113, -82, 255, 6],
           [-290, -375, 240, -82],
@@ -156,8 +156,36 @@ def test_conv2d():
           [-109, -376, 95, 177]]],
         dtype=np.int64,
     )
+    e013 = np.array(
+        [[[140, -86],
+          [-67, 182]],
+         [[61, -67],
+          [-126, 143]],
+         [[-98, -23],
+          [225, 7]],
+         [[159,  80],
+          [10, 128]],
+         [[14, -292],
+          [-109, 177]]],
+        dtype=np.int64,
+    )
+    e023 = np.array(
+        [[[-124, 87],
+          [-88, 240]],
+         [[-75, 103],
+          [-7, -106]],
+         [[-12, 26],
+          [-24, -294]],
+         [[-76, -112],
+          [-168, 44]],
+         [[86, 40],
+          [195, 28]]],
+        dtype=np.int64,
+    )
 
-    convolve(d0, w0, e0)
+    convolve(d0, w0, 1, 1, e011)
+    convolve(d0, w0, 1, 3, e013)
+    convolve(d0, w0, 2, 3, e023)
 
     # 2x2x2
     d1 = np.array(
@@ -202,7 +230,7 @@ def test_conv2d():
         dtype=np.int64,
     )
 
-    convolve(d1, w1, e1)
+    convolve(d1, w1, 1, 1, e1)
 
 
 if __name__ == '__main__':

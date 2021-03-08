@@ -102,8 +102,8 @@ def conv2d(
         nweight[:, :, 0::dilation[0], 0::dilation[1]] = weight
         weight = nweight
 
-    h = (data.shape[1] - weight.shape[3] + 1) // stride[0]  # Resulting output height
-    w = (data.shape[2] - weight.shape[2] + 1) // stride[1]  # Resulting output width
+    h = (data.shape[1] - weight.shape[3]) // stride[0] + 1  # Resulting output height
+    w = (data.shape[2] - weight.shape[2]) // stride[1] + 1  # Resulting output width
 
     view = as_strided(data,
                       shape=(h, w, data.shape[0], weight.shape[2], weight.shape[3]),
@@ -222,7 +222,7 @@ def conv1d(
         nweight[:, :, 0::dilation] = weight
         weight = nweight
 
-    ll = (data.shape[1] - weight.shape[2] + 1) // stride  # Resulting output length
+    ll = (data.shape[1] - weight.shape[2]) // stride + 1  # Resulting output length
 
     view = as_strided(data,
                       shape=(ll, data.shape[0], weight.shape[2]),
@@ -246,7 +246,7 @@ def conv1d(
             output[k] += bias[k]
 
     assert output.shape == tuple(output_size[:2]), \
-        f'Shape mismatch: NumPy result {output.shape} vs expected {output_size}'
+        f'Shape mismatch: NumPy result {output.shape} vs expected {tuple(output_size[:2])}.'
 
     return output
 

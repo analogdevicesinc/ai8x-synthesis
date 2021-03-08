@@ -428,8 +428,6 @@ def main():
                 eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
                        f'(currently set to {padding[ll][0]}).')
         else:
-            # We don't have to consider padding for the width calculation,
-            # since padding has to be a multiple of 3 and we check for that.
             if padding[ll][0] >= 3 and not tc.dev.SUPPORT_ARBITRARY_PADDING:
                 eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
                        f'(currently set to {padding[ll][0]}).')
