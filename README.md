@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_March 8, 2021_
+_March 10, 2021_
 
 The Maxim Integrated AI project is comprised of four repositories:
 
@@ -790,7 +790,7 @@ The following table describes the most important command line arguments for `tra
 | *Device selection*         |                                                              |                                 |
 | `--device`                 | Set device (default: AI84)                                   | `--device MAX78000`             |
 | *Model and dataset*        |                                                              |                                 |
-| `-a`, `--arch`             | Set model (collected from models folder)                     | `--model ai85net5`              |
+| `-a`, `--arch`, `--model` | Set model (collected from models folder)                     | `--model ai85net5`              |
 | `--dataset`                | Set dataset (collected from datasets folder)                 | `--dataset MNIST`               |
 | `--data`                   | Path to dataset (default: data)                              | `--data /data/ml`               |
 | *Training*                 |                                                              |                                 |
