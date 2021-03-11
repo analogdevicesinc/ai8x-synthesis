@@ -15,6 +15,7 @@ layers:
 - flatten: true
   operation: MLP
   out_offset: 0x1000
-  processors: 0x00000000000000003
+  #processors: 0x00000000000000003
+  processors: 0x00000000000000001
   #output_width: 32
   
