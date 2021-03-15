@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_March 10, 2021_
+_March 15, 2021_
 
 The Maxim Integrated AI project is comprised of four repositories:
 
@@ -1226,6 +1226,8 @@ The following table describes the most important command line arguments for `ai8
 | `--ready-sel-aon`        | Specify AON waitstates                                       |                                 |
 
 ### YAML Network Description
+
+The [quick-start guide](https://raw.githubusercontent.com/MaximIntegratedAI/MaximAI_Documentation/master/Guides/YAML%20Quickstart.md) provides a short overview of the purpose and structure of the YAML network description file.
 
 An example network description for the ai85net5 architecture and MNIST is shown below:
 
