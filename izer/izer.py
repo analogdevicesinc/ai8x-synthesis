@@ -610,6 +610,7 @@ def main():
             snoop_sequence=snoop_sequence,
             simulated_sequence=simulated_sequence,
             debug_snoop=args.debug_snoop,
+            overwrite=args.overwrite,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(

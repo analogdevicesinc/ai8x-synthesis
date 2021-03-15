@@ -168,6 +168,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         snoop_sequence=None,
         simulated_sequence=None,
         debug_snoop=False,
+        overwrite=False,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -530,7 +531,10 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         target_dir = os.path.join(base_directory, test_name)
         os.makedirs(target_dir, exist_ok=False)
     except OSError:
-        wprint(target_dir, 'exists')
+        if not overwrite:
+            eprint('The target folder', target_dir, 'exists. Use --overwrite to proceed.')
+        else:
+            wprint('--overwrite specified, writing to ', target_dir, ' even though it exists.')
 
     # Redirect stdout?
     if log:

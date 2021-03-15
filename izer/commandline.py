@@ -70,6 +70,8 @@ def get_parser():
 
     # Code generation
     group = parser.add_argument_group('Code generation')
+    group.add_argument('--overwrite', action='store_true', default=False,
+                       help="overwrite destination if it exists (default: abort)")
     group.add_argument('--compact-data', action='store_true', default=False,
                        help="use memcpy() to load input data in order to save code space")
     group.add_argument('--compact-weights', action='store_true', default=False,
@@ -253,7 +255,7 @@ def get_parser():
 
     # Streaming
     group = parser.add_argument_group('Streaming tweaks')
-    group.add_argument('--overlap-data', '--overwrite-ok', '--allow-overwrite',
+    group.add_argument('--overlap-data',
                        dest='overwrite_ok', action='store_true', default=False,
                        help="allow output to overwrite input (default: warn/stop)")
     group.add_argument('--override-start', type=lambda x: int(x, 0), metavar='N',

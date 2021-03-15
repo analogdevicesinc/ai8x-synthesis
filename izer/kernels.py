@@ -119,6 +119,8 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             assert kern_offs[ll] == start_offs
             continue
 
+        qfactor = 8 // abs(quantization[ll])
+
         if flatten[ll]:
             kernel_reshaped = kernel[ll].reshape(
                 output_chan[ll],
@@ -135,15 +137,30 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             in_chan = in_expand_thresh[ll]
         elif calcx4[ll]:
             # FIXME for output channels % 4 != 0
+            assert output_chan[ll] % 4 == 0
             kernel_reshaped = kernel[ll].reshape(
                 output_chan[ll] // 4,
                 4,
-                in_expand[ll],
-                in_expand_thresh[ll],
-                kernel_size[ll][0] * kernel_size[ll][1],
-            ).transpose(0, 2, 1, 3, -1).reshape(
+                -1,
+            ).transpose(1, 0, 2).reshape(
                 kernel[ll].shape
             )
+
+            in_exp = in_expand[ll]
+            in_chan = input_chan[ll]
+        elif ll == 0 and quad and qfactor != 1:
+            # FIXME for output channels % (4 * qfactor) != 0
+            assert output_chan[ll] % (4 * qfactor) == 0
+            kernel_reshaped = kernel[ll].reshape(
+                output_chan[ll] // (4 * qfactor),
+                qfactor,
+                4,
+                input_chan[ll],
+                kernel_size[ll][0] * kernel_size[ll][1],
+            ).transpose(0, 2, 1, 3, 4).reshape(
+                kernel[ll].shape
+            )
+
             in_exp = in_expand[ll]
             in_chan = input_chan[ll]
         else:
@@ -186,7 +203,6 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             kern_offs[ll] *= 4
 
         ksize = kernel_size[ll][0] * kernel_size[ll][1]
-        qfactor = 8 // abs(quantization[ll])
         next_layer_map = output_processor_map[ll]
         first_output_proc = ffs(next_layer_map)
         start_col = first_output_proc % tc.dev.P_SHARED  # First target column out of 4 shared
@@ -411,8 +427,12 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             for col in range(0, tc.dev.mask_width(p)):
                 ll = kernel_map[p][col]
                 if ll != _INVALID_VALUE:
-                    k = kernel_data[p][col]
-                    apb.write_kern(ll, p, col, k, verify_only=verify, calcx4=calcx4[ll])
+                    apb.write_kern(ll, p, col, kernel_data[p][col],
+                                   verify_only=verify, calcx4=calcx4,
+                                   kern_offs=kern_offs,
+                                   count=in_expand[ll] * output_chan[ll] * 9
+                                   * abs(quantization[ll])
+                                   // (kernel_size[ll][0] * kernel_size[ll][1] * 8))
         apb.function_footer()  # verify_weights()
 
     if not (embedded_code or mexpress):
@@ -424,10 +444,14 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 if ll != _INVALID_VALUE:
                     k = kernel_data[p][col]
                     if not zero_sram or np.any(k != 0):
-                        apb.write_kern(ll, p, col, k, calcx4=calcx4[ll])
+                        apb.write_kern(ll, p, col, k, calcx4=calcx4,
+                                       kern_offs=kern_offs,
+                                       count=in_expand[ll] * output_chan[ll] * 9
+                                       * abs(quantization[ll])
+                                       // (kernel_size[ll][0] * kernel_size[ll][1] * 8))
         apb.function_footer()  # load_weights()
 
-    if embedded_code or mexpress:
+    else:  # embedded_code or mexpress
         # Write kernels, combining layers and processors where possible to reduce the number
         # of constants and calls to memcpy.
         apb.output('// Kernels:\n', api)

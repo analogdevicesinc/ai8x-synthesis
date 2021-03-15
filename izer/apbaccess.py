@@ -9,7 +9,7 @@ Routines to read and write the APB peripherals.
 """
 import os
 
-from . import kernels, toplevel
+from . import toplevel
 from . import tornadocnn as tc
 from . import unload
 from .eprint import eprint, wprint
@@ -456,7 +456,9 @@ class APB():
             k,
             size=9,
             verify_only=False,
-            calcx4=False,
+            calcx4=None,
+            kern_offs=None,
+            count=None,
     ):
         """
         Write single kernel `k` of length `size` for layer `ll`, processor `p` to index `idx` in
@@ -465,7 +467,20 @@ class APB():
         assert p < tc.dev.MAX_PROC
         assert idx < tc.dev.mask_width(p)
 
-        idx_x4 = idx if not calcx4 else kernels.calcx4_index(idx)
+        if calcx4[ll]:
+            start = kern_offs[ll]
+            mem, rem = divmod((idx - start), (count + 3) // 4)
+            start //= 4
+            if idx < tc.dev.MASK_WIDTH_SMALL:
+                assert 0 <= mem < 4
+                idx_x4 = mem * (tc.dev.MASK_WIDTH_SMALL // 4) + rem + start
+            else:
+                idx_x4 = idx - tc.dev.MASK_WIDTH_SMALL
+                idx_x4 = mem * ((tc.dev.MASK_WIDTH_LARGE - tc.dev.MASK_WIDTH_SMALL) // 4) + rem \
+                    + tc.dev.MASK_WIDTH_SMALL + start
+        else:
+            idx_x4 = idx
+
         addr = tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
             + tc.dev.C_MRAM_BASE \
             + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16 + idx_x4 * 16
