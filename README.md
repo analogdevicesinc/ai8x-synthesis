@@ -1169,6 +1169,7 @@ The following table describes the most important command line arguments for `ai8
 | `--prefix`               | Set test name prefix                                         | `--prefix mnist`                |
 | `--board-name`           | Set the target board (default: `EvKit_V1`)                   | `--board-name FTHR_RevA`        |
 | *Code generation*        |                                                              |                                 |
+| `--overwrite`            | Produce output even when the target directory exists (default: abort) |                                 |
 | `--compact-data`         | Use *memcpy* to load input data in order to save code space  |                                 |
 | `--compact-weights`      | Use *memcpy* to load weights in order to save code space     |                                 |
 | `--mexpress`             | Use faster kernel loading                                    |                                 |
@@ -2125,3 +2126,4 @@ https://github.com/MaximIntegratedAI/MaximAI_Documentation/blob/master/CONTRIBUT
 
 ---
 
+o
