@@ -609,13 +609,17 @@ $$ w_0 * w_1 = 128/128 → saturation → 01111111 (= 127/128) $$
 
 #### HWC
 
-All internal data are stored in HWC format, 4 channels per 32-bit word. Assuming 3-color (or 3-channel) input, one byte will be unused. Example:
+All internal data are stored in HWC format, 4 channels per 32-bit word. Assuming 3-color (or 3-channel) input, one byte will be unused. The highest frequency in this data format is the channel, so the channels are interleaved.
+
+Example:
 
 ![0BGR 0BGR 0 BGR 0BGR...](docs/HWC.png)
 
 #### CHW
 
-The input layer can alternatively also use the CHW format (sequence of channels), for example:
+The input layer can alternatively also use the CHW format (a sequence of channels). The highest frequency in this data format is the width or X-axis (W), and the lowest frequency is the channel. Assuming an RGB input, all red pixels are followed by all green pixels, followed by all blue pixels.
+
+Example:
 
 ![RRRRRR...GGGGGG...BBBBBB...](docs/CHW.png)
 
@@ -780,6 +784,8 @@ The `ai84net.py` and `ai85net.py` files contain models that fit into AI84’s we
 
 To train the FP32 model for MNIST on MAX78000, run `scripts/train_mnist.sh` from the `ai8x-training` project. This script will place checkpoint files into the log directory. Training makes use of the Distiller framework, but the `train.py` software has been modified slightly to improve it and add some MAX78000/MAX78002 specifics.
 
+Since training can take hours or days, the training script does not overwrite any weights previously produced. Results are placed in sub-directories under `logs/` named with date and time when training began. The latest results are always soft-linked to by `latest-log_dir` and `latest_log_file`.
+
 ### Command Line Arguments
 
 The following table describes the most important command line arguments for `train.py`. Use `--help` for a complete list.
@@ -802,6 +808,7 @@ The following table describes the most important command line arguments for `tra
 | `--resume-from`            | Resume from previous checkpoint                              | `--resume-from chk.pth.tar`     |
 | `--qat-policy`             | Define QAT policy in YAML file (default: qat_policy.yaml). Use ‘’None” to disable QAT. | `--qat-policy qat_policy.yaml`  |
 | *Display and statistics*   |                                                              |                                 |
+| `--enable-tensorboard` | Enable logging to TensorBoard (default: disabled) | |
 | `--confusion`              | Display the confusion matrix                                 |                                 |
 | `--param-hist`             | Collect parameter statistics                                 |                                 |
 | `--pr-curves`              | Generate precision-recall curves                             |                                 |
@@ -941,7 +948,7 @@ Both TensorBoard and Manifold can be used for model comparison and feature attri
 
 #### TensorBoard
 
-TensorBoard is built into `train.py`. It provides a local web server that can be started before, during, or after training and it picks up all data that is written to the `logs/` directory. 
+TensorBoard is built into `train.py`. When enabled using `--enable-tensorboard`, it provides a local web server that can be started before, during, or after training and it picks up all data that is written to the `logs/` directory. 
 
 For classification models, TensorBoard supports the optional `--param-hist` and `--embedding` command line arguments. `--embedding` randomly selects up to 100 data points from the last batch of each verification epoch. These can be viewed in the “projector” tab in TensorBoard.
 
