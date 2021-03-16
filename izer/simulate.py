@@ -724,6 +724,7 @@ def show_data(
         expand=None,
         expand_thresh=None,
         operation=None,
+        mlp=False,
         operands=1,
 ):
     """
@@ -735,9 +736,9 @@ def show_data(
 
         if operation != op.CONV1D:
             if operands == 1:
-                op_string = f"LAYER {layer} ({op.string(operation).upper()})...\n"
+                op_string = f"LAYER {layer} ({op.string(operation, mlp).upper()})...\n"
             else:
-                op_string = f"LAYER {layer} ({op.string(operation).upper()}, " \
+                op_string = f"LAYER {layer} ({op.string(operation, mlp).upper()}, " \
                             f"{operands} OPERANDS)...\n"
             print(op_string)
 
@@ -757,7 +758,7 @@ def show_data(
                                expand,
                                expand_thresh)
         else:
-            print(f"LAYER {layer} ({op.string(operation).upper()})...\n")
+            print(f"LAYER {layer} ({op.string(operation, mlp).upper()})...\n")
             print(f"{input_size[1]}x{input_size[2]} INPUT DATA", end='')
             if verbose_data:
                 print(':')

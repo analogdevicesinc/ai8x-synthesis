@@ -169,6 +169,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         simulated_sequence=None,
         debug_snoop=False,
         overwrite=False,
+        mlp=None,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -534,7 +535,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         if not overwrite:
             eprint('The target folder', target_dir, 'exists. Use --overwrite to proceed.')
         else:
-            wprint('--overwrite specified, writing to ', target_dir, ' even though it exists.')
+            wprint('--overwrite specified, writing to', target_dir, 'even though it exists.')
 
     # Redirect stdout?
     if log:
@@ -568,28 +569,28 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         processors_used |= bits
 
         if input_chan[ll] > tc.dev.MAX_CHANNELS:
-            eprint(f'Layer {ll} is configured for {input_chan[ll]} inputs, which exceeds '
-                   f'the system maximum of {tc.dev.MAX_CHANNELS}.')
+            eprint(f'Layer {ll} is configured for {input_chan[ll]} input channels, which '
+                   f'exceeds the system maximum of {tc.dev.MAX_CHANNELS}.')
         if output_chan[ll] > tc.dev.MAX_CHANNELS:
-            eprint(f'Layer {ll} is configured for {output_chan[ll]} outputs, which exceeds '
-                   f'the system maximum of {tc.dev.MAX_CHANNELS}.')
+            eprint(f'Layer {ll} is configured for {output_chan[ll]} output channels, which '
+                   f'exceeds the system maximum of {tc.dev.MAX_CHANNELS}.')
         if (ll != start_layer or not fast_fifo_quad) \
            and popcount(processor_map[ll]) != in_expand_thresh[ll]:
-            eprint(f'Layer {ll} has {input_chan[ll]} inputs with input expansion '
-                   f'{in_expand[ll]}, {operands[ll]} operands, threshold {in_expand_thresh[ll]}, '
-                   f'but enabled processor map 0x{processor_map[ll]:016x} '
+            eprint(f'Layer {ll} has {input_chan[ll]} input channels using {in_expand[ll]} '
+                   f'passes, and {operands[ll]} operands ({in_expand_thresh[ll]} processors '
+                   f'per pass), but the enabled processor map 0x{processor_map[ll]:016x} '
                    f'has {popcount(processor_map[ll])} bits instead of the '
                    f'expected number of {in_expand_thresh[ll]}.')
         if ll == start_layer and fast_fifo_quad \
            and popcount(processor_map_0) != in_expand_thresh[ll]:
-            eprint(f'Layer {ll} has {input_chan[ll]} inputs with input expansion '
-                   f'{in_expand[ll]}, threshold {in_expand_thresh[ll]}, but '
+            eprint(f'Layer {ll} has {input_chan[ll]} input channels using {in_expand[ll]} '
+                   f'passes ({in_expand_thresh[ll]} processors per pass), but the '
                    f'enabled processor map 0x{processor_map[ll]:016x} '
                    f'has {popcount(processor_map[ll])} bits instead of the '
                    f'expected number of {in_expand_thresh[ll]}.')
         if popcount(output_processor_map[ll]) != out_expand_thresh[ll]:
-            eprint(f'Layer {ll} has {output_chan[ll]} outputs with output expansion '
-                   f'{out_expand[ll]}, threshold {out_expand_thresh[ll]}, but '
+            eprint(f'Layer {ll} has {output_chan[ll]} output channels using {out_expand[ll]} '
+                   f'passes ({out_expand_thresh[ll]} processors per pass), but the '
                    f'processor output map 0x{output_processor_map[ll]:016x} '
                    f'has {popcount(output_processor_map[ll])} bits instead of the '
                    f'expected number of {out_expand_thresh[ll]}.')
@@ -785,7 +786,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 else:
                     apb.output('no pooling', embedded_code)
                 if operator[ll] != op.NONE:
-                    conv_str = f', {op.string(operator[ll])} with kernel size ' \
+                    conv_str = f', {op.string(operator[ll], mlp[ll])} with kernel size ' \
                                f'{kernel_size_str[ll]}, ' \
                                f'stride {stride_str[ll]}, ' \
                                f'pad {padding_str[ll]}, '
@@ -1170,7 +1171,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                   ', '.join('0x{:04x}'.format(k) for k in out_offset), ']', sep='',)
 
             print('Operator            = [',
-                  ', '.join(op.string(k) for k in operator), ']', sep='',)
+                  ', '.join(op.string(k, l) for k, l in zip(operator, mlp)), ']', sep='',)
             print(f'Kernel offset       = {kern_offs}')
             print(f'Kernel length       = {kern_len}')
             print(f'Kernel count        = {kern_count}')
@@ -1950,7 +1951,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             val = override_rollover
                         elif not tc.dev.REQUIRE_NEW_STREAMING:
                             if big_data[ll]:
-                                # FIXME stream_start + max(stride[ll][1], pool_stride[ll][1])
+                                # FIXME: stream_start + max(stride[ll][1], pool_stride[ll][1])
                                 val = 12
                             else:
                                 val = stream_start + (pool[ll][0] - 1) * input_dim[ll][1] \
@@ -2425,6 +2426,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             expand_thresh=in_expand_thresh[ll],
             operation=operator[ll],
             operands=operands[ll],
+            mlp=mlp[ll],
         )
 
         # Run in-flight element-wise operations first?
@@ -2608,7 +2610,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 debug=debug_computation,
             )
         else:
-            eprint(f'Unknown operator `{op.string(operator[ll])}`.')
+            eprint(f'Unknown operator `{op.string(operator[ll], mlp[ll])}`.')
 
         assert out_size[0] == output_chan[ll] \
             and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]

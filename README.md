@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_March 15, 2021_
+_March 16, 2021_
 
 The Maxim Integrated AI project is comprised of four repositories:
 
@@ -420,7 +420,7 @@ As data is read using multiple passes, and all available processor work in paral
 
 For example, if 192-channel data is read using 64 active processors, Data Memory 0 stores three 32-bit words: channels 0, 1, 2, 3 in the first word, 64, 65, 66, 67 in the second word, and 128, 129, 130, 131 in the third word. Data Memory 1 stores channels 4, 5, 6, 7 in the first word, 68, 69, 70, 71 in the second word, and 132, 133, 134, 135 in the third word, and so on. The first processor processes channel 0 in the first pass, channel 64 in the second pass, and channel 128 in the third pass.
 
-*Note: Multi-pass also works with channel counts that are not a multiple of 64, and can be used with less than 64 active processors.*
+*Note: Multi-pass also works with channel counts that are not a multiple of 64, and can be used with less than 64 active processors. In all cases, the processor count per pass is rounded up to the next multiple of 4.*
 
 ### Streaming Mode
 
@@ -1237,6 +1237,8 @@ The following table describes the most important command line arguments for `ai8
 
 The [quick-start guide](https://github.com/MaximIntegratedAI/MaximAI_Documentation/blob/master/Guides/YAML%20Quickstart.md) provides a short overview of the purpose and structure of the YAML network description file.
 
+The following is a detailed guide into all supported configuration options.
+
 An example network description for the ai85net5 architecture and MNIST is shown below:
 
 ```yaml
@@ -1325,7 +1327,7 @@ Data sets are for example `mnist`, `fashionmnist`, and `cifar-10`.
 
 ##### `output_map` (Optional)
 
-The global `output_map`, if specified, overrides the memory instances where the last layer outputs its results. If not specified, this will be either the `output_processors` specified for the last layer, or, if that key does not exist, default to the number of processors needed for the output channels, starting at 0.
+The global `output_map`, if specified, overrides the memory instances where the last layer outputs its results. If not specified, this will be either the `output_processors` specified for the last layer, or, if that key does not exist, default to the number of processors needed for the output channels, starting at 0. Please also see `output_processors`.
 
 Example:
 	`output_map: 0x0000000000000ff0`
@@ -1350,7 +1352,7 @@ This key allows overriding of the processing sequence. The default is `0` for th
 
 `processors` is specified as a 64-bit hexadecimal value. Dots (‘.’) and a leading ‘0x’ are ignored.
 
-*Note: When using multi-pass (i.e., using more than 64 channels), the number processors is an integer division of the channel count, rounded up. For example, 60 processors are specified for 120 channels.*
+*Note: When using multi-pass (i.e., using more than 64 channels), the number processors is an integer division of the channel count, rounded up to the next multiple of 4. For example, 52 processors are required for 100 channels (since 100 div 2 = 50, and 52 is the next multiple of 4). For best efficiency, use channel counts that are multiples of 4.*
 
 Example for three processors 0, 4, and 8:
 	 `processors: 0x0000.0000.0000.0111`

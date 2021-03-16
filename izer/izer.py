@@ -264,6 +264,7 @@ def main():
         for _, e in enumerate(args.streaming_layers):
             streaming[e] = True
     flatten = params['flatten'][:layers]
+    mlp = params['mlp'][:layers]
     operands = params['operands'][:layers]
     eltwise = params['eltwise'][:layers]
     pool_first = params['pool_first'][:layers]
@@ -369,18 +370,28 @@ def main():
                             eprint('Cannot concatenate outputs of different dimensions in layer '
                                    f'{ll}: {dim} vs {output_dim[e]}.')
                     auto_input_dim[ll] = dim
+                    prev_op = operator[in_sequences[ll][0]]
                 else:
                     auto_input_dim[ll] = output_dim[in_sequences[ll]]
+                    prev_op = operator[in_sequences[ll]]
             else:
                 auto_input_dim[ll] = output_dim[prev_sequence[ll]]
+                prev_op = operator[prev_sequence[ll]]
             if conf_input_dim[ll] is None:
                 input_dim[ll] = auto_input_dim[ll]
+                # Print warning when going from 1D to 2D without explicitly reformatting the input
+                if input_dim[ll][1] == 1 and operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D] \
+                   and not op.linear(operator[ll], mlp[ll]) and prev_op in [op.CONV1D]:
+                    wprint(f'Using 1-dimensional data {input_dim[ll][0]}x{input_dim[ll][1]} for '
+                           f'layer {ll} with a {op.string(operator[ll], mlp[ll])} operator. '
+                           'Use `in_dim:` to reshape the data to two dimensions, or to silence '
+                           'this message.')
             else:
                 input_dim[ll] = conf_input_dim[ll]
         if operator[ll] != op.CONV1D:
             if pool_stride[ll][0] != pool_stride[ll][1]:
-                eprint(f'{op.string(operator[ll])} in layer {ll} does not support non-square '
-                       f'pooling stride (currently set to '
+                eprint(f'{op.string(operator[ll], mlp[ll])} in layer {ll} does not support '
+                       f'non-square pooling stride (currently set to '
                        f'{pool_stride[ll][0]}x{pool_stride[ll][1]}).')
             pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0]
                             - pool_dilation[ll][0] + 1) // pool_stride[ll][0],
@@ -398,11 +409,11 @@ def main():
 
         if operator[ll] != op.CONV1D:
             if stride[ll][0] != stride[ll][1]:
-                eprint(f'{op.string(operator[ll])} in layer {ll} does not support non-square '
-                       f'stride (currently set to {stride[ll][0]}x{stride[ll][1]}).')
+                eprint(f'{op.string(operator[ll], mlp[ll])} in layer {ll} does not support '
+                       f'non-square stride (currently set to {stride[ll][0]}x{stride[ll][1]}).')
             if operator[ll] != op.CONVTRANSPOSE2D and stride[ll][0] != 1:
-                eprint(f'{op.string(operator[ll])} in layer {ll} does not support stride other '
-                       f'than 1 (currently set to {stride[ll][0]}x{stride[ll][1]}).')
+                eprint(f'{op.string(operator[ll], mlp[ll])} in layer {ll} does not support stride '
+                       f'other than 1 (currently set to {stride[ll][0]}x{stride[ll][1]}).')
             if operator[ll] in [op.NONE, op.CONV2D]:
                 output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1)
                                    - 1 + 2 * padding[ll][0]) // stride[ll][0] + 1,
@@ -425,15 +436,15 @@ def main():
                 input_channels[ll] //= pooled_dim[ll][0] * pooled_dim[ll][1]
                 assert input_channels[ll] > 0
             if padding[ll][0] >= 3 and not tc.dev.SUPPORT_ARBITRARY_PADDING:
-                eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
-                       f'(currently set to {padding[ll][0]}).')
+                eprint(f'{op.string(operator[ll], mlp[ll])} in layer {ll} does not support '
+                       f'`pad` >= 3 (currently set to {padding[ll][0]}).')
         else:
             if padding[ll][0] >= 3 and not tc.dev.SUPPORT_ARBITRARY_PADDING:
-                eprint(f'{op.string(operator[ll])} in layer {ll} does not support `pad` >= 3 '
-                       f'(currently set to {padding[ll][0]}).')
+                eprint(f'{op.string(operator[ll], mlp[ll])} in layer {ll} does not support '
+                       f'`pad` >= 3 (currently set to {padding[ll][0]}).')
             if stride[ll][0] != 1 and not tc.dev.SUPPORT_ARBITRARY_STRIDE:
-                eprint(f'{op.string(operator[ll])} in layer {ll} does not support stride other '
-                       f'than 1 (currently set to {stride[ll][0]}).')
+                eprint(f'{op.string(operator[ll], mlp[ll])} in layer {ll} does not support stride '
+                       f'other than 1 (currently set to {stride[ll][0]}).')
             output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
                                2 * padding[ll][0]) // stride[ll][0] + 1,
                               1]
@@ -611,6 +622,7 @@ def main():
             simulated_sequence=simulated_sequence,
             debug_snoop=args.debug_snoop,
             overwrite=args.overwrite,
+            mlp=mlp,
         )
         if not args.embedded_code and args.autogen.lower() != 'none':
             rtlsim.append_regression(
@@ -629,6 +641,7 @@ def main():
             args.log,
             layers,
             operator,
+            mlp,
             auto_input_dim,
             input_dim,
             pooled_dim,
