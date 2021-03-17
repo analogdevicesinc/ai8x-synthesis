@@ -280,7 +280,7 @@ def parse(config_file):
                 padding[sequence] = [0, 0]
             elif conv in ['linear', 'fc', 'mlp']:
                 # Emulate using Conv2D with 1x1 kernels and 1x1 data
-                operator[sequence] = op.CONV2D
+                operator[sequence] = op.LINEAR
                 kernel_size[sequence] = FC_KERNEL
                 padding[sequence] = [0, 0]
             else:

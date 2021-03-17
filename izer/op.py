@@ -11,6 +11,7 @@ NONE = 0
 CONV1D = 1
 CONV2D = 2
 CONVTRANSPOSE2D = 3
+LINEAR = 4
 
 ACT_RELU = 1
 ACT_ABS = 2
@@ -32,6 +33,7 @@ OP_NAMES = {
     CONV1D: 'conv1d',
     CONV2D: 'conv2d',
     CONVTRANSPOSE2D: 'convtranspose2d',
+    LINEAR: 'linear',
 }
 
 ELT_NAMES = {
@@ -50,18 +52,20 @@ ENCODING = {
     ELTWISE_OR: 0b10,
 }
 
+UNKNOWN = '????'
+
 
 def string(
         op,
         elt=False,
 ):
     """
-    Return string representation of operator `op`
+    Return string representation of operator `op`.
     """
     if not elt:
-        return OP_NAMES[op] if op in OP_NAMES else '????'
+        return OP_NAMES[op] if op in OP_NAMES else UNKNOWN
     # else:
-    return ELT_NAMES[op] if op in ELT_NAMES else '????'
+    return ELT_NAMES[op] if op in ELT_NAMES else UNKNOWN
 
 
 def eltwise(
@@ -88,9 +92,9 @@ def act_string(
         act,
 ):
     """
-    Return string representation of activation `act`
+    Return string representation of activation `act`.
     """
     if act is None:
         return ACT_NAMES[NONE]
     # else:
-    return ACT_NAMES[act] if act in ACT_NAMES else '????'
+    return ACT_NAMES[act] if act in ACT_NAMES else UNKNOWN

@@ -337,7 +337,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 data = np.squeeze(data, axis=0)
 
             # Convolution or passthrough
-            if operator[ll] == op.CONV2D:
+            if operator[ll] in [op.CONV2D, op.LINEAR]:
                 if flatten[ll]:
                     in_chan *= input_dim[ll][0] * input_dim[ll][1]
                     data = data.reshape(in_chan, 1, 1)
@@ -442,7 +442,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                              f'pool with stride {pool_stride_str[ll]}')
             else:
                 c_file.write('no pooling')
-            if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
+            if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D, op.LINEAR]:
                 conv_str = f', {op.string(operator[ll])} with kernel size ' \
                            f'{kernel_size_str[ll]}, ' \
                            f'stride {stride_str[ll]}, ' \
@@ -512,7 +512,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                    and padding[ll][0] == padding[ll][1] \
                    and stride[ll][0] == stride[ll][1]:
                     # Detect fully connected layers
-                    if in_dim == [1, 1] and output_dim[ll] == [1, 1]:
+                    if operator[ll] == op.LINEAR:
+                        assert in_dim == [1, 1] and output_dim[ll] == [1, 1]
                         c_file.write(f'  arm_fully_connected_q7({source}, '
                                      f'weights_{ll}, {in_chan}, {output_chan[ll]}, 7, '
                                      f'{7 - output_shift[ll]}, bias_{ll}, {buffer1}, '

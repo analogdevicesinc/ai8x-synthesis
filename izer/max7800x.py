@@ -534,7 +534,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         if not overwrite:
             eprint('The target folder', target_dir, 'exists. Use --overwrite to proceed.')
         else:
-            wprint('--overwrite specified, writing to ', target_dir, ' even though it exists.')
+            wprint('--overwrite specified, writing to', target_dir, 'even though it exists.')
 
     # Redirect stdout?
     if log:
@@ -568,28 +568,28 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         processors_used |= bits
 
         if input_chan[ll] > tc.dev.MAX_CHANNELS:
-            eprint(f'Layer {ll} is configured for {input_chan[ll]} inputs, which exceeds '
-                   f'the system maximum of {tc.dev.MAX_CHANNELS}.')
+            eprint(f'Layer {ll} is configured for {input_chan[ll]} input channels, which '
+                   f'exceeds the system maximum of {tc.dev.MAX_CHANNELS}.')
         if output_chan[ll] > tc.dev.MAX_CHANNELS:
-            eprint(f'Layer {ll} is configured for {output_chan[ll]} outputs, which exceeds '
-                   f'the system maximum of {tc.dev.MAX_CHANNELS}.')
+            eprint(f'Layer {ll} is configured for {output_chan[ll]} output channels, which '
+                   f'exceeds the system maximum of {tc.dev.MAX_CHANNELS}.')
         if (ll != start_layer or not fast_fifo_quad) \
            and popcount(processor_map[ll]) != in_expand_thresh[ll]:
-            eprint(f'Layer {ll} has {input_chan[ll]} inputs with input expansion '
-                   f'{in_expand[ll]}, {operands[ll]} operands, threshold {in_expand_thresh[ll]}, '
-                   f'but enabled processor map 0x{processor_map[ll]:016x} '
+            eprint(f'Layer {ll} has {input_chan[ll]} input channels using {in_expand[ll]} '
+                   f'passes, and {operands[ll]} operands ({in_expand_thresh[ll]} processors '
+                   f'per pass), but the enabled processor map 0x{processor_map[ll]:016x} '
                    f'has {popcount(processor_map[ll])} bits instead of the '
                    f'expected number of {in_expand_thresh[ll]}.')
         if ll == start_layer and fast_fifo_quad \
            and popcount(processor_map_0) != in_expand_thresh[ll]:
-            eprint(f'Layer {ll} has {input_chan[ll]} inputs with input expansion '
-                   f'{in_expand[ll]}, threshold {in_expand_thresh[ll]}, but '
+            eprint(f'Layer {ll} has {input_chan[ll]} input channels using {in_expand[ll]} '
+                   f'passes ({in_expand_thresh[ll]} processors per pass), but the '
                    f'enabled processor map 0x{processor_map[ll]:016x} '
                    f'has {popcount(processor_map[ll])} bits instead of the '
                    f'expected number of {in_expand_thresh[ll]}.')
         if popcount(output_processor_map[ll]) != out_expand_thresh[ll]:
-            eprint(f'Layer {ll} has {output_chan[ll]} outputs with output expansion '
-                   f'{out_expand[ll]}, threshold {out_expand_thresh[ll]}, but '
+            eprint(f'Layer {ll} has {output_chan[ll]} output channels using {out_expand[ll]} '
+                   f'passes ({out_expand_thresh[ll]} processors per pass), but the '
                    f'processor output map 0x{output_processor_map[ll]:016x} '
                    f'has {popcount(output_processor_map[ll])} bits instead of the '
                    f'expected number of {out_expand_thresh[ll]}.')
@@ -1434,7 +1434,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     # Write Pointer Timeslot Offset Register
                     # Used for 1x1 convolution, and pooling without convolution
                     val = 0
-                    if operator[ll] == op.CONV2D:
+                    if operator[ll] in [op.CONV2D, op.LINEAR]:
                         if kernel_size[ll] == [1, 1] and conv_groups[ll] == 1:
                             val = 1
                         elif conv_groups[ll] > 1 and not broadcast_mode[ll]:
@@ -1615,7 +1615,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     if operator[ll] == op.CONV1D:
                         val |= kernel_size[ll][0] << 8 | 1 << 12
                         assert kernel_size[ll][0] < 2**4
-                    elif (operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]
+                    elif (operator[ll] in [op.CONV2D, op.LINEAR] and kernel_size[ll] == [1, 1]
                           or operator[ll] == op.NONE and operands[ll] == 1):
                         val |= 1 << 8
                     if operands[ll] > 1:
@@ -1624,7 +1624,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         if (pool[ll][0] > 1 or pool[ll][1] > 1) \
                            and pool_first[ll]:
                             val |= 1 << 16
-                        if operator[ll] != op.NONE:  # in [op.CONV2D, op.CONVTRANSPOSE2D]:
+                        if operator[ll] != op.NONE:  # CONV2D, LINEAR, CONVTRANSPOSE2D
                             val |= 1 << 17
                     assert 0 <= oned_sad < 2**4
                     val |= oned_sad << 4
@@ -1634,7 +1634,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                     # Configure tram pointer max
                     if operator[ll] == op.CONV1D or \
-                       operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]:
+                       operator[ll] in [op.CONV2D, op.LINEAR] and kernel_size[ll] == [1, 1]:
                         if flatten_prod >= 2**4:
                             assert flatten_prod < 2**16
                             val = flatten_prod << 16 | (2 * flatten_prod + 1)
@@ -1950,7 +1950,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                             val = override_rollover
                         elif not tc.dev.REQUIRE_NEW_STREAMING:
                             if big_data[ll]:
-                                # FIXME stream_start + max(stride[ll][1], pool_stride[ll][1])
+                                # FIXME: stream_start + max(stride[ll][1], pool_stride[ll][1])
                                 val = 12
                             else:
                                 val = stream_start + (pool[ll][0] - 1) * input_dim[ll][1] \
@@ -2477,7 +2477,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             data = np.squeeze(data, axis=0)
 
         # Convolution or passthrough
-        if operator[ll] == op.CONV2D:
+        if operator[ll] in [op.CONV2D, op.LINEAR]:
             if flatten[ll]:
                 in_chan *= pooled_dim[ll][0] * pooled_dim[ll][1]
                 data = data.reshape(in_chan, 1, 1)
