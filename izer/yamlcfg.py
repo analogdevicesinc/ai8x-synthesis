@@ -107,7 +107,6 @@ def parse(config_file):
     stride = [[1, 1]] * tc.dev.MAX_LAYERS
     streaming = [False] * tc.dev.MAX_LAYERS
     flatten = [False] * tc.dev.MAX_LAYERS
-    mlp = [False] * tc.dev.MAX_LAYERS
     operands = [1] * tc.dev.MAX_LAYERS
     eltwise = [op.NONE] * tc.dev.MAX_LAYERS
     pool_first = [True] * tc.dev.MAX_LAYERS
@@ -281,8 +280,7 @@ def parse(config_file):
                 padding[sequence] = [0, 0]
             elif conv in ['linear', 'fc', 'mlp']:
                 # Emulate using Conv2D with 1x1 kernels and 1x1 data
-                mlp[sequence] = True
-                operator[sequence] = op.CONV2D
+                operator[sequence] = op.LINEAR
                 kernel_size[sequence] = FC_KERNEL
                 padding[sequence] = [0, 0]
             else:
@@ -531,7 +529,6 @@ def parse(config_file):
             del stride[ll]
             del streaming[ll]
             del flatten[ll]
-            del mlp[ll]
             del operands[ll]
             del eltwise[ll]
             del pool_first[ll]
@@ -587,7 +584,6 @@ def parse(config_file):
     settings['stride'] = stride
     settings['streaming'] = streaming
     settings['flatten'] = flatten
-    settings['mlp'] = mlp
     settings['operands'] = operands
     settings['eltwise'] = eltwise
     settings['pool_first'] = pool_first

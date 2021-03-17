@@ -27,7 +27,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         log,
         layers,
         operator,
-        mlp,
         auto_input_dim,
         input_dim,
         pooled_dim,
@@ -286,7 +285,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 expand_thresh=1,
                 operation=operator[ll],
                 operands=operands[ll],
-                mlp=mlp[ll],
             )
 
             in_chan = input_chan[ll]
@@ -339,7 +337,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 data = np.squeeze(data, axis=0)
 
             # Convolution or passthrough
-            if operator[ll] == op.CONV2D:
+            if operator[ll] in [op.CONV2D, op.LINEAR]:
                 if flatten[ll]:
                     in_chan *= input_dim[ll][0] * input_dim[ll][1]
                     data = data.reshape(in_chan, 1, 1)
@@ -430,7 +428,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     debug=False,
                 )
             else:
-                eprint(f'Unknown operator `{op.string(operator[ll], mlp[ll])}`.')
+                eprint(f'Unknown operator `{op.string(operator[ll])}`.')
 
             assert out_size[0] == output_chan[ll] \
                 and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
@@ -444,8 +442,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                              f'pool with stride {pool_stride_str[ll]}')
             else:
                 c_file.write('no pooling')
-            if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D]:
-                conv_str = f', {op.string(operator[ll], mlp[ll])} with kernel size ' \
+            if operator[ll] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D, op.LINEAR]:
+                conv_str = f', {op.string(operator[ll])} with kernel size ' \
                            f'{kernel_size_str[ll]}, ' \
                            f'stride {stride_str[ll]}, ' \
                            f'pad {padding_str[ll]}, '
@@ -503,7 +501,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                 if operator[ll] in [op.CONVTRANSPOSE2D]:  # FIXME: Support ConvTranspose2d
                     eprint("CMSIS-NN generator does not currently support the operator "
-                           f"`{op.string(operator[ll], mlp[ll])}` in layer {ll}")
+                           f"`{op.string(operator[ll])}` in layer {ll}")
 
                 # FIXME: First check that everything is [-128, +127] and use s8 function otherwise
 
@@ -514,7 +512,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                    and padding[ll][0] == padding[ll][1] \
                    and stride[ll][0] == stride[ll][1]:
                     # Detect fully connected layers
-                    if op.linear(operator[ll], mlp[ll]):
+                    if operator[ll] == op.LINEAR:
                         assert in_dim == [1, 1] and output_dim[ll] == [1, 1]
                         c_file.write(f'  arm_fully_connected_q7({source}, '
                                      f'weights_{ll}, {in_chan}, {output_chan[ll]}, 7, '

@@ -169,7 +169,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         simulated_sequence=None,
         debug_snoop=False,
         overwrite=False,
-        mlp=None,
 ):
     """
     Chain multiple CNN layers, create and save input and output
@@ -786,7 +785,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 else:
                     apb.output('no pooling', embedded_code)
                 if operator[ll] != op.NONE:
-                    conv_str = f', {op.string(operator[ll], mlp[ll])} with kernel size ' \
+                    conv_str = f', {op.string(operator[ll])} with kernel size ' \
                                f'{kernel_size_str[ll]}, ' \
                                f'stride {stride_str[ll]}, ' \
                                f'pad {padding_str[ll]}, '
@@ -1171,7 +1170,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                   ', '.join('0x{:04x}'.format(k) for k in out_offset), ']', sep='',)
 
             print('Operator            = [',
-                  ', '.join(op.string(k, l) for k, l in zip(operator, mlp)), ']', sep='',)
+                  ', '.join(op.string(k) for k in operator), ']', sep='',)
             print(f'Kernel offset       = {kern_offs}')
             print(f'Kernel length       = {kern_len}')
             print(f'Kernel count        = {kern_count}')
@@ -1435,7 +1434,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     # Write Pointer Timeslot Offset Register
                     # Used for 1x1 convolution, and pooling without convolution
                     val = 0
-                    if operator[ll] == op.CONV2D:
+                    if operator[ll] in [op.CONV2D, op.LINEAR]:
                         if kernel_size[ll] == [1, 1] and conv_groups[ll] == 1:
                             val = 1
                         elif conv_groups[ll] > 1 and not broadcast_mode[ll]:
@@ -1616,7 +1615,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     if operator[ll] == op.CONV1D:
                         val |= kernel_size[ll][0] << 8 | 1 << 12
                         assert kernel_size[ll][0] < 2**4
-                    elif (operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]
+                    elif (operator[ll] in [op.CONV2D, op.LINEAR] and kernel_size[ll] == [1, 1]
                           or operator[ll] == op.NONE and operands[ll] == 1):
                         val |= 1 << 8
                     if operands[ll] > 1:
@@ -1625,7 +1624,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                         if (pool[ll][0] > 1 or pool[ll][1] > 1) \
                            and pool_first[ll]:
                             val |= 1 << 16
-                        if operator[ll] != op.NONE:  # in [op.CONV2D, op.CONVTRANSPOSE2D]:
+                        if operator[ll] != op.NONE:  # CONV2D, LINEAR, CONVTRANSPOSE2D
                             val |= 1 << 17
                     assert 0 <= oned_sad < 2**4
                     val |= oned_sad << 4
@@ -1635,7 +1634,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
                     # Configure tram pointer max
                     if operator[ll] == op.CONV1D or \
-                       operator[ll] == op.CONV2D and kernel_size[ll] == [1, 1]:
+                       operator[ll] in [op.CONV2D, op.LINEAR] and kernel_size[ll] == [1, 1]:
                         if flatten_prod >= 2**4:
                             assert flatten_prod < 2**16
                             val = flatten_prod << 16 | (2 * flatten_prod + 1)
@@ -2426,7 +2425,6 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             expand_thresh=in_expand_thresh[ll],
             operation=operator[ll],
             operands=operands[ll],
-            mlp=mlp[ll],
         )
 
         # Run in-flight element-wise operations first?
@@ -2479,7 +2477,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
             data = np.squeeze(data, axis=0)
 
         # Convolution or passthrough
-        if operator[ll] == op.CONV2D:
+        if operator[ll] in [op.CONV2D, op.LINEAR]:
             if flatten[ll]:
                 in_chan *= pooled_dim[ll][0] * pooled_dim[ll][1]
                 data = data.reshape(in_chan, 1, 1)
@@ -2610,7 +2608,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 debug=debug_computation,
             )
         else:
-            eprint(f'Unknown operator `{op.string(operator[ll], mlp[ll])}`.')
+            eprint(f'Unknown operator `{op.string(operator[ll])}`.')
 
         assert out_size[0] == output_chan[ll] \
             and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]

@@ -11,6 +11,7 @@ NONE = 0
 CONV1D = 1
 CONV2D = 2
 CONVTRANSPOSE2D = 3
+LINEAR = 4
 
 ACT_RELU = 1
 ACT_ABS = 2
@@ -32,6 +33,7 @@ OP_NAMES = {
     CONV1D: 'conv1d',
     CONV2D: 'conv2d',
     CONVTRANSPOSE2D: 'convtranspose2d',
+    LINEAR: 'linear',
 }
 
 ELT_NAMES = {
@@ -50,20 +52,18 @@ ENCODING = {
     ELTWISE_OR: 0b10,
 }
 
-LINEAR = 'linear'
 UNKNOWN = '????'
 
 
 def string(
         op,
-        mlp=False,
         elt=False,
 ):
     """
     Return string representation of operator `op`.
     """
     if not elt:
-        return LINEAR if linear(op, mlp) else OP_NAMES[op] if op in OP_NAMES else UNKNOWN
+        return OP_NAMES[op] if op in OP_NAMES else UNKNOWN
     # else:
     return ELT_NAMES[op] if op in ELT_NAMES else UNKNOWN
 
@@ -98,13 +98,3 @@ def act_string(
         return ACT_NAMES[NONE]
     # else:
     return ACT_NAMES[act] if act in ACT_NAMES else UNKNOWN
-
-
-def linear(
-        op,
-        mlp,
-):
-    """
-    Return whether ther operator `op` is linear.
-    """
-    return op == CONV2D and mlp
