@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_March 16, 2021_
+_March 17, 2021_
 
 The Maxim Integrated AI project is comprised of four repositories:
 
@@ -420,7 +420,9 @@ As data is read using multiple passes, and all available processor work in paral
 
 For example, if 192-channel data is read using 64 active processors, Data Memory 0 stores three 32-bit words: channels 0, 1, 2, 3 in the first word, 64, 65, 66, 67 in the second word, and 128, 129, 130, 131 in the third word. Data Memory 1 stores channels 4, 5, 6, 7 in the first word, 68, 69, 70, 71 in the second word, and 132, 133, 134, 135 in the third word, and so on. The first processor processes channel 0 in the first pass, channel 64 in the second pass, and channel 128 in the third pass.
 
-*Note: Multi-pass also works with channel counts that are not a multiple of 64, and can be used with less than 64 active processors. In all cases, the processor count per pass is rounded up to the next multiple of 4.*
+*Note: Multi-pass also works with channel counts that are not a multiple of 64, and can be used with less than 64 active processors.*
+
+*Note: For all multi-pass cases, the processor count per pass is rounded up to the next multiple of 4.*
 
 ### Streaming Mode
 
