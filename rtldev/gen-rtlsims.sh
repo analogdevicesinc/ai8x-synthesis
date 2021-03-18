@@ -155,7 +155,7 @@
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-conv2Dk1x1 --config-file tests/test-conv2Dk1x1.yaml --device "$DEVICE" --no-wfi --debug "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-conv2Dk1x1-b --config-file tests/test-conv2Dk1x1-b.yaml --device "$DEVICE" --debug "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-conv2Dk1x1-b-pool --config-file tests/test-conv2Dk1x1-b-pool.yaml --device "$DEVICE" --debug "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mlp12to2 --config-file tests/test-mlp12to2.yaml --device "$DEVICE" --debug "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mlp12to2 --config-file tests/test-mlp12to2.yaml --no-wfi --device "$DEVICE" --debug "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-mlpflatten12to2 --config-file tests/test-mlpflatten12to2.yaml --device "$DEVICE" --debug "$@"
 
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-wide3to508to3 --config-file tests/test-wide3to508to3.yaml --device "$DEVICE" "$@"
@@ -426,7 +426,7 @@
 
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-k3 --config-file tests/test-depthwise2x2x2.yaml --no-wfi --stop-after 0 --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-k3 --config-file tests/test-depthwise3x4x4.yaml --no-wfi --stop-after 0 --device "$DEVICE" "$@"
-./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-k1 --config-file tests/test-depthwise1x1.yaml --stop-after 0 --device "$DEVICE" "$@"
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-k1 --config-file tests/test-depthwise1x1.yaml --stop-after 0 --no-wfi --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise2d-k1-move --config-file tests/test-depthwise1x1-move.yaml --stop-after 0 --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise1d-k3 --config-file tests/test-depthwise1d.yaml --stop-after 0 --no-wfi --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-depthwise-transpose2d --config-file tests/test-depthwiset2d.yaml --stop-after 0 --device "$DEVICE" "$@"
@@ -621,3 +621,5 @@
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fastfifostream-x4-nopad-multipass5q2 --config-file tests/test-ffsx4-nopad-multipass5q2.yaml --fast-fifo --riscv --device "$DEVICE" "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-fastfifostream-x4-readahead-nopad-multipass5-w8 --config-file tests/test-ffsx4readahead-nopad-multipass5-w8.yaml --fast-fifo --riscv --device "$DEVICE" --queue-name medium "$@"
 ./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-riscv-csv-fastfifostream-720p --config-file tests/test-fifostream-720p-hwc.yaml --device "$DEVICE" --fifo --riscv --fast-fifo --input-csv input.csv --queue-name long --timeout 8500 --input-csv-period 180 --input-sync $SHORT_LOG --debug-new-streaming "$@"
+
+./ai8xize.py --rtl"$PRELOAD" --verbose --autogen $TARGET --log --test-dir $TARGET --prefix $PREFIX-readahead-x4-power --config-file tests/test-power-ai87.yaml --device "$DEVICE" "$@"
