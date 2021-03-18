@@ -5,8 +5,8 @@ COMMON_ARGS="--device $DEVICE --compact-data --mexpress --timer 0 --display-chec
 
 ./ai8xize.py --verbose --log --test-dir $TARGET --prefix mnist --checkpoint-file trained/ai85-mnist-qat8-q.pth.tar --config-file networks/mnist-chw-ai85.yaml --softmax $COMMON_ARGS "$@"
 ./ai8xize.py --verbose --log --test-dir $TARGET --prefix mnist-riscv --checkpoint-file trained/ai85-mnist-qat8-q.pth.tar --config-file networks/mnist-chw-ai85.yaml --softmax $COMMON_ARGS --riscv --riscv-debug "$@"
-./ai8xize.py --verbose --log --test-dir $TARGET --prefix cifar-10 --checkpoint-file trained/ai85-cifar10-qat8-q.pth.tar --config-file networks/cifar10-hwc-ai85.yaml --softmax $COMMON_ARGS "$@"
-./ai8xize.py --verbose --log --test-dir $TARGET --prefix cifar-100 --checkpoint-file trained/ai85-cifar100-qat8-q.pth.tar --config-file networks/cifar100-simple.yaml --softmax $COMMON_ARGS --boost 2.5 "$@"
+./ai8xize.py --verbose --log --test-dir $TARGET --prefix cifar-10 --checkpoint-file trained/ai85-cifar10-qat8-q.pth.tar --config-file networks/cifar10-nas.yaml --sample-input tests/sample_cifar-10.npy --softmax $COMMON_ARGS "$@"
+./ai8xize.py --verbose --log --test-dir $TARGET --prefix cifar-100 --checkpoint-file trained/ai85-cifar100-qat8-q.pth.tar --config-file networks/cifar100-nas.yaml --softmax $COMMON_ARGS --boost 2.5 "$@"
 ./ai8xize.py --verbose --log --test-dir $TARGET --prefix cifar-100-mixed --checkpoint-file trained/ai85-cifar100-qat-mixed-q.pth.tar --config-file networks/cifar100-simple.yaml --softmax $COMMON_ARGS --boost 2.5 "$@"
 ./ai8xize.py --verbose --log --test-dir $TARGET --prefix cifar-100-simplewide2x-mixed --checkpoint-file trained/ai85-cifar100-simplenetwide2x-qat-mixed-q.pth.tar --config-file networks/cifar100-simplewide2x.yaml --softmax $COMMON_ARGS --boost 2.5 "$@"
 ./ai8xize.py --verbose --log --test-dir $TARGET --prefix cifar-100-residual --checkpoint-file trained/ai85-cifar100-residual-qat8-q.pth.tar --config-file networks/cifar100-ressimplenet.yaml --softmax $COMMON_ARGS --boost 2.5 "$@"
