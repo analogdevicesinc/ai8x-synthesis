@@ -85,7 +85,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         if quantization[ll] is None:
             quantization[ll] = 8  # Set default
         elif quantization[ll] != 8:  # FIXME: Support quantization
-            eprint('CMSIS-NN network generator does not currently support `quantization` != 8.')
+            wprint('CMSIS-NN network generator does not currently support `quantization` != 8. '
+                   'Forcing to 8 bit.')
 
         if output_shift[ll] is None:
             output_shift[ll] = 0  # Set default
