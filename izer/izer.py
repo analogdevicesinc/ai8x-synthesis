@@ -348,13 +348,13 @@ def main():
         if in_sequences[ll] is not None:
             if tc.dev.SUPPORT_LINK_LAYER:
                 if isinstance(in_sequences[ll], list) \
-                   and any([(i > len(in_sequences)) for i in in_sequences[ll]]) \
+                   and any(i > len(in_sequences) for i in in_sequences[ll]) \
                    or not isinstance(in_sequences[ll], list) \
                    and in_sequences[ll] > final_layer:
                     eprint(f'`in_sequences` in layer {ll} cannot be greater than the last layer.')
             else:
                 if isinstance(in_sequences[ll], list) \
-                   and any([(i >= ll) for i in in_sequences[ll]]) \
+                   and any(i >= ll for i in in_sequences[ll]) \
                    or not isinstance(in_sequences[ll], list) \
                    and in_sequences[ll] >= ll:
                     eprint(f'`in_sequences` in layer {ll} cannot be greater than layer sequence '
