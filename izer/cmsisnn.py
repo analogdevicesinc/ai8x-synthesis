@@ -66,10 +66,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
     """
     wprint('CMSIS-NN code generation is unsupported.')
 
-    if output_width[-1] != 8:
+    if output_width[-1] != 8 and operator[-1] != op.LINEAR:
         wprint('CMSIS-NN network generator does not currently support `output_width` that '
-               'is not 8. Forcing to 8 bit.')  # FIXME: Support 32-bit output
+               'is not 8 when not using Linear. Forcing to 8 bit.')  # FIXME: Support 32-bit output
         output_width[-1] = 8
+
+    final_size = 7 if output_width[-1] == 8 else 31
 
     input_dim_str = [None] * layers
     output_dim_str = [None] * layers
@@ -206,8 +208,8 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         c_file.write(f'static q7_t buffer1[{img_buffer_size}];\n')
         c_file.write(f'static q15_t col_buffer[{col_buffer_size}];\n\n')
 
-        c_file.write('int cnn_run(const q7_t *input, int input_size, '
-                     'q7_t **output, int *output_size)\n{\n')
+        c_file.write(f'int cnn_run(const q7_t *input, int input_size, q{final_size}_t **output, '
+                     'int *output_size)\n{\n')
 
         # Compute layer-by-layer output and chain results into input
         buffer0, buffer1 = 'buffer0', 'buffer1'
@@ -514,9 +516,17 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     # Detect fully connected layers
                     if operator[ll] == op.LINEAR:
                         assert in_dim == [1, 1] and output_dim[ll] == [1, 1]
-                        c_file.write(f'  arm_fully_connected_q7({source}, '
+                        if output_width[ll] == 8:
+                            fn = 'q7'
+                            shift = 7 - output_shift[ll]
+                            cast = ''
+                        else:
+                            fn = 'q7_q31'
+                            shift = 0
+                            cast = '(q31_t *) '
+                        c_file.write(f'  arm_fully_connected_{fn}({source}, '
                                      f'weights_{ll}, {in_chan}, {output_chan[ll]}, 7, '
-                                     f'{7 - output_shift[ll]}, bias_{ll}, {buffer1}, '
+                                     f'{shift}, bias_{ll}, {cast}{buffer1}, '
                                      'col_buffer);\n')
                     else:
                         fn = 'fast' if in_chan % 4 == 0 and output_chan[ll] % 2 == 0 \
@@ -565,13 +575,13 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
 
         data = data_buf[-1]
 
-        c_file.write(f'  *output = {buffer0};\n'
+        c_file.write(f'  *output = {"" if output_width[ll] == 8 else "(q31_t *) "}{buffer0};\n'
                      f'  *output_size = {data_cmsis.size};\n\n'
                      '  return 1;\n}\n\n')
 
         c_file.write('int main(void)\n{\n'
                      '  int i;\n'
-                     '  q7_t *output;\n'
+                     f'  q{final_size}_t *output;\n'
                      '  int output_size;\n\n'
                      f'  cnn_run(input_data, {input_size}, &output, &output_size);\n\n')
 
@@ -582,9 +592,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                      '    printf("!!! FAIL !!!\\n\\n");\n\n')
 
         c_file.write('  printf("Output of final layer:\\n");\n'
-                     '  for (i = 0; i < output_size; i++) {\n'
-                     '    printf("%5hhd", (int8_t) (output[i] & 0xff));\n'
-                     '    if ((i + 1) % 32 == 0)\n      printf("\\n");\n'
+                     '  for (i = 0; i < output_size; i++) {\n')
+        if final_size == 7:
+            c_file.write('    printf("%5hhd", (int8_t) (output[i] & 0xff));\n')
+        else:
+            c_file.write('    printf("%8d", (int32_t) output[i]);\n')
+        c_file.write('    if ((i + 1) % 32 == 0)\n      printf("\\n");\n'
                      '    else if ((i + 1) % 4 == 0)\n      printf(" ");\n'
                      '  }\n'
                      '  printf("\\n");\n'
