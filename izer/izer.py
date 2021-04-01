@@ -138,7 +138,8 @@ def main():
         sampledata_file = args.sample_input
     data = sampledata.get(sampledata_file)
     if np.max(data) > 127 or np.min(data) < -128:
-        raise ValueError(f'Input data {sampledata_file} contains values that exceed 8-bit!')
+        eprint(f'Input data {sampledata_file} contains values that are outside the limits of '
+               f'signed 8-bit (data min={np.min(data)}, max={np.max(data)})!')
     # Work with 1D input data
     if len(data.shape) < 3:
         data = np.expand_dims(data, axis=2)
