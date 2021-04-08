@@ -113,7 +113,10 @@ def load(
                         w_min_m = int(w_min)
                     else:
                         w_min_m = int(abs(w_min)) - 1
-                    quantization[seq] = 1 << (fls(max(fls(w_max_m), fls(w_min_m)) + 1) + 1)
+                    if w_max_m > 0 or w_min_m > 0:
+                        quantization[seq] = 1 << (fls(max(fls(w_max_m), fls(w_min_m)) + 1) + 1)
+                    else:
+                        quantization[seq] = 1  # all weights zero
                 assert quantization[seq] <= 8
             quant.append(quantization[seq])
 
