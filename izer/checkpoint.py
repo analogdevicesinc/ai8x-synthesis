@@ -102,7 +102,8 @@ def load(
                     assert w_min >= -(2**(quantization[seq]-1))
                     assert w_max < 2**(quantization[seq]-1)
             else:
-                if tc.dev.SUPPORT_BINARY_WEIGHTS and w_abs.min() == w_abs.max() == 1:
+                if tc.dev.SUPPORT_BINARY_WEIGHTS and w_abs.min() == w_abs.max() == 1 \
+                   and not np.any(w_abs == 0):
                     quantization[seq] = -1
                 else:
                     if w_max > 0:

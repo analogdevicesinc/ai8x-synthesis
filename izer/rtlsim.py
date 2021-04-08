@@ -91,8 +91,13 @@ def create_runtest_sv(
                 )
             if tc.dev.MODERN_SIM:
                 runfile.write(
-                    '\n`define CNN_ENA  `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.cnnena\n'
-                    '`define CNN_CLK  `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.clk\n\n'
+                    '\n`ifdef gate_sims\n'
+                    '  `define CNN_ENA  `DIGITAL_TOP.xuut1.x16proc_0__xproc_xuut.xcnn_fsm2.cnnena'
+                    '\n  `define CNN_CLK  `DIGITAL_TOP.xuut1.x16proc_0__xproc_xuut.clk\n'
+                    '`else\n'
+                    '  `define CNN_ENA  `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.cnnena\n'
+                    '  `define CNN_CLK  `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.clk\n'
+                    '`endif\n\n'
                 )
             else:
                 runfile.write(
@@ -110,6 +115,7 @@ def create_runtest_sv(
             if result_output:
                 runfile.write('int   chk_stat;\n')
             runfile.write(
+                'logic chk_clk;\n'
                 '\ninitial begin\n'
             )
             if result_output:
@@ -142,7 +148,8 @@ def create_runtest_sv(
                 '    $display("CNN enabled");\n'
                 '  end\n'
                 'end\n\n'
-                'always @(negedge `CNN_ENA) begin\n'
+                'assign #10 chk_clk = `CNN_ENA;\n\n'
+                'always @(negedge chk_clk) begin\n'
                 '  if (start_ena) begin\n'
                 '    end_time  = $realtime;\n'
                 '    clkena1   = 1;\n'
