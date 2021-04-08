@@ -14,7 +14,7 @@ import torch
 
 from . import op as opn
 from . import tornadocnn as tc
-from .eprint import eprint
+from .eprint import eprint, wprint
 from .utils import fls
 
 
@@ -58,12 +58,16 @@ def load(
     checkpoint = torch.load(checkpoint_file, map_location='cpu')
     print(f'Reading {checkpoint_file} to configure network weights...')
 
-    if 'state_dict' not in checkpoint or 'arch' not in checkpoint:
-        raise RuntimeError("\nNo `state_dict` or `arch` in checkpoint file.")
-
-    if arch and checkpoint['arch'].lower() != arch.lower():
-        eprint(f"Network architecture of configuration file ({arch}) does not match "
-               f"network architecture of checkpoint file ({checkpoint['arch']}).")
+    if 'state_dict' not in checkpoint:
+        eprint("No `state_dict` in checkpoint file.")
+    if 'arch' not in checkpoint:
+        wprint("No `arch` in checkpoint file.")
+        checkpoint_arch = ''
+    else:
+        checkpoint_arch = checkpoint['arch']
+        if arch and checkpoint_arch.lower() != arch.lower():
+            eprint(f"Network architecture of configuration file ({arch}) does not match "
+                   f"network architecture of checkpoint file ({checkpoint_arch}).")
 
     checkpoint_state = checkpoint['state_dict']
     layers = 0
@@ -210,7 +214,7 @@ def load(
             seq += 1
 
     if verbose:
-        print(f'Checkpoint for epoch {checkpoint["epoch"]}, model {checkpoint["arch"]} - '
+        print(f'Checkpoint for epoch {checkpoint["epoch"]}, model {checkpoint_arch} - '
               'weight and bias data:')
         print(' InCh OutCh  Weights         Quant Shift  Min  Max   Size '
               'Key                                 Bias       Quant  Min  Max Size Key')
