@@ -94,6 +94,9 @@ def load(
             w = checkpoint_state[k].numpy().astype(np.int64)
             w_min, w_max, w_abs = w.min(), w.max(), np.abs(w)
 
+            if np.all(w == 0):
+                wprint(f'All weights for `{k}` are zero.')
+
             # Determine quantization or make sure that what was given fits
             if quantization[seq] is not None:
                 if quantization[seq] == -1:
@@ -173,6 +176,9 @@ def load(
             if bias_name in checkpoint_state and seq not in no_bias:
                 w = checkpoint_state[bias_name].numpy(). \
                     astype(np.int64) // tc.dev.BIAS_DIV
+
+                if np.all(w == 0):
+                    wprint(f'All bias values for `{bias_name}` are zero.')
 
                 w_min, w_max = w.min(), w.max()
                 assert w_min >= -(2**(bias_quantization[seq]-1))
