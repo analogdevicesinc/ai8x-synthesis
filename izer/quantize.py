@@ -17,7 +17,7 @@ from distiller.apputils.checkpoint import get_contents_table  # pylint: disable=
 from . import tornadocnn as tc
 from . import yamlcfg
 from .devices import device
-from .eprint import wprint
+from .eprint import eprint, wprint
 
 CONV_SCALE_BITS = 8
 CONV_DEFAULT_WEIGHT_BITS = 8
@@ -50,7 +50,7 @@ def convert_checkpoint(input_file, output_file, arguments):
         print(get_contents_table(checkpoint))
 
     if 'state_dict' not in checkpoint:
-        raise RuntimeError("\nNo state_dict in checkpoint file.")
+        eprint("No `state_dict` in checkpoint file.")
 
     checkpoint_state = checkpoint['state_dict']
     compression_sched = checkpoint['compression_sched'] \
@@ -96,6 +96,9 @@ def convert_checkpoint(input_file, output_file, arguments):
     # If not using quantization-aware training (QAT),
     # scale to our fixed point representation using any of four methods
     # The 'magic constant' seems to work best for SCALE
+    if 'extras' not in checkpoint:
+        wprint("No `extras` in checkpoint file.")
+        checkpoint['extras'] = {}
     if arguments.clip_mode is not None:
         if arguments.clip_mode == 'STDDEV':
             sat_fn = partial(mean_n_stds_max_abs, n_stds=arguments.stddev)

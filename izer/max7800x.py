@@ -2741,7 +2741,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 memfile.close()
 
         data_buf.append(out_buf.reshape(out_size))
-        if streaming[ll]:
+        if next_sequence[ll] != -1 and streaming[next_sequence[ll]]:
             # When streaming, the output should not overwrite the input of prior layers since
             # these layers are still needed.
             in_map = [a if a is not None else b for a, b, in zip(in_map, out_map)]

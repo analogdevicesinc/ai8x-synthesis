@@ -14,7 +14,7 @@ import torch
 
 from . import op as opn
 from . import tornadocnn as tc
-from .eprint import eprint
+from .eprint import eprint, wprint
 from .utils import fls
 
 
@@ -58,12 +58,16 @@ def load(
     checkpoint = torch.load(checkpoint_file, map_location='cpu')
     print(f'Reading {checkpoint_file} to configure network weights...')
 
-    if 'state_dict' not in checkpoint or 'arch' not in checkpoint:
-        raise RuntimeError("\nNo `state_dict` or `arch` in checkpoint file.")
-
-    if arch and checkpoint['arch'].lower() != arch.lower():
-        eprint(f"Network architecture of configuration file ({arch}) does not match "
-               f"network architecture of checkpoint file ({checkpoint['arch']}).")
+    if 'state_dict' not in checkpoint:
+        eprint("No `state_dict` in checkpoint file.")
+    if 'arch' not in checkpoint:
+        wprint("No `arch` in checkpoint file.")
+        checkpoint_arch = ''
+    else:
+        checkpoint_arch = checkpoint['arch']
+        if arch and checkpoint_arch.lower() != arch.lower():
+            eprint(f"Network architecture of configuration file ({arch}) does not match "
+                   f"network architecture of checkpoint file ({checkpoint_arch}).")
 
     checkpoint_state = checkpoint['state_dict']
     layers = 0
@@ -90,6 +94,9 @@ def load(
             w = checkpoint_state[k].numpy().astype(np.int64)
             w_min, w_max, w_abs = w.min(), w.max(), np.abs(w)
 
+            if np.all(w == 0):
+                wprint(f'All weights for `{k}` are zero.')
+
             # Determine quantization or make sure that what was given fits
             if quantization[seq] is not None:
                 if quantization[seq] == -1:
@@ -98,7 +105,8 @@ def load(
                     assert w_min >= -(2**(quantization[seq]-1))
                     assert w_max < 2**(quantization[seq]-1)
             else:
-                if tc.dev.SUPPORT_BINARY_WEIGHTS and w_abs.min() == w_abs.max() == 1:
+                if tc.dev.SUPPORT_BINARY_WEIGHTS and w_abs.min() == w_abs.max() == 1 \
+                   and not np.any(w_abs == 0):
                     quantization[seq] = -1
                 else:
                     if w_max > 0:
@@ -109,7 +117,10 @@ def load(
                         w_min_m = int(w_min)
                     else:
                         w_min_m = int(abs(w_min)) - 1
-                    quantization[seq] = 1 << (fls(max(fls(w_max_m), fls(w_min_m)) + 1) + 1)
+                    if w_max_m > 0 or w_min_m > 0:
+                        quantization[seq] = 1 << (fls(max(fls(w_max_m), fls(w_min_m)) + 1) + 1)
+                    else:
+                        quantization[seq] = 1  # all weights zero
                 assert quantization[seq] <= 8
             quant.append(quantization[seq])
 
@@ -166,6 +177,9 @@ def load(
                 w = checkpoint_state[bias_name].numpy(). \
                     astype(np.int64) // tc.dev.BIAS_DIV
 
+                if np.all(w == 0):
+                    wprint(f'All bias values for `{bias_name}` are zero.')
+
                 w_min, w_max = w.min(), w.max()
                 assert w_min >= -(2**(bias_quantization[seq]-1))
                 assert w_max < 2**(bias_quantization[seq]-1)
@@ -210,7 +224,7 @@ def load(
             seq += 1
 
     if verbose:
-        print(f'Checkpoint for epoch {checkpoint["epoch"]}, model {checkpoint["arch"]} - '
+        print(f'Checkpoint for epoch {checkpoint["epoch"]}, model {checkpoint_arch} - '
               'weight and bias data:')
         print(' InCh OutCh  Weights         Quant Shift  Min  Max   Size '
               'Key                                 Bias       Quant  Min  Max Size Key')
