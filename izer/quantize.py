@@ -168,9 +168,9 @@ def convert_checkpoint(input_file, output_file, arguments):
                 shift_quantile_name = '.'.join([layer, 'shift_quantile'])
                 shift_quantile = 1.0
                 if shift_quantile_name in checkpoint_state:
-                    shift_quantile =  checkpoint_state[shift_quantile_name]
+                    shift_quantile = checkpoint_state[shift_quantile_name]
 
-                factor = 2**(clamp_bits-1) * sat_fn(params_r, shift_quantile)
+                factor = 2**(clamp_bits-1) * get_max_bit_shift(params_r, shift_quantile)
             else:
                 factor = 2**(clamp_bits-1) * sat_fn(checkpoint_state[k])
 
