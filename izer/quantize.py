@@ -85,12 +85,12 @@ def convert_checkpoint(input_file, output_file, arguments):
     def get_const(_):
         return arguments.scale
 
-    def get_max_bit_shift(t, return_bit_shift=False):
-        float_scale = 1.0 / max_max(t)
-        bit_shift = torch.ceil(torch.log2(float_scale))
+    def get_max_bit_shift(t, shift_quantile, return_bit_shift=False):
+        float_scale = 1.0 / torch.quantile(t.abs(), shift_quantile)
+        bit_shift = torch.floor(torch.log2(float_scale))
         if return_bit_shift:
             return bit_shift
-        # else:
+
         return torch.pow(2., bit_shift)
 
     # If not using quantization-aware training (QAT),
@@ -128,6 +128,7 @@ def convert_checkpoint(input_file, output_file, arguments):
             layer, operation, parameter = param_levels[0], None, param_levels[1]
         else:
             continue
+
         if parameter in ['w_zero_point', 'b_zero_point']:
             if checkpoint_state[k].nonzero().numel() != 0:
                 raise RuntimeError(f"\nParameter {k} is not zero.")
@@ -158,7 +159,23 @@ def convert_checkpoint(input_file, output_file, arguments):
                 else:
                     clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Default to 8 bits
 
-            factor = 2**(clamp_bits-1) * sat_fn(checkpoint_state[k])
+            bias_name = '.'.join([layer, operation, 'bias'])
+            if sat_fn == get_max_bit_shift:
+                if bias_name in checkpoint_state:
+                    weight_r = torch.flatten(checkpoint_state[k])
+                    bias_r = torch.flatten(checkpoint_state[bias_name])
+                    params_r = torch.cat((weight_r, bias_r))
+                else:
+                    params_r = torch.flatten(checkpoint_state[k])
+
+                shift_quantile_name = '.'.join([layer, 'shift_quantile'])
+                shift_quantile = 1.0
+                if shift_quantile_name in checkpoint_state:
+                    shift_quantile = checkpoint_state[shift_quantile_name]
+
+                factor = 2**(clamp_bits-1) * get_max_bit_shift(params_r, shift_quantile)
+            else:
+                factor = 2**(clamp_bits-1) * sat_fn(checkpoint_state[k])
 
             if arguments.verbose:
                 print(k, 'avg_max:', unwrap(avg_max(checkpoint_state[k])),
@@ -187,7 +204,6 @@ def convert_checkpoint(input_file, output_file, arguments):
                     torch.Tensor([CONV_DEFAULT_WEIGHT_BITS])
 
             # Is there a bias for this layer? Use the same factor as for weights.
-            bias_name = '.'.join([layer, operation, 'bias'])
             if bias_name in checkpoint_state:
                 bias_bits_name = '.'.join([layer, 'bias_bits'])
                 if arguments.verbose:
@@ -220,7 +236,8 @@ def convert_checkpoint(input_file, output_file, arguments):
             # Set output shift
             if arguments.clip_mode is None:
                 out_shift_name = '.'.join([layer, 'output_shift'])
-                out_shift = torch.Tensor([-1 * get_max_bit_shift(checkpoint_state[k], True)])
+                out_shift = torch.Tensor([-1 * get_max_bit_shift(checkpoint_state[k],
+                                                                 shift_quantile, True)])
                 new_checkpoint_state[out_shift_name] = out_shift
                 if new_masks_dict is not None:
                     new_masks_dict[out_shift_name] = out_shift
