@@ -1088,12 +1088,13 @@ class APBTopLevel(APB):
         assert addr >= 0
         addr += self.apb_base
 
-        if self.memfile is None:
+        mfile = self.apifile or self.memfile
+        if mfile is None:
             return
 
-        self.memfile.write(f'  while ((*((volatile uint32_t *) 0x{addr:08x}) & 0x{mask:0x})'
-                           f' != 0x{val:0x});'
-                           f'{comment}\n')
+        mfile.write(f'  while ((*((volatile uint32_t *) 0x{addr:08x}) & 0x{mask:0x})'
+                    f' != 0x{val:0x});'
+                    f'{comment}\n')
 
     def copyright_header(
             self,
