@@ -196,8 +196,9 @@ def load(
 
         if group_bias_max[group] + blen > tc.dev.BIAS_SIZE:
             eprint(f'Layer {ll}: bias memory capacity exceeded - available groups: '
-                   f'{gmap}, used so far: {group_bias_max}, needed: {blen}, '
-                   f'best available: group {group}.')
+                   f'{gmap}, used so far: {group_bias_max}, needed: {blen} bytes, '
+                   f'best available: group {group} with '
+                   f'{tc.dev.BIAS_SIZE - group_bias_max[group]} bytes available.')
         bias_group[ll] = group
         for i in range(tc.dev.P_NUMGROUPS):
             bias_offs[ll][i] = group_bias_max[group]

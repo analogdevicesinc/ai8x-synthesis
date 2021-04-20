@@ -600,7 +600,7 @@ def main(
             if bias:
                 memfile.write('  cnn_load_bias();\n')
             else:
-                memfile.write('  // cnn_load_bias(); // Not used in this network\n')
+                memfile.write('  cnn_load_bias(); // Not used in this network\n')
             memfile.write('  cnn_configure(); // Configure state machine\n')
             if not measure_energy:
                 if not fifo:
