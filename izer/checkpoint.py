@@ -177,7 +177,7 @@ def load(
 
             # Is there a bias for this layer?
             bias_name = '.'.join([layer, op, 'bias'])
-            wb_name = '.'.join([layer, 'weight_bits']) #operation[:-3] + '.weight_bits'
+            wb_name = '.'.join([layer, 'weight_bits'])
 
             if bias_name in checkpoint_state and seq not in no_bias:
                 w = checkpoint_state[bias_name].numpy(). \
