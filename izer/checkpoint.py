@@ -84,10 +84,15 @@ def load(
         while seq < len(operator) and (operator[seq] == opn.NONE or bypass[seq]):
             seq += 1
 
-        operation, parameter = k.rsplit(sep='.', maxsplit=1)
+        param_levels = k.rsplit(sep='.', maxsplit=2)
+        if len(param_levels) == 3:
+            layer, op, parameter = param_levels[0], param_levels[1], param_levels[2]
+        elif len(param_levels) == 2:
+            layer, op, parameter = param_levels[0], None, param_levels[1]
+        else:
+            continue
+
         if parameter in ['weight']:
-            _, op = k.split(sep='.', maxsplit=1)
-            op = op.rsplit(sep='.', maxsplit=1)[0]
             if layers >= num_conv_layers or seq >= num_conv_layers:
                 continue
 
@@ -171,11 +176,12 @@ def load(
             weight_keys.append(k)
 
             # Is there a bias for this layer?
-            bias_name = operation + '.bias'
+            bias_name = '.'.join([layer, op, 'bias'])
+            wb_name = '.'.join([layer, 'weight_bits'])
 
             if bias_name in checkpoint_state and seq not in no_bias:
                 w = checkpoint_state[bias_name].numpy(). \
-                    astype(np.int64) // tc.dev.BIAS_DIV
+                    astype(np.int64) // 2**(checkpoint_state[wb_name].numpy().astype(np.int64) - 1)
 
                 if np.all(w == 0):
                     wprint(f'All bias values for `{bias_name}` are zero.')
@@ -207,7 +213,7 @@ def load(
 
             # Not overriding output_shift?
             if output_shift[seq] is None:
-                output_shift_name = operation.rsplit(sep='.', maxsplit=1)[0] + '.output_shift'
+                output_shift_name = '.'.join([layer, 'output_shift'])
                 # Is there an output_shift for this layer?
                 if output_shift_name in checkpoint_state:
                     w = checkpoint_state[output_shift_name].numpy().astype(np.int64)
