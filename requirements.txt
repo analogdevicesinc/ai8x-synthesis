@@ -9,4 +9,3 @@ pytest~=4.6.4
 onnx>=1.7.0
 tensorboard==2.4.1
 colorama>=0.4.4
--e file:distiller
