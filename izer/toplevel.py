@@ -525,7 +525,7 @@ def main(
 
             if embedded_code and apifile is not None:
                 if tc.dev.SUPPORT_PLL:
-                    mfile.write('  if (clock_source == MXC_F_GCR_PCLKDIV_CNNCLKSEL_ITO)\n  ')
+                    mfile.write('  if (clock_source == MXC_S_GCR_PCLKDIV_CNNCLKSEL_ITO)\n  ')
                     mfile.write('  while ((MXC_GCR->ito_ctrl & MXC_F_GCR_ITO_CTRL_RDY) != '
                                 'MXC_F_GCR_ITO_CTRL_RDY) ; // Wait for PLL\n')
                 mfile.write('  MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
