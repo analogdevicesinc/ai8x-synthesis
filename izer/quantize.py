@@ -12,8 +12,6 @@ from functools import partial
 
 import torch
 
-from distiller.apputils.checkpoint import get_contents_table  # pylint: disable=no-name-in-module
-
 from . import tornadocnn as tc
 from . import yamlcfg
 from .devices import device
@@ -45,9 +43,6 @@ def convert_checkpoint(input_file, output_file, arguments):
 
     print("Converting checkpoint file", input_file, "to", output_file)
     checkpoint = torch.load(input_file, map_location='cpu')
-
-    if arguments.verbose:
-        print(get_contents_table(checkpoint))
 
     if 'state_dict' not in checkpoint:
         eprint("No `state_dict` in checkpoint file.")
