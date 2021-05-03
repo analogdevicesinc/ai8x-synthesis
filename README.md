@@ -989,6 +989,8 @@ By default, weights are quantized to 8-bits after 10 epochs as specified in `qat
 
 Quantization-aware training can be <u>disabled</u> by specifying `--qat-policy None`.
 
+For more information, please also see [Quantization](#Quantization).
+
 #### Batch Normalization
 
 Batch normalization after `Conv1d` and  `Conv2d` layers is supported using “fusing”. The fusing operation merges the effect of batch normalization layers into the parameters of the preceding convolutional layer. For detailed information about batch normalization fusing/folding, see Section 3.2 of the following paper: https://arxiv.org/pdf/1712.05877.pdf.
@@ -1084,7 +1086,6 @@ The following table describes the command line arguments for `batchnormfuser.py`
 | `-i`, `--inp_path`  | Set input checkpoint path                                    | `-i logs/2020.06.05-235316/best.pth.tar` |
 | `-o`, `--out_path`  | Set output checkpoint path for saving fused model            | `-o best_without_bn.pth.tar`             |
 | `-oa`, `--out_arch` | Set output architecture name (architecture without batchnorm layers) | `-oa ai85simplenet`                      |
-
 
 ### Quantization
 
@@ -1186,9 +1187,9 @@ The training/verification data is located (by default) in `data/DataSetName`, fo
 
 Train the new network/new dataset. See `scripts/train_mnist.sh` for a command line example.
 
-#### Netron - Network Visualization
+#### Netron — Network Visualization
 
-The Netron tool (https://github.com/lutzroeder/Netron) can visualize networks, similar to what is available within Tensorboard. To use Netron, use `train.py` to export the trained network to ONNX, and upload the ONNX file.
+The [Netron tool](https://github.com/lutzroeder/Netron) can visualize networks, similar to what is available within Tensorboard. To use Netron, use `train.py` to export the trained network to ONNX, and upload the ONNX file.
 
 ```shell
 (ai8x-training) $ ./train.py --model ai85net5 --dataset MNIST --evaluate --exp-load-weights-from checkpoint.pth.tar --device MAX78000 --summary onnx
@@ -1197,6 +1198,8 @@ The Netron tool (https://github.com/lutzroeder/Netron) can visualize networks, s
 
 
 ---
+
+
 
 ## Network Loader (AI8Xize)
 
@@ -1349,6 +1352,8 @@ To generate an RTL simulation for the same network and sample data in the direct
 ```shell
 (ai8x-synthesize) $ ./ai8xize.py --rtl --verbose --autogen rtlsim --log --test-dir rtlsim --prefix ai85-mnist --checkpoint-file trained/ai85-mnist.pth.tar --config-file networks/mnist-chw-ai85.yaml --device MAX78000
 ```
+
+
 
 ### Network Loader Configuration Language
 
@@ -1896,50 +1901,19 @@ The MAX78000/MAX78002 accelerator can generate an interrupt on completion, and i
 
 To run another inference, ensure all groups are disabled (stopping the state machine, as shown in `cnn_init()`). Next, load the new input data and start processing.
 
-#### Softmax, and Data Unload in C
 
-`ai8xize.py` can generate a call to a software Softmax function using the command line switch `--softmax`. That function is provided in the `assets/device-all` folder. To use the provided software Softmax on MAX78000/MAX78002, the last layer output should be 32-bit wide (`output_width: 32`).
+#### Overview of the Functions in main.c
 
-The software Softmax function is optimized for processing time and it quantizes the input. When the last layer uses weights that are not 8-bits, the software function used will shift the input values first.
+The generated code is split between API code (in `cnn.c`) and data dependent code in `main.c` or `main_riscv.c`. The data dependent code is based on a known-answer test. The `main()` function shows the proper sequence of steps to load and configure the CNN accelerator, run it, unload it, and verify the result.
 
-![softmax](docs/softmax.png)
+`void load_input(void);`
+Load the example input. This function can serve as a template for loading data into the CNN accelerator. Note that the clocks and power to the accelerator must be enabled first. If this is skipped, the device may hang and the [recovery procedure](https://github.com/MaximIntegratedAI/MaximAI_Documentation/tree/master/MAX78000_Feather#how-to-unlock-a-max78000-that-can-no-longer-be-programmed) may have to be used.
 
+`int check_output(void);`
+This function verifies that the known-answer test works correctly in hardware (using the example input). This function is typically not needed in the final application.
 
-
-#### Generated Files and Upgrading the CNN Model
-
-The generated C code comprises the following files. Some of the files are customized based in the project name, and some are custom for a combination of project name and weight/sample data inputs:
-
-| File name    | Source                           | Project specific? | Model/weights change? |
-| ------------ | -------------------------------- | ----------------- | --------------------- |
-| Makefile     | template in assets/embedded-ai87 | Yes               | No                    |
-| cnn.c        | generated                        | Yes               | **Yes**               |
-| cnn.h        | template in assets/device-all    | Yes               | **Yes**               |
-| weights.h    | generated                        | Yes               | **Yes**               |
-| log.txt      | generated                        | Yes               | **Yes**               |
-| main.c       | generated                        | Yes               | No                    |
-| sampledata.h | generated                        | Yes               | No                    |
-| softmax.c    | assets/device-all                | No                | No                    |
-| model.launch | template in assets/eclipse       | Yes               | No                    |
-| .cproject    | template in assets/eclipse       | Yes               | No                    |
-| .project     | template in assets/eclipse       | Yes               | No                    |
-
-In order to upgrade an embedded project after retraining the model, point the network generator to a new empty directory and regenerate. Then, copy the four files that will have changed to your original project — `cnn.c`, `cnn.h`, `weights.h`, and `log.txt`. This allows for persistent customization of the I/O code and project (for example, in `main.c` and additional files) while allowing easy model upgrades.
-
-The generator also adds all files from the `assets/eclipse`, `assets/device-all`, and `assets/embedded-ai87` folders. These files (when starting with `template` in their name) will be automatically customized to include project specific information as shown in the following table:
-
-| Key                   | Replaced by                                                  |
-| --------------------- | ------------------------------------------------------------ |
-| `##__PROJ_NAME__##`   | Project name (works on file names as well as the file contents) |
-| `##__ELF_FILE__##`    | Output elf (binary) file name                                |
-| `##__BOARD__##`       | Board name (e.g., `EvKit_V1`)                                |
-| `##__FILE_INSERT__##` | Network statistics and timer                                 |
-
-##### Contents of the device-all Folder
-
-* For MAX78000/MAX78002, the software Softmax is implemented in `softmax.c`.
-* A template for the `cnn.h` header file in `templatecnn.h`. The template is customized during code generation using model statistics and timer, but uses common function signatures for all projects.
-
+`int main(void);`
+This is the main function and can serve as a template for the user application. It shows the correct sequence of operations to initialize, load, run, and unload the CNN accelerator.
 
 
 #### Overview of the Generated API Functions
@@ -1988,6 +1962,50 @@ Turn on the boost circuit on `port`.`pin`. This is only needed for very energy i
 Turn off the boost circuit connected to `port`.`pin`.
 
 
+#### Softmax, and Data Unload in C
+
+`ai8xize.py` can generate a call to a software Softmax function using the command line switch `--softmax`. That function is provided in the `assets/device-all` folder. To use the provided software Softmax on MAX78000/MAX78002, the last layer output should be 32-bit wide (`output_width: 32`).
+
+The software Softmax function is optimized for processing time and it quantizes the input. When the last layer uses weights that are not 8-bits, the software function used will shift the input values first.
+
+![softmax](docs/softmax.png)
+
+
+#### Generated Files and Upgrading the CNN Model
+
+The generated C code comprises the following files. Some of the files are customized based in the project name, and some are custom for a combination of project name and weight/sample data inputs:
+
+| File name    | Source                           | Project specific? | Model/weights change? |
+| ------------ | -------------------------------- | ----------------- | --------------------- |
+| Makefile     | template in assets/embedded-ai87 | Yes               | No                    |
+| cnn.c        | generated                        | Yes               | **Yes**               |
+| cnn.h        | template in assets/device-all    | Yes               | **Yes**               |
+| weights.h    | generated                        | Yes               | **Yes**               |
+| log.txt      | generated                        | Yes               | **Yes**               |
+| main.c       | generated                        | Yes               | No                    |
+| sampledata.h | generated                        | Yes               | No                    |
+| softmax.c    | assets/device-all                | No                | No                    |
+| model.launch | template in assets/eclipse       | Yes               | No                    |
+| .cproject    | template in assets/eclipse       | Yes               | No                    |
+| .project     | template in assets/eclipse       | Yes               | No                    |
+
+In order to upgrade an embedded project after retraining the model, point the network generator to a new empty directory and regenerate. Then, copy the four files that will have changed to your original project — `cnn.c`, `cnn.h`, `weights.h`, and `log.txt`. This allows for persistent customization of the I/O code and project (for example, in `main.c` and additional files) while allowing easy model upgrades.
+
+The generator also adds all files from the `assets/eclipse`, `assets/device-all`, and `assets/embedded-ai87` folders. These files (when starting with `template` in their name) will be automatically customized to include project specific information as shown in the following table:
+
+| Key                   | Replaced by                                                  |
+| --------------------- | ------------------------------------------------------------ |
+| `##__PROJ_NAME__##`   | Project name (works on file names as well as the file contents) |
+| `##__ELF_FILE__##`    | Output elf (binary) file name                                |
+| `##__BOARD__##`       | Board name (e.g., `EvKit_V1`)                                |
+| `##__FILE_INSERT__##` | Network statistics and timer                                 |
+
+##### Contents of the device-all Folder
+
+* For MAX78000/MAX78002, the software Softmax is implemented in `softmax.c`.
+* A template for the `cnn.h` header file in `templatecnn.h`. The template is customized during code generation using model statistics and timer, but uses common function signatures for all projects.
+
+
 
 #### Energy Measurement
 
@@ -1997,13 +2015,20 @@ When running C code generated with `--energy`, the power display on the EVKit wi
 
 *Note: MAX78000 uses LED1 and LED2 to trigger power measurement via MAX32625 and MAX34417.*
 
-See https://github.com/MaximIntegratedAI/MaximAI_Documentation/blob/master/MAX78000_Evaluation_Kit/MAX78000%20Power%20Monitor%20and%20Energy%20Benchmarking%20Guide.pdf for more information about benchmarking.
+See the [benchmarking guide](https://github.com/MaximIntegratedAI/MaximAI_Documentation/blob/master/MAX78000_Evaluation_Kit/MAX78000%20Power%20Monitor%20and%20Energy%20Benchmarking%20Guide.pdf) for more information about benchmarking.
+
+
 
 ## Further Information
 
-Additional information about the evaluation kits, and the software development kit (SDK) is available on the web at https://github.com/MaximIntegratedAI/aximAI_Documentation
+Additional information about the evaluation kits, and the software development kit (SDK) is available on the web at https://github.com/MaximIntegratedAI/MaximAI_Documentation
+
+
+
 
 ---
+
+
 
 ## AHB Memory Addresses
 
@@ -2222,5 +2247,3 @@ The following document has more information:
 https://github.com/MaximIntegratedAI/MaximAI_Documentation/blob/master/CONTRIBUTING.md
 
 ---
-
-o
