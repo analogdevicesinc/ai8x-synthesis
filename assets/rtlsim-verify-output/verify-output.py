@@ -97,7 +97,8 @@ for _, _, fnames in sorted(os.walk('data-expected')):  # type: ignore
                         sys.exit(-3)
 
                     log.debug('Found address %04x, val %08x, comp %s', addr, val, result)
-                    if (result0 & mask != val & mask  # type: ignore
+                    if (
+                        result0 & mask != val & mask  # type: ignore
                         or resultf & mask != val & mask  # type: ignore
                        ):
                         log.error('Data mismatch at address %04x in file data-output/%s. '
