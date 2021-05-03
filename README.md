@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_April 22, 2021_
+_May 3, 2021_
 
 The Maxim Integrated AI project is comprised of four repositories:
 
@@ -301,7 +301,7 @@ By default, the main branch is checked out. This branch has been tested more rig
 
 Support for TensorFlow / Keras is currently in the `develop-tf` branch.
 
-##### Updates
+#### Updating to the Latest Version
 
 After additional testing, `develop` is merged into the main branch at regular intervals.
 
@@ -311,7 +311,7 @@ After a small delay of typically a day, a “Release” tag is created on GitHub
 
 In addition to code updated in the repository itself, submodules and Python libraries may have been updated as well.
 
-Major upgrades (such as updating from PyTorch 1.5 to PyTorch 1.7) are best done by removing all installed wheels. This can be achieved most easily by creating a new folder and starting from scratch at [Upstream Code](#Upstream Code). Starting from scratch is also recommended when upgrading the Python version.
+Major upgrades (such as updating from PyTorch 1.7 to PyTorch 1.8) are best done by removing all installed wheels. This can be achieved most easily by creating a new folder and starting from scratch at [Upstream Code](#Upstream Code). Starting from scratch is also recommended when upgrading the Python version.
 
 For minor updates, pull the latest code and install the updated wheels:
 
@@ -322,7 +322,7 @@ For minor updates, pull the latest code and install the updated wheels:
 (ai8x-training) $ pip3 install -U -r requirements.txt # or requirements-cu11.txt with CUDA 11.x
 ```
 
-Updating Python frequently requires updating `pyenv` first. Should `pyenv install x.y.z`
+Updating Python frequently requires updating `pyenv` first. Should `pyenv install 3.x.y` fail, `pyenv` must be updated. On macOS, use `brew update && brew upgrade pyenv`. On Linux, use `cd $(pyenv root) && git pull`.
 
 #### Synthesis Project
 
@@ -964,7 +964,7 @@ There are two supported cases for  `view()` or `reshape()`.
        `x = x.view(x.size(0), x.size(1), -1)  # 2D to 1D`
        `x = x.view(x.shape[0], x.shape[1], 16, -1)  # 1D to 2D`
    *Note: `x.size()` and `x.shape[]` are equivalent.*
-When reshaping data, `in_dim:` must be specified in the model description file.
+   When reshaping data, `in_dim:` must be specified in the model description file.
 2. Conversion from 1D and 2D to Fully Connected (“flattening”): The batch dimension (first dimension) must stay the same, and the other dimensions are combined (i.e., M = C×H×W or M = C×L).
    Example: 
        `x = x.view(x.size(0), -1)  # Flatten`
@@ -1826,7 +1826,7 @@ np.save(os.path.join('tests', 'sample_mnist'), a, allow_pickle=False, fix_import
    --------------------------------------------------------
    Logging to TensorBoard - remember to execute the server:
    > tensorboard --logdir='./logs'
-
+   
    => loading checkpoint ../ai8x-synthesis/trained/new.pth.tar
    => Checkpoint contents:
    +----------------------+-------------+----------+
@@ -1840,7 +1840,7 @@ np.save(os.path.join('tests', 'sample_mnist'), a, allow_pickle=False, fix_import
    | optimizer_type       | type        | SGD      |
    | state_dict           | OrderedDict |          |
    +----------------------+-------------+----------+
-
+   
    => Checkpoint['extras'] contents:
    +-----------------+--------+-------------------+
    | Key             | Type   | Value             |
@@ -1851,7 +1851,7 @@ np.save(os.path.join('tests', 'sample_mnist'), a, allow_pickle=False, fix_import
    | clipping_scale  | float  | 0.85              |
    | current_top1    | float  | 99.46666666666667 |
    +-----------------+--------+-------------------+
-
+   
    Loaded compression schedule from checkpoint (epoch 165)
    => loaded 'state_dict' from checkpoint '../ai8x-synthesis/trained/new.pth.tar'
    Optimizer Type: <class 'torch.optim.sgd.SGD'>
@@ -1867,7 +1867,7 @@ np.save(os.path.join('tests', 'sample_mnist'), a, allow_pickle=False, fix_import
    Test: [   30/   40]    Loss 51.816276    Top1 99.518229    Top5 99.986979    
    Test: [   40/   40]    Loss 53.596094    Top1 99.500000    Top5 99.990000    
    ==> Top1: 99.500    Top5: 99.990    Loss: 53.596
-
+   
    ==> Confusion:
    [[ 979    0    0    0    0    0    0    0    1    0]
     [   0 1132    1    0    0    0    0    2    0    0]
