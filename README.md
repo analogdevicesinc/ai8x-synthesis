@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_May 3, 2021_
+_May 4, 2021_
 
 The Maxim Integrated AI project is comprised of four repositories:
 
@@ -322,7 +322,44 @@ For minor updates, pull the latest code and install the updated wheels:
 (ai8x-training) $ pip3 install -U -r requirements.txt # or requirements-cu11.txt with CUDA 11.x
 ```
 
-Updating Python frequently requires updating `pyenv` first. Should `pyenv install 3.x.y` fail, `pyenv` must be updated. On macOS, use `brew update && brew upgrade pyenv`. On Linux, use `cd $(pyenv root) && git pull`.
+##### Python Version Updates
+
+Updating Python may require updating `pyenv` first. Should `pyenv install 3.8.9` fail,
+
+```shell
+$ pyenv install 3.8.9
+python-build: definition not found: 3.8.9
+```
+
+then  `pyenv` must be updated. On macOS, use:
+
+```shell
+$ brew update && brew upgrade pyenv
+...
+$
+```
+
+On Linux, use:
+
+```shell
+$ cd $(pyenv root) && git pull && cd -
+remote: Enumerating objects: 19021, done.
+...
+$
+```
+
+The update should now succeed:
+
+```shell
+$ pyenv install 3.8.9
+Downloading Python-3.8.9.tar.xz...
+-> https://www.python.org/ftp/python/3.8.9/Python-3.8.9.tar.xz
+Installing Python-3.8.9...
+...
+$ pyenv local 3.8.9
+```
+
+
 
 #### Synthesis Project
 
