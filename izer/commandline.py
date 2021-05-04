@@ -187,8 +187,6 @@ def get_parser():
                        help="use fixed 0xaa/0x55 alternating input (default: false)")
     group.add_argument('--reshape-inputs', action='store_true', default=False,
                        help="drop data channel dimensions to match weights (default: false)")
-    group.add_argument('--max-checklines', type=int, metavar='N', default=None, dest='max_count',
-                       help="output only N output check lines (default: all)")
     group.add_argument('--forever', action='store_true', default=False,
                        help="after initial run, repeat CNN forever (default: false)")
     group.add_argument('--link-layer', action='store_true', default=False,
@@ -325,9 +323,14 @@ def get_parser():
     group = parser.add_argument_group('Various')
     group.add_argument('--input-split', type=int, default=1, metavar='N', choices=range(1, 1025),
                        help="split input into N portions (default: don't split)")
-    group.add_argument('--synthesize-input', type=int, metavar='N',
-                       help="synthesize input data from first 8 words and add N to each "
-                            "subsequent set of 8 words (default: false)")
+    group.add_argument('--synthesize-input', type=lambda x: int(x, 0), metavar='N',
+                       help="synthesize input data from first `--synthesize-words` words and add "
+                            "N to each subsequent set of `--synthesize-words` 32-bit words "
+                            "(default: false)")
+    group.add_argument('--synthesize-words', type=int, metavar='N', default=8,
+                       help="number of input words to use (default all or 8)")
+    group.add_argument('--max-checklines', type=int, metavar='N', default=None, dest='max_count',
+                       help="output only N output check lines (default: all)")
 
     args = parser.parse_args()
 

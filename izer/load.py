@@ -31,6 +31,7 @@ def load(
         fifo=False,
         slowdown=0,
         synthesize=None,
+        synthesize_words=8,
         riscv_flash=False,
         csv_file=None,
         camera_format=888,
@@ -78,6 +79,7 @@ def load(
             data,
             slowdown,
             synthesize,
+            synthesize_words,
             riscv_flash,
             debug,
         )
@@ -166,7 +168,8 @@ def load(
                     offs += 1
 
                 if not fixed_input:
-                    apb.output_define(code_buffer, f'SAMPLE_INPUT_{ch}', '0x%08x', 8,
+                    b = code_buffer if synthesize is None else code_buffer[:synthesize_words]
+                    apb.output_define(b, f'SAMPLE_INPUT_{ch}', '0x%08x', 8,
                                       weights=False)
                 if riscv_flash:
                     apb.output(rv.RISCV_FLASH)
@@ -281,7 +284,8 @@ def load(
                         buf[i::in_expand] = e[0]
 
                     if not fixed_input:
-                        apb.output_define(buf, f'SAMPLE_INPUT_{proc}', '0x%08x', 8, weights=False)
+                        b = buf if synthesize is None else buf[:synthesize_words]
+                        apb.output_define(b, f'SAMPLE_INPUT_{proc}', '0x%08x', 8, weights=False)
                     if riscv_flash:
                         apb.output(rv.RISCV_FLASH)
                     if not fixed_input:
@@ -338,6 +342,7 @@ def loadfifo(
         data,
         slowdown=0,
         synthesize=None,
+        synthesize_words=8,
         riscv_flash=False,
         debug=False,  # pylint: disable=unused-argument
 ):
@@ -437,7 +442,8 @@ def loadfifo(
 
     if embedded_code:
         for c in range(fifos):
-            apb.output_define(code_buffer[c], f'SAMPLE_INPUT_{c}', '0x%08x', 8, weights=False)
+            b = code_buffer[c] if synthesize is None else code_buffer[c][:synthesize_words]
+            apb.output_define(b, f'SAMPLE_INPUT_{c}', '0x%08x', 8, weights=False)
             if riscv_flash:
                 apb.output(rv.RISCV_FLASH)
             apb.output(f'static const uint32_t input_{c}[] = SAMPLE_INPUT_{c};\n')
@@ -449,6 +455,13 @@ def loadfifo(
                    '  int i;\n')
         if synthesize is not None:
             apb.output('  uint32_t add = 0;\n')
+            mask = ''
+            if input_size[0] == 1:
+                mask = '0xff'
+            elif input_size[0] == 2:
+                mask = '0xffff'
+            elif input_size[0] == 3:
+                mask = '0xffffff'
         max_len = 0
         const_len = True
         for c in range(fifos):
@@ -464,11 +477,14 @@ def loadfifo(
                 apb.write(0, f'*in{c}++', fifo=c,
                           comment=f' // Write FIFO {c}', indent='    ')
             else:
-                apb.write(0, f'*in{c}++ + add', fifo=c,
+                s = f'*in{c}++ + add' if mask == '' else f'(*in{c}++ + add) & {mask}'
+                apb.write(0, s, fifo=c,
                           comment=f' // Write FIFO {c}', indent='    ')
         if synthesize is not None:
-            apb.output('    if ((i % 8 == 0) && (i != 0)) {\n')
+            apb.output(f'    if (i % {synthesize_words} == {synthesize_words - 1}) {{\n')
             apb.output(f'      add += 0x{synthesize:x};\n    ')
+            if mask != '':
+                apb.output(f'  add &= {mask};\n    ')
             for c in range(fifos):
                 apb.output(f'  in{c} = input_{c};\n')
             apb.output('    }\n')
