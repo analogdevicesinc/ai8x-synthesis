@@ -326,7 +326,8 @@ def get_parser():
     group.add_argument('--input-split', type=int, default=1, metavar='N', choices=range(1, 1025),
                        help="split input into N portions (default: don't split)")
     group.add_argument('--synthesize-input', type=int, metavar='N',
-                       help="synthesize input data from first 8 lines (default: false)")
+                       help="synthesize input data from first 8 words and add N to each "
+                            "subsequent set of 8 words (default: false)")
 
     args = parser.parse_args()
 
