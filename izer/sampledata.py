@@ -8,8 +8,9 @@
 Contains hard coded sample inputs.
 """
 import numpy as np
+
 from .eprint import eprint
-from .utils import u2s, s2u
+from .utils import s2u, u2s
 
 
 def get(
