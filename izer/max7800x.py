@@ -1746,6 +1746,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 stream_start = input_dim[ll][0] * input_dim[ll][1]
                                 if big_data[ll]:
                                     stream_start = (stream_start + 3) // 4
+                            stream_start *= pool[ll][0]
 
                             if streaming[ll]:
                                 # Delta 1: This layer's pooling stride
