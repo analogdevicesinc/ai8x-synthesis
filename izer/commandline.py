@@ -258,17 +258,17 @@ def get_parser():
                        help="allow output to overwrite input (default: warn/stop)")
     group.add_argument('--override-start', type=lambda x: int(x, 0), metavar='N',
                        help="override auto-computed streaming start value (x8 hex)")
-    group.add_argument('--increase-start', type=int, default=2, metavar='N',
+    group.add_argument('--increase-start', type=lambda x: int(x, 0), default=2, metavar='N',
                        help="add integer to streaming start value (default: 2)")
     group.add_argument('--override-rollover', type=lambda x: int(x, 0), metavar='N',
                        help="override auto-computed streaming rollover value (x8 hex)")
     group.add_argument('--override-delta1', type=lambda x: int(x, 0), metavar='N',
                        help="override auto-computed streaming delta1 value (x8 hex)")
-    group.add_argument('--increase-delta1', type=int, default=0, metavar='N',
+    group.add_argument('--increase-delta1', type=lambda x: int(x, 0), default=0, metavar='N',
                        help="add integer to streaming delta1 value (default: 0)")
     group.add_argument('--override-delta2', type=lambda x: int(x, 0), metavar='N',
                        help="override auto-computed streaming delta2 value (x8 hex)")
-    group.add_argument('--increase-delta2', type=int, default=0, metavar='N',
+    group.add_argument('--increase-delta2', type=lambda x: int(x, 0), default=0, metavar='N',
                        help="add integer to streaming delta2 value (default: 0)")
     group.add_argument('--ignore-streaming', action='store_true', default=False,
                        help="ignore all 'streaming' layer directives (default: false)")
