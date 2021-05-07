@@ -12,7 +12,7 @@ import sys
 import numpy as np
 import torch
 
-from . import op as opn
+from . import op
 from . import tornadocnn as tc
 from .eprint import eprint, wprint
 from .utils import fls
@@ -81,14 +81,14 @@ def load(
 
     for _, k in enumerate(checkpoint_state.keys()):
         # Skip over non-weight layers
-        while seq < len(operator) and (operator[seq] == opn.NONE or bypass[seq]):
+        while seq < len(operator) and (operator[seq] == op.NONE or bypass[seq]):
             seq += 1
 
         param_levels = k.rsplit(sep='.', maxsplit=2)
         if len(param_levels) == 3:
-            layer, op, parameter = param_levels[0], param_levels[1], param_levels[2]
+            layer, this_op, parameter = param_levels[0], param_levels[1], param_levels[2]
         elif len(param_levels) == 2:
-            layer, op, parameter = param_levels[0], None, param_levels[1]
+            layer, this_op, parameter = param_levels[0], None, param_levels[1]
         else:
             continue
 
@@ -132,13 +132,13 @@ def load(
             weight_min.append(w_min)
             weight_max.append(w_max)
 
-            if operator[seq] == opn.CONVTRANSPOSE2D:
+            if operator[seq] == op.CONVTRANSPOSE2D:
                 # For ConvTranspose2d, flip the weights as follows:
                 w = np.flip(w, axis=(2, 3)).swapaxes(0, 1)
 
-            mult = conv_groups[seq] if operator[seq] != opn.CONVTRANSPOSE2D else 1
+            mult = conv_groups[seq] if operator[seq] != op.CONVTRANSPOSE2D else 1
             input_channels.append(w.shape[1] * mult)  # Input channels
-            mult = conv_groups[seq] if operator[seq] == opn.CONVTRANSPOSE2D else 1
+            mult = conv_groups[seq] if operator[seq] == op.CONVTRANSPOSE2D else 1
             output_channels.append(w.shape[0] * mult)  # Output channels
 
             if len(w.shape) == 2:  # MLP
@@ -176,12 +176,15 @@ def load(
             weight_keys.append(k)
 
             # Is there a bias for this layer?
-            bias_name = '.'.join([layer, op, 'bias'])
+            bias_name = '.'.join([layer, 'bias']) if this_op is None \
+                else '.'.join([layer, this_op, 'bias'])
             wb_name = '.'.join([layer, 'weight_bits'])
 
             if bias_name in checkpoint_state and seq not in no_bias:
+                wb = checkpoint_state[wb_name].numpy().astype(np.int64) \
+                     if wb_name in checkpoint_state else 8
                 w = checkpoint_state[bias_name].numpy(). \
-                    astype(np.int64) // 2**(checkpoint_state[wb_name].numpy().astype(np.int64) - 1)
+                    astype(np.int64) // 2**(wb - 1)
 
                 if np.all(w == 0):
                     wprint(f'All bias values for `{bias_name}` are zero.')
