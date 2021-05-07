@@ -818,7 +818,7 @@ The MAX78000 hardware does not support arbitrary network parameters. Specificall
   * When using data greater than 90×91, `streaming` mode must be used.
   * When using `streaming` mode, the product of any layer’s input width, input height, and input channels divided by 64 rounded up must not exceed 2^21: $width * height * ⌈\frac{channels}{64}⌉ < 2^{21}$. _width_ and _height_ must not exceed 1023.
   * Streaming is limited to 8 layers or less, and is limited to four FIFOs (up to 4 input channels in CHW and up to 16 channels in HWC format), see [FIFOs](#FIFOs).
-  * When using `streaming` mode, bias values are not added correctly.
+  * For streaming layers, bias values may not be added correctly in all cases.
   
 * The weight memory supports up to 768 * 64 3×3 Q7 kernels (see [Number Format](#Number-Format)).
   When using 1-, 2- or 4 bit weights, the capacity increases accordingly.
@@ -2082,6 +2082,7 @@ To deal with this issue, there are several options:
 * The output check can be truncated. The command line option `--max-checklines` checks only the first N words of output data (for example, 1024).
 * For 8-bit output values, `--mlator` typically generates more compact code.
 * Change the compiler optimization level in `Makefile`. To change the default optimization levels, modify `MXC_OPTIMIZE_CFLAGS` in `assets/embedded-ai85/templateMakefile` for Arm code and  `assets/embedded-riscv-ai85/templateMakefile.RISCV` for RISC-V code. Both `-O1` and `-Os` may result in smaller code compared to `-O2`.
+* If the last layer has large-dimension, large-channel output, the `cnn_unload()` code in `cnn.c` may cause memory segment overflows not only in Flash, but also in the target buffer in SRAM (`ml_data32[]` or `ml_data[]` in `main.c`). In this case, manual code edits are required to perform multiple partial unloads in sequence.
 
 #### Debugging Techniques
 
