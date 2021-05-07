@@ -728,6 +728,7 @@ class APB():
             max_count=max_count,
             write_gap=write_gap,
             final_layer=final_layer,
+            embedded=self.embedded_code,
         )
 
     def output_define(  # pylint: disable=no-self-use
@@ -1245,9 +1246,19 @@ class APBTopLevel(APB):
         Write the unload function. The layer to unload has the shape `input_shape`,
         and the optional `output_offset` argument can shift the output.
         """
-        unload.unload(self.apifile or self.memfile, self.apb_base, processor_map, input_shape,
-                      output_offset, out_expand, out_expand_thresh, output_width,
-                      mlator=mlator, blocklevel=self.blocklevel)
+        unload.unload(
+            self.apifile or self.memfile,
+            self.apb_base,
+            processor_map,
+            input_shape,
+            output_offset,
+            out_expand,
+            out_expand_thresh,
+            output_width,
+            mlator=mlator,
+            blocklevel=self.blocklevel,
+            embedded=self.embedded_code,
+        )
 
     def output_define(
             self,

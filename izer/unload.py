@@ -24,6 +24,7 @@ def unload(
         output_width=8,
         mlator=False,
         blocklevel=False,
+        embedded=False,  # pylint: disable=unused-argument
 ):
     """
     Unload HWC memory from hardware, writing C code to the `memfile` handle.
@@ -228,6 +229,7 @@ def verify(
         max_count=None,
         write_gap=0,
         final_layer=0,
+        embedded=False,
 ):
     """
     Verify HWC memory from AI8X, writing C or mem code using the `verify_fn` function.
@@ -240,7 +242,8 @@ def verify(
     When `mlator` is set, use the hardware mechanism to rearrange 4-channel data into single
     channels.
     """
-    mlator = False  # FIXME Always unload untranslated values
+    if embedded:
+        mlator = False  # FIXME Support mlator for embedded
 
     count = 0
 
@@ -397,8 +400,8 @@ def verify(
             # Physical offset into instance and group
             proc = poffs & ~(tc.dev.P_SHARED-1)
 
-            mlat = apb_base + tc.ctl_addr(proc // tc.dev.P_NUMPRO, tc.dev.REG_MLAT)
-            ctrl = apb_base + tc.ctl_addr(proc // tc.dev.P_NUMPRO, tc.dev.REG_CTL)
+            mlat = tc.ctl_addr(proc // tc.dev.P_NUMPRO, tc.dev.REG_MLAT)
+            ctrl = tc.ctl_addr(proc // tc.dev.P_NUMPRO, tc.dev.REG_CTL)
 
             for shift in range(4):
                 if this_map & 1:
