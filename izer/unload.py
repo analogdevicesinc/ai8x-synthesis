@@ -244,6 +244,9 @@ def verify(
     """
     if embedded:
         mlator = False  # FIXME Support mlator for embedded
+    if mlator and output_width != 8:
+        wprint('ignoring --mlator for 32-bit output.')
+        mlator = False
 
     count = 0
 
