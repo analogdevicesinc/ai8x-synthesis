@@ -275,7 +275,8 @@ def load(
                       f'{bias_shape:10} '
                       f'{bias_quant[ll]:5} {bias_min[ll]:4} {bias_max[ll]:3} {bias_size[ll]:4} '
                       f'{bias_keys[ll]:25}')
-        print(f'TOTAL: {layers} layers, {param_count:,} parameters, {param_size:,} bytes')
+        print(f'TOTAL: {layers} parameter layers, {param_count:,} parameters, '
+              f'{param_size:,} bytes')
 
     if error_exit:
         sys.exit(1)

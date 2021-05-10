@@ -114,6 +114,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         increase_delta2=0,
         slow_load=False,
         synthesize_input=None,
+        synthesize_words=8,
         mlator_noverify=False,
         input_csv=None,
         input_csv_period=None,
@@ -267,6 +268,12 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
         fifo_group = True
     else:
         fifo_group = False
+
+    if not fifo and synthesize_input is not None:
+        eprint('`--synthesize-input` requires `--fifo`')
+    if big_data[start_layer] and synthesize_input is not None:
+        eprint('`--synthesize-input` requires `data_format: HWC`')
+
     if fifo:
         if start_layer != 0:
             eprint('`--start_layer` must be 0 when using a FIFO.')
@@ -829,6 +836,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                 fifo=fifo,
                 slowdown=slow_load,
                 synthesize=synthesize_input,
+                synthesize_words=synthesize_words,
                 riscv_flash=riscv_flash,
                 csv_file=csv,
                 camera_format=input_csv_format,
@@ -1738,6 +1746,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                                 stream_start = input_dim[ll][0] * input_dim[ll][1]
                                 if big_data[ll]:
                                     stream_start = (stream_start + 3) // 4
+                            stream_start *= pool[ll][0]
 
                             if streaming[ll]:
                                 # Delta 1: This layer's pooling stride
@@ -2326,6 +2335,7 @@ def create_net(  # pylint: disable=too-many-arguments,too-many-locals,too-many-b
                     fifo=fifo,
                     slowdown=slow_load,
                     synthesize=synthesize_input,
+                    synthesize_words=synthesize_words,
                     csv_file=csv,
                     camera_format=input_csv_format,
                     camera_retrace=input_csv_retrace,

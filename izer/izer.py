@@ -136,7 +136,11 @@ def main():
         sampledata_file = os.path.join('tests', f'sample_{cfg["dataset"].lower()}.npy')
     else:
         sampledata_file = args.sample_input
-    data = sampledata.get(sampledata_file)
+    data = sampledata.get(
+        sampledata_file,
+        synthesize_input=args.synthesize_input,
+        synthesize_words=args.synthesize_words,
+    )
     if np.max(data) > 127 or np.min(data) < -128:
         eprint(f'Input data {sampledata_file} contains values that are outside the limits of '
                f'signed 8-bit (data min={np.min(data)}, max={np.max(data)})!')
@@ -567,6 +571,7 @@ def main():
             increase_delta2=args.increase_delta2,
             slow_load=args.slow_load,
             synthesize_input=args.synthesize_input,
+            synthesize_words=args.synthesize_words,
             mlator_noverify=args.mlator_noverify,
             input_csv=args.input_csv,
             input_csv_period=args.input_csv_period,

@@ -33,7 +33,7 @@
 
 # This is the name of the build output file
 ifeq "$(PROJECT)" ""
-PROJECT=max78002-riscv
+PROJECT=max78002
 endif
 
 # Specify the target processor
@@ -50,13 +50,8 @@ COMPILER=GCC
 
 # Specify the board used
 ifeq "$(BOARD)" ""
-#BOARD=BCB
-BOARD=EvKit_V1
-#BOARD=Emulator
+BOARD=##__BOARD__##
 endif
-
-RISCV_CORE=RV32
-export RISCV_CORE
 
 # This is the path to the CMSIS root directory
 ifeq "$(MAXIM_PATH)" ""
@@ -69,8 +64,7 @@ CMSIS_ROOT=$(LIBS_DIR)/CMSIS
 #Use this for other library make files so they are all based off the same as root as the project
 export CMSIS_ROOT
 # Source files for this test (add path to VPATH below)
-SRCS  = main_riscv.c cnn.c
-SRCS += softmax.c
+SRCS  = main.c
 
 # Where to find source files for this test
 VPATH  = .
@@ -78,19 +72,10 @@ VPATH += $(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source
 # Where to find header files for this test
 IPATH  = .
 
+PROJ_CFLAGS+=-DARM_MATH_CM4
+
 # Enable assertion checking for development
 PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE
-
-# Specify STACK SIZE
-STACK_SIZE=1024
-#HEAP_SIZE=2048 
-
-# Specify RISCV MARCH and MABI (optional)
-#MARCH=rv32imc 
-#MABI=ilp32
-
-# RISC-V settings
-PROJ_CFLAGS+=-DRV32
 
 # Enable all warnings
 PROJ_CFLAGS+=-Wall -Wcast-align
@@ -99,20 +84,20 @@ PROJ_CFLAGS+=-Wall -Wcast-align
 # TARGET_REV=0x4132
 
 # Use this variables to specify and alternate tool path
-#TOOL_DIR=/usr/local/riscv-none-embed-gcc/8.3.0-1.1
+#TOOL_DIR=/opt/gcc-arm-none-eabi-4_8-2013q4/bin
 
 # Use these variables to add project specific tool options
 #PROJ_CFLAGS+=-D__FPU_PRESENT -DKINTEX_EMU
 #PROJ_LDFLAGS+=--specs=nano.specs
 
 # Point this variable to a startup file to override the default file
-#STARTUPFILE=startup_riscv_max78002.S
+#STARTUPFILE=startup_max78002.S
 
 # Override the default optimization level using this variable
-MXC_OPTIMIZE_CFLAGS=-O0
+MXC_OPTIMIZE_CFLAGS=-O2
 
 # Point this variable to a linker file to override the default file
-LINKERFILE=$(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/GCC/$(TARGET_LC)_riscv.ld
+LINKERFILE=$(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/GCC/$(TARGET_LC)_arm.ld
 
 ################################################################################
 # Include external library makefiles here

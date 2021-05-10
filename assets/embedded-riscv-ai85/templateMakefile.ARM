@@ -94,7 +94,7 @@ PROJ_CFLAGS+=-Wall -Wcast-align
 #STARTUPFILE=startup_max78000.S
 
 # Override the default optimization level using this variable
-MXC_OPTIMIZE_CFLAGS=-O1
+MXC_OPTIMIZE_CFLAGS=-O2
 
 # Point this variable to a linker file to override the default file
 LINKERFILE=$(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/GCC/$(TARGET_LC)_arm.ld

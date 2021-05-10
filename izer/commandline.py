@@ -187,8 +187,6 @@ def get_parser():
                        help="use fixed 0xaa/0x55 alternating input (default: false)")
     group.add_argument('--reshape-inputs', action='store_true', default=False,
                        help="drop data channel dimensions to match weights (default: false)")
-    group.add_argument('--max-checklines', type=int, metavar='N', default=None, dest='max_count',
-                       help="output only N output check lines (default: all)")
     group.add_argument('--forever', action='store_true', default=False,
                        help="after initial run, repeat CNN forever (default: false)")
     group.add_argument('--link-layer', action='store_true', default=False,
@@ -260,17 +258,17 @@ def get_parser():
                        help="allow output to overwrite input (default: warn/stop)")
     group.add_argument('--override-start', type=lambda x: int(x, 0), metavar='N',
                        help="override auto-computed streaming start value (x8 hex)")
-    group.add_argument('--increase-start', type=int, default=2, metavar='N',
+    group.add_argument('--increase-start', type=lambda x: int(x, 0), default=2, metavar='N',
                        help="add integer to streaming start value (default: 2)")
     group.add_argument('--override-rollover', type=lambda x: int(x, 0), metavar='N',
                        help="override auto-computed streaming rollover value (x8 hex)")
     group.add_argument('--override-delta1', type=lambda x: int(x, 0), metavar='N',
                        help="override auto-computed streaming delta1 value (x8 hex)")
-    group.add_argument('--increase-delta1', type=int, default=0, metavar='N',
+    group.add_argument('--increase-delta1', type=lambda x: int(x, 0), default=0, metavar='N',
                        help="add integer to streaming delta1 value (default: 0)")
     group.add_argument('--override-delta2', type=lambda x: int(x, 0), metavar='N',
                        help="override auto-computed streaming delta2 value (x8 hex)")
-    group.add_argument('--increase-delta2', type=int, default=0, metavar='N',
+    group.add_argument('--increase-delta2', type=lambda x: int(x, 0), default=0, metavar='N',
                        help="add integer to streaming delta2 value (default: 0)")
     group.add_argument('--ignore-streaming', action='store_true', default=False,
                        help="ignore all 'streaming' layer directives (default: false)")
@@ -325,8 +323,14 @@ def get_parser():
     group = parser.add_argument_group('Various')
     group.add_argument('--input-split', type=int, default=1, metavar='N', choices=range(1, 1025),
                        help="split input into N portions (default: don't split)")
-    group.add_argument('--synthesize-input', type=int, metavar='N',
-                       help="synthesize input data from first 8 lines (default: false)")
+    group.add_argument('--synthesize-input', type=lambda x: int(x, 0), metavar='N',
+                       help="synthesize input data from first `--synthesize-words` words and add "
+                            "N to each subsequent set of `--synthesize-words` 32-bit words "
+                            "(default: false)")
+    group.add_argument('--synthesize-words', type=int, metavar='N', default=8,
+                       help="number of input words to use (default all or 8)")
+    group.add_argument('--max-checklines', type=int, metavar='N', default=None, dest='max_count',
+                       help="output only N output check lines (default: all)")
 
     args = parser.parse_args()
 

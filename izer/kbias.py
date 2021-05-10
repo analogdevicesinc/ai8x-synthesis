@@ -214,7 +214,7 @@ def load(
 
         if streaming[ll] and not tc.dev.SUPPORT_STREAM_BIAS:
             wprint(f'Layer {ll} uses streaming and a bias. '
-                   'THIS COMBINATION MIGHT NOT BE FUNCTIONING CORRECTLY!!!')
+                   'THIS COMBINATION MIGHT NOT FUNCTION CORRECTLY!!!')
 
         group = bias_group[ll]
 

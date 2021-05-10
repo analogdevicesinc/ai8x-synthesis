@@ -100,7 +100,7 @@ PROJ_CFLAGS+=-Wall -Wcast-align
 #STARTUPFILE=start.S
 
 # Override the default optimization level using this variable
-MXC_OPTIMIZE_CFLAGS=-O1
+MXC_OPTIMIZE_CFLAGS=-O2
 
 ################################################################################
 # Include external library makefiles here

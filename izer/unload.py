@@ -24,6 +24,7 @@ def unload(
         output_width=8,
         mlator=False,
         blocklevel=False,
+        embedded=False,  # pylint: disable=unused-argument
 ):
     """
     Unload HWC memory from hardware, writing C code to the `memfile` handle.
@@ -36,17 +37,28 @@ def unload(
     """
     assert not blocklevel or not mlator
 
+    if mlator and output_width != 8:
+        wprint('ignoring --mlator for 32-bit output.')
+        mlator = False
+
     memfile.write('// Custom unload for this network: '
                   f'{output_width}-bit data, shape: {input_shape}\n')
     toplevel.function_header(memfile, function='unload',
                              arguments=f'uint32_t *out_buf{"32" if output_width != 32 else ""}')
-    memfile.write('  volatile uint32_t *addr;\n')
+    if not mlator:
+        memfile.write('  volatile uint32_t *addr;\n')
+    else:
+        memfile.write('  volatile uint32_t *mlat, *ctrl;\n')
     if output_width != 32:
-        memfile.write(f'  uint{output_width}_t *out_buf = (uint{output_width}_t *) out_buf32;\n')
-        if input_shape[1] * input_shape[2] == 1:
-            memfile.write('  uint32_t val;\n\n')
-        else:
-            memfile.write('  uint32_t val, offs;\n\n')
+        if not mlator:
+            memfile.write(f'  uint{output_width}_t *out_buf = (uint{output_width}_t *) '
+                          'out_buf32;\n')
+            if input_shape[1] * input_shape[2] == 1:
+                memfile.write('  uint32_t val;\n\n')
+            else:
+                memfile.write('  uint32_t val, offs;\n\n')
+        elif input_shape[1] * input_shape[2] != 1:
+            memfile.write('  uint32_t offs;\n\n')
 
     coffs_start = ffs(processor_map) & ~(tc.dev.P_SHARED-1)
     coffs = coffs_start
@@ -70,7 +82,7 @@ def unload(
         expand = c // out_expand_thresh  # Channels 64+ handled by processors 0+
         proc = poffs & ~(tc.dev.P_SHARED-1)
 
-        if not mlator or out_size > 1:
+        if not mlator:
             for doffs in range(input_shape[1] * input_shape[2]):
                 row, col = divmod(doffs, input_shape[2])
                 this_map = next_layer_map
@@ -128,8 +140,8 @@ def unload(
         else:  # mlator
             assert out_size == 1
             this_map = next_layer_map
-            mlat = tc.ctl_addr(proc // tc.dev.P_NUMPRO, tc.dev.REG_MLAT)
-            ctrl = tc.ctl_addr(proc // tc.dev.P_NUMPRO, tc.dev.REG_CTL)
+            mlat = apb_base + tc.ctl_addr(proc // tc.dev.P_NUMPRO, tc.dev.REG_MLAT)
+            ctrl = apb_base + tc.ctl_addr(proc // tc.dev.P_NUMPRO, tc.dev.REG_CTL)
             if mlat_addr != mlat:
                 mlat_addr = mlat
                 memfile.write(f'  ctrl = (volatile uint32_t *) 0x{ctrl:08x};\n')
@@ -159,11 +171,13 @@ def unload(
                                 memfile.write(f'  *ctrl = 0x{tc.dev.READY_SEL << 1 | 1 << 3:08x}; '
                                               '// Disable mlator\n')
                             # Set wptr to start address
-                            val = tc.lreg_addr(proc // tc.dev.P_NUMPRO, tc.dev.LREG_WPTR_BASE)
+                            val = apb_base + tc.lreg_addr(proc // tc.dev.P_NUMPRO,
+                                                          tc.dev.LREG_WPTR_BASE)
                             memfile.write(f'  *((volatile uint32_t *) 0x{val:08x}) = '
                                           f'0x{doffs:08x}; // Set SRAM address\n')
                             # Set wptr_inc to set increment value (default: 1)
-                            val = tc.lreg_addr(proc // tc.dev.P_NUMPRO, tc.dev.LREG_LCTL2)
+                            val = apb_base + tc.lreg_addr(proc // tc.dev.P_NUMPRO,
+                                                          tc.dev.LREG_LCTL2)
                             memfile.write(f'  *((volatile uint32_t *) 0x{val:08x}) = '
                                           f'0x{expand:08x}; // Set pointer increment\n')
                             # Set mlatorld enable bit to load write ptr; select byte 0..3
@@ -215,6 +229,7 @@ def verify(
         max_count=None,
         write_gap=0,
         final_layer=0,
+        embedded=False,
 ):
     """
     Verify HWC memory from AI8X, writing C or mem code using the `verify_fn` function.
@@ -227,6 +242,12 @@ def verify(
     When `mlator` is set, use the hardware mechanism to rearrange 4-channel data into single
     channels.
     """
+    if embedded:
+        mlator = False  # FIXME Support mlator for embedded
+    if mlator and output_width != 8:
+        wprint('ignoring --mlator for 32-bit output.')
+        mlator = False
+
     count = 0
 
     def check_overwrite(
@@ -269,10 +290,7 @@ def verify(
     out_size = output_width // 8
     width = out_expand * out_size
 
-    if not mlator or out_size > 1:
-        if mlator:
-            wprint('ignoring --mlator for 32-bit output.')
-
+    if not mlator:
         for doffs in range(input_shape[1] * input_shape[2]):
             row, col = divmod(doffs, input_shape[2])
             this_map = next_layer_map
