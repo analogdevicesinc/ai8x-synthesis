@@ -11,4 +11,3 @@ layers:
   groups: 3
   bypass: True
   in_channels: 3
-
