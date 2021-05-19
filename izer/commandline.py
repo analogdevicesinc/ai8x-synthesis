@@ -9,12 +9,12 @@ Command line parser for Tornado CNN
 """
 import argparse
 
-from . import camera
+from . import camera, state
 from .devices import device
 from .eprint import wprint
 
 
-def get_parser():
+def get_parser() -> argparse.Namespace:
     """
     Return an argparse parser.
     """
@@ -399,3 +399,113 @@ def get_parser():
     args.unload = False
 
     return args
+
+
+def set_state(args: argparse.Namespace) -> None:
+    """
+    Set configuration state based on command line arguments.
+
+    :param args: list of command line arguments
+    """
+
+    state.allow_streaming = args.allow_streaming
+    if args.apb_base:
+        state.apb_base = args.apb_base
+    state.api_filename = args.api_filename
+    state.avg_pool_rounding = args.avg_pool_rounding
+    state.base_directory = args.test_dir
+    state.block_mode = not args.top_level
+    state.board_name = args.board_name
+    state.boost = args.boost
+    state.c_filename = args.c_filename
+    state.calcx4 = args.calcx4
+    state.clock_trim = args.clock_trim
+    state.compact_data = args.compact_data and not args.rtl_preload
+    state.compact_weights = args.compact_weights
+    state.debug = args.debug
+    state.debug_computation = args.debug_computation
+    state.debug_latency = args.debug_latency
+    state.debug_new_streaming = args.debug_new_streaming
+    state.debug_snoop = args.debug_snoop
+    state.debug_wait = args.debugwait
+    state.embedded_code = args.embedded_code
+    state.ext_rdy = args.ext_rdy
+    state.fast_fifo = args.fast_fifo
+    state.fast_fifo_quad = args.fast_fifo_quad
+    state.fifo = args.fifo
+    state.fifo_go = args.fifo_go
+    state.fixed_input = args.fixed_input
+    state.forever = args.forever
+    state.ignore_bias_groups = args.ignore_bias_groups
+    state.increase_delta1 = args.increase_delta1
+    state.increase_delta2 = args.increase_delta2
+    state.increase_start = args.increase_start
+    state.init_tram = args.init_tram
+    state.input_csv = args.input_csv
+    state.input_csv_format = args.input_csv_format
+    state.input_csv_period = args.input_csv_period
+    state.input_csv_retrace = args.input_csv_retrace
+    state.input_fifo = args.input_fifo
+    state.input_filename = args.input_filename
+    state.input_pix_clk = args.input_pix_clk
+    state.input_sync = args.input_sync
+    state.kernel_format = args.kernel_format
+    state.legacy_kernels = args.legacy_kernels
+    state.legacy_test = args.legacy_test
+    state.link_layer = args.link_layer
+    state.log = args.log
+    state.log_filename = args.log_filename
+    state.log_intermediate = args.log_intermediate
+    state.log_pooling = args.log_pooling
+    state.max_count = args.max_count
+    state.measure_energy = args.energy
+    state.mexpress = args.mexpress
+    state.mlator = args.mlator
+    state.mlator_noverify = args.mlator_noverify
+    state.no_error_stop = args.no_error_stop
+    state.oneshot = args.one_shot
+    state.output_filename = args.output_filename
+    state.override_delta1 = args.override_delta1
+    state.override_delta2 = args.override_delta2
+    state.override_rollover = args.override_rollover
+    state.override_start = args.override_start
+    state.overwrite = args.overwrite
+    state.overwrite_ok = args.overwrite_ok
+    state.pipeline = args.pipeline
+    state.pll = args.pll
+    state.powerdown = args.powerdown
+    state.prefix = args.prefix
+    state.pretend_zero_sram = args.pretend_zero_sram
+    state.repeat_layers = args.repeat_layers
+    state.reshape_inputs = args.reshape_inputs
+    state.result_output = args.result_output
+    state.riscv = args.riscv
+    state.riscv_cache = args.riscv_cache
+    state.riscv_debug = args.riscv_debug
+    state.riscv_exclusive = args.riscv_exclusive
+    state.riscv_flash = args.riscv_flash
+    state.rtl_preload = args.rtl_preload
+    state.runtest_filename = args.runtest_filename
+    state.sample_filename = args.sample_filename
+    state.simple1b = args.simple1b
+    state.sleep = args.deepsleep
+    state.slow_load = args.slow_load
+    state.softmax = args.softmax
+    state.split = args.input_split
+    state.start_layer = args.start_layer
+    state.stopstart = args.stop_start
+    state.synthesize_input = args.synthesize_input
+    state.synthesize_words = args.synthesize_words
+    state.test_dir = args.test_dir
+    state.timeout = args.timeout
+    state.timer = args.timer
+    state.verbose = args.verbose
+    state.verbose_all = args.verbose_all
+    state.verify_kernels = args.verify_kernels
+    state.verify_writes = args.verify_writes
+    state.weight_filename = args.weight_filename
+    state.weight_start = args.weight_start
+    state.wfi = args.wfi
+    state.write_zero_regs = args.write_zero_registers
+    state.zero_sram = args.zero_sram
+    state.zero_unused = args.zero_unused

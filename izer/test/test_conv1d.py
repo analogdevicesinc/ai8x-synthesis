@@ -14,9 +14,10 @@ import sys
 import numpy as np
 import torch
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Allow test to run outside of pytest
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-import izer.compute as compute  # noqa: E402 pylint: disable=wrong-import-position, import-error
+from izer import compute, state  # noqa: E402 pylint: disable=wrong-import-position
 
 
 def convolve1d(groups, data, weight, bias, pad, expected, stride=1):
@@ -44,7 +45,6 @@ def convolve1d(groups, data, weight, bias, pad, expected, stride=1):
         pad=pad,
         dilation=1,
         groups=groups,
-        debug=True
     )
 
     print("PYTORCH OK" if np.array_equal(output, t) else "*** FAILURE ***")
@@ -66,6 +66,7 @@ def convolve1d(groups, data, weight, bias, pad, expected, stride=1):
 
 def test_conv1d():
     """Main program to test compute.conv1d."""
+    state.debug = True
 
     d0 = np.array(
         [[-31, 45, 119, 29, 103, 127, -92, -42, 13, 127, 127, 105, -128, 40, -128, 25, -34],

@@ -15,9 +15,10 @@ from pathlib import Path
 import numpy as np
 import torch
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Allow test to run outside of pytest
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-import izer.compute as compute  # noqa: E402 pylint: disable=wrong-import-position, import-error
+from izer import compute, state  # noqa: E402 pylint: disable=wrong-import-position
 
 
 def linear(data, weight, bias, expected):
@@ -37,7 +38,6 @@ def linear(data, weight, bias, expected):
         bias,
         in_features=data.size,
         out_features=weight.shape[0],
-        debug=True,
     )
 
     print("PYTORCH OK" if np.array_equal(output, t) else "*** FAILURE ***")
@@ -57,7 +57,6 @@ def linear(data, weight, bias, expected):
         fractional_stride=[1, 1],
         output_pad=[0, 0],
         groups=1,
-        debug=True,
     ).squeeze()
 
     print("MLP EMULATION OK" if np.array_equal(emu_output, t) else "*** FAILURE ***")
@@ -82,6 +81,8 @@ def linear(data, weight, bias, expected):
 
 def test_linear():
     """Main program to test compute.linear."""
+    state.debug = True
+
     w0 = np.array(
         [[-16, 26, 35, -6, -40, -31, -27, -54, -51, -84, -69, -65,
           -8, -8, -13, -16, -3, 33, 48, 39, 27, 56, 50, 57, 31, 35,
@@ -315,7 +316,7 @@ def test_linear():
 
     linear(d1, w1, None, e1)
 
-    test_dir = Path(__file__).parent
+    test_dir = os.path.join(Path(__file__).parent.parent.parent, 'tests')
 
     # d = np.random.randint(-128, 127, (64, 3, 2*5), dtype=np.int64)
     # np.save('test_linear_d2', d, allow_pickle=False, fix_imports=False)

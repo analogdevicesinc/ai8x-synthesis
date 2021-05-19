@@ -12,7 +12,7 @@ import sys
 
 import numpy as np
 
-from . import op, rv
+from . import op, rv, state
 from . import tornadocnn as tc
 from .eprint import eprint, eprint_noprefix, wprint
 from .utils import ffs, fls, popcount
@@ -49,10 +49,8 @@ def print_map(
 
 
 def load(  # pylint: disable=too-many-branches,too-many-statements
-        verbose,
         embedded_code,
         apb,
-        start_layer,
         layers,
         operator,
         kernel,
@@ -68,18 +66,8 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         in_expand_thresh,
         conv_groups,
         flatten=None,
-        mexpress=False,
         verify=False,
-        riscv_flash=False,
-        quad=False,
-        debug=False,
-        blocklevel=False,
-        legacy_kernels=False,
-        calcx4=None,
         api=False,
-        start_offs=0,
-        bypass=None,
-        zero_sram=False,
 ):
     """
     Stack `kernel` values and write them to C code (for `embedded_code` if `True` or
@@ -91,6 +79,18 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     read back and compared.
     This function returns the kernel offsets and the kernel lengths for all layers.
     """
+    # Cache for faster access
+    bypass = state.bypass
+    calcx4 = state.calcx4
+    debug = state.debug
+    legacy_kernels = state.legacy_kernels
+    mexpress = state.mexpress
+    quad = state.fast_fifo_quad
+    start_layer = state.first_layer_used
+    start_offs = state.weight_start
+    zero_sram = state.zero_sram
+    riscv_flash = state.riscv_flash and not state.riscv_cache
+
     # Kernels: Stack kernels; write only the kernels needed
     proc_kern_max = [0] * tc.dev.MAX_PROC
     kern_offs = [start_offs] * layers
@@ -109,8 +109,6 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     if debug:
         print('\nLoading Kernels...')
 
-    if any(calcx4) and not tc.dev.SUPPORT_CALCX4:
-        eprint('calcx4 is not supported on this device.')
     assert not ((embedded_code or mexpress) and any(calcx4))  # FIXME Add support later
 
     for ll in range(start_layer, layers):
@@ -263,7 +261,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
 
         # Check for overflow
         if kern_offs[ll] + kern_len[ll] > tc.dev.mask_width(p):
-            eprint(f'\nKernel memory exceeded at layer {ll}; offset: {kern_offs[ll]}, '
+            eprint(f'\nKernel memory exhausted at layer {ll}; offset: {kern_offs[ll]}, '
                    f'needed: {kern_len[ll]}.'
                    '\n\nKernel map so far:', exit_code=None)
             print_map(layers, kernel_map, print_fn=eprint_noprefix)
@@ -281,7 +279,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 p += col_target % 4 * tc.dev.P_NUMPRO
             col = kern_offs[ll] + ct
             if col >= tc.dev.mask_width(p):
-                eprint(f'\nKernel memory exceeded in layer {ll}.'
+                eprint(f'\nKernel memory exhausted in layer {ll}.'
                        '\n\nKernel map so far:', exit_code=None)
                 print_map(layers, kernel_map, print_fn=eprint_noprefix)
                 sys.exit(1)
@@ -416,7 +414,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             ch += 1
             m = 0
 
-    if verbose:
+    if state.verbose:
         print('\nKernel map:')
         print_map(layers, kernel_map)
 
@@ -428,7 +426,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 ll = kernel_map[p][col]
                 if ll != _INVALID_VALUE:
                     apb.write_kern(ll, p, col, kernel_data[p][col],
-                                   verify_only=verify, calcx4=calcx4,
+                                   verify_only=verify, calc_x4=calcx4[ll],
                                    kern_offs=kern_offs,
                                    count=in_expand[ll] * output_chan[ll] * 9
                                    * abs(quantization[ll])
@@ -444,7 +442,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 if ll != _INVALID_VALUE:
                     k = kernel_data[p][col]
                     if not zero_sram or np.any(k != 0):
-                        apb.write_kern(ll, p, col, k, calcx4=calcx4,
+                        apb.write_kern(ll, p, col, k, calc_x4=calcx4[ll],
                                        kern_offs=kern_offs,
                                        count=in_expand[ll] * output_chan[ll] * 9
                                        * abs(quantization[ll])
@@ -573,7 +571,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                     if len(k) % 4 != 0:
                         k = np.concatenate((k, zero_kernel[:4 - len(k) % 4]))
                     # '>u4' swaps endianness to what the hardware needs, `view` packs into 32-bit
-                    if not blocklevel:
+                    if not state.block_mode:
                         apb.output_define(k.view(dtype='>u4'), f'KERNELS_{p}', '0x%08x', 8)
                     else:
                         addr = tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
@@ -590,7 +588,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                     k = None
             apb.output('\n', api)
 
-        if not blocklevel:
+        if not state.block_mode:
             apb.function_header(function='load_weights')
             max_col = [-1] * tc.dev.MAX_PROC
             min_col = [tc.dev.MASK_WIDTH_LARGE if not legacy_kernels else 0] * tc.dev.MAX_PROC
@@ -605,7 +603,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 if max_col[p] >= 0:
                     span = max_col[p] + 1 - min_col[p]
                     start = p
-                    addr = apb.apb_base + tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
+                    addr = state.apb_base + tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
                         + tc.dev.C_MRAM_BASE + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16
                     while (
                             max_col[p] == tc.dev.MASK_OFFS and

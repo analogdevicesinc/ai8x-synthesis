@@ -14,9 +14,10 @@ import sys
 import numpy as np
 import torch
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Allow test to run outside of pytest
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-import izer.compute as compute  # noqa: E402 pylint: disable=wrong-import-position, import-error
+from izer import compute, state  # noqa: E402 pylint: disable=wrong-import-position
 
 
 def convolve(dilation, data, weight, expected):
@@ -48,7 +49,6 @@ def convolve(dilation, data, weight, expected):
         fractional_stride=[1, 1],
         output_pad=[0, 0],
         groups=1,
-        debug=True,
     )
 
     print("PYTORCH OK" if np.array_equal(output, t) else "*** FAILURE ***")
@@ -66,6 +66,7 @@ def convolve(dilation, data, weight, expected):
 
 def test_conv2d():
     """Main program to test compute.conv2d."""
+    state.debug = True
 
     # 3x4x4 (CHW)
     d0 = np.array(

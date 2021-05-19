@@ -7,6 +7,7 @@
 """
 Simulated camera data
 """
+from typing import TextIO
 
 
 VSYNC_LEADIN = 10
@@ -16,7 +17,13 @@ RETRACE = 5  # 318
 FINAL = 10
 
 
-def write(f, vsync, href, d, stretch=0):
+def write(
+        f: TextIO,
+        vsync: int,
+        href: int,
+        d: int,
+        stretch: int = 0,
+) -> None:
     """
     Write `vsync`/`href` and data `d` to CSV file `f`.
     """
@@ -29,7 +36,12 @@ def write(f, vsync, href, d, stretch=0):
         f.write(f'{vsync},{href},0,{d:02x}\n')
 
 
-def header(f, leader=VSYNC_LEADIN, high=VSYNC_HIGH, low=VSYNC_LOW):
+def header(
+        f: TextIO,
+        leader: int = VSYNC_LEADIN,
+        high: int = VSYNC_HIGH,
+        low: int = VSYNC_LOW,
+) -> None:
     """
     Write header (VSYNC low/high/low) to CSV file `f`.
     """
@@ -48,7 +60,10 @@ def header(f, leader=VSYNC_LEADIN, high=VSYNC_HIGH, low=VSYNC_LOW):
         write(f, 0, 0, 0)
 
 
-def finish_row(f, retrace=RETRACE):
+def finish_row(
+        f: TextIO,
+        retrace: int = RETRACE,
+) -> None:
     """
     Finish row by (HREF low) for CSV file `f`.
     """
@@ -56,7 +71,10 @@ def finish_row(f, retrace=RETRACE):
         write(f, 0, 0, 0)
 
 
-def finish_image(f, num=FINAL):
+def finish_image(
+        f: TextIO,
+        num: int = FINAL,
+) -> None:
     """
     Finish image (VSYNC low/HREF low) for CSV file `f`.
     """
@@ -64,7 +82,10 @@ def finish_image(f, num=FINAL):
         write(f, 0, 0, 0)
 
 
-def pixel(f, val):
+def pixel(
+        f: TextIO,
+        val: int,
+) -> None:
     """
     Write pixel data `val` (HREF high) to CSV file `f`.
     """

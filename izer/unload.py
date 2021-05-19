@@ -7,24 +7,22 @@
 """
 Unload AI8X HWC memory into standard representation.
 """
-from . import toplevel
+from typing import List, TextIO
+
+from . import state, toplevel
 from . import tornadocnn as tc
 from .eprint import eprint, wprint
 from .utils import ffs, popcount
 
 
 def unload(
-        memfile,
-        apb_base,
-        processor_map,
-        input_shape,
-        out_offset,
-        out_expand,
-        out_expand_thresh,
-        output_width=8,
-        mlator=False,
-        blocklevel=False,
-        embedded=False,  # pylint: disable=unused-argument
+        memfile: TextIO,
+        processor_map: int,
+        input_shape: List[int],
+        out_offset: int,
+        out_expand: int,
+        out_expand_thresh: int,
+        output_width: int = 8,
 ):
     """
     Unload HWC memory from hardware, writing C code to the `memfile` handle.
@@ -35,7 +33,13 @@ def unload(
     When `mlator` is set, use the hardware mechanism to rearrange 4-channel data into single
     channels.
     """
-    assert not blocklevel or not mlator
+    assert tc.dev is not None
+
+    # Cache for faster access
+    apb_base = state.apb_base
+    mlator = state.mlator
+
+    assert not state.block_mode or not mlator
 
     if mlator and output_width != 8:
         wprint('ignoring --mlator for 32-bit output.')
@@ -222,11 +226,8 @@ def verify(
         out_expand_thresh,
         output_width=8,
         overwrite_ok=False,
-        no_error_stop=False,
         mlator=False,
-        apb_base=0,
         stream=None,
-        max_count=None,
         write_gap=0,
         final_layer=0,
         embedded=False,
@@ -242,6 +243,11 @@ def verify(
     When `mlator` is set, use the hardware mechanism to rearrange 4-channel data into single
     channels.
     """
+    # Cache for faster access
+    apb_base = state.apb_base
+    max_count = state.max_count
+    no_error_stop = state.no_error_stop
+
     if embedded:
         mlator = False  # FIXME Support mlator for embedded
     if mlator and output_width != 8:

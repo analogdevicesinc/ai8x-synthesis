@@ -14,9 +14,10 @@ import sys
 import numpy as np
 import torch
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Allow test to run outside of pytest
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-import izer.compute as compute  # noqa: E402 pylint: disable=wrong-import-position, import-error
+from izer import compute, state  # noqa: E402 pylint: disable=wrong-import-position
 
 
 def deconvolve(groups, data, weight, expected, pad=1, output_pad=1):
@@ -53,7 +54,6 @@ def deconvolve(groups, data, weight, expected, pad=1, output_pad=1):
         fractional_stride=[2, 2],
         output_pad=[output_pad, output_pad],
         groups=groups,
-        debug=True,
     )
 
     print("PYTORCH OK" if np.array_equal(output, t) else "*** FAILURE ***")
@@ -71,6 +71,7 @@ def deconvolve(groups, data, weight, expected, pad=1, output_pad=1):
 
 def test_convtranspose2d():
     """Main program to test compute.conv2d with fractional stride."""
+    state.debug = True
 
     # 3x4x4 (CHW)
     d0 = np.array(

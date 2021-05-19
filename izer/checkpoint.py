@@ -12,6 +12,7 @@ import sys
 import numpy as np
 import torch
 
+# Do not import state - it is not set yet
 from . import op
 from . import tornadocnn as tc
 from .eprint import eprint, wprint

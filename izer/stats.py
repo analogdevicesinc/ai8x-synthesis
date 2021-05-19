@@ -9,7 +9,9 @@ Statistics for the pure Python computation modules
 """
 import operator
 from functools import reduce
+from typing import Optional
 
+from . import state
 from . import tornadocnn as tc
 
 macc = 0  # Hardware multiply-accumulates (Conv2D, etc.)
@@ -42,17 +44,19 @@ def sw_ops():
 
 
 def summary(
-        factor=1,
-        debug=False,
-        spaces=0,
-        weights=None,
-        w_size=None,
-        bias=None,
-        group_bias_max=None,
+        factor: int = 1,
+        spaces: int = 0,
+        group_bias_max: Optional[int] = None,
 ):
     """
     Return ops summary and weight usage statistics.
     """
+    # Cache variables locally
+    debug = state.debug
+    weights = state.weights
+    w_size = state.quantization
+    bias = state.bias
+
     sp = ' ' * spaces
     rv = sp + "SUMMARY OF OPS\n"
 
@@ -65,6 +69,7 @@ def summary(
         rv += f'{sp}Software: {factor * sw_ops():,} ops ({factor * sw_macc:,} ' \
               f'macc; {factor * sw_comp:,} comp)\n'
 
+    assert tc.dev is not None
     if weights is not None and hasattr(tc.dev, 'BIAS_SIZE'):
         kmem = sum(tc.dev.mask_width(proc) * 9 for proc in range(tc.dev.MAX_PROC))
         kmem_used = sum([reduce(operator.mul, e.shape) * abs(w_size[i]) // 8
