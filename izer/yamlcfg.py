@@ -8,6 +8,9 @@
 YAML Configuration Routines
 """
 import yaml
+import yamllint
+import yamllint.config
+import yamllint.linter
 
 from . import devices, op
 from . import tornadocnn as tc
@@ -63,9 +66,17 @@ def parse(config_file):
         """
         eprint(f'{message} (found in layer sequence {sequence} in YAML configuration).')
 
+    print(f'Reading {config_file} to configure network...')
+
+    # Run yamllint first
+    yaml_config = yamllint.config.YamlLintConfig('extends: relaxed')
+    with open(config_file) as cfg_file:
+        for p in yamllint.linter.run(cfg_file, yaml_config):
+            eprint(f'{config_file} line {p.line}, col {p.column}: {p.desc}',
+                   error=p.level == 'error')
+
     # Load configuration file
     with open(config_file) as cfg_file:
-        print(f'Reading {config_file} to configure network...')
         cfg = yaml.load(cfg_file, Loader=UniqueKeyLoader)
 
     if bool(set(cfg) - set(['bias', 'dataset', 'layers',
