@@ -96,6 +96,9 @@ def get_parser() -> argparse.Namespace:
                         help="use timer to time the inference (default: off, supply timer number)")
     mgroup.add_argument('--energy', action='store_true', default=False,
                         help="insert instrumentation code for energy measurement")
+    mgroup.add_argument('--no-greedy-kernel', action='store_true', dest='greedy_kernel_allocator',
+                        default=True,
+                        help="do not use greedy kernel memory allocator (default: use)")
 
     # File names
     group = parser.add_argument_group('File names')
@@ -436,6 +439,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.fifo_go = args.fifo_go
     state.fixed_input = args.fixed_input
     state.forever = args.forever
+    state.greedy_kernel_allocator = args.greedy_kernel_allocator
     state.ignore_bias_groups = args.ignore_bias_groups
     state.increase_delta1 = args.increase_delta1
     state.increase_delta2 = args.increase_delta2

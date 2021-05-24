@@ -188,17 +188,6 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         last_proc = fls(proc_map)
         ch = 0
         m = 0
-        for p in range(first_proc, last_proc+1):
-            if (proc_map >> p) & 1 == 0:
-                # Unused processor
-                continue
-            # Get highest offset for all used processors
-            kern_offs[ll] = max(proc_kern_max[p], kern_offs[ll])
-        if ll > 0 and calcx4[ll] and not calcx4[ll-1]:
-            # FIXME: This is a quick workaround that should be properly addressed for mixed
-            # non-x4/x4 situations (most common: quad-fast-fifo input and calcx4 in the rest
-            # of the network)
-            kern_offs[ll] *= 4
 
         ksize = kernel_size[ll][0] * kernel_size[ll][1]
         next_layer_map = output_processor_map[ll]
@@ -250,6 +239,60 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             kern_count[0] = (kern_count[0] + 3) // 4
             kern_ochan[0] = (kern_ochan[0] + 3) // 4
 
+        def check_kernel_mem(ll: int, p: int, offs: int, length: int = None) -> None:
+            """Check that there is enough space at index `offs` for processor `p`"""
+            assert tc.dev is not None
+            if length is None:
+                length = kern_len[ll]
+            if offs + length > tc.dev.mask_width(p):
+                eprint(f'\nKernel memory exhausted at layer {ll}; offset: {offs}, '
+                       f'needed: {length}.\n\nKernel map so far:', exit_code=None)
+                print_map(layers, kernel_map, print_fn=eprint_noprefix)
+                sys.exit(1)
+
+        # Find space for kernels
+        if not state.greedy_kernel_allocator:
+            for p in range(first_proc, last_proc+1):
+                if (proc_map >> p) & 1 == 0:
+                    # Unused processor
+                    continue
+                # Get highest offset for all used processors
+                kern_offs[ll] = max(proc_kern_max[p], kern_offs[ll])
+        else:
+            # Find the first block of kern_len[ll] size that is available for all used processors
+            # Initially, start looking at 0 and subsequently at the first available for the
+            # previously examined processors. Stop looking at the highest used offset for all
+            # processors.
+            start_p = 0
+            for p in range(first_proc, last_proc+1):
+                if (proc_map >> p) & 1 == 0:
+                    # Unused processor
+                    continue
+
+                while kernel_map[p][start_p] != _INVALID_VALUE:
+                    # Start at a multiple of 4
+                    start_p = (start_p + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
+                    check_kernel_mem(ll, p, start_p)
+                    while kernel_map[p][start_p] != _INVALID_VALUE:
+                        start_p += tc.dev.P_SHARED
+                        check_kernel_mem(ll, p, start_p)
+
+                    # Is there enough space at this location?
+                    for i in range(start_p, start_p + kern_len[ll]):
+                        if kernel_map[p][i] != _INVALID_VALUE:
+                            start_p = i + 1
+                            check_kernel_mem(ll, p, start_p)
+                            break
+
+            # Get highest offset for all used processors
+            kern_offs[ll] = start_p
+
+        if ll > 0 and calcx4[ll] and not calcx4[ll-1]:
+            # FIXME: This is a quick workaround that should be properly addressed for mixed
+            # non-x4/x4 situations (most common: quad-fast-fifo input and calcx4 in the rest
+            # of the network)
+            kern_offs[ll] *= 4
+
         # We don't have to use dummy columns if there's space available on the left
         kern_offs[ll] = \
             max(0, kern_offs[ll] - (((ffs(next_layer_map) % tc.dev.P_SHARED)
@@ -260,12 +303,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         kern_offs[ll] = (kern_offs[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
 
         # Check for overflow
-        if kern_offs[ll] + kern_len[ll] > tc.dev.mask_width(p):
-            eprint(f'\nKernel memory exhausted at layer {ll}; offset: {kern_offs[ll]}, '
-                   f'needed: {kern_len[ll]}.'
-                   '\n\nKernel map so far:', exit_code=None)
-            print_map(layers, kernel_map, print_fn=eprint_noprefix)
-            sys.exit(1)
+        check_kernel_mem(ll, last_proc, kern_offs[ll])
 
         proc_mask = 2**qfactor - 1
 
@@ -278,11 +316,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 ct //= 4
                 p += col_target % 4 * tc.dev.P_NUMPRO
             col = kern_offs[ll] + ct
-            if col >= tc.dev.mask_width(p):
-                eprint(f'\nKernel memory exhausted in layer {ll}.'
-                       '\n\nKernel map so far:', exit_code=None)
-                print_map(layers, kernel_map, print_fn=eprint_noprefix)
-                sys.exit(1)
+            check_kernel_mem(ll, p, col, length=1)
 
             if kernels_used[p][col] == 0:  # Update kernel map
                 assert kernel_map[p][col] == _INVALID_VALUE
