@@ -155,8 +155,10 @@ def get_parser() -> argparse.Namespace:
     group = parser.add_argument_group('Debug and logging')
     group.add_argument('-v', '--verbose', action='store_true', default=False,
                        help="verbose output (default: false)")
-    group.add_argument('-L', '--log', action='store_true', default=False,
-                       help="redirect stdout to log file (default: false)")
+    group.add_argument('-L', '--log', action='store_true', default=None,
+                       help="redirect stdout to log file (default)")
+    group.add_argument('--no-log', dest='log', action='store_false',
+                       help="do not redirect stdout to log file (default: false)")
     group.add_argument('--log-intermediate', action='store_true', default=False,
                        help="log weights/data between layers to .mem files (default: false)")
     group.add_argument('--log-pooling', action='store_true', default=False,
@@ -344,6 +346,10 @@ def get_parser() -> argparse.Namespace:
 
     if not args.c_filename:
         args.c_filename = 'main' if args.embedded_code else 'test'
+
+    # Set default
+    if args.log is None:
+        args.log = True
 
     if args.no_bias is None:
         args.no_bias = []
