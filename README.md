@@ -2,18 +2,21 @@
 
 _May 26, 2021_
 
-The Maxim Integrated AI project is comprised of four repositories:
+The Maxim Integrated AI project is comprised of five repositories:
 
-1. **Start here**: [Top Level Documentation](https://github.com/MaximIntegratedAI/MaximAI_Documentation)
-2. The software development kit (SDK), which contains drivers and example programs ready to run on the Evaluation Kit:
+1. **Start here**:
+    **[Top Level Documentation](https://github.com/MaximIntegratedAI/MaximAI_Documentation)**
+2. The software development kit (SDK), which contains drivers and example programs ready to run on the evaluation kits (EVkit and Feather):
     [MAX78000_SDK](https://github.com/MaximIntegratedAI/MAX78000_SDK)
 3. The training repository, which is used for deep learning *model development and training*:
     [ai8x-training](https://github.com/MaximIntegratedAI/ai8x-training) **(described in this document)**
 4. The synthesis repository, which is used to *convert a trained model into C code* using the “izer” tool:
     [ai8x-synthesis](https://github.com/MaximIntegratedAI/ai8x-synthesis) **(described in this document)**
+5. The reference design repository, which contains host applications and sample applications for reference designs:
+    [refdes](https://github.com/MaximIntegratedAI/refdes)
 
 _Open the `.md` version of this file in a markdown enabled viewer, for example Typora (http://typora.io).
-See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A [PDF copy of this file](README.pdf) is available in this repository. The GitHub rendering of this document does not show the formulas or the clickable table of contents._
+See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a description of Markdown. A [PDF copy of this file](README.pdf) is available in this repository. The GitHub rendering of this document does not show the mathematical formulas nor the clickable table of contents._
 
 ---
 
@@ -44,7 +47,6 @@ Including the SDK, the expected/resulting file system layout will be:
     ..../ai8x-training/
     ..../ai8x-synthesis/
     ..../ai8x-synthesis/sdk/
-    ..../manifold/
 
 where “....” is the project root, for example `~/Documents/Source/AI`.
 
@@ -92,7 +94,7 @@ The following software is optional, and can be replaced with other similar softw
 
 #### System Packages
 
-Some additional system packages are required, and installation of these additional packages requires administrator privileges. Note that this is the only time administrator privileges are required unless the optional Manifold is installed locally.
+Some additional system packages are required, and installation of these additional packages requires administrator privileges. Note that this is the only time administrator privileges are required.
 
 ##### macOS
 
@@ -203,87 +205,9 @@ Add this line to `~/.profile` (and on macOS, to `~/.zprofile`).
 
 Nirvana Distiller is package for neural network compression and quantization. Network compression can reduce the memory footprint of a neural network, increase its inference speed and save energy. Distiller is automatically installed as a git sub-module with the other packages.
 
-#### Uber Manifold (Optional)
+#### Manifold
 
-Manifold is a model-agnostic visual debugging tool for machine learning. Manifold can compare models, detects which subset of data a model is inaccurately predicting, and explains the potential cause of poor model performance by surfacing the feature distribution difference between better and worse-performing subsets of data.
-
-There is a hosted version of Manifold at http://manifold.mlvis.io/. To install it locally (for IP reasons and higher speed):
-
-On macOS,
-
-```shell
-brew install yarn npm
-```
-
-On Linux,
-
-```shell
-$ cd $AI_PROJECT_ROOT
-$ curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
-$ echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
-$ curl -sL https://deb.nodesource.com/setup_13.x | sudo -E bash -
-$ sudo apt-get update
-$ sudo apt-get install -y nodejs yarn
-```
-
-On both Mac and Linux:
-
-```shell
-$ git clone https://github.com/uber/manifold.git
-$ cd manifold
-$ yarn
-# ignore warnings
-$ cd examples/manifold
-$ yarn
-# ignore warnings
-npm run start
-```
-
-The actual code will run in JavaScript inside the browser (this may cause warnings that the web page is consuming lots of resources).
-
-##### Integration into PyTorch code
-
-The easiest integration of Manifold is by generating three CSV files during/after training and load them into the demo application (started with the `npm run start` command shown above). For example, a batch tensor can be saved to a CSV file using
-
-```python
-def save_tensor(t, f):
-    """ Save tensor `t` to file handle `f` in CSV format """
-    np.savetxt(f, t.reshape(t.shape[0], t.shape[1], -1).mean(axis=2).cpu().numpy(), delimiter=",")
-```
-
-This example assumes that the shape of the tensor is (batch_size, features, [feature dimensions]) and averages each feature individually.
-
-To create the CSV files, open the files and put the field name(s) into the first line:
-
-```python
-    print('Saving x/ypred/ytrue to CSV...')
-    f_ytrue = open('ytrue.csv', 'w')
-    f_ytrue.write('hr\n')
-    f_ypred = open('ypred.csv', 'w')
-    f_ypred.write('hr\n')
-    f_x = open('x.csv', 'w')
-    f_x.write(','.join(data_fields) + '\n')
-```
-
-Then, where appropriate during test, save features/predictions/truth values to CSV:
-
-```python
-		save_tensor(local_batch_val, f_x)
-    save_tensor(outputs, f_ypred)
-    save_tensor(local_label_val, f_ytrue)
-```
-
-Finally, close the files:
-
-```python
-		f_ytrue.close()
-		f_ypred.close()
-		f_x.close()
-```
-
-Note that performance will suffer when there are more than about 20,000 records in the CSV file. Subsampling the data is one way to avoid this problem.
-
-
+Manifold is a model-agnostic visual debugging tool for machine learning. The [Manifold guide](https://github.com/MaximIntegratedAI/MaximAI_Documentation/blob/master/Guides/Manifold.md) shows how to integrate this optional package into the training software.
 
 #### Windows Systems
 
@@ -1090,7 +1014,7 @@ After fusing/folding, the network will not contain any batchnorm layers. The eff
 
 ### Model Comparison and Feature Attribution
 
-Both TensorBoard and Manifold can be used for model comparison and feature attribution.
+Both TensorBoard and [Manifold](#Manifold) can be used for model comparison and feature attribution.
 
 #### TensorBoard
 
@@ -1121,34 +1045,7 @@ When using PuTTY, port forwarding is achieved as follows:
 
 ![putty-forward](docs/putty-forward.jpg)
 
-#### Manifold
 
-The quickest way to integrate manifold is by creating CSV files from the training software. *Note that performance will suffer when there are more than about 20,000 records in the CSV file. Subsampling the data is one way to avoid this problem.*
-
-The `train.py` program can create CSV files using the `--save-csv` command line argument in combination with `--evaluate`:
-
-```shell
-./train.py --model ai85net5 --dataset MNIST --confusion --evaluate --save-csv mnist --device MAX78000 --exp-load-weights-from ../ai8x-synthesis/trained/ai85-mnist.pth.tar -8
-```
-
-To run the manifold example application:
-
-```shell
-$ cd manifold/examples/manifold
-$ npm run start
-```
-
-The code will run in JavaScript inside the browser (this may cause warnings that the web page is consuming lots of resources). To run a browser remotely on a development machine, forward X11 using the following command:
-
-```shell
-$ ssh -Yn targethost firefox http://localhost:8080/
-```
-
-To forward only the remote web port, use `ssh`:
-
-```shell
-$ ssh -L 8080:127.0.0.1:8080 targethost
-```
 
 #### SHAP — SHapely Additive exPlanations
 
@@ -1162,7 +1059,7 @@ The train.py program can create plots using the `--shap` command line argument i
 
 This will create a plot with a random selection of 3 test images. The plot shows ten outputs (the ten classes) for the three different input images on the left. Red pixels increase the model’s output while blue pixels decrease the output. The sum of the SHAP values equals the difference between the expected model output (averaged over the background dataset) and the current model output.
 
-<img src="docs/shap.png" alt="shap"  />
+<img src="docs/shap.png" alt="shap"/>
 
 ### BatchNorm Fusing
 
