@@ -1375,6 +1375,7 @@ The following table describes the most important command line arguments for `ai8
 | `--synthesize-input`     | Instead of using large sample input data, use only the first `--synthesize-words` words of the sample input, and add N to each subsequent set of `--synthesize-words` 32-bit words | `--synthesize-input 0x112233` |
 | `--synthesize-words` | When using `—synthesize-input`, specifies how many words to use from the input. The default is 8. This number must be a divisor of the total number of pixels per channel. | `--synthesize-words 64` |
 | `--max-checklines`       | Instead of checking all of the expected output data, verify only the first N words | `--max-checklines 1024`         |
+| `--no-unload` | Do not create the `cnn_unload()` function |  |
 
 ### YAML Network Description
 
@@ -2142,11 +2143,11 @@ There can be many reasons why the known-answer test (KAT) fails for a given netw
 * The default compiler optimization level is `-O2`, and incorrect code may be generated under rare circumstances. Lower the optimization level in the generated `Makefile` to `-O1`, clean (`make distclean && make clean`) and rebuild the project (`make`). If this solves the problem, one of the possible reasons is that code is missing the `volatile`  keyword for certain variables.
   To permanently adjust the default compiler optimization level, modify `MXC_OPTIMIZE_CFLAGS` in  `assets/embedded-ai85/templateMakefile` for Arm code and  `assets/embedded-riscv-ai85/templateMakefile.RISCV` for RISC-V code.
 
-* `--stop-after N` where `N` is a layer number may help finding the problematic layer by terminating the network early without having to retrain and without having to change the weight input file. Note that this may also require `--max-checklines` as [described above](#Handling Linker Flash Section Overflows) since intermediate outputs tend to be large.
+* `--stop-after N` where `N` is a layer number may help finding the problematic layer by terminating the network early without having to retrain and without having to change the weight input file. Note that this may also require `--max-checklines` as [described above](#Handling Linker Flash Section Overflows) since intermediate outputs tend to be large, and additionally `--no-unload` to suppress generation of the `cnn_unload()` function.
 
 * `--no-bias LIST` where `LIST` is a comma-separated list of layers (e.g., `0,1,2,3`) can rule out problems due to the bias. This option zeros out the bias for the given layers without having to remove bias values from the weight input file. 
 
-* `--ignore-streaming` ignores all `streaming` statements in the YAML file. Note that this typically only works when the sample input is replaced with a different, lower-dimension sample input (for example, use 3×32×32 instead of 3×128×128).
+* `--ignore-streaming` ignores all `streaming` statements in the YAML file. Note that this typically only works when the sample input is replaced with a different, lower-dimension sample input (for example, use 3×32×32 instead of 3×128×128), and does not support fully connected layers without retraining (use `--stop-after` to remove final layers). Ensure that the network (or partial network when using `--stop-after`) does not produce all-zero intermediate data or final outputs when using reduced-dimension inputs. The log file (`log.txt` by default) will contain the necessary information.
 
   
 
