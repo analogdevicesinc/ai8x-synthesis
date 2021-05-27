@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_May 26, 2021_
+_May 27, 2021_
 
 The Maxim Integrated AI project is comprised of five repositories:
 
@@ -499,6 +499,8 @@ When the _yellow_ output pixel is produced, the first (_black_) pixel of the inp
 The number of discarded pixels is network specific and dependent on pooling strides and the types of convolution. In general, streaming mode is only useful for networks where the output data dimensions decrease from layer to layer (for example, by using a pooling stride).
 
 *Note: Streaming mode requires the use of FIFOs.*
+
+For concrete examples on how to implement streaming mode with a camera, please see the [Camera Streaming Guide](https://github.com/MaximIntegratedAI/MaximAI_Documentation/blob/master/Guides/Camera_Streaming_Guide.md)
 
 #### FIFOs
 
@@ -1692,7 +1694,7 @@ Example:
 
 ##### `streaming` (Optional)
 
-`streaming` specifies that the layer is using streaming mode. this is necessary when the input data dimensions exceed the available data memory. When enabling `streaming`, all prior layers have to enable `streaming` as well. `streaming` can be enabled for up to 8 layers.
+`streaming` specifies that the layer is using [streaming mode](#Streaming Mode). This is necessary when the input data dimensions exceed the available data memory. When enabling `streaming`, all prior layers have to enable `streaming` as well. `streaming` can be enabled for up to 8 layers.
 
 Example:
 	`streaming: true`
