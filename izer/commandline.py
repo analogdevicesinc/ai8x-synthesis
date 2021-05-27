@@ -83,7 +83,9 @@ def get_parser() -> argparse.Namespace:
     group.add_argument('--softmax', action='store_true', default=False,
                        help="add software softmax function (default: false)")
     group.add_argument('--unload', action='store_true', default=None,
-                       help="legacy argument - ignored")
+                       help="enable use of cnn_unload() function (default)")
+    group.add_argument('--no-unload', dest='unload', action='store_false',
+                       help="disable use of cnn_unload() function (default: enabled)")
     group.add_argument('--boost', metavar='S', default=None,
                        help="dot-separated port and pin that is turned on during CNN run to "
                             "boost the power supply, e.g. --boost 2.5 (default: None)")
@@ -350,6 +352,8 @@ def get_parser() -> argparse.Namespace:
     # Set default
     if args.log is None:
         args.log = True
+    if args.unload is None:
+        args.unload = True
 
     if args.no_bias is None:
         args.no_bias = []
@@ -398,14 +402,8 @@ def get_parser() -> argparse.Namespace:
     if args.riscv_cache is None:
         args.riscv_cache = args.riscv
 
-    if args.unload:
-        wprint('`--unload` is no longer needed, and is ignored.')
-
     if args.allow_streaming:
         wprint('`--allow-streaming` is unsupported.')
-
-    # Set disabled legacy arguments
-    args.unload = False
 
     return args
 
@@ -509,6 +507,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.test_dir = args.test_dir
     state.timeout = args.timeout
     state.timer = args.timer
+    state.unload = args.unload
     state.verbose = args.verbose
     state.verbose_all = args.verbose_all
     state.verify_kernels = args.verify_kernels

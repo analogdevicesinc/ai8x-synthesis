@@ -267,6 +267,7 @@ def main(
     main_code = riscv is None or riscv
     arm_code = riscv is None or not riscv
     arm_code_wrapper = riscv is not None and not riscv
+    unload = unload and state.unload
 
     # Cache local variables
     boost = state.boost

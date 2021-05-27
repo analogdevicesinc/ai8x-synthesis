@@ -2648,7 +2648,7 @@ class Backend(backend.Backend):
             with open(os.path.join(base_directory, test_name, filename), mode=filemode) as memfile:
                 apb.set_memfile(memfile)
 
-                if state.softmax or embedded_code:
+                if state.softmax or embedded_code and state.unload:
                     apb.unload(
                         output_processor_map[terminating_layer],
                         out_size,
