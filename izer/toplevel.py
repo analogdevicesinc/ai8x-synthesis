@@ -629,6 +629,8 @@ def main(
         if not measure_energy:
             if embedded_code or tc.dev.MODERN_SIM:
                 if state.wfi:
+                    if not riscv:
+                        memfile.write('  SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=0\n')
                     memfile.write('  while (cnn_time == 0)\n')
                     if not riscv:
                         memfile.write('    __WFI(); // Wait for CNN\n\n')
@@ -648,6 +650,8 @@ def main(
             memfile.write('    cnn_start(); // Run inference\n')
             if fifo:
                 memfile.write('    load_input(); // Load data input via FIFO\n')
+            if not riscv:
+                memfile.write('    SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=0\n')
             memfile.write('    while (cnn_time == 0)\n')
             if not riscv:
                 memfile.write('      __WFI(); // Wait for CNN\n')
@@ -660,6 +664,8 @@ def main(
             memfile.write(f'  for (i = 0; i < {oneshot}; i++) {{\n')
             memfile.write('    cnn_continue();\n')
             if embedded_code or tc.dev.MODERN_SIM:
+                if not riscv:
+                    memfile.write('    SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=0\n')
                 memfile.write('    while (cnn_time == 0)\n')
                 if not riscv:
                     memfile.write('      __WFI(); // Wait for CNN\n')
@@ -743,6 +749,8 @@ def main(
                           '  while(1) {\n'
                           '    cnn_start();\n')
             if embedded_code or tc.dev.MODERN_SIM:
+                if not riscv:
+                    memfile.write('    SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=0\n')
                 memfile.write('    while (cnn_time == 0)\n')
                 if not riscv:
                     memfile.write('      __WFI(); // Wait for CNN\n')
