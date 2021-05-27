@@ -9,7 +9,6 @@ Simulated camera data
 """
 from typing import TextIO
 
-
 VSYNC_LEADIN = 10
 VSYNC_HIGH = 50  # 5000
 VSYNC_LOW = 20  # 2000

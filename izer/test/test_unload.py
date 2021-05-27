@@ -19,7 +19,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 import izer.tornadocnn as tc  # noqa: E402 pylint: disable=wrong-import-position
 from izer.utils import ffs, popcount  # noqa: E402 pylint: disable=wrong-import-position
 
-
 MEM_INVALID = -(2**63)  # When encountering this value, we know the array value was not initialized
 
 

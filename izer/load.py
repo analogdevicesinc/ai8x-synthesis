@@ -8,6 +8,7 @@
 Load Tornado CNN data memory
 """
 from typing import List
+
 import numpy as np
 
 from . import camera, rv, state

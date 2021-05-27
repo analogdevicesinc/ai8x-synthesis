@@ -691,15 +691,15 @@ def main(
             mfile.write('  MXC_GPIO_OutSet(gpio_out.port, gpio_out.mask);\n')
             function_footer(apifile)  # boost_disable()
 
+        # pylint: disable=unsubscriptable-object
         if not forever and boost is not None:
             if apifile is None:
                 memfile.write('  // Turn off the CNN Boost\n')
                 memfile.write('  MXC_GPIO_OutClr(gpio_out.port, gpio_out.mask);\n\n')
             else:
-                # pylint: disable=unsubscriptable-object
                 memfile.write(f'  cnn_boost_disable(MXC_GPIO{boost[0]}, '
                               f'MXC_GPIO_PIN_{boost[1]}); // Turn off the boost circuit\n\n')
-                # pylint: enable=unsubscriptable-object
+        # pylint: enable=unsubscriptable-object
 
         memfile.write('  if (check_output() != CNN_OK) fail();\n')
         if softmax:
