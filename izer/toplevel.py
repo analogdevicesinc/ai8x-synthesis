@@ -292,8 +292,12 @@ def main(
         memfile.write('\n')
 
     if arm_code_wrapper and (embedded_arm or tc.dev.MODERN_SIM):
+        if not state.wfi:
+            memfile.write('static volatile int riscv_done;\n\n')
         function_header(memfile, prefix='', function='WakeISR', return_type='void')
         memfile.write('  MXC_SEMA->irq0 = MXC_F_SEMA_IRQ0_EN & ~MXC_F_SEMA_IRQ0_CM4_IRQ;\n')
+        if not state.wfi:
+            memfile.write('  riscv_done = 1;\n')
         function_footer(memfile, return_value='void')  # WakeISR()
 
     # Add this to RTL simulations where it's missing from the SDK
@@ -768,7 +772,11 @@ def main(
                     memfile.write('  MXC_PWRSEQ->lppwen |= 0x400; // CPU1WKEN=1\n')
                 memfile.write(f'  {"_" if not embedded_code else ""}MXC_LP_ClearWakeStatus();\n'
                               '  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=1\n')
-            memfile.write('  __WFI(); // Let RISC-V run\n')
+            if state.wfi:
+                memfile.write('  __WFI(); // Let RISC-V run\n')
+            else:
+                memfile.write('  riscv_done = 0;\n'
+                              '  while (riscv_done == 0); // Let RISC-V run\n')
         elif embedded_code or tc.dev.MODERN_SIM:
             memfile.write('\n  // Signal the Cortex-M4\n'
                           '  MXC_SEMA->irq0 = MXC_F_SEMA_IRQ0_EN | MXC_F_SEMA_IRQ0_CM4_IRQ;\n')
