@@ -436,6 +436,9 @@ def main():
                 if pooled_dim[ll][0] * pooled_dim[ll][1] > 256:
                     eprint(f'`flatten` in layer {ll} exceeds supported input dimensions '
                            f'({pooled_dim[ll][0]} * {pooled_dim[ll][1]} > 256)).')
+                if pooled_dim[ll][0] * pooled_dim[ll][1] == 1:
+                    wprint(f'`flatten` in layer {ll} is not needed since input dimensions are '
+                           '1x1.')
                 output_dim[ll] = [1, 1]
                 input_channels[ll] //= pooled_dim[ll][0] * pooled_dim[ll][1]
                 assert input_channels[ll] > 0
