@@ -473,6 +473,10 @@ def main():
 
         assert input_channels[ll] > 0
 
+        if activation[ll] is not None and operator[ll] == op.NONE:
+            eprint(f'Layer {ll} specifies activation {op.act_string(activation[ll])} for a '
+                   'passthrough layer.')
+
         ll = next_sequence[ll]
         if ll == -1:
             break
