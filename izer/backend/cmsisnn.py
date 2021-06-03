@@ -440,7 +440,8 @@ class Backend(backend.Backend):
                     conv_str = f', {op.string(operator[ll])} with kernel size ' \
                                f'{kernel_size_str[ll]}, ' \
                                f'stride {stride_str[ll]}, ' \
-                               f'pad {padding_str[ll]}, '
+                               f'pad {padding_str[ll]}, ' \
+                               f'{op.act_string(activation[ll])}, '
                 else:
                     conv_str = ', no convolution, '
                 c_file.write(conv_str +

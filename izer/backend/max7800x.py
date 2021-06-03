@@ -739,7 +739,8 @@ class Backend(backend.Backend):
                         conv_str = f', {op.string(operator[ll])} with kernel size ' \
                                    f'{kernel_size_str[ll]}, ' \
                                    f'stride {stride_str[ll]}, ' \
-                                   f'pad {padding_str[ll]}, '
+                                   f'pad {padding_str[ll]}, ' \
+                                   f'{op.act_string(activation[ll])}, '
                         if dilation[ll][0] > 1 or dilation[ll][1] > 1:
                             conv_str += f'dilation {dilation_str[ll]}, '
                     else:
@@ -1081,6 +1082,9 @@ class Backend(backend.Backend):
 
                 print('Operator            = [',
                       ', '.join(op.string(k) for k in operator), ']', sep='',)
+                print('Activation          = [',
+                      ', '.join(op.act_string(k) if k is not None
+                                else 'no' for k in activation), ']', sep='',)
                 print(f'Kernel offset       = {kern_offs}')
                 print(f'Kernel length       = {kern_len}')
                 print(f'Kernel count        = {kern_count}')
