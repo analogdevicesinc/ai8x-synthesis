@@ -2627,6 +2627,11 @@ class Backend(backend.Backend):
                 if memfile:
                     memfile.close()
 
+            if not np.any(out_buf):
+                wprint(f'Layer {ll}: All output values for the given sample input are zero. '
+                       'The generated known-answer test for this network may not be meaningful. '
+                       'See the log file for details.')
+
             data_buf.append(out_buf.reshape(out_size))
             if next_sequence[ll] != -1 and streaming[next_sequence[ll]]:
                 # When streaming, the output should not overwrite the input of prior layers since

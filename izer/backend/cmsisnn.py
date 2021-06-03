@@ -564,6 +564,11 @@ class Backend(backend.Backend):
                         eprint("CMSIS-NN generator implements ReLU only.")
                     buffer0, buffer1 = buffer1, buffer0
 
+                if not np.any(out_buf):
+                    wprint(f'Layer {ll}: All output values for the given sample input are zero. '
+                           'The generated known-answer test for this network may not be '
+                           'meaningful. See the log file for details.')
+
                 data_buf.append(out_buf.reshape(out_size))
                 c_file.write('\n')
                 data_cmsis = data_buf[-1].transpose((1, 2, 0)).flatten()
