@@ -9,45 +9,81 @@ Statistics for the pure Python computation modules
 """
 import operator
 from functools import reduce
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from . import state
 from . import tornadocnn as tc
 
-macc = 0  # Hardware multiply-accumulates (Conv2D, etc.)
-comp = 0  # Comparisons (ReLU, MaxPool)
-add = 0  # Additions (EltwiseAdd, EltwiseSub, AvgPool)
-mul = 0  # Multiplications (EltwiseMul)
-bitwise = 0  # Bitwise OR/XOR (EltwiseXOR)
-# div = 0  # Divisions (BatchNorm, SoftMax)
-# exp = 0  # Exponentiations (SoftMax)
+statsdict = {
+    "macc": [0],  # Hardware multiply-accumulates (Conv2D, etc.)
+    "comp": [0],  # Comparisons (ReLU, MaxPool)
+    "add": [0],  # Additions (EltwiseAdd, EltwiseSub, AvgPool)
+    "mul": [0],  # Multiplications (EltwiseMul)
+    "bitwise": [0],  # Bitwise OR/XOR (EltwiseXOR)
+    # div: [0],  # Divisions (BatchNorm, SoftMax)
+    # exp: [0],  # Exponentiations (SoftMax)
+    "sw_macc": [0],  # Software multiply-accumulates (FC)
+    "sw_comp": [0],  # Software comparisons (ReLU)
+    "true_macc": [0],  # Actual MAC ops, ignoring padding
+    "true_sw_macc": [0],
+}
 
-sw_macc = 0  # Software multiply-accumulates (FC)
-sw_comp = 0  # Software comparisons (ReLU)
 
-true_macc = 0  # Actual MAC ops, ignoring padding
-true_sw_macc = 0
-
-
-def ops():
+def get(layer, operation: str) -> int:
     """
-    Return number of ops computed in the simulator.
+    Return the stats of `operation` for a `layer`.
     """
-    return macc + comp + add + mul + bitwise
+    if operation not in statsdict:
+        raise NotImplementedError
+
+    if len(statsdict[operation]) <= layer:
+        return 0
+
+    return statsdict[operation][layer]
 
 
-def sw_ops():
+def ops(layer: Optional[int] = None) -> int:
+    """
+    Return number of ops computed in the simulator for all layers or a specific layer.
+    """
+    if layer is None:
+        return sum(statsdict["macc"]) + sum(statsdict["comp"]) + sum(statsdict["add"]) \
+            + sum(statsdict["mul"]) + sum(statsdict["bitwise"])
+    # else:
+    return get(layer, "macc") + get(layer, "comp") + get(layer, "add") \
+        + get(layer, "mul") + get(layer, "bitwise")
+
+
+def sw_ops() -> int:
     """
     Return number of software ops (FC) computed in the simulator.
     """
-    return sw_macc + sw_comp
+    return sum(statsdict["sw_macc"]) + sum(statsdict["sw_comp"])
+
+
+def account(
+        layer: int,
+        operation: str,
+        val: int,
+) -> None:
+    """
+    Account for `operation` in `layer`.
+    """
+    if operation not in statsdict:
+        raise NotImplementedError
+
+    dlen = len(statsdict[operation])
+    if dlen <= layer:
+        statsdict[operation] += [0] * (1 + layer - dlen)
+
+    statsdict[operation][layer] += val
 
 
 def summary(
         factor: int = 1,
         spaces: int = 0,
         group_bias_max: Optional[int] = None,
-):
+) -> str:
     """
     Return ops summary and weight usage statistics.
     """
@@ -60,14 +96,25 @@ def summary(
     sp = ' ' * spaces
     rv = sp + "SUMMARY OF OPS\n"
 
-    rv += f'{sp}Hardware: {factor * ops():,} ops ({factor * macc:,} macc; {factor * comp:,} ' \
-          f'comp; {factor * add:,} add; ' \
-          f'{factor * mul:,} mul; {factor * bitwise:,} bitwise)\n'
+    rv += f'{sp}Hardware: {factor * ops():,} ops ({factor * sum(statsdict["macc"]):,} macc; ' \
+          f'{factor * sum(statsdict["comp"]):,} ' \
+          f'comp; {factor * sum(statsdict["add"]):,} add; ' \
+          f'{factor * sum(statsdict["mul"]):,} mul; ' \
+          f'{factor * sum(statsdict["bitwise"]):,} bitwise)\n'
     if debug:
-        rv += f'{sp}          True MACs: {factor * true_macc:,}\n'
-    if sw_macc:
-        rv += f'{sp}Software: {factor * sw_ops():,} ops ({factor * sw_macc:,} ' \
-              f'macc; {factor * sw_comp:,} comp)\n'
+        rv += f'{sp}          True MACs: {factor * sum(statsdict["true_macc"]):,}\n'
+    for ll in range(state.first_layer_used, state.layers):
+        rv += f'{sp}  Layer {ll}: {factor * ops(ll):,} ops ' \
+              f'({factor * get(ll, "macc"):,} macc; ' \
+              f'{factor * get(ll, "comp"):,} ' \
+              f'comp; {factor * get(ll, "add"):,} add; ' \
+              f'{factor * get(ll,"mul"):,} mul; ' \
+              f'{factor * get(ll, "bitwise"):,} bitwise)\n'
+
+    if sum(statsdict["sw_macc"]) > 0:
+        rv += f'{sp}Software: {factor * sw_ops():,} ops ' \
+              f'({factor * sum(statsdict["sw_macc"]):,} ' \
+              f'macc; {factor * sum(statsdict["sw_comp"]):,} comp)\n'
 
     assert tc.dev is not None
     if weights is not None and hasattr(tc.dev, 'BIAS_SIZE'):
@@ -104,7 +151,7 @@ def calc_latency(
         padding,
         kernel_size,  # pylint: disable=unused-argument
         debug=False,  # pylint: disable=unused-argument
-):
+) -> Tuple[Optional[int], Optional[List]]:
     """
     Returns estimated latencies (in cycles) for startup and each layer for a given network setup.
     The return values are an integer (startup cycles) and a list of tuples
@@ -114,6 +161,8 @@ def calc_latency(
     # No support for estimating streaming latency yet
     if any(streaming):
         return None, None
+
+    assert tc.dev is not None
 
     lat = []
 

@@ -168,8 +168,12 @@ def conv2d_layer(
             print(out_buf)
         print('')
 
-    stats.macc += (input_size[0] // groups) * kernel_size[0] * kernel_size[1] * out_size[0] \
-        * out_size[1] * out_size[2]
+    stats.account(
+        layer,
+        "macc",
+        (input_size[0] // groups) * kernel_size[0] * kernel_size[1] * out_size[0]
+        * out_size[1] * out_size[2],
+    )
 
     if output_width != 32:
         out_buf = np.floor(0.5 + out_buf / (128 / 2.0**output_shift)).astype(np.int64). \
@@ -199,7 +203,11 @@ def conv2d_layer(
                 print(out_buf)
             print('')
 
-        stats.comp += out_size[0] * out_size[1] * out_size[2]
+        stats.account(
+            layer,
+            "comp",
+            out_size[0] * out_size[1] * out_size[2],
+        )
 
     if state.verbose and not verbose_data:
         print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} OUTPUT"
@@ -289,8 +297,12 @@ def convtranspose2d_layer(
             print(out_buf)
         print('')
 
-    stats.macc += (input_size[0] // groups) * kernel_size[0] * kernel_size[1] * out_size[0] \
-        * out_size[1] * out_size[2]
+    stats.account(
+        layer,
+        "macc",
+        (input_size[0] // groups) * kernel_size[0] * kernel_size[1] * out_size[0]
+        * out_size[1] * out_size[2],
+    )
 
     if output_width != 32:
         out_buf = np.floor(0.5 + out_buf / (128 / 2.0**output_shift)).astype(np.int64). \
@@ -320,7 +332,11 @@ def convtranspose2d_layer(
                 print(out_buf)
             print('')
 
-        stats.comp += out_size[0] * out_size[1] * out_size[2]
+        stats.account(
+            layer,
+            "comp",
+            out_size[0] * out_size[1] * out_size[2],
+        )
 
     if state.verbose and not verbose_data:
         print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} OUTPUT"
@@ -390,8 +406,11 @@ def conv1d_layer(
         print(out_buf.squeeze(axis=-1))
         print('')
 
-    stats.macc += (input_size[0] // groups) * kernel_size * out_size[0] \
-        * out_size[1]
+    stats.account(
+        layer,
+        "macc",
+        (input_size[0] // groups) * kernel_size * out_size[0] * out_size[1],
+    )
 
     if output_width != 32:
         out_buf = np.floor(0.5 + out_buf / (128 / 2.0**output_shift)).astype(np.int64). \
@@ -415,7 +434,11 @@ def conv1d_layer(
             print(out_buf.squeeze(axis=-1))
             print('')
 
-        stats.comp += out_size[0] * out_size[1]
+        stats.account(
+            layer,
+            "comp",
+            out_size[0] * out_size[1],
+        )
 
     if state.verbose and not verbose_data:
         print(f"{out_size[0]}x{out_size[1]} OUTPUT"
@@ -469,7 +492,11 @@ def linear_layer(
         print(out_buf)
         print('')
 
-    stats.sw_macc += in_features * out_features
+    stats.account(
+        layer,
+        "sw_macc",
+        in_features * out_features,
+    )
 
     if activation is not None:
         if activation == op.ACT_RELU:
@@ -483,7 +510,11 @@ def linear_layer(
             print(out_buf)
             print('')
 
-        stats.sw_comp += out_features
+        stats.account(
+            layer,
+            "sw_comp",
+            out_features,
+        )
 
     if state.verbose and not verbose_data:
         print(f"OUTPUT (size {out_features})"
@@ -539,11 +570,23 @@ def eltwise_layer(
         print('')
 
     if operator in [op.ELTWISE_ADD, op.ELTWISE_SUB]:
-        stats.add += (operands - 1) * out_buf.size
+        stats.account(
+            layer,
+            "add",
+            (operands - 1) * out_buf.size,
+        )
     elif operator == op.ELTWISE_MUL:
-        stats.mul += (operands - 1) * out_buf.size
+        stats.account(
+            layer,
+            "mul",
+            (operands - 1) * out_buf.size,
+        )
     elif operator in [op.ELTWISE_OR, op.ELTWISE_XOR]:
-        stats.bitwise += (operands - 1) * out_buf.size
+        stats.account(
+            layer,
+            "bitwise",
+            (operands - 1) * out_buf.size,
+        )
 
     if output_width != 32:
         if operator == op.ELTWISE_MUL:
@@ -641,9 +684,17 @@ def pooling_layer(
 
             st = pool[0] * pool[1] * pooled_size[0] * pooled_size[1] * pooled_size[2] * operands
             if pool_average:
-                stats.add += st
+                stats.account(
+                    layer,
+                    "add",
+                    st,
+                )
             else:
-                stats.comp += st
+                stats.account(
+                    layer,
+                    "comp",
+                    st,
+                )
         else:
             pooled = pool1d(
                 data[0],
@@ -667,9 +718,17 @@ def pooling_layer(
                 print('')
 
             if pool_average:
-                stats.add += pool[0] * pooled_size[0] * pooled_size[1]
+                stats.account(
+                    layer,
+                    "add",
+                    pool[0] * pooled_size[0] * pooled_size[1],
+                )
             else:
-                stats.comp += pool[0] * pooled_size[0] * pooled_size[1]
+                stats.account(
+                    layer,
+                    "comp",
+                    pool[0] * pooled_size[0] * pooled_size[1],
+                )
 
             pooled = np.expand_dims(pooled, axis=0)
 
