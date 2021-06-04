@@ -33,6 +33,7 @@ def linear(data, weight, bias, expected):
     ).int().squeeze().numpy()
 
     output = compute.linear(
+        0,
         data.reshape(-1),
         weight,
         bias,

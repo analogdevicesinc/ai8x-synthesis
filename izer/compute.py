@@ -294,6 +294,7 @@ def convtranspose1d(
 
 
 def linear(
+        layer,
         data,
         weight,
         bias,
@@ -309,7 +310,11 @@ def linear(
         val = np.int64(0)
         for n in range(in_features):
             val += data[n] * weight[w][n]
-            stats.true_sw_macc += 1
+            stats.account(
+                layer,
+                "true_sw_macc",
+                1,
+            )
             debug_print(
                 f'w={w}, n={n}, weight={weight[w][n]}, data={data[n]} '
                 f'-> accumulator = {val} '
