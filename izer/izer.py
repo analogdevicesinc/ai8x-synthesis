@@ -340,7 +340,8 @@ def main():
                 input_offset[ll] = output_offset[prev_sequence[ll]]
             # Check we don't turn on streaming too late
             if streaming[ll] and not streaming[prev_sequence[ll]]:
-                eprint(f'Enable streaming from the first layer on (found in layer {ll}.')
+                eprint(f'Layer {ll} is a streaming layer, but the previous layer '
+                       f'(layer {prev_sequence[ll]}) is non-streaming. This is not supported.')
             if big_data[ll]:
                 eprint(f'`data_format` in layer {ll}: CHW can only be configured for the '
                        'first layer.')

@@ -274,6 +274,10 @@ class Backend(backend.Backend):
             if next_sequence[ll] != -1 and next_sequence[ll] != ll + 1 and streaming[ll]:
                 eprint(f'`next_sequence` must be {ll+1} when using streaming in layer {ll}. '
                        f'Currently configured: {next_sequence[ll]}')
+            if not tc.dev.SUPPORT_STREAM_NONPAD_FINAL and streaming[ll] \
+               and (next_sequence[ll] == -1 or not streaming[next_sequence[ll]]) \
+               and (padding[ll][0] == 0 or padding[ll][1] == 0):
+                eprint(f'Padding for the final streaming layer (layer {ll}) must not be zero.')
 
         if state.mlator and (output_dim[terminating_layer][start_layer]
                              * output_dim[terminating_layer][1] < 4
