@@ -478,6 +478,7 @@ def linear_layer(
         print_data1d(verbose_data, "BIAS", bias)
 
     out_buf = linear(
+        layer=layer,
         data=data,
         weight=weight,
         bias=bias,
