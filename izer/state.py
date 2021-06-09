@@ -87,6 +87,7 @@ measure_energy: bool = False
 mexpress: bool = False
 mlator_noverify = False
 mlator: bool = False
+mlator_chunk: int = 0
 next_sequence: List[int] = []
 no_error_stop: bool = False
 oneshot: int = 0

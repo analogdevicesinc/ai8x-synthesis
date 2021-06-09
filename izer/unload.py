@@ -38,8 +38,12 @@ def unload(
     # Cache for faster access
     apb_base = state.apb_base
     mlator = state.mlator
+    mlator_chunk = state.mlator_chunk if state.embedded_code else 1
 
     assert not state.block_mode or not mlator
+
+    if not mlator and output_width == 8 and state.embedded_code:
+        wprint('Use --mlator to optimize cnn_unload() for 8-bit output values.')
 
     if mlator and output_width != 8:
         wprint('ignoring --mlator for 32-bit output.')
@@ -53,6 +57,8 @@ def unload(
         memfile.write('  volatile uint32_t *addr;\n')
     else:
         memfile.write('  volatile uint32_t *mlat, *ctrl;\n')
+        if mlator_chunk > 1:
+            memfile.write('  int i;\n')
     if output_width != 32:
         if not mlator:
             memfile.write(f'  uint{output_width}_t *out_buf = (uint{output_width}_t *) '
@@ -142,6 +148,39 @@ def unload(
                         this_c += 1
                     this_map >>= 1
         else:  # mlator
+            def mlator_write_one(
+                    prefix: str = '',
+                    comment: str = '',
+            ) -> None:
+                """
+                Print a single mlator unload line
+                """
+                memfile.write(f'{prefix}  out_buf{"32" if out_size != 32 else ""}'
+                              f'[offs++] = *mlat;{comment}\n')
+
+            def mlator_loop(
+                    num: int = 1,
+            ) -> None:
+                """
+                Print multiple mlator unload lines using a partially unrolled loop
+                """
+                if mlator_chunk == 1:
+                    return
+
+                # Gather several statements in a partially unrolled loop. The for() statement is
+                # only useful when the for loop runs at least twice.
+                if num >= 2 * mlator_chunk:
+                    memfile.write(f'  for (i = 0; i < {num // mlator_chunk}; i++) {{\n')
+                    for _ in range(mlator_chunk):
+                        mlator_write_one('  ', '')
+                    memfile.write('  }\n')
+                    num = num % mlator_chunk
+
+                # Emit single lines for all remaining statements
+                while num > 0:
+                    mlator_write_one('', '')
+                    num -= 1
+
             assert out_size == 1
             this_map = next_layer_map
             mlat = apb_base + tc.ctl_addr(proc // tc.dev.P_NUMPRO, tc.dev.REG_MLAT)
@@ -152,6 +191,7 @@ def unload(
                 memfile.write(f'  mlat = (volatile uint32_t *) 0x{mlat:08x};\n')
 
             this_c = c
+            loop_count = 0
             for shift in range(4):
                 if this_map & 1:
                     memfile.write(f'  // Channel {this_c}\n')
@@ -171,6 +211,9 @@ def unload(
                         if target != write_addr:
                             memfile.write(f'  offs = 0x{target >> 2:04x};\n')
                         if source != read_addr:
+                            if loop_count > 0:
+                                mlator_loop(loop_count)
+                                loop_count = 0
                             if doffs != 0:
                                 memfile.write(f'  *ctrl = 0x{tc.dev.READY_SEL << 1 | 1 << 3:08x}; '
                                               '// Disable mlator\n')
@@ -193,11 +236,15 @@ def unload(
                                           ' // Prime\n')
 
                         # FIXME: Do not write more than `num_bytes = min(4, input_shape[2] - col)`
-                        memfile.write(f'  out_buf{"32" if out_size != 32 else ""}[offs++] = *mlat;'
-                                      f' // {this_c},{row},{col}-{col+3}\n')
+                        if mlator_chunk == 1:
+                            mlator_write_one('', f' // {this_c},{row},{col}-{col+3}')
+                        loop_count += 1
                         read_addr = source + 4
                         write_addr = target + 4
 
+                    if loop_count > 0:
+                        mlator_loop(loop_count)
+                        loop_count = 0
                     # Disable mlator
                     memfile.write(f'  *ctrl = 0x{tc.dev.READY_SEL << 1 | 1 << 3:08x}; '
                                   '// Disable mlator\n')
