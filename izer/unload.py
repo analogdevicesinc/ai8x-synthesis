@@ -42,7 +42,7 @@ def unload(
 
     assert not state.block_mode or not mlator
 
-    if not mlator and output_width == 8 and state.embedded_code:
+    if not mlator and output_width == 8 and state.embedded_code and input_shape[0] >= 4:
         wprint('Use --mlator to optimize cnn_unload() for 8-bit output values.')
 
     if mlator and output_width != 8:
