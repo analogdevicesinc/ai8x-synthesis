@@ -30,6 +30,7 @@ class APB():
             verify_writes: bool = False,
             weight_header: Optional[TextIO] = None,
             sampledata_header: Optional[TextIO] = None,
+            sampleoutput_header:  Optional[TextIO] = None,
             embedded_code: bool = False,
             write_zero_registers: bool = False,
             master=None,
@@ -56,6 +57,7 @@ class APB():
         self.verify_writes = verify_writes
         self.weight_header = weight_header
         self.sampledata_header = sampledata_header
+        self.sampleoutput_header = sampleoutput_header
         self.embedded_code = embedded_code
         self.write_zero_regs = write_zero_registers
         self.master = master
@@ -77,6 +79,7 @@ class APB():
         self.mem = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
         self.writes = 0
         self.reads = 0
+        self.verify_listdata = []
 
         self.data_mem = self.kernel_mem = self.output_data_mem = None
 
@@ -219,11 +222,40 @@ class APB():
             rv=False,
             api=False,
             data=False,
+            use_list=False,
     ):  # pylint: disable=unused-argument
         """
         Verify that memory at address `addr` contains data `val`.
         """
         raise NotImplementedError
+
+    def verify_list(
+            self,
+            addr,
+            val,
+            mask=None,
+            num_bytes=4,
+            first_proc=0,
+            comment='',
+            rv=False,
+            api=False,
+            data=False,
+    ):  # pylint: disable=unused-argument
+        """
+        Verify that memory at address `addr` contains data `val`.
+        """
+        return self.verify(
+            addr,
+            val,
+            mask=mask,
+            num_bytes=num_bytes,
+            first_proc=first_proc,
+            comment=comment,
+            rv=rv,
+            api=api,
+            data=data,
+            use_list=True,
+        )
 
     def wait(
             self,
@@ -651,7 +683,7 @@ class APB():
         and the optional `output_offset` argument can shift the output.
         """
         unload.verify(
-            self.verify,
+            self.verify_list,
             ll,
             in_map,
             out_map,
@@ -669,6 +701,88 @@ class APB():
             final_layer=final_layer,
             embedded=self.embedded_code,
         )
+
+    def verify_unload_finalize(self):
+        """
+        Finalize the verification function.
+        """
+        if len(self.verify_listdata) == 0:
+            return
+
+        # Sort by mask, then address
+        data = sorted(self.verify_listdata)
+
+        rv = data[0][5]
+        action = 'rv = CNN_FAIL;' if rv else 'return CNN_FAIL;'
+
+        if self.sampleoutput_header is None:
+            for _, (_, addr, mask_str,
+                    val, val_bytes, rv_item, comment) in enumerate(data):
+                assert rv == rv_item
+                self.memfile.write(f'  if ((*((volatile uint32_t *) 0x{addr:08x}){mask_str})'
+                                   f' != 0x{val:0{2*val_bytes}x}) {action}{comment}\n')
+        else:
+            # Output is sorted by mask. Group like masks together.
+            max_count = state.max_count
+
+            output_array = []
+            val_array = []
+            output_mask = 0
+            output_addr = 0
+            next_addr = 0
+            cumulative_length = 0
+
+            for _, (mask_item, addr, _, val, _, rv_item, _) in enumerate(data):
+                assert rv == rv_item
+
+                # New mask? Output collected data and start over
+                if mask_item != output_mask or addr != next_addr:
+                    if len(val_array) > 0:
+                        output_array += [
+                            output_addr,
+                            output_mask if output_mask is not None else 0xffffffff,
+                            len(val_array),
+                        ]
+                        output_array += val_array
+
+                    # Start new block
+                    val_array = []
+                    output_mask = mask_item
+                    output_addr = next_addr = addr
+
+                # Collect the next value
+                val_array.append(val)
+                next_addr += 4
+                cumulative_length += 1
+                if max_count is not None and cumulative_length > max_count:
+                    break
+
+            if len(val_array) > 0:
+                output_array += [
+                    output_addr,
+                    output_mask if output_mask is not None else 0xffffffff,
+                    len(val_array),
+                ]
+                output_array += val_array
+                output_array.append(0)  # Terminator
+
+            # Write to the header file
+            toplevel.c_define(self.sampleoutput_header, output_array, 'SAMPLE_OUTPUT', '0x%08x', 8)
+
+            # Write to the function
+            self.memfile.write('  int i;\n'
+                               '  uint32_t mask, len;\n'
+                               '  volatile uint32_t *addr;\n'
+                               '  const uint32_t sample_output[] = SAMPLE_OUTPUT;\n'
+                               '  const uint32_t *ptr = sample_output;\n\n'
+                               '  while ((addr = (volatile uint32_t *) *ptr++) != 0) {\n'
+                               '    mask = *ptr++;\n'
+                               '    len = *ptr++;\n'
+                               '    for (i = 0; i < len; i++)\n'
+                               f'      if ((*addr++ & mask) != *ptr++) {action}\n'
+                               '  }\n')
+
+        self.verify_listdata = []
 
     def output_define(  # pylint: disable=no-self-use
             self,
@@ -747,6 +861,7 @@ class APBBlockLevel(APB):
             rv=False,
             api=False,
             data=False,
+            use_list=False,
     ):  # pylint: disable=unused-argument
         """
         Verify that memory at address `addr` contains data `val`.
@@ -811,6 +926,7 @@ class APBDebug(APBBlockLevel):
             rv=False,
             api=False,
             data=False,
+            use_list=False,
     ):  # pylint: disable=unused-argument
         """
         Verify that memory at address `addr` contains data `val`.
@@ -922,6 +1038,7 @@ class APBTopLevel(APB):
             rv=False,
             api=False,
             data=False,
+            use_list=False,
     ):
         """
         Verify that memory at address `addr` contains data `val`.
@@ -964,34 +1081,34 @@ class APBTopLevel(APB):
             return
 
         if mask is None:
-            if num_bytes == 4:
-                mask = ''
-            elif num_bytes == 3:
+            if num_bytes == 3:
                 mask = 0xffffff
             elif num_bytes == 2:
                 mask = 0xffff
             elif num_bytes == 1:
                 mask = 0xff
-            else:
+            elif num_bytes != 4:
                 raise NotImplementedError
             assert first_proc + num_bytes <= 4
 
         val_bytes = num_bytes
-        if mask != '':
+        if mask is not None:
             mask <<= first_proc * 8
             val_bytes += first_proc
             val &= mask
-            mask = f' & 0x{mask:0{2*val_bytes}x}'
-
-        if rv:
-            action = 'rv = CNN_FAIL;'
+            mask_str = f' & 0x{mask:0{2*val_bytes}x}'
         else:
-            action = 'return CNN_FAIL;'
+            mask_str = ''
 
-        mfile = self.apifile or self.memfile if api else self.memfile
-        mfile.write(f'  if ((*((volatile uint32_t *) 0x{addr:08x}){mask})'
-                    f' != 0x{val:0{2*val_bytes}x}) '
-                    f'{action}{comment}\n')
+        action = 'rv = CNN_FAIL;' if rv else 'return CNN_FAIL;'
+
+        if not use_list:
+            mfile = self.apifile or self.memfile if api else self.memfile
+            mfile.write(f'  if ((*((volatile uint32_t *) 0x{addr:08x}){mask_str})'
+                        f' != 0x{val:0{2*val_bytes}x}) '
+                        f'{action}{comment}\n')
+        else:
+            self.verify_listdata.append((mask, addr, mask_str, val, val_bytes, rv, comment))
         self.reads += 1
 
     def wait(

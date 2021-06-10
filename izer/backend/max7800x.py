@@ -86,7 +86,6 @@ class Backend(backend.Backend):
         log_pooling = state.log_pooling
         measure_energy = state.measure_energy
         mexpress = state.mexpress
-        mlator_noverify = state.mlator_noverify
         next_sequence = state.next_sequence
         no_error_stop = state.no_error_stop
         oneshot = state.oneshot
@@ -125,7 +124,6 @@ class Backend(backend.Backend):
         riscv = state.riscv
         riscv_cache = state.riscv_cache
         riscv_flash = state.riscv_flash
-        sample_filename = state.sample_filename
         simple1b = state.simple1b
         simulated_sequence = state.simulated_sequence
         snoop = state.snoop
@@ -541,9 +539,14 @@ class Backend(backend.Backend):
             filename = c_filename + ('_riscv' if riscv else '') + '.c'
         if not block_mode and (embedded_code or compact_data):
             sampledata_header = \
-                open(os.path.join(base_directory, test_name, sample_filename), mode='w')
+                open(os.path.join(base_directory, test_name, state.sample_filename), mode='w')
+            if state.result_filename.lower() != 'none':
+                sampleoutput_header = \
+                    open(os.path.join(base_directory, test_name, state.result_filename), mode='w')
+            else:
+                sampleoutput_header = None
         else:
-            sampledata_header = None
+            sampledata_header = sampleoutput_header = None
         if not block_mode and (embedded_code or compact_weights):
             weight_header = \
                 open(os.path.join(base_directory, test_name, weight_filename), mode='w')
@@ -692,6 +695,7 @@ class Backend(backend.Backend):
                 verify_writes=verify_writes,
                 weight_header=weight_header,
                 sampledata_header=sampledata_header,
+                sampleoutput_header=sampleoutput_header,
                 embedded_code=embedded_code,
                 write_zero_registers=write_zero_regs,
                 master=groups_used[0]
@@ -2542,32 +2546,31 @@ class Backend(backend.Backend):
                 apb.set_memfile(memfile)
 
                 apb.output(f'// Expected output of layer {ll} for {test_name} '
-                           'given the sample input\n')
+                           'given the sample input (known-answer test)\n'
+                           '// Delete this function for production code\n')
                 apb.function_header(dest='wrapper', prefix='', function='check_output')
-                if ll == terminating_layer and mlator and not mlator_noverify:
-                    apb.verify_unload(
-                        ll,
-                        in_map,
-                        None,
-                        out_buf,
-                        output_processor_map[ll],
-                        out_size,
-                        out_offset[ll],
-                        out_expand[ll],
-                        out_expand_thresh[ll],
-                        output_width[ll],
-                        overwrite_ok or streaming[ll],
-                        mlator=False,
-                        write_gap=write_gap[ll],
-                    )
+                # if ll == terminating_layer and mlator and not state.mlator_noverify:
+                #     apb.verify_unload(
+                #         ll,
+                #         in_map,
+                #         None,
+                #         out_buf,
+                #         output_processor_map[ll],
+                #         out_size,
+                #         out_offset[ll],
+                #         out_expand[ll],
+                #         out_expand_thresh[ll],
+                #         output_width[ll],
+                #         overwrite_ok or streaming[ll],
+                #         mlator=False,
+                #         write_gap=write_gap[ll],
+                #     )
                 if log_intermediate:
                     filename2 = f'{output_filename}-{ll}.mem'  # Intermediate output
                     memfile2 = open(os.path.join(base_directory, test_name, filename2), mode='w')
                     apb2 = apbaccess.apbwriter(
                         memfile2,
                         verify_writes=False,
-                        weight_header=None,
-                        sampledata_header=None,
                         embedded_code=False,
                         write_zero_registers=True,
                         master=groups_used[0] if oneshot > 0 or stopstart else False,
@@ -2626,6 +2629,8 @@ class Backend(backend.Backend):
                                    comment=' // Verify snoop 2 match max accumulator')
                     apb.verify_ctl(group, tc.dev.REG_SNP2_AM, None, snoop[31],
                                    comment=' // Verify snoop 2 match address register')
+
+                apb.verify_unload_finalize()
                 apb.function_footer(dest='wrapper')  # check_output()
             finally:
                 if memfile:
@@ -2689,6 +2694,8 @@ class Backend(backend.Backend):
         # Close header files
         if sampledata_header is not None:
             sampledata_header.close()
+        if sampleoutput_header is not None:
+            sampleoutput_header.close()
         if weight_header is not None:
             weight_header.close()
         if apifile is not None:

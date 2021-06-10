@@ -117,6 +117,10 @@ def get_parser() -> argparse.Namespace:
                        help="sample data header file name (default: 'sampledata.h')")
     group.add_argument('--sample-input', metavar='S', default=None,
                        help="sample data input file name (default: 'tests/sample_dataset.npy')")
+    group.add_argument('--sample-output-filename', dest='result_filename', metavar='S',
+                       default='sampleoutput.h',
+                       help="sample result header file name (default: 'sampleoutput.h', use "
+                            "'None' to inline code)")
 
     # Streaming and FIFOs
     group = parser.add_argument_group('Streaming and FIFOs')
@@ -338,7 +342,8 @@ def get_parser() -> argparse.Namespace:
                             "(default: false)")
     group.add_argument('--synthesize-words', type=int, metavar='N', default=8,
                        help="number of input words to use (default all or 8)")
-    group.add_argument('--max-checklines', type=int, metavar='N', default=None, dest='max_count',
+    group.add_argument('--max-verify-length', '--max-checklines',
+                       type=int, metavar='N', default=None, dest='max_count',
                        help="output only N output check lines (default: all)")
 
     args = parser.parse_args()
@@ -489,6 +494,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.pretend_zero_sram = args.pretend_zero_sram
     state.repeat_layers = args.repeat_layers
     state.reshape_inputs = args.reshape_inputs
+    state.result_filename = args.result_filename
     state.result_output = args.result_output
     state.riscv = args.riscv
     state.riscv_cache = args.riscv_cache

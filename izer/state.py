@@ -126,6 +126,7 @@ quantization: List[int] = []
 read_ahead: List[bool] = []
 repeat_layers: int = 1
 reshape_inputs: bool = False
+result_filename: str = ''
 result_output: bool = False
 riscv: bool = False
 riscv_cache: bool = False

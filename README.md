@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_June 8, 2021_
+_June 11, 2021_
 
 The Maxim Integrated AI project is comprised of five repositories:
 
@@ -1354,6 +1354,7 @@ The following table describes the most important command line arguments for `ai8
 | `--api-filename`         | API C file name (default: cnn.c)                             | `--api-filename cnn.c`          |
 | `--weight-filename`      | Weight header file name (default: weights.h)                 | `--weight-filename wt.h`        |
 | `--sample-filename`      | Sample data header file name (default: sampledata.h)         | `--sample-filename kat.h`       |
+| `--sample-output-filename` | Sample result header file name (default: sampleoutput.h) | `--sample-output-filename katresult.h` |
 | `--sample-input`         | Sample data source file name (default: tests/sample_dataset.npy) | `--sample-input kat.npy`    |
 | *Streaming and FIFOs*    |                                                              |                                 |
 | `--fifo`                 | Use FIFOs to load streaming data                             |                                 |
@@ -1400,7 +1401,7 @@ The following table describes the most important command line arguments for `ai8
 | Various                  |                                                              |                                 |
 | `--synthesize-input`     | Instead of using large sample input data, use only the first `--synthesize-words` words of the sample input, and add N to each subsequent set of `--synthesize-words` 32-bit words | `--synthesize-input 0x112233` |
 | `--synthesize-words`     | When using `—synthesize-input`, specifies how many words to use from the input. The default is 8. This number must be a divisor of the total number of pixels per channel. | `--synthesize-words 64` |
-| `--max-checklines`       | Instead of checking all of the expected output data, verify only the first N words | `--max-checklines 1024` |
+| `--max-verify-length` | Instead of checking all of the expected output data, verify only the first N words | `--max-verify-length 1024` |
 | `--no-unload`            | Do not create the `cnn_unload()` function                    |                                 |
 
 ### YAML Network Description
@@ -2098,19 +2099,20 @@ The software Softmax function is optimized for processing time, and it quantizes
 
 The generated C code comprises the following files. Some of the files are customized based on the project name, and some are custom for a combination of project name and weight/sample data inputs:
 
-| File name    | Source                           | Project specific? | Model/weights change? |
-| ------------ | -------------------------------- | ----------------- | --------------------- |
-| Makefile     | template in assets/embedded-ai87 | Yes               | No                    |
-| cnn.c        | generated                        | Yes               | **Yes**               |
-| cnn.h        | template in assets/device-all    | Yes               | **Yes**               |
-| weights.h    | generated                        | Yes               | **Yes**               |
-| log.txt      | generated                        | Yes               | **Yes**               |
-| main.c       | generated                        | Yes               | No                    |
-| sampledata.h | generated                        | Yes               | No                    |
-| softmax.c    | assets/device-all                | No                | No                    |
-| model.launch | template in assets/eclipse       | Yes               | No                    |
-| .cproject    | template in assets/eclipse       | Yes               | No                    |
-| .project     | template in assets/eclipse       | Yes               | No                    |
+| File name      | Source                           | Project specific? | Model/weights change? |
+| -------------- | -------------------------------- | ----------------- | --------------------- |
+| Makefile       | template in assets/embedded-ai87 | Yes               | No                    |
+| cnn.c          | generated                        | Yes               | **Yes**               |
+| cnn.h          | template in assets/device-all    | Yes               | **Yes**               |
+| weights.h      | generated                        | Yes               | **Yes**               |
+| log.txt        | generated                        | Yes               | **Yes**               |
+| main.c         | generated                        | Yes               | No                    |
+| sampledata.h   | generated                        | Yes               | No                    |
+| sampleoutput.h | generated                        | Yes               | **Yes**               |
+| softmax.c      | assets/device-all                | No                | No                    |
+| model.launch   | template in assets/eclipse       | Yes               | No                    |
+| .cproject      | template in assets/eclipse       | Yes               | No                    |
+| .project       | template in assets/eclipse       | Yes               | No                    |
 
 In order to upgrade an embedded project after retraining the model, point the network generator to a new empty directory and regenerate. Then, copy the four files that will have changed to your original project — `cnn.c`, `cnn.h`, `weights.h`, and `log.txt`. This allows for persistent customization of the I/O code and project (for example, in `main.c` and additional files) while allowing easy model upgrades.
 
@@ -2153,14 +2155,14 @@ arm-none-eabi/bin/ld: region `FLASH' overflowed by 600176 bytes
 collect2: error: ld returned 1 exit status
 ```
 
-The most likely reason is that the input is too large (from `sampledata.h`), or that the expected output is too large. It is important to note that this only affects the generated code with the built-in known-answer test (KAT) that will not be part of the user application since normal input and output data are not predefined in Flash memory.
+The most likely reason is that the input is too large (from `sampledata.h`), or that the expected output (in `sampleoutput.h`) is too large. It is important to note that this only affects the generated code with the built-in known-answer test (KAT) that will not be part of the user application since normal input and output data are not predefined in Flash memory.
 
 To deal with this issue, there are several options:
 
 * The sample input data can be stored in external memory. This requires modifications to the generated code. Please see the SDK examples to learn how to access external memory.
 * The sample input data can be programmatically generated. Typically, this requires manual modification of the generated code, and a corresponding modification of the sample input file.
   The generator also contains a built-in generator (supported *only* when using `—fifo`, and only for HWC inputs); the command line option `--synthesize-input` uses only the first few words of the sample input data, and then adds the specified value N (for example, 0x112233 if three input channels are used) to each subsequent set of M 32-bit words. M can be specified using `--synthesize-words` and defaults to 8. Note that M must be a divisor of the number of pixels per channel.
-* The output check can be truncated. The command line option `--max-checklines` checks only the first N words of output data (for example, 1024).
+* The output check can be truncated. The command line option `--max-verify-length` checks only the first N words of output data (for example, 1024).
 * For 8-bit output values, `--mlator` typically generates more compact code.
 * Change the compiler optimization level in `Makefile`. To change the default optimization levels, modify `MXC_OPTIMIZE_CFLAGS` in `assets/embedded-ai85/templateMakefile` for Arm code and `assets/embedded-riscv-ai85/templateMakefile.RISCV` for RISC-V code. Both `-O1` and `-Os` may result in smaller code compared to `-O2`.
 * If the last layer has large-dimension, large-channel output, the `cnn_unload()` code in `cnn.c` may cause memory segment overflows not only in Flash, but also in the target buffer in SRAM (`ml_data32[]` or `ml_data[]` in `main.c`). In this case, manual code edits are required to perform multiple partial unloads in sequence.
@@ -2181,7 +2183,7 @@ There can be many reasons why the known-answer test (KAT) fails for a given netw
 * The default compiler optimization level is `-O2`, and incorrect code may be generated under rare circumstances. Lower the optimization level in the generated `Makefile` to `-O1`, clean (`make distclean && make clean`), and rebuild the project (`make`). If this solves the problem, one of the possible reasons is that code is missing the `volatile` keyword for certain variables.
   To permanently adjust the default compiler optimization level, modify `MXC_OPTIMIZE_CFLAGS` in `assets/embedded-ai85/templateMakefile` for Arm code and `assets/embedded-riscv-ai85/templateMakefile.RISCV` for RISC-V code.
 
-* `--stop-after N` where `N` is a layer number may help to find the problematic layer by terminating the network early without having to retrain and without having to change the weight input file. Note that this may also require `--max-checklines` as [described above](#Handling Linker Flash Section Overflows) since intermediate outputs tend to be large, and additionally `--no-unload` to suppress generation of the `cnn_unload()` function.
+* `--stop-after N` where `N` is a layer number may help to find the problematic layer by terminating the network early without having to retrain and without having to change the weight input file. Note that this may also require `--max-verify-length` as [described above](#Handling Linker Flash Section Overflows) since intermediate outputs tend to be large, and additionally `--no-unload` to suppress generation of the `cnn_unload()` function.
 
 * `--no-bias LIST` where `LIST` is a comma-separated list of layers (e.g., `0,1,2,3`) can rule out problems due to the bias. This option zeros out the bias for the given layers without having to remove bias values from the weight input file. 
 
