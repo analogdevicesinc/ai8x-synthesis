@@ -51,6 +51,7 @@ first_layer_used: int = 0
 fixed_input: bool = False
 flatten: List[bool] = []
 forever: bool = False
+generate_kat: bool = True
 greedy_kernel_allocator: bool = True
 ignore_bias_groups: bool = False
 in_offset: List[int] = []

@@ -118,7 +118,7 @@ def header(
             memfile.write(f'#include "{state.weight_filename}"\n')
         if not lib and (embedded_code or state.compact_data):
             memfile.write(f'#include "{state.sample_filename}"\n')
-            if not cmsis_nn and state.result_filename.lower() != 'none':
+            if not cmsis_nn and state.generate_kat and state.result_filename.lower() != 'none':
                 memfile.write(f'#include "{state.result_filename}"\n')
     memfile.write('\n')
 
@@ -707,7 +707,8 @@ def main(
                               f'MXC_GPIO_PIN_{boost[1]}); // Turn off the boost circuit\n\n')
         # pylint: enable=unsubscriptable-object
 
-        memfile.write('  if (check_output() != CNN_OK) fail();\n')
+        if state.generate_kat:
+            memfile.write('  if (check_output() != CNN_OK) fail();\n')
         if softmax:
             memfile.write('  softmax_layer();\n')
         elif unload:

@@ -1403,6 +1403,7 @@ The following table describes the most important command line arguments for `ai8
 | `--synthesize-words`     | When using `—synthesize-input`, specifies how many words to use from the input. The default is 8. This number must be a divisor of the total number of pixels per channel. | `--synthesize-words 64` |
 | `--max-verify-length` | Instead of checking all of the expected output data, verify only the first N words | `--max-verify-length 1024` |
 | `--no-unload`            | Do not create the `cnn_unload()` function                    |                                 |
+| `--no-kat` | Do not generate the `check_output()` function (disable known-answer test) | |
 
 ### YAML Network Description
 
@@ -2162,7 +2163,7 @@ To deal with this issue, there are several options:
 * The sample input data can be stored in external memory. This requires modifications to the generated code. Please see the SDK examples to learn how to access external memory.
 * The sample input data can be programmatically generated. Typically, this requires manual modification of the generated code, and a corresponding modification of the sample input file.
   The generator also contains a built-in generator (supported *only* when using `—fifo`, and only for HWC inputs); the command line option `--synthesize-input` uses only the first few words of the sample input data, and then adds the specified value N (for example, 0x112233 if three input channels are used) to each subsequent set of M 32-bit words. M can be specified using `--synthesize-words` and defaults to 8. Note that M must be a divisor of the number of pixels per channel.
-* The output check can be truncated. The command line option `--max-verify-length` checks only the first N words of output data (for example, 1024).
+* The output check can be truncated. The command line option `--max-verify-length` checks only the first N words of output data (for example, 1024). To completely disable the output check, use `--no-kat`.
 * For 8-bit output values, `--mlator` typically generates more compact code.
 * Change the compiler optimization level in `Makefile`. To change the default optimization levels, modify `MXC_OPTIMIZE_CFLAGS` in `assets/embedded-ai85/templateMakefile` for Arm code and `assets/embedded-riscv-ai85/templateMakefile.RISCV` for RISC-V code. Both `-O1` and `-Os` may result in smaller code compared to `-O2`.
 * If the last layer has large-dimension, large-channel output, the `cnn_unload()` code in `cnn.c` may cause memory segment overflows not only in Flash, but also in the target buffer in SRAM (`ml_data32[]` or `ml_data[]` in `main.c`). In this case, manual code edits are required to perform multiple partial unloads in sequence.

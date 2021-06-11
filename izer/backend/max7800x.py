@@ -540,7 +540,7 @@ class Backend(backend.Backend):
         if not block_mode and (embedded_code or compact_data):
             sampledata_header = \
                 open(os.path.join(base_directory, test_name, state.sample_filename), mode='w')
-            if state.result_filename.lower() != 'none':
+            if state.generate_kat and state.result_filename.lower() != 'none':
                 sampleoutput_header = \
                     open(os.path.join(base_directory, test_name, state.result_filename), mode='w')
             else:
@@ -2545,45 +2545,62 @@ class Backend(backend.Backend):
                     memfile = None
                 apb.set_memfile(memfile)
 
-                apb.output(f'// Expected output of layer {ll} for {test_name} '
-                           'given the sample input (known-answer test)\n'
-                           '// Delete this function for production code\n')
-                apb.function_header(dest='wrapper', prefix='', function='check_output')
-                # if ll == terminating_layer and mlator and not state.mlator_noverify:
-                #     apb.verify_unload(
-                #         ll,
-                #         in_map,
-                #         None,
-                #         out_buf,
-                #         output_processor_map[ll],
-                #         out_size,
-                #         out_offset[ll],
-                #         out_expand[ll],
-                #         out_expand_thresh[ll],
-                #         output_width[ll],
-                #         overwrite_ok or streaming[ll],
-                #         mlator=False,
-                #         write_gap=write_gap[ll],
-                #     )
-                if log_intermediate:
-                    filename2 = f'{output_filename}-{ll}.mem'  # Intermediate output
-                    memfile2 = open(os.path.join(base_directory, test_name, filename2), mode='w')
-                    apb2 = apbaccess.apbwriter(
-                        memfile2,
-                        verify_writes=False,
-                        embedded_code=False,
-                        write_zero_registers=True,
-                        master=groups_used[0] if oneshot > 0 or stopstart else False,
-                        riscv=None,
-                        fast_fifo=False,
-                        input_chan=input_chan[start_layer],
-                        debug_mem=True,
-                    )
-                    out_map2 = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
-                    apb2.verify_unload(
+                if state.generate_kat:
+                    apb.output(f'// Expected output of layer {ll} for {test_name} '
+                               'given the sample input (known-answer test)\n'
+                               '// Delete this function for production code\n')
+                    apb.function_header(dest='wrapper', prefix='', function='check_output')
+                    # if ll == terminating_layer and mlator and not state.mlator_noverify:
+                    #     apb.verify_unload(
+                    #         ll,
+                    #         in_map,
+                    #         None,
+                    #         out_buf,
+                    #         output_processor_map[ll],
+                    #         out_size,
+                    #         out_offset[ll],
+                    #         out_expand[ll],
+                    #         out_expand_thresh[ll],
+                    #         output_width[ll],
+                    #         overwrite_ok or streaming[ll],
+                    #         mlator=False,
+                    #         write_gap=write_gap[ll],
+                    #     )
+                    if log_intermediate:
+                        filename2 = f'{output_filename}-{ll}.mem'  # Intermediate output
+                        memfile2 = open(os.path.join(base_directory, test_name, filename2),
+                                        mode='w')
+                        apb2 = apbaccess.apbwriter(
+                            memfile2,
+                            verify_writes=False,
+                            embedded_code=False,
+                            write_zero_registers=True,
+                            master=groups_used[0] if oneshot > 0 or stopstart else False,
+                            riscv=None,
+                            fast_fifo=False,
+                            input_chan=input_chan[start_layer],
+                            debug_mem=True,
+                        )
+                        out_map2 = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
+                        apb2.verify_unload(
+                            ll,
+                            in_map,
+                            out_map2,
+                            out_buf,
+                            output_processor_map[ll],
+                            out_size,
+                            out_offset[ll],
+                            out_expand[ll],
+                            out_expand_thresh[ll],
+                            output_width[ll],
+                            overwrite_ok or streaming[ll],
+                            mlator=mlator if ll == terminating_layer else False,
+                            write_gap=write_gap[ll],
+                        )
+                    apb.verify_unload(
                         ll,
                         in_map,
-                        out_map2,
+                        out_map,
                         out_buf,
                         output_processor_map[ll],
                         out_size,
@@ -2591,47 +2608,32 @@ class Backend(backend.Backend):
                         out_expand[ll],
                         out_expand_thresh[ll],
                         output_width[ll],
-                        overwrite_ok or streaming[ll],
+                        overwrite_ok or (streaming[ll] if ll != start_layer
+                                         else (streaming[ll] and fifo)),
                         mlator=mlator if ll == terminating_layer else False,
                         write_gap=write_gap[ll],
+                        final_layer=terminating_layer,
                     )
-                apb.verify_unload(
-                    ll,
-                    in_map,
-                    out_map,
-                    out_buf,
-                    output_processor_map[ll],
-                    out_size,
-                    out_offset[ll],
-                    out_expand[ll],
-                    out_expand_thresh[ll],
-                    output_width[ll],
-                    overwrite_ok or (streaming[ll] if ll != start_layer
-                                     else (streaming[ll] and fifo)),
-                    mlator=mlator if ll == terminating_layer else False,
-                    write_gap=write_gap[ll],
-                    final_layer=terminating_layer,
-                )
-                if debug_snoop:
-                    apb.verify_ctl(group, tc.dev.REG_SNP1_ACC, None, snoop[24],
-                                   comment=' // Verify snoop 1 data accumulator')
-                    apb.verify_ctl(group, tc.dev.REG_SNP1_HIT, None, snoop[25],
-                                   comment=' // Verify snoop 1 match hit accumulator')
-                    apb.verify_ctl(group, tc.dev.REG_SNP1_MAX, None, snoop[26],
-                                   comment=' // Verify snoop 1 match max accumulator')
-                    apb.verify_ctl(group, tc.dev.REG_SNP1_AM, None, snoop[27],
-                                   comment=' // Verify snoop 1 match address register')
-                    apb.verify_ctl(group, tc.dev.REG_SNP2_ACC, None, snoop[28],
-                                   comment=' // Verify snoop 2 data accumulator')
-                    apb.verify_ctl(group, tc.dev.REG_SNP2_HIT, None, snoop[29],
-                                   comment=' // Verify snoop 2 match hit accumulator')
-                    apb.verify_ctl(group, tc.dev.REG_SNP2_MAX, None, snoop[30],
-                                   comment=' // Verify snoop 2 match max accumulator')
-                    apb.verify_ctl(group, tc.dev.REG_SNP2_AM, None, snoop[31],
-                                   comment=' // Verify snoop 2 match address register')
-
-                apb.verify_unload_finalize()
-                apb.function_footer(dest='wrapper')  # check_output()
+                    if debug_snoop:
+                        apb.verify_ctl(group, tc.dev.REG_SNP1_ACC, None, snoop[24],
+                                       comment=' // Verify snoop 1 data accumulator')
+                        apb.verify_ctl(group, tc.dev.REG_SNP1_HIT, None, snoop[25],
+                                       comment=' // Verify snoop 1 match hit accumulator')
+                        apb.verify_ctl(group, tc.dev.REG_SNP1_MAX, None, snoop[26],
+                                       comment=' // Verify snoop 1 match max accumulator')
+                        apb.verify_ctl(group, tc.dev.REG_SNP1_AM, None, snoop[27],
+                                       comment=' // Verify snoop 1 match address register')
+                        apb.verify_ctl(group, tc.dev.REG_SNP2_ACC, None, snoop[28],
+                                       comment=' // Verify snoop 2 data accumulator')
+                        apb.verify_ctl(group, tc.dev.REG_SNP2_HIT, None, snoop[29],
+                                       comment=' // Verify snoop 2 match hit accumulator')
+                        apb.verify_ctl(group, tc.dev.REG_SNP2_MAX, None, snoop[30],
+                                       comment=' // Verify snoop 2 match max accumulator')
+                        apb.verify_ctl(group, tc.dev.REG_SNP2_AM, None, snoop[31],
+                                       comment=' // Verify snoop 2 match address register')
+    
+                    apb.verify_unload_finalize()
+                    apb.function_footer(dest='wrapper')  # check_output()
             finally:
                 if memfile:
                     memfile.close()

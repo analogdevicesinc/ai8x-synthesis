@@ -88,6 +88,8 @@ def get_parser() -> argparse.Namespace:
                        help="enable use of cnn_unload() function (default)")
     group.add_argument('--no-unload', dest='unload', action='store_false',
                        help="disable use of cnn_unload() function (default: enabled)")
+    group.add_argument('--no-kat', dest='generate_kat', action='store_false', default=True,
+                       help="disable known-answer test generation (KAT) (default: enabled)")
     group.add_argument('--boost', metavar='S', default=None,
                        help="dot-separated port and pin that is turned on during CNN run to "
                             "boost the power supply, e.g. --boost 2.5 (default: None)")
@@ -450,6 +452,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.fifo_go = args.fifo_go
     state.fixed_input = args.fixed_input
     state.forever = args.forever
+    state.generate_kat = args.generate_kat
     state.greedy_kernel_allocator = args.greedy_kernel_allocator
     state.ignore_bias_groups = args.ignore_bias_groups
     state.increase_delta1 = args.increase_delta1
