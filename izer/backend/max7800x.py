@@ -2631,7 +2631,7 @@ class Backend(backend.Backend):
                                        comment=' // Verify snoop 2 match max accumulator')
                         apb.verify_ctl(group, tc.dev.REG_SNP2_AM, None, snoop[31],
                                        comment=' // Verify snoop 2 match address register')
-    
+
                     apb.verify_unload_finalize()
                     apb.function_footer(dest='wrapper')  # check_output()
             finally:
