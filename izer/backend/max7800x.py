@@ -277,7 +277,7 @@ class Backend(backend.Backend):
                and (padding[ll][0] == 0 or padding[ll][1] == 0):
                 eprint(f'Padding for the final streaming layer (layer {ll}) must not be zero.')
 
-        if state.mlator and (output_dim[terminating_layer][start_layer]
+        if state.mlator and (output_dim[terminating_layer][0]
                              * output_dim[terminating_layer][1] < 4
                              or output_width[terminating_layer] > 8):
             wprint('--mlator should only be used with 4 or more 8-bit outputs per channel; '
