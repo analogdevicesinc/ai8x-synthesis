@@ -39,6 +39,7 @@ def unload(
     apb_base = state.apb_base
     mlator = state.mlator
     mlator_chunk = state.mlator_chunk if state.embedded_code else 1
+    non_mlator_chunk = state.non_mlator_chunk if state.embedded_code else 1
 
     assert not state.block_mode or not mlator
 
@@ -84,6 +85,8 @@ def unload(
     read_addr = None
     write_addr = None
     mlat_addr = None
+    emit_list = []
+    need_i = False
     c = 0
     while c < input_shape[0]:
         if c % out_expand_thresh == 0:
@@ -94,38 +97,53 @@ def unload(
         proc = poffs & ~(tc.dev.P_SHARED-1)
 
         if not mlator:
-            for doffs in range(input_shape[1] * input_shape[2]):
-                row, col = divmod(doffs, input_shape[2])
-                this_map = next_layer_map
-                this_c = c
+            if out_size == 4:
+                for doffs in range(input_shape[1] * input_shape[2]):
+                    row, col = divmod(doffs, input_shape[2])
+                    this_map = next_layer_map
+                    this_c = c
 
-                # Get four bytes from memory array
-                offs = out_offset + \
-                    (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
-                      (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
-                     doffs * width + expand * out_size) * 4
+                    # Source
+                    offs = out_offset + \
+                        (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
+                          (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
+                         doffs * width + expand * out_size) * 4
 
-                if offs != read_addr:
-                    memfile.write('  addr = (volatile uint32_t *) '
-                                  f'0x{apb_base + tc.dev.C_SRAM_BASE + offs:08x};\n')
-                if out_size != 4:
+                    for shift in range(4):
+                        if this_map & 1:
+                            emit_list.append(offs)
+                            offs += 4
+                            this_c += 1
+                        this_map >>= 1
+            else:  # out_size == 1
+                for doffs in range(input_shape[1] * input_shape[2]):
+                    row, col = divmod(doffs, input_shape[2])
+                    this_map = next_layer_map
+                    this_c = c
+
+                    # Get four bytes from memory array
+                    offs = out_offset + \
+                        (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
+                          (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
+                         doffs * width + expand * out_size) * 4
+
+                    if offs != read_addr:
+                        memfile.write('  addr = (volatile uint32_t *) '
+                                      f'0x{apb_base + tc.dev.C_SRAM_BASE + offs:08x};\n')
                     memfile.write('  val = *addr++;\n')
                     read_addr = offs + 4
-                else:
-                    read_addr = offs
 
-                # Singulate bytes, ignoring unused processors
-                for shift in range(4):
-                    addr = this_c * input_shape[1] * input_shape[2] + row * input_shape[1] + col
-                    if (shift == 0 or out_size > 1) \
-                       and out_size != 4 and input_shape[1] * input_shape[2] != 1:
-                        if addr != write_addr:
-                            memfile.write(f'  offs = 0x{addr:04x};\n')
-                        else:
-                            memfile.write('  offs++;\n')
-                        write_addr = addr + 1
-                    if this_map & 1:
-                        if out_size != 4:
+                    # Singulate bytes, ignoring unused processors
+                    for shift in range(4):
+                        addr = this_c * input_shape[1] * input_shape[2] \
+                            + row * input_shape[1] + col
+                        if shift == 0 and input_shape[1] * input_shape[2] != 1:
+                            if addr != write_addr:
+                                memfile.write(f'  offs = 0x{addr:04x};\n')
+                            else:
+                                memfile.write('  offs++;\n')
+                            write_addr = addr + 1
+                        if this_map & 1:
                             if input_shape[1] * input_shape[2] != 1:
                                 memfile.write('  out_buf[offs')
                                 if shift > 0:
@@ -137,17 +155,10 @@ def unload(
                                 memfile.write('val')
                             else:
                                 memfile.write(f'(val >> {shift * 8})')
-                            if out_size == 1:
-                                memfile.write(' & 0xff;\n')
-                            else:
-                                memfile.write(';\n')
-                        else:  # out_size == 4
-                            memfile.write('  *out_buf++ = *addr++;\n')
-                            write_addr = addr + 4
-                            read_addr += 4
+                            memfile.write(' & 0xff;\n')
 
-                        this_c += 1
-                    this_map >>= 1
+                            this_c += 1
+                        this_map >>= 1
         else:  # mlator
             def mlator_write_one(
                     prefix: str = '',
@@ -258,6 +269,48 @@ def unload(
         c += popcount(next_layer_map & 0x0f)
         next_layer_map >>= 4
 
+    out_text = ''
+    if len(emit_list) > 0:
+        if out_size == 4:
+            idx = 0
+            while idx < len(emit_list):
+                # Collect runs of same-delta sources
+                run = 0
+                if idx + 1 < len(emit_list):
+                    delta = emit_list[idx + 1] - emit_list[idx]
+                else:
+                    delta = 4
+                while (idx + run + 1 < len(emit_list)
+                       and emit_list[run + 1] - emit_list[run] == delta):
+                    run += 1
+
+                # Output as a loop
+                out_text += '  addr = (volatile uint32_t *) ' \
+                            f'0x{apb_base + tc.dev.C_SRAM_BASE + emit_list[idx]:08x};\n'
+
+                remaining = run + 1
+                while remaining > 0:
+                    loop_runs = max(
+                        1,
+                        remaining // non_mlator_chunk if non_mlator_chunk > 1 else 1,
+                    )
+                    if loop_runs > 1:
+                        need_i = True
+                        out_text += f'  for (i = 0; i < {loop_runs}; i++) {{\n'
+                    for _ in range(min(remaining, non_mlator_chunk)):
+                        if loop_runs > 1:
+                            out_text += '  '
+                        out_text += '  *out_buf++ = *addr++;\n'
+                    if loop_runs > 1:
+                        out_text += '  }\n'
+                    remaining -= loop_runs * non_mlator_chunk
+                idx += run + 1
+        else:
+            pass
+    if need_i:
+        memfile.write('  int i;\n\n')
+    if out_text != '':
+        memfile.write(out_text)
     toplevel.function_footer(memfile)  # unload()
 
 

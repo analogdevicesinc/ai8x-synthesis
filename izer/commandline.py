@@ -81,7 +81,9 @@ def get_parser() -> argparse.Namespace:
     group.add_argument('--mlator', action='store_true', default=False,
                        help="use hardware to swap output bytes (default: false)")
     group.add_argument('--mlator-unroll', type=int, metavar='N', default=8,
-                       help="number of assignments per loop iteration (default: 8)")
+                       help="number of assignments per loop iteration for mlator (default: 8)")
+    group.add_argument('--non-mlator-unroll', type=int, metavar='N', default=8,
+                       help="number of sets of assignments per loop iteration (default: 8)")
     group.add_argument('--softmax', action='store_true', default=False,
                        help="add software softmax function (default: false)")
     group.add_argument('--unload', action='store_true', default=None,
@@ -482,6 +484,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.mlator_chunk = args.mlator_unroll
     state.mlator_noverify = args.mlator_noverify
     state.no_error_stop = args.no_error_stop
+    state.non_mlator_chunk = args.non_mlator_unroll
     state.oneshot = args.one_shot
     state.output_filename = args.output_filename
     state.override_delta1 = args.override_delta1

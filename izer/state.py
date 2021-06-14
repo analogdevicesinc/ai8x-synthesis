@@ -91,6 +91,7 @@ mlator: bool = False
 mlator_chunk: int = 0
 next_sequence: List[int] = []
 no_error_stop: bool = False
+non_mlator_chunk: int = 0
 oneshot: int = 0
 operands: List[Any] = []
 operator: List[Any] = []
