@@ -1566,7 +1566,8 @@ class Backend(backend.Backend):
 
                         # Configure tram pointer max
                         if operator[ll] == op.CONV1D or \
-                           operator[ll] in [op.CONV2D, op.LINEAR] and kernel_size[ll] == [1, 1]:
+                           operator[ll] in [op.CONV2D, op.LINEAR] and kernel_size[ll] == [1, 1] \
+                           and (ll == 0 or not streaming[ll]):
                             if flatten_prod >= 2**4:
                                 assert flatten_prod < 2**16
                                 val = flatten_prod << 16 | (2 * flatten_prod + 1)
