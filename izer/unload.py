@@ -45,11 +45,16 @@ def unload(
     assert not state.block_mode or not mlator
 
     if not mlator and output_width == 8 and state.embedded_code \
-       and input_shape[1] * input_shape[2] >= 4:
+       and input_shape[1] * input_shape[2] % 4 == 0:
         wprint('Use --mlator to optimize cnn_unload() for 8-bit output values.')
 
     if mlator and output_width != 8:
         wprint('ignoring --mlator for 32-bit output.')
+        mlator = False
+
+    if mlator and input_shape[0] > 1 and input_shape[1] * input_shape[2] % 4 != 0:
+        wprint(f'ignoring --mlator for {input_shape[1]}x{input_shape[2]} frame size '
+               f'({input_shape[1] * input_shape[2]} bytes) that is not divisible by 4')
         mlator = False
 
     memfile.write('// Custom unload for this network: '
