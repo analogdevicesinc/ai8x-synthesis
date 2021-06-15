@@ -80,10 +80,15 @@ def get_parser() -> argparse.Namespace:
                        help="use express kernel loading (default: false)")
     group.add_argument('--mlator', action='store_true', default=False,
                        help="use hardware to swap output bytes (default: false)")
-    group.add_argument('--mlator-unroll', type=int, metavar='N', default=8,
-                       help="number of assignments per loop iteration for mlator (default: 8)")
-    group.add_argument('--non-mlator-unroll', type=int, metavar='N', default=8,
-                       help="number of sets of assignments per loop iteration (default: 8)")
+    group.add_argument('--unroll-mlator', type=int, metavar='N', default=8,
+                       help="number of assignments per loop iteration for mlator output "
+                            "(default: 8)")
+    group.add_argument('--unroll-8bit', type=int, metavar='N', default=1,
+                       help="number of assignments per loop iteration for 8-bit output "
+                            "(default: 1)")
+    group.add_argument('--unroll-wide', type=int, metavar='N', default=8,
+                       help="number of assignments per loop iteration for wide output "
+                            "(default: 8)")
     group.add_argument('--softmax', action='store_true', default=False,
                        help="add software softmax function (default: false)")
     group.add_argument('--unload', action='store_true', default=None,
@@ -481,10 +486,10 @@ def set_state(args: argparse.Namespace) -> None:
     state.measure_energy = args.energy
     state.mexpress = args.mexpress
     state.mlator = args.mlator
-    state.mlator_chunk = args.mlator_unroll
+    state.mlator_chunk = args.unroll_mlator
     state.mlator_noverify = args.mlator_noverify
+    state.narrow_chunk = args.unroll_8bit
     state.no_error_stop = args.no_error_stop
-    state.non_mlator_chunk = args.non_mlator_unroll
     state.oneshot = args.one_shot
     state.output_filename = args.output_filename
     state.override_delta1 = args.override_delta1
@@ -530,6 +535,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.weight_filename = args.weight_filename
     state.weight_start = args.weight_start
     state.wfi = args.wfi
+    state.wide_chunk = args.unroll_wide
     state.write_zero_regs = args.write_zero_registers
     state.zero_sram = args.zero_sram
     state.zero_unused = args.zero_unused

@@ -39,7 +39,8 @@ def unload(
     apb_base = state.apb_base
     mlator = state.mlator
     mlator_chunk = state.mlator_chunk if state.embedded_code else 1
-    non_mlator_chunk = state.non_mlator_chunk if state.embedded_code else 1
+    narrow_chunk = state.narrow_chunk if state.embedded_code else 0
+    wide_chunk = state.wide_chunk if state.embedded_code else 0
 
     assert not state.block_mode or not mlator
 
@@ -66,9 +67,9 @@ def unload(
             memfile.write(f'  uint{output_width}_t *out_buf = (uint{output_width}_t *) '
                           'out_buf32;\n')
             if input_shape[1] * input_shape[2] == 1:
-                memfile.write('  uint32_t val;\n\n')
+                memfile.write('  uint32_t val;\n')
             else:
-                memfile.write('  uint32_t val, offs;\n\n')
+                memfile.write('  uint32_t val, offs;\n')
         elif input_shape[1] * input_shape[2] != 1:
             memfile.write('  uint32_t offs;\n\n')
 
@@ -127,36 +128,17 @@ def unload(
                           (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
                          doffs * width + expand * out_size) * 4
 
-                    if offs != read_addr:
-                        memfile.write('  addr = (volatile uint32_t *) '
-                                      f'0x{apb_base + tc.dev.C_SRAM_BASE + offs:08x};\n')
-                    memfile.write('  val = *addr++;\n')
-                    read_addr = offs + 4
-
                     # Singulate bytes, ignoring unused processors
                     for shift in range(4):
                         addr = this_c * input_shape[1] * input_shape[2] \
                             + row * input_shape[1] + col
-                        if shift == 0 and input_shape[1] * input_shape[2] != 1:
+                        if shift == 0:
                             if addr != write_addr:
-                                memfile.write(f'  offs = 0x{addr:04x};\n')
+                                write_addr = addr
                             else:
-                                memfile.write('  offs++;\n')
-                            write_addr = addr + 1
+                                write_addr = addr + 1
                         if this_map & 1:
-                            if input_shape[1] * input_shape[2] != 1:
-                                memfile.write('  out_buf[offs')
-                                if shift > 0:
-                                    memfile.write(f'+0x{0x10 * shift:02x}')
-                                memfile.write('] = ')
-                            else:
-                                memfile.write('  *out_buf++ = ')
-                            if shift == 0:
-                                memfile.write('val')
-                            else:
-                                memfile.write(f'(val >> {shift * 8})')
-                            memfile.write(' & 0xff;\n')
-
+                            emit_list.append((write_addr, offs, shift))
                             this_c += 1
                         this_map >>= 1
         else:  # mlator
@@ -273,15 +255,17 @@ def unload(
     if len(emit_list) > 0:
         if out_size == 4:
             idx = 0
+            chunk = max(1, wide_chunk)
             while idx < len(emit_list):
                 # Collect runs of same-delta sources
                 run = 0
                 if idx + 1 < len(emit_list):
-                    delta = emit_list[idx + 1] - emit_list[idx]
+                    delta_r = emit_list[idx + 1] - emit_list[idx]
+                    assert delta_r % 4 == 0
                 else:
-                    delta = 4
+                    delta_r = 4
                 while (idx + run + 1 < len(emit_list)
-                       and emit_list[run + 1] - emit_list[run] == delta):
+                       and emit_list[run + 1] - emit_list[run] == delta_r):
                     run += 1
 
                 # Output as a loop
@@ -292,24 +276,107 @@ def unload(
                 while remaining > 0:
                     loop_runs = max(
                         1,
-                        remaining // non_mlator_chunk if non_mlator_chunk > 1 else 1,
+                        remaining // chunk if wide_chunk > 0 else 1,
                     )
                     if loop_runs > 1:
                         need_i = True
                         out_text += f'  for (i = 0; i < {loop_runs}; i++) {{\n'
-                    for _ in range(min(remaining, non_mlator_chunk)):
-                        if loop_runs > 1:
-                            out_text += '  '
-                        out_text += '  *out_buf++ = *addr++;\n'
+                        prefix = '  '
+                    else:
+                        prefix = ''
+                    for _ in range(min(remaining, chunk)):
+                        if delta_r == 4:
+                            out_text += f'{prefix}  *out_buf++ = *addr++;\n'
+                        else:
+                            out_text += f'{prefix}  *out_buf++ = *addr;\n' \
+                                        f'{prefix}  addr += 0x{delta_r // 4:04x};\n'
                     if loop_runs > 1:
                         out_text += '  }\n'
-                    remaining -= loop_runs * non_mlator_chunk
+                    remaining -= loop_runs * chunk
                 idx += run + 1
-        else:
-            pass
+        else:  # out_size == 1
+            idx = 0
+            short_write = input_shape[1] * input_shape[2] == 1
+            chunk = max(1, narrow_chunk)
+            while idx < len(emit_list):
+                # Find how many have the same r/w addresses with different shift,
+                # then how many the same deltas between rs and ws with the same set of shifts.
+                shift_list = []
+                shift_count = 0
+                write_addr = emit_list[idx][0]
+                read_addr = emit_list[idx][1]
+                while (idx + shift_count < len(emit_list)
+                       and emit_list[idx + shift_count][0] == write_addr
+                       and emit_list[idx + shift_count][1] == read_addr):
+                    shift_list.append(emit_list[idx + shift_count][2])
+                    shift_count += 1
+                run = 0
+                if idx + shift_count < len(emit_list):
+                    delta_w = emit_list[idx + shift_count][0] - emit_list[idx][0]
+                    delta_r = emit_list[idx + shift_count][1] - emit_list[idx][1]
+                    assert delta_r % 4 == 0
+                else:
+                    delta_w = 1
+                    delta_r = 4
+                while (idx + shift_count * (run + 1) < len(emit_list)
+                       and emit_list[idx + shift_count * (run + 1)][0]
+                       - emit_list[idx + shift_count * run][0] == delta_w
+                       and emit_list[idx + shift_count * (run + 1)][1]
+                       - emit_list[idx + shift_count * run][1] == delta_r):
+                    run += 1
+
+                # Output as a loop
+                out_text += '  addr = (volatile uint32_t *) ' \
+                            f'0x{apb_base + tc.dev.C_SRAM_BASE + read_addr:08x};\n'
+                if not short_write:
+                    out_text += f'  offs = 0x{write_addr:04x};\n'
+
+                remaining = run + 1
+                while remaining > 0:
+                    loop_runs = max(
+                        1,
+                        remaining // chunk if narrow_chunk > 0 else 1,
+                    )
+                    if loop_runs > 1:
+                        need_i = True
+                        out_text += f'  for (i = 0; i < {loop_runs}; i++) {{\n'
+                        prefix = '  '
+                    else:
+                        prefix = ''
+                    for _ in range(min(remaining, chunk)):
+                        if delta_r == 4:
+                            out_text += f'{prefix}  val = *addr++;\n'
+                        else:
+                            out_text += f'{prefix}  val = *addr;\n' \
+                                        f'{prefix}  addr += 0x{delta_r // 4:04x};\n'
+                        for _, shift in enumerate(shift_list):
+                            if not short_write:
+                                out_text += f'{prefix}  out_buf[offs'
+                                if shift > 0:
+                                    out_text += f'+0x{input_shape[1] * input_shape[2] * shift:02x}'
+                                out_text += '] = '
+                            else:
+                                out_text += f'{prefix}  *out_buf++ = '
+                            if shift == 0:
+                                out_text += 'val'
+                            else:
+                                out_text += f'(val >> {shift * 8})'
+                            out_text += ' & 0xff;\n'
+
+                        if not short_write:
+                            if delta_w == 1:
+                                out_text += f'{prefix}  offs++;\n'
+                            else:
+                                out_text += f'{prefix}  offs += 0x{delta_w:04x};\n'
+                    if loop_runs > 1:
+                        out_text += '  }\n'
+                    remaining -= loop_runs * chunk
+
+                idx += (run + 1) * shift_count
     if need_i:
-        memfile.write('  int i;\n\n')
+        memfile.write('  int i;\n')
     if out_text != '':
+        memfile.write('\n')
         memfile.write(out_text)
     toplevel.function_footer(memfile)  # unload()
 
