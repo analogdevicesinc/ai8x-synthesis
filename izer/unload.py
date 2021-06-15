@@ -98,49 +98,26 @@ def unload(
         proc = poffs & ~(tc.dev.P_SHARED-1)
 
         if not mlator:
-            if out_size == 4:
-                for doffs in range(input_shape[1] * input_shape[2]):
-                    row, col = divmod(doffs, input_shape[2])
-                    this_map = next_layer_map
-                    this_c = c
+            for doffs in range(input_shape[1] * input_shape[2]):
+                row, col = divmod(doffs, input_shape[2])
+                this_map = next_layer_map
+                this_c = c
 
-                    # Source
-                    offs = out_offset + \
-                        (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
-                          (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
-                         doffs * width + expand * out_size) * 4
+                # Source
+                offs = out_offset + \
+                    (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
+                        (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
+                        doffs * width + expand * out_size) * 4
 
-                    for shift in range(4):
-                        if this_map & 1:
+                for shift in range(4):
+                    if this_map & 1:
+                        if out_size == 4:
                             emit_list.append(offs)
                             offs += 4
-                            this_c += 1
-                        this_map >>= 1
-            else:  # out_size == 1
-                for doffs in range(input_shape[1] * input_shape[2]):
-                    row, col = divmod(doffs, input_shape[2])
-                    this_map = next_layer_map
-                    this_c = c
-
-                    # Get four bytes from memory array
-                    offs = out_offset + \
-                        (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
-                          (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
-                         doffs * width + expand * out_size) * 4
-
-                    # Singulate bytes, ignoring unused processors
-                    for shift in range(4):
-                        addr = this_c * input_shape[1] * input_shape[2] \
-                            + row * input_shape[1] + col
-                        if shift == 0:
-                            if addr != write_addr:
-                                write_addr = addr
-                            else:
-                                write_addr = addr + 1
-                        if this_map & 1:
-                            emit_list.append((write_addr, offs, shift))
-                            this_c += 1
-                        this_map >>= 1
+                        else:  # out_size == 1
+                            emit_list.append((offs, shift))
+                        this_c += 1
+                    this_map >>= 1
         else:  # mlator
             def mlator_write_one(
                     prefix: str = '',
@@ -253,6 +230,7 @@ def unload(
 
     out_text = ''
     if len(emit_list) > 0:
+        xy_dim = input_shape[1] * input_shape[2]
         if out_size == 4:
             idx = 0
             chunk = max(1, wide_chunk)
@@ -296,40 +274,35 @@ def unload(
                 idx += run + 1
         else:  # out_size == 1
             idx = 0
-            short_write = input_shape[1] * input_shape[2] == 1
+            short_write = xy_dim == 1
             chunk = max(1, narrow_chunk)
+            if not short_write:
+                out_text += '  offs = 0x0000;\n'
             while idx < len(emit_list):
                 # Find how many have the same r/w addresses with different shift,
                 # then how many the same deltas between rs and ws with the same set of shifts.
                 shift_list = []
                 shift_count = 0
-                write_addr = emit_list[idx][0]
-                read_addr = emit_list[idx][1]
+                read_addr = emit_list[idx][0]
                 while (idx + shift_count < len(emit_list)
-                       and emit_list[idx + shift_count][0] == write_addr
-                       and emit_list[idx + shift_count][1] == read_addr):
-                    shift_list.append(emit_list[idx + shift_count][2])
+                       and emit_list[idx + shift_count][0] == read_addr):
+                    shift_list.append(emit_list[idx + shift_count][1])
                     shift_count += 1
                 run = 0
                 if idx + shift_count < len(emit_list):
-                    delta_w = emit_list[idx + shift_count][0] - emit_list[idx][0]
-                    delta_r = emit_list[idx + shift_count][1] - emit_list[idx][1]
+                    delta_r = emit_list[idx + shift_count][0] - emit_list[idx][0]
                     assert delta_r % 4 == 0
                 else:
-                    delta_w = 1
+                    # delta_w = 1
                     delta_r = 4
                 while (idx + shift_count * (run + 1) < len(emit_list)
                        and emit_list[idx + shift_count * (run + 1)][0]
-                       - emit_list[idx + shift_count * run][0] == delta_w
-                       and emit_list[idx + shift_count * (run + 1)][1]
-                       - emit_list[idx + shift_count * run][1] == delta_r):
+                       - emit_list[idx + shift_count * run][0] == delta_r):
                     run += 1
 
                 # Output as a loop
                 out_text += '  addr = (volatile uint32_t *) ' \
                             f'0x{apb_base + tc.dev.C_SRAM_BASE + read_addr:08x};\n'
-                if not short_write:
-                    out_text += f'  offs = 0x{write_addr:04x};\n'
 
                 remaining = run + 1
                 while remaining > 0:
@@ -353,7 +326,7 @@ def unload(
                             if not short_write:
                                 out_text += f'{prefix}  out_buf[offs'
                                 if shift > 0:
-                                    out_text += f'+0x{input_shape[1] * input_shape[2] * shift:02x}'
+                                    out_text += f'+0x{xy_dim * shift:02x}'
                                 out_text += '] = '
                             else:
                                 out_text += f'{prefix}  *out_buf++ = '
@@ -364,15 +337,14 @@ def unload(
                             out_text += ' & 0xff;\n'
 
                         if not short_write:
-                            if delta_w == 1:
-                                out_text += f'{prefix}  offs++;\n'
-                            else:
-                                out_text += f'{prefix}  offs += 0x{delta_w:04x};\n'
+                            out_text += f'{prefix}  offs++;\n'
                     if loop_runs > 1:
                         out_text += '  }\n'
                     remaining -= loop_runs * chunk
 
                 idx += (run + 1) * shift_count
+                if not short_write and idx < len(emit_list) and shift_count > 1:
+                    out_text += f'  offs += 0x{xy_dim * (shift_count - 1):04x};\n'
     if need_i:
         memfile.write('  int i;\n')
     if out_text != '':
