@@ -130,6 +130,8 @@ def get_parser() -> argparse.Namespace:
                        default='sampleoutput.h',
                        help="sample result header file name (default: 'sampleoutput.h', use "
                             "'None' to inline code)")
+    group.add_argument('--sample-numpy-filename', dest='result_numpy', metavar='S',
+                       help="save sample result as NumPy file (default: disabled)")
 
     # Streaming and FIFOs
     group = parser.add_argument_group('Streaming and FIFOs')
@@ -506,6 +508,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.repeat_layers = args.repeat_layers
     state.reshape_inputs = args.reshape_inputs
     state.result_filename = args.result_filename
+    state.result_numpy = args.result_numpy
     state.result_output = args.result_output
     state.riscv = args.riscv
     state.riscv_cache = args.riscv_cache

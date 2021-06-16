@@ -46,6 +46,7 @@ class APB():
             num_classes=None,
             output_width=8,
             bias=False,
+            test_name=None,
     ):
         """
         Create an APB class object that writes to memfile.
@@ -72,6 +73,7 @@ class APB():
         self.num_classes = num_classes
         self.output_width = output_width
         self.bias = bias
+        self.test_name = test_name
 
         self.data = 0
         self.num = 0
@@ -700,6 +702,7 @@ class APB():
             write_gap=write_gap,
             final_layer=final_layer,
             embedded=self.embedded_code,
+            test_name=self.test_name,
         )
 
     def verify_unload_finalize(self):

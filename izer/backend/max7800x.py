@@ -670,6 +670,7 @@ class Backend(backend.Backend):
                     riscv=False,
                     embedded_arm=embedded_code,
                     groups=list(set().union(groups_used)),
+                    test_name=test_name,
                 )
                 apb.copyright_header()
 
@@ -711,6 +712,7 @@ class Backend(backend.Backend):
                 num_classes=output_chan[terminating_layer],
                 output_width=output_width[terminating_layer],
                 bias=any(b is not None for b in bias),
+                test_name=test_name,
             )
 
             apb.copyright_header()
@@ -2581,6 +2583,7 @@ class Backend(backend.Backend):
                             fast_fifo=False,
                             input_chan=input_chan[start_layer],
                             debug_mem=True,
+                            test_name=test_name,
                         )
                         out_map2 = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
                         apb2.verify_unload(

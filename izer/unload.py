@@ -7,7 +7,10 @@
 """
 Unload AI8X HWC memory into standard representation.
 """
+import os
 from typing import List, TextIO
+
+import numpy as np
 
 from . import state, toplevel
 from . import tornadocnn as tc
@@ -376,6 +379,7 @@ def verify(
         write_gap=0,
         final_layer=0,
         embedded=False,
+        test_name=None,
 ):
     """
     Verify HWC memory from AI8X, writing C or mem code using the `verify_fn` function.
@@ -393,8 +397,15 @@ def verify(
     max_count = state.max_count
     no_error_stop = state.no_error_stop
 
+    if state.result_numpy is not None:
+        # Also save as a NumPy pickle
+        np.save(os.path.join(state.base_directory, test_name, state.result_numpy),
+                out_buf, allow_pickle=False, fix_imports=False)
+
     if embedded:
-        mlator = False  # FIXME Support mlator for embedded
+        # check_output() does not use mlator for embedded code (it is used for cnn_unload(),
+        # and for RTL sims)
+        mlator = False
     if mlator and output_width != 8:
         wprint('ignoring --mlator for 32-bit output.')
         mlator = False

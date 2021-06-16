@@ -129,6 +129,7 @@ read_ahead: List[bool] = []
 repeat_layers: int = 1
 reshape_inputs: bool = False
 result_filename: str = ''
+result_numpy: Optional[str] = None
 result_output: bool = False
 riscv_cache: bool = False
 riscv_debug: bool = False
