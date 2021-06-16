@@ -221,6 +221,7 @@ def convert_checkpoint(input_file, output_file, arguments):
                 bias = bias.add(.5).floor().clamp(min=-(2**(clamp_bits+tc.dev.ACTIVATION_BITS-2)),
                                                   max=2**(clamp_bits+tc.dev.ACTIVATION_BITS-2)-1)
 
+                bias = (bias // 128) * 128
                 # Store modified bias back into model
                 new_checkpoint_state[bias_name] = bias
 
