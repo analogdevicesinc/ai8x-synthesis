@@ -184,7 +184,10 @@ def load(
             if bias_name in checkpoint_state and seq not in no_bias:
                 wb = checkpoint_state[wb_name].numpy().astype(np.int64) \
                      if wb_name in checkpoint_state else 8
-                w = (checkpoint_state[bias_name] // 2**(wb - 1)).numpy(). \
+                # Use floating point division and rounding to integer to deal with checkpoint
+                # files that are not properly quantized. The bias values in quantized checkpoints
+                # are multiples of 128, so there will be no rounding for those checkpoints.
+                w = np.floor((checkpoint_state[bias_name] / 2**(wb - 1)).numpy()). \
                     astype(np.int64)
 
                 if np.all(w == 0):
