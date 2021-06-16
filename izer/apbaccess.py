@@ -743,7 +743,7 @@ class APB():
                     if len(val_array) > 0:
                         output_array += [
                             output_addr,
-                            output_mask if output_mask is not None else 0xffffffff,
+                            output_mask,
                             len(val_array),
                         ]
                         output_array += val_array
@@ -1102,6 +1102,7 @@ class APBTopLevel(APB):
             mask_str = f' & 0x{mask:0{2*val_bytes}x}'
         else:
             mask_str = ''
+            mask = 0xffffffff
 
         action = 'rv = CNN_FAIL;' if rv else 'return CNN_FAIL;'
 
