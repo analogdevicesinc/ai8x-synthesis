@@ -263,29 +263,36 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             # Initially, start looking at 0 and subsequently at the first available for the
             # previously examined processors. Stop looking at the highest used offset for all
             # processors.
-            start_p = 0
-            for p in range(first_proc, last_proc+1):
+            search_col = 0  # 0 is a multiple of tc.dev.P_SHARED
+            p = first_proc
+            while p < last_proc+1:
                 if (proc_map >> p) & 1 == 0:
-                    # Unused processor
+                    # Skip unused processors
+                    p += 1
                     continue
 
-                while kernel_map[p][start_p] != _INVALID_VALUE:
-                    # Start at a multiple of 4
-                    start_p = (start_p + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
-                    check_kernel_mem(ll, p, start_p)
-                    while kernel_map[p][start_p] != _INVALID_VALUE:
-                        start_p += tc.dev.P_SHARED
-                        check_kernel_mem(ll, p, start_p)
+                # Find the first free column for this processor
+                while kernel_map[p][search_col] != _INVALID_VALUE:
+                    # Start at a multiple of 4 - round up to next multiple
+                    search_col += tc.dev.P_SHARED
+                    check_kernel_mem(ll, p, search_col)
 
-                    # Is there enough space at this location?
-                    for i in range(start_p, start_p + kern_len[ll]):
-                        if kernel_map[p][i] != _INVALID_VALUE:
-                            start_p = i + 1
-                            check_kernel_mem(ll, p, start_p)
-                            break
+                # For this processor, is there space for all kernels starting at
+                # column 'search_col'?
+                for i in range(search_col + 1, search_col + kern_len[ll]):
+                    if kernel_map[p][i] != _INVALID_VALUE:
+                        # No, go to the next candidate
+                        # (at least one more than what we're looking at, rounded up)
+                        search_col = (i + 1 + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
+                        check_kernel_mem(ll, p, search_col)
+                        # Reset to start at first processor again
+                        p = first_proc - 1  # Subtract 1 since it's increased again below
+                        break
+                # Check next processor
+                p += 1
 
-            # Get highest offset for all used processors
-            kern_offs[ll] = start_p
+            # All used processors have kernel_len space starting at this column
+            kern_offs[ll] = search_col
 
         if ll > 0 and calcx4[ll] and not calcx4[ll-1]:
             # FIXME: This is a quick workaround that should be properly addressed for mixed
