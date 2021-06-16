@@ -1709,7 +1709,7 @@ Example:
 
 By default, a layer’s input is the output of the previous layer. `in_sequences` can be used to point to the output of one or more arbitrary previous layers, for example when processing the same data using two different kernel sizes, or when combining the outputs of several prior layers. `in_sequences` can be specified as an integer (for a single input) or as a list (for multiple inputs). As a special case, `-1` is the input data. The `in_offset` and `out_offset` must be set to match the specified sequence, and the output processors must be adjacent for all sequence arguments.
 
-The order of arguments of `in_sequences` must match the model, and earlier arguments must use lower output processor numbers than later arguments. The following code shows an example `forward` function for a model that concatenates two values:
+The order of arguments of `in_sequences` must match the model. The following code shows an example `forward` function for a model that concatenates two values:
 
 ```python
 def forward(self, x):
@@ -1718,7 +1718,7 @@ def forward(self, x):
     y = torch.cat((y, x), dim=1)
 ```
 
-In this case, `in_sequences` would be  `[1, 0]` since `y` (the output of layer 1) precedes `x` (the output of layer 0) in the `torch.cat()` statement. In the example, layer 0 uses output processors `0xff00` (processors 8-15) and layer 1 uses 0xff (processors 0-7).
+In this case, `in_sequences` would be  `[1, 0]` since `y` (the output of layer 1) precedes `x` (the output of layer 0) in the `torch.cat()` statement.
 
 Example:
   `in_sequences: [2, 3]` 

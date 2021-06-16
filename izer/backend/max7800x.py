@@ -490,23 +490,6 @@ class Backend(backend.Backend):
                 eprint(f'Layer {ll}: `pool_dilation` values must be 1 or greater, and '
                        f'{tc.dev.MAX_POOL_DILATION} or smaller on this device.')
 
-            if in_sequences[ll] is not None:
-                min_proc = -1
-                max_proc = -1
-                for _, lt in enumerate(in_sequences[ll]):
-                    first_proc = ffs(output_processor_map[lt])
-                    last_proc = fls(output_processor_map[lt])
-                    if first_proc <= min_proc:
-                        eprint(f'Layer {ll}: In `in_sequences` {in_sequences[ll]}, '
-                               'an earlier layer in the sequence uses a higher first processor '
-                               f'({min_proc}) than layer {lt} which uses processor {first_proc}.')
-                    if last_proc <= max_proc:
-                        eprint(f'Layer {ll}: In `in_sequences` {in_sequences[ll]}, '
-                               'an earlier layer in the sequence uses a higher last processor '
-                               f'({max_proc}) than layer {lt} which uses processor {last_proc}.')
-                    min_proc = first_proc
-                    max_proc = last_proc
-
         # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
         test_name = prefix
         if not embedded_code:
