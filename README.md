@@ -1707,9 +1707,17 @@ Example:
 
 ##### `in_sequences` (Optional)
 
-By default, a layer’s input is the output of the previous layer. `in_sequences` can be used to point to the output of one or more arbitrary previous layers, for example when processing the same data using two different kernel sizes, or when combining the outputs of several prior layers. `in_sequences` can be specified as an integer (for a single input) or as a list (for multiple inputs). As a special case, `-1` is the input data. The `in_offset` and `out_offset` must be set to match the specified sequence, and the output processors must be adjacent for all sequence arguments.
+By default, a layer’s input is the output of the previous layer. `in_sequences` can be used to point to the output of one or more arbitrary previous layers, for example when processing the same data using two different kernel sizes, or when combining the outputs of several prior layers. `in_sequences` can be specified as an integer (for a single input) or as a list (for multiple inputs). As a special case, `-1` refers to the input data. The `in_offset` and `out_offset` must be set to match the specified sequence.
 
-The order of arguments of `in_sequences` must match the model. The following code shows an example `forward` function for a model that concatenates two values:
+###### Multiple Arguments (Element-wise Operations)
+
+`in_sequences` is used to specify the inputs for a multi-operand element-wise operator (for example, `add`). The output processors for all arguments of the sequence must match.
+
+###### Layer Concatenation
+
+`in_sequences` can also be used to specify concatenation similar to `torch.cat()`.
+
+The output processors must be adjacent for all sequence arguments, and arguments listed earlier must use lower processor numbers than arguments listed later. The order of arguments of `in_sequences` must match the model. The following code shows an example `forward` function for a model that concatenates two values:
 
 ```python
 def forward(self, x):
