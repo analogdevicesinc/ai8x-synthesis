@@ -184,8 +184,8 @@ def load(
             if bias_name in checkpoint_state and seq not in no_bias:
                 wb = checkpoint_state[wb_name].numpy().astype(np.int64) \
                      if wb_name in checkpoint_state else 8
-                w = checkpoint_state[bias_name].numpy(). \
-                    astype(np.int64) // 2**(wb - 1)
+                w = (checkpoint_state[bias_name] // 2**(wb - 1)).numpy(). \
+                    astype(np.int64)
 
                 if np.all(w == 0):
                     wprint(f'All bias values for `{bias_name}` are zero.')
