@@ -512,7 +512,7 @@ class Backend(backend.Backend):
                 else:  # eltwise
                     eltwise_proc_map = 0
                     for _, lt in enumerate(in_sequences[ll]):
-                        if eltwise_proc_map != 0 and output_processor_map[lt] != eltwise_proc_map:
+                        if eltwise_proc_map not in (0, output_processor_map[lt]):
                             eprint(f'Layer {ll}: In `in_sequences` {in_sequences[ll]}, '
                                    'an earlier layer in the sequence uses a different output '
                                    f'processor map (0x{eltwise_proc_map:016x}) than layer {lt} '
