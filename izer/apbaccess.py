@@ -256,7 +256,7 @@ class APB():
             rv=rv,
             api=api,
             data=data,
-            use_list=True,
+            use_list=self.embedded_code,
         )
 
     def wait(

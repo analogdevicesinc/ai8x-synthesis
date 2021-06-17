@@ -2582,22 +2582,24 @@ class Backend(backend.Backend):
                                'given the sample input (known-answer test)\n'
                                '// Delete this function for production code\n')
                     apb.function_header(dest='wrapper', prefix='', function='check_output')
-                    # if ll == terminating_layer and mlator and not state.mlator_noverify:
-                    #     apb.verify_unload(
-                    #         ll,
-                    #         in_map,
-                    #         None,
-                    #         out_buf,
-                    #         output_processor_map[ll],
-                    #         out_size,
-                    #         out_offset[ll],
-                    #         out_expand[ll],
-                    #         out_expand_thresh[ll],
-                    #         output_width[ll],
-                    #         overwrite_ok or streaming[ll],
-                    #         mlator=False,
-                    #         write_gap=write_gap[ll],
-                    #     )
+                    if ll == terminating_layer and mlator \
+                       and not state.mlator_noverify and not embedded_code:
+                        apb.verify_unload(
+                            ll,
+                            in_map,
+                            None,
+                            out_buf,
+                            output_processor_map[ll],
+                            out_size,
+                            out_offset[ll],
+                            out_expand[ll],
+                            out_expand_thresh[ll],
+                            output_width[ll],
+                            overwrite_ok or streaming[ll],
+                            mlator=False,
+                            write_gap=write_gap[ll],
+                            final_layer=terminating_layer,
+                        )
                     if log_intermediate:
                         filename2 = f'{output_filename}-{ll}.mem'  # Intermediate output
                         memfile2 = open(os.path.join(base_directory, test_name, filename2),
