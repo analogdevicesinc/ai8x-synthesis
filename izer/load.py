@@ -130,7 +130,7 @@ def load(
                 # Create optimized code when we're not splitting the input
                 apb.output(f'// CHW {input_size[1]}x{input_size[2]}, channel {c}\n')
                 offs = 0
-                code_buffer = np.zeros(input_size[1] * input_size[2] // 4, dtype=np.int64)
+                code_buffer = np.zeros((input_size[1] * input_size[2] + 3) // 4, dtype=np.int64)
                 addr = data_offs
 
                 val = 0
