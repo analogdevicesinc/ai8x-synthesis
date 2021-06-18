@@ -8,11 +8,11 @@
 Embedded network and simulation test generator program for Tornado CNN
 """
 import os
+from pydoc import locate
 
 import numpy as np
 
-from . import (checkpoint, cmsisnn, commandline, devices, max7800x, onnxcp, op, rtlsim, sampledata,
-               sampleweight, stats)
+from . import checkpoint, commandline, onnxcp, op, rtlsim, sampledata, sampleweight, state
 from . import tornadocnn as tc
 from . import yamlcfg
 from .eprint import eprint, wprint
@@ -26,13 +26,10 @@ def main():
 
     args = commandline.get_parser()
 
-    # Configure device
+    # Configure device and set device dependent state
     tc.dev = tc.get_device(args.device)
 
-    if args.apb_base:
-        apb_base = args.apb_base
-    else:
-        apb_base = tc.dev.APB_BASE
+    # Manipulate device defaults based on command line (FIXME: this should go into state)
     if args.max_proc:
         tc.dev.MAX_PROC = args.max_proc
         tc.dev.P_NUMPRO = args.max_proc
@@ -43,6 +40,9 @@ def main():
         tc.dev.FIFO_READY_SEL = args.ready_sel_fifo
     if args.ready_sel_aon:
         tc.dev.AON_READY_SEL = args.ready_sel_aon
+
+    # Change global state based on command line
+    commandline.set_state(args)
 
     # Load configuration file
     cfg, cfg_layers, params = yamlcfg.parse(args.config_file)
@@ -107,7 +107,7 @@ def main():
     if cfg_layers > layers:
         # Add empty weights/biases and channel counts for layers not in checkpoint file.
         # The checkpoint file does not contain weights for non-convolution operations.
-        # Insert empty input channels/output channels/weights/biases and increase `layers`
+        # Insert empty input channels/output channels/weights/biases and increase layers
         # accordingly.
         for ll in range(cfg_layers):
             operator = params['operator'][ll]
@@ -340,7 +340,8 @@ def main():
                 input_offset[ll] = output_offset[prev_sequence[ll]]
             # Check we don't turn on streaming too late
             if streaming[ll] and not streaming[prev_sequence[ll]]:
-                eprint(f'Enable streaming from the first layer on (found in layer {ll}.')
+                eprint(f'Layer {ll} is a streaming layer, but the previous layer '
+                       f'(layer {prev_sequence[ll]}) is non-streaming. This is not supported.')
             if big_data[ll]:
                 eprint(f'`data_format` in layer {ll}: CHW can only be configured for the '
                        'first layer.')
@@ -436,6 +437,9 @@ def main():
                 if pooled_dim[ll][0] * pooled_dim[ll][1] > 256:
                     eprint(f'`flatten` in layer {ll} exceeds supported input dimensions '
                            f'({pooled_dim[ll][0]} * {pooled_dim[ll][1]} > 256)).')
+                if pooled_dim[ll][0] * pooled_dim[ll][1] == 1:
+                    wprint(f'`flatten` in layer {ll} is not needed since input dimensions are '
+                           '1x1.')
                 output_dim[ll] = [1, 1]
                 input_channels[ll] //= pooled_dim[ll][0] * pooled_dim[ll][1]
                 assert input_channels[ll] > 0
@@ -470,6 +474,10 @@ def main():
 
         assert input_channels[ll] > 0
 
+        if activation[ll] is not None and operator[ll] == op.NONE:
+            eprint(f'Layer {ll} specifies activation {op.act_string(activation[ll])} for a '
+                   'passthrough layer.')
+
         ll = next_sequence[ll]
         if ll == -1:
             break
@@ -477,207 +485,86 @@ def main():
     if args.riscv and not args.riscv_cache and args.embedded_code:
         eprint("Embedded code on RISC-V requires --riscv-cache.")
 
-    if tc.dev.device != devices.CMSISNN:
-        tn = max7800x.create_net(
-            args.prefix,
-            args.verbose,
-            args.verbose_all,
-            args.debug,
-            args.debug_computation,
-            args.debug_latency,
-            args.no_error_stop,
-            args.overwrite_ok,
-            args.log,
-            apb_base,
-            layers,
-            operator,
-            input_dim,
-            pooled_dim,
-            output_dim,
-            processor_map,
-            output_processor_map,
-            kernel_size,
-            quantization,
-            output_shift,
-            input_channels,
-            output_channels,
-            conv_groups,
-            output_width,
-            padding,
-            dilation,
-            stride,
-            pool,
-            pool_stride,
-            pool_average,
-            activation,
-            data,
-            weights,
-            bias,
-            big_data,
-            args.input_split,
-            input_offset,
-            output_offset,
-            streaming,
-            flatten,
-            operands,
-            eltwise,
-            pool_first,
-            in_sequences,
-            next_sequence,
-            prev_sequence,
-            input_skip,
-            input_channel_skip,
-            args.input_filename,
-            args.output_filename,
-            args.c_filename,
-            args.api_filename,
-            args.test_dir,
-            args.runtest_filename,
-            args.log_filename,
-            args.zero_unused,
-            args.timeout,
-            not args.top_level,
-            verify_writes=args.verify_writes,
-            verify_kernels=args.verify_kernels,
-            embedded_code=args.embedded_code,
-            compact_weights=args.compact_weights,
-            compact_data=args.compact_data and not args.rtl_preload,
-            write_zero_regs=args.write_zero_registers,
-            weight_filename=args.weight_filename,
-            sample_filename=args.sample_filename,
-            init_tram=args.init_tram,
-            avg_pool_rounding=args.avg_pool_rounding,
-            fifo=args.fifo,
-            fast_fifo=args.fast_fifo,
-            fast_fifo_quad=args.fast_fifo_quad,
-            zero_sram=args.zero_sram,
-            mlator=args.mlator,
-            oneshot=args.one_shot,
-            ext_rdy=args.ext_rdy,
-            stopstart=args.stop_start,
-            mexpress=args.mexpress,
-            riscv=args.riscv,
-            riscv_exclusive=args.riscv_exclusive,
-            riscv_flash=args.riscv_flash,
-            riscv_cache=args.riscv_cache,
-            riscv_debug=args.riscv_debug,
-            debugwait=args.debugwait,
-            override_start=args.override_start,
-            increase_start=args.increase_start,
-            override_rollover=args.override_rollover,
-            override_delta1=args.override_delta1,
-            increase_delta1=args.increase_delta1,
-            override_delta2=args.override_delta2,
-            increase_delta2=args.increase_delta2,
-            slow_load=args.slow_load,
-            synthesize_input=args.synthesize_input,
-            synthesize_words=args.synthesize_words,
-            mlator_noverify=args.mlator_noverify,
-            input_csv=args.input_csv,
-            input_csv_period=args.input_csv_period,
-            input_csv_format=args.input_csv_format,
-            input_csv_retrace=args.input_csv_retrace,
-            input_fifo=args.input_fifo,
-            input_sync=args.input_sync,
-            sleep=args.deepsleep,
-            powerdown=args.powerdown,
-            simple1b=args.simple1b,
-            legacy_test=args.legacy_test,
-            legacy_kernels=args.legacy_kernels,
-            log_intermediate=args.log_intermediate,
-            log_pooling=args.log_pooling,
-            allow_streaming=args.allow_streaming,
-            softmax=args.softmax,
-            clock_trim=args.clock_trim,
-            repeat_layers=args.repeat_layers,
-            fixed_input=args.fixed_input,
-            max_count=args.max_count,
-            boost=args.boost,
-            forever=args.forever,
-            write_gap=write_gap,
-            start_layer=args.start_layer,
-            first_layer_used=min_layer,
-            final_layer=final_layer,
-            pipeline=args.pipeline,
-            pll=args.pll,
-            reshape_inputs=args.reshape_inputs,
-            link_layer=args.link_layer,
-            measure_energy=args.energy,
-            timer=args.timer,
-            board_name=args.board_name,
-            rd_ahead=readahead,
-            calcx4=calcx4,
-            rtl_preload=args.rtl_preload,
-            result_output=args.result_output,
-            weight_start=args.weight_start,
-            wfi=args.wfi,
-            bypass=bypass,
-            bias_group_map=bias_group_map,
-            pool_dilation=pool_dilation,
-            input_pix_clk=args.input_pix_clk,
-            fifo_go=args.fifo_go,
-            pretend_zero_sram=args.pretend_zero_sram,
-            ignore_bias_groups=args.ignore_bias_groups,
-            output_padding=output_padding,
-            kernel_format=args.kernel_format,
-            debug_new_streaming=args.debug_new_streaming,
-            snoop=cfg['snoop'] if 'snoop' in cfg else None,
-            tcalc=tcalc,
-            snoop_sequence=snoop_sequence,
-            simulated_sequence=simulated_sequence,
-            debug_snoop=args.debug_snoop,
-            overwrite=args.overwrite,
-        )
-        if not args.embedded_code and args.autogen.lower() != 'none':
-            rtlsim.append_regression(
-                args.top_level,
-                tn,
-                args.queue_name,
-                args.autogen,
-                args.autogen_list,
-            )
-    else:
-        cmsisnn.create_net(
-            args.prefix,
-            args.verbose,
-            args.verbose_all,
-            args.debug,
-            args.log,
-            layers,
-            operator,
-            auto_input_dim,
-            input_dim,
-            pooled_dim,
-            output_dim,
-            kernel_size,
-            quantization,
-            output_shift,
-            input_channels,
-            output_channels,
-            conv_groups,
-            output_width,
-            padding,
-            dilation,
-            stride,
-            pool,
-            pool_stride,
-            pool_average,
-            activation,
-            data,
-            weights,
-            bias,
-            flatten,
-            operands,
-            eltwise,
-            pool_first,
-            in_sequences,
-            args.c_filename,
-            args.test_dir,
-            args.log_filename,
-            args.weight_filename,
-            args.sample_filename,
-            args.avg_pool_rounding,
-            args.legacy_test,
-        )
+    # Modify global state based on locally calculated variables
+    state.activation = activation
+    state.auto_input_dim = auto_input_dim
+    state.bias = bias
+    state.bias_group_map = bias_group_map
+    state.big_data = big_data
+    state.bypass = bypass
+    state.calcx4 = calcx4
+    state.conv_groups = conv_groups
+    state.data = data
+    state.dilation = dilation
+    state.eltwise = eltwise
+    state.final_layer = final_layer
+    state.first_layer_used = min_layer
+    state.flatten = flatten
+    state.in_offset = input_offset
+    state.in_sequences = in_sequences
+    state.input_channel_skip = input_channel_skip
+    state.input_channels = input_channels
+    state.input_dim = input_dim
+    state.input_offset = input_offset
+    state.input_skip = input_skip
+    state.kernel_size = kernel_size
+    state.layers = layers
+    state.next_sequence = next_sequence
+    state.operands = operands
+    state.operator = operator
+    state.out_offset = output_offset
+    state.output_channels = output_channels
+    state.output_dim = output_dim
+    state.output_offset = output_offset
+    state.output_padding = output_padding
+    state.output_processor_map = output_processor_map
+    state.output_shift = output_shift
+    state.output_width = output_width
+    state.padding = padding
+    state.pool = pool
+    state.pool_average = pool_average
+    state.pool_dilation = pool_dilation
+    state.pool_first = pool_first
+    state.pool_stride = pool_stride
+    state.pooled_dim = pooled_dim
+    state.prev_sequence = prev_sequence
+    state.processor_map = processor_map
+    state.quantization = quantization
+    state.read_ahead = readahead
+    state.simulated_sequence = simulated_sequence
+    state.snoop = cfg['snoop'] if 'snoop' in cfg else None
+    state.snoop_sequence = snoop_sequence
+    state.streaming = streaming
+    state.stride = stride
+    state.tcalc = tcalc
+    state.weights = weights
+    state.write_gap = write_gap
 
-        print(stats.summary(debug=args.debug, weights=weights, w_size=quantization, bias=bias))
+    # Implied states
+    if state.riscv_debug:
+        state.riscv = True
+    if state.riscv_cache:
+        state.riscv = True
+        state.riscv_flash = True
+    if state.riscv_flash or state.riscv_exclusive:
+        state.riscv = True
+
+    if state.fast_fifo_quad:
+        state.fast_fifo = True
+    if state.fast_fifo:
+        state.fifo = True
+
+    # Instantiate backend
+    module = locate('izer.backend.' + tc.dev.backend)
+    assert module is not None
+    be = module.Backend()
+
+    tn = be.create_net()
+    if not args.embedded_code and args.autogen.lower() != 'none':
+        rtlsim.append_regression(
+            args.top_level,
+            tn,
+            args.queue_name,
+            args.autogen,
+            args.autogen_list,
+        )

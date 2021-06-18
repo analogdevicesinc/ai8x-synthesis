@@ -13,7 +13,7 @@ import argparse
 CMSISNN = -1
 
 
-def device(astring):
+def device(astring: str) -> int:
     """
     Take die type, or part number, and return the die type.
     """

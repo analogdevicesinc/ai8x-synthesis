@@ -12,7 +12,7 @@ import sys
 
 import numpy as np
 
-from . import op, rv
+from . import op, rv, state
 from . import tornadocnn as tc
 from .eprint import eprint, eprint_noprefix, wprint
 from .utils import ffs, fls, popcount
@@ -49,10 +49,8 @@ def print_map(
 
 
 def load(  # pylint: disable=too-many-branches,too-many-statements
-        verbose,
         embedded_code,
         apb,
-        start_layer,
         layers,
         operator,
         kernel,
@@ -68,18 +66,8 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         in_expand_thresh,
         conv_groups,
         flatten=None,
-        mexpress=False,
         verify=False,
-        riscv_flash=False,
-        quad=False,
-        debug=False,
-        blocklevel=False,
-        legacy_kernels=False,
-        calcx4=None,
         api=False,
-        start_offs=0,
-        bypass=None,
-        zero_sram=False,
 ):
     """
     Stack `kernel` values and write them to C code (for `embedded_code` if `True` or
@@ -91,6 +79,18 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     read back and compared.
     This function returns the kernel offsets and the kernel lengths for all layers.
     """
+    # Cache for faster access
+    bypass = state.bypass
+    calcx4 = state.calcx4
+    debug = state.debug
+    legacy_kernels = state.legacy_kernels
+    mexpress = state.mexpress
+    quad = state.fast_fifo_quad
+    start_layer = state.first_layer_used
+    start_offs = state.weight_start
+    zero_sram = state.zero_sram
+    riscv_flash = state.riscv_flash and not state.riscv_cache
+
     # Kernels: Stack kernels; write only the kernels needed
     proc_kern_max = [0] * tc.dev.MAX_PROC
     kern_offs = [start_offs] * layers
@@ -109,8 +109,6 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     if debug:
         print('\nLoading Kernels...')
 
-    if any(calcx4) and not tc.dev.SUPPORT_CALCX4:
-        eprint('calcx4 is not supported on this device.')
     assert not ((embedded_code or mexpress) and any(calcx4))  # FIXME Add support later
 
     for ll in range(start_layer, layers):
@@ -190,17 +188,6 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         last_proc = fls(proc_map)
         ch = 0
         m = 0
-        for p in range(first_proc, last_proc+1):
-            if (proc_map >> p) & 1 == 0:
-                # Unused processor
-                continue
-            # Get highest offset for all used processors
-            kern_offs[ll] = max(proc_kern_max[p], kern_offs[ll])
-        if ll > 0 and calcx4[ll] and not calcx4[ll-1]:
-            # FIXME: This is a quick workaround that should be properly addressed for mixed
-            # non-x4/x4 situations (most common: quad-fast-fifo input and calcx4 in the rest
-            # of the network)
-            kern_offs[ll] *= 4
 
         ksize = kernel_size[ll][0] * kernel_size[ll][1]
         next_layer_map = output_processor_map[ll]
@@ -252,6 +239,67 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             kern_count[0] = (kern_count[0] + 3) // 4
             kern_ochan[0] = (kern_ochan[0] + 3) // 4
 
+        def check_kernel_mem(ll: int, p: int, offs: int, length: int = None) -> None:
+            """Check that there is enough space at index `offs` for processor `p`"""
+            assert tc.dev is not None
+            if length is None:
+                length = kern_len[ll]
+            if offs + length > tc.dev.mask_width(p):
+                eprint(f'\nKernel memory exhausted at layer {ll}; offset: {offs}, '
+                       f'needed: {length}.\n\nKernel map so far:', exit_code=None)
+                print_map(layers, kernel_map, print_fn=eprint_noprefix)
+                sys.exit(1)
+
+        # Find space for kernels
+        if not state.greedy_kernel_allocator:
+            for p in range(first_proc, last_proc+1):
+                if (proc_map >> p) & 1 == 0:
+                    # Unused processor
+                    continue
+                # Get highest offset for all used processors
+                kern_offs[ll] = max(proc_kern_max[p], kern_offs[ll])
+        else:
+            # Find the first block of kern_len[ll] size that is available for all used processors
+            # Initially, start looking at 0 and subsequently at the first available for the
+            # previously examined processors. Stop looking at the highest used offset for all
+            # processors.
+            search_col = 0  # 0 is a multiple of tc.dev.P_SHARED
+            p = first_proc
+            while p < last_proc+1:
+                if (proc_map >> p) & 1 == 0:
+                    # Skip unused processors
+                    p += 1
+                    continue
+
+                # Find the first free column for this processor
+                while kernel_map[p][search_col] != _INVALID_VALUE:
+                    # Start at a multiple of 4 - round up to next multiple
+                    search_col += tc.dev.P_SHARED
+                    check_kernel_mem(ll, p, search_col)
+
+                # For this processor, is there space for all kernels starting at
+                # column 'search_col'?
+                for i in range(search_col + 1, search_col + kern_len[ll]):
+                    if kernel_map[p][i] != _INVALID_VALUE:
+                        # No, go to the next candidate
+                        # (at least one more than what we're looking at, rounded up)
+                        search_col = (i + 1 + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
+                        check_kernel_mem(ll, p, search_col)
+                        # Reset to start at first processor again
+                        p = first_proc - 1  # Subtract 1 since it's increased again below
+                        break
+                # Check next processor
+                p += 1
+
+            # All used processors have kernel_len space starting at this column
+            kern_offs[ll] = search_col
+
+        if ll > 0 and calcx4[ll] and not calcx4[ll-1]:
+            # FIXME: This is a quick workaround that should be properly addressed for mixed
+            # non-x4/x4 situations (most common: quad-fast-fifo input and calcx4 in the rest
+            # of the network)
+            kern_offs[ll] *= 4
+
         # We don't have to use dummy columns if there's space available on the left
         kern_offs[ll] = \
             max(0, kern_offs[ll] - (((ffs(next_layer_map) % tc.dev.P_SHARED)
@@ -262,12 +310,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         kern_offs[ll] = (kern_offs[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
 
         # Check for overflow
-        if kern_offs[ll] + kern_len[ll] > tc.dev.mask_width(p):
-            eprint(f'\nKernel memory exceeded at layer {ll}; offset: {kern_offs[ll]}, '
-                   f'needed: {kern_len[ll]}.'
-                   '\n\nKernel map so far:', exit_code=None)
-            print_map(layers, kernel_map, print_fn=eprint_noprefix)
-            sys.exit(1)
+        check_kernel_mem(ll, last_proc, kern_offs[ll])
 
         proc_mask = 2**qfactor - 1
 
@@ -280,11 +323,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 ct //= 4
                 p += col_target % 4 * tc.dev.P_NUMPRO
             col = kern_offs[ll] + ct
-            if col >= tc.dev.mask_width(p):
-                eprint(f'\nKernel memory exceeded in layer {ll}.'
-                       '\n\nKernel map so far:', exit_code=None)
-                print_map(layers, kernel_map, print_fn=eprint_noprefix)
-                sys.exit(1)
+            check_kernel_mem(ll, p, col, length=1)
 
             if kernels_used[p][col] == 0:  # Update kernel map
                 assert kernel_map[p][col] == _INVALID_VALUE
@@ -416,7 +455,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             ch += 1
             m = 0
 
-    if verbose:
+    if state.verbose:
         print('\nKernel map:')
         print_map(layers, kernel_map)
 
@@ -428,7 +467,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 ll = kernel_map[p][col]
                 if ll != _INVALID_VALUE:
                     apb.write_kern(ll, p, col, kernel_data[p][col],
-                                   verify_only=verify, calcx4=calcx4,
+                                   verify_only=verify, calc_x4=calcx4[ll],
                                    kern_offs=kern_offs,
                                    count=in_expand[ll] * output_chan[ll] * 9
                                    * abs(quantization[ll])
@@ -444,7 +483,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 if ll != _INVALID_VALUE:
                     k = kernel_data[p][col]
                     if not zero_sram or np.any(k != 0):
-                        apb.write_kern(ll, p, col, k, calcx4=calcx4,
+                        apb.write_kern(ll, p, col, k, calc_x4=calcx4[ll],
                                        kern_offs=kern_offs,
                                        count=in_expand[ll] * output_chan[ll] * 9
                                        * abs(quantization[ll])
@@ -573,7 +612,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                     if len(k) % 4 != 0:
                         k = np.concatenate((k, zero_kernel[:4 - len(k) % 4]))
                     # '>u4' swaps endianness to what the hardware needs, `view` packs into 32-bit
-                    if not blocklevel:
+                    if not state.block_mode:
                         apb.output_define(k.view(dtype='>u4'), f'KERNELS_{p}', '0x%08x', 8)
                     else:
                         addr = tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
@@ -590,7 +629,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                     k = None
             apb.output('\n', api)
 
-        if not blocklevel:
+        if not state.block_mode:
             apb.function_header(function='load_weights')
             max_col = [-1] * tc.dev.MAX_PROC
             min_col = [tc.dev.MASK_WIDTH_LARGE if not legacy_kernels else 0] * tc.dev.MAX_PROC
@@ -605,7 +644,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 if max_col[p] >= 0:
                     span = max_col[p] + 1 - min_col[p]
                     start = p
-                    addr = apb.apb_base + tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
+                    addr = state.apb_base + tc.dev.C_GROUP_OFFS * (p // tc.dev.P_NUMPRO) \
                         + tc.dev.C_MRAM_BASE + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16
                     while (
                             max_col[p] == tc.dev.MASK_OFFS and

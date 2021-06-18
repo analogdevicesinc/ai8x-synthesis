@@ -11,45 +11,57 @@ NumPy implementation of Conv2d, ConvTranspose2d, Pool2d.
 Compatible with PyTorch.
 """
 import os
+from typing import Optional, TextIO
 
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
+from numpy.typing import ArrayLike
 
-from . import op, stats
+from . import op, state, stats
 from .eprint import eprint
 
-debug_log = None
+debug_log: Optional[TextIO] = None
 
 
 def debug_open(
-        layer,
-        base_directory,
-        test_name,
-        log_filename,  # pylint: disable=unused-argument
-):
+        layer: int,
+        base_directory: str,
+        test_name: str,
+        log_filename: str,  # pylint: disable=unused-argument
+) -> None:
     """
     Create debug log for a layer
     """
     global debug_log  # pylint: disable=global-statement
+
+    if not state.debug_computation:
+        return
     debug_log = open(os.path.join(base_directory, test_name,
                                   f'compute-{layer}.csv'), 'w')
 
 
 def debug_print(
         t,
-):
+) -> None:
     """
     Print to the compute debug log
     """
     global debug_log  # pylint: disable=global-statement
+
+    if not state.debug_computation:
+        return
     print(t, file=debug_log)
 
 
-def debug_close():
+def debug_close() -> None:
     """
     Close the compute debug log
     """
     global debug_log  # pylint: disable=global-statement
+
+    if not state.debug_computation:
+        return
+    assert debug_log is not None
     debug_log.close()
 
 
@@ -66,8 +78,7 @@ def conv2d(
         fractional_stride,
         output_pad,
         groups=1,
-        debug=False,  # pylint: disable=unused-argument
-):
+) -> ArrayLike:
     """
     Compute a 2D convolution.
 
@@ -145,8 +156,7 @@ def convtranspose2d(
         fractional_stride,
         output_pad,
         groups=1,
-        debug=False,
-):
+) -> ArrayLike:
     """
     Compute a transposed 2D convolution.
     """
@@ -167,7 +177,6 @@ def convtranspose2d(
         fractional_stride,
         output_pad,
         groups,
-        debug,
     )
 
 
@@ -184,8 +193,7 @@ def conv1d(
         fractional_stride=1,
         output_pad=0,
         groups=1,
-        debug=False,  # pylint: disable=unused-argument
-):
+) -> ArrayLike:
     """
     Compute a 1D convolution.
 
@@ -264,8 +272,7 @@ def convtranspose1d(
         fractional_stride,
         output_pad,
         groups=1,
-        debug=False,
-):
+) -> ArrayLike:
     """
     Compute a transposed 1D convolution.
     """
@@ -283,18 +290,17 @@ def convtranspose1d(
         fractional_stride=fractional_stride,
         output_pad=output_pad,
         groups=groups,
-        debug=debug,
     )
 
 
 def linear(
+        layer,
         data,
         weight,
         bias,
         in_features,
         out_features,
-        debug=False,
-):
+) -> ArrayLike:
     """
     Compute a fully connected layer.
     """
@@ -304,16 +310,18 @@ def linear(
         val = np.int64(0)
         for n in range(in_features):
             val += data[n] * weight[w][n]
-            stats.true_sw_macc += 1
-            if debug:
-                debug_print(
-                    f'w={w}, n={n}, weight={weight[w][n]}, data={data[n]} '
-                    f'-> accumulator = {val} '
-                )
+            stats.account(
+                layer,
+                "true_sw_macc",
+                1,
+            )
+            debug_print(
+                f'w={w}, n={n}, weight={weight[w][n]}, data={data[n]} '
+                f'-> accumulator = {val} '
+            )
         if bias is not None:
             val += bias[w]
-            if debug:
-                debug_print(f'+bias {bias[w]} --> output[{w}] = {val}')
+            debug_print(f'+bias {bias[w]} --> output[{w}] = {val}')
         output[w] = val
 
     return output
@@ -328,14 +336,13 @@ def pool2d(
         average,
         dilation=(1, 1),
         floor=True,
-        debug=False,
 ):
     """
     Compute 2D Pooling (Average or Max)
     """
     assert data.shape == tuple(input_size)
 
-    if debug:
+    if state.debug:
         # Slow using pure Python
         ref = np.empty(shape=output_size, dtype=np.int64)
 
@@ -383,7 +390,7 @@ def pool2d(
     else:
         pooled = np.nanmax(view, axis=(3, 4))
 
-    if debug:
+    if state.debug:
         match = (ref == pooled).all()
         if not match:
             eprint('NumPy <-> Python mismatch in compute.pool2d')
@@ -401,9 +408,8 @@ def pool1d(
         stride,
         average,
         dilation=1,
-        floor=True,
-        debug=False,
-):  # pylint: disable=unused-argument
+        floor=True,  # pylint: disable=unused-argument
+) -> ArrayLike:
     """
     Compute 1D Pooling (Average or Max)
     """
@@ -429,8 +435,7 @@ def eltwise(
         operator,
         data,
         input_size,
-        debug=False,
-):  # pylint: disable=unused-argument
+) -> ArrayLike:
     """
     Compute element-wise operation.
     """

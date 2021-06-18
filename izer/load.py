@@ -7,9 +7,11 @@
 """
 Load Tornado CNN data memory
 """
+from typing import List
+
 import numpy as np
 
-from . import camera, rv
+from . import camera, rv, state
 from . import tornadocnn as tc
 from .eprint import eprint
 from .utils import popcount, s2u
@@ -27,17 +29,7 @@ def load(
         in_expand_thresh,
         data,
         padding,
-        split=1,
-        fifo=False,
-        slowdown=0,
-        synthesize=None,
-        synthesize_words=8,
-        riscv_flash=False,
         csv_file=None,
-        camera_format=888,
-        camera_retrace=0,
-        fixed_input=False,
-        debug=False,
 ):
     """
     Create C code to load data input to offset `input_offset` in CHW format (if `chw` is `True`)
@@ -49,6 +41,10 @@ def load(
     The code is target for simulation (`embedded_code` == `False`) or embedded hardware (`True`).
     Output is written to the `apb` object.
     """
+    # Cache for faster access
+    fixed_input = state.fixed_input
+    split = state.split
+    synthesize = state.synthesize_input
 
     if fixed_input and not embedded_code:
         eprint('--fixed-input requires --embedded-code')
@@ -61,14 +57,10 @@ def load(
             input_size,
             operands,
             data,
-            slowdown,
             csv_file,
-            camera_format,
-            camera_retrace,
-            debug,
         )
     # else:
-    if fifo:
+    if state.fifo:
         return loadfifo(
             embedded_code,
             apb,
@@ -77,11 +69,6 @@ def load(
             input_size,
             operands,
             data,
-            slowdown,
-            synthesize,
-            synthesize_words,
-            riscv_flash,
-            debug,
         )
 
     input_list = []
@@ -126,7 +113,7 @@ def load(
                    f'There is data overlap between processors {ch-1} and {ch}')
         data_offs = new_data_offs
 
-        if debug:
+        if state.debug:
             print(f'G{group} L0 data_offs:      {data_offs:08x}')
 
         if chw:
@@ -143,7 +130,7 @@ def load(
                 # Create optimized code when we're not splitting the input
                 apb.output(f'// CHW {input_size[1]}x{input_size[2]}, channel {c}\n')
                 offs = 0
-                code_buffer = np.zeros(input_size[1] * input_size[2] // 4, dtype=np.int64)
+                code_buffer = np.zeros((input_size[1] * input_size[2] + 3) // 4, dtype=np.int64)
                 addr = data_offs
 
                 val = 0
@@ -168,10 +155,10 @@ def load(
                     offs += 1
 
                 if not fixed_input:
-                    b = code_buffer if synthesize is None else code_buffer[:synthesize_words]
+                    b = code_buffer if synthesize is None else code_buffer[:state.synthesize_words]
                     apb.output_define(b, f'SAMPLE_INPUT_{ch}', '0x%08x', 8,
                                       weights=False)
-                if riscv_flash:
+                if state.riscv_flash:
                     apb.output(rv.RISCV_FLASH)
                 if not fixed_input:
                     apb.output(f'static const uint32_t input_{ch}[] = SAMPLE_INPUT_{ch};\n\n')
@@ -284,9 +271,9 @@ def load(
                         buf[i::in_expand] = e[0]
 
                     if not fixed_input:
-                        b = buf if synthesize is None else buf[:synthesize_words]
+                        b = buf if synthesize is None else buf[:state.synthesize_words]
                         apb.output_define(b, f'SAMPLE_INPUT_{proc}', '0x%08x', 8, weights=False)
-                    if riscv_flash:
+                    if state.riscv_flash:
                         apb.output(rv.RISCV_FLASH)
                     if not fixed_input:
                         apb.output(f'static const uint32_t input_{proc}[] = '
@@ -320,10 +307,10 @@ def load(
                        'replace with actual data\n\n')
             for _, (addr, ch, offs) in enumerate(input_list):
                 if not fixed_input:
-                    apb.output(f'  memcpy32((uint32_t *) 0x{apb.apb_base + addr:08x}, input_{ch}, '
-                               f'{offs});\n')
+                    apb.output(f'  memcpy32((uint32_t *) 0x{state.apb_base + addr:08x}, '
+                               f'input_{ch}, {offs});\n')
                 else:
-                    apb.output(f'  memcpy32_const((uint32_t *) 0x{apb.apb_base + addr:08x}, '
+                    apb.output(f'  memcpy32_const((uint32_t *) 0x{state.apb_base + addr:08x}, '
                                f'{offs});\n')
         apb.function_footer(dest='wrapper', return_value='void')  # load_input()
     else:
@@ -340,11 +327,6 @@ def loadfifo(
         input_size,
         operands,
         data,
-        slowdown=0,
-        synthesize=None,
-        synthesize_words=8,
-        riscv_flash=False,
-        debug=False,  # pylint: disable=unused-argument
 ):
     """
     Create C code to load data into FIFO(s) in CHW format (if `chw` is `True`)
@@ -355,6 +337,9 @@ def loadfifo(
     """
     assert operands == 1  # We don't support multiple operands here
     # FIXME: Support multiple operands
+
+    # Cache for faster access
+    synthesize = state.synthesize_input
 
     if not embedded_code:
         apb.output('\n\n  ')
@@ -390,7 +375,7 @@ def loadfifo(
                         val |= (s2u(data[c][row][col]) & 0xff) << b * 8
                 if not embedded_code:
                     apb.write(0, val, '', fifo=fifo)
-                    for _ in range(slowdown):
+                    for _ in range(state.slow_load):
                         apb.output('  asm volatile("nop");\n')
                 else:
                     code_buffer[fifo][row_col // 4] = val
@@ -430,7 +415,7 @@ def loadfifo(
                         pmap >>= 1
                     if not embedded_code:
                         apb.write(0, val, '', fifo=fifo)
-                        for _ in range(slowdown):
+                        for _ in range(state.slow_load):
                             apb.output('  asm volatile("nop");\n')
                     else:
                         code_buffer[fifo][row * input_size[2] + col] = val
@@ -442,9 +427,9 @@ def loadfifo(
 
     if embedded_code:
         for c in range(fifos):
-            b = code_buffer[c] if synthesize is None else code_buffer[c][:synthesize_words]
+            b = code_buffer[c] if synthesize is None else code_buffer[c][:state.synthesize_words]
             apb.output_define(b, f'SAMPLE_INPUT_{c}', '0x%08x', 8, weights=False)
-            if riscv_flash:
+            if state.riscv_flash:
                 apb.output(rv.RISCV_FLASH)
             apb.output(f'static const uint32_t input_{c}[] = SAMPLE_INPUT_{c};\n')
 
@@ -481,7 +466,8 @@ def loadfifo(
                 apb.write(0, s, fifo=c,
                           comment=f' // Write FIFO {c}', indent='    ')
         if synthesize is not None:
-            apb.output(f'    if (i % {synthesize_words} == {synthesize_words - 1}) {{\n')
+            apb.output(f'    if (i % {state.synthesize_words} == '
+                       f'{state.synthesize_words - 1}) {{\n')
             apb.output(f'      add += 0x{synthesize:x};\n    ')
             if mask != '':
                 apb.output(f'  add &= {mask};\n    ')
@@ -495,17 +481,13 @@ def loadfifo(
 
 
 def loadcsv(
-        embedded_code,
+        embedded_code: bool,
         apb,
-        chw,
-        input_size,
-        operands,
+        chw: bool,
+        input_size: List[int],
+        operands: int,
         data,
-        slowdown=0,  # pylint: disable=unused-argument
-        csv_file=None,
-        camera_format=888,
-        camera_retrace=0,
-        debug=False,  # pylint: disable=unused-argument
+        csv_file: str = '',
 ):
     """
     Create C code to load data into FIFO(s) from the camera interface.
@@ -513,9 +495,14 @@ def loadcsv(
     Output is written to the `apb` object.
     Additionally, the code creates a CSV file with input data for simulation.
     """
+    assert tc.dev is not None
     assert operands == 1  # We don't support multiple operands here
+
     # FIXME: Support multiple operands
     assert csv_file is not None
+
+    # Cache for faster access
+    camera_format = state.input_csv_format
 
     if not embedded_code:
         apb.output('\n\n  ')
@@ -625,7 +612,7 @@ def loadcsv(
                         for _ in range(input_size[2] % 4):
                             for _ in range(0, input_size[0]):
                                 camera.pixel(f, 0)
-                    camera.finish_row(f, retrace=camera_retrace)
+                    camera.finish_row(f, retrace=state.input_csv_retrace)
             elif camera_format == 555:
                 for row in range(input_size[1]):
                     for col in range(input_size[2]):
@@ -634,7 +621,7 @@ def loadcsv(
                             | (s2u(data[2][row][col]) & 0xf8) >> 3
                         camera.pixel(f, w >> 8 & 0xff)
                         camera.pixel(f, w & 0xff)
-                    camera.finish_row(f, retrace=camera_retrace)
+                    camera.finish_row(f, retrace=state.input_csv_retrace)
             elif camera_format == 565:
                 for row in range(input_size[1]):
                     for col in range(input_size[2]):
@@ -643,7 +630,7 @@ def loadcsv(
                             | (s2u(data[2][row][col]) & 0xf8) >> 3
                         camera.pixel(f, w >> 8 & 0xff)
                         camera.pixel(f, w & 0xff)
-                    camera.finish_row(f, retrace=camera_retrace)
+                    camera.finish_row(f, retrace=state.input_csv_retrace)
             else:
                 raise RuntimeError(f'Unknown camera format {camera_format}')
 

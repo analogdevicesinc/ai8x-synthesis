@@ -68,7 +68,7 @@ $(info Info: -------------------------------------------------------------)
 ifeq "$(MAXIM_PATH)" ""
 LIBS_DIR=$(PROJECT_ROOT)/support/cmsis/Libraries
 else
-LIBS_DIR=/$(subst \,/,$(subst :,,$(MAXIM_PATH))/Firmware/$(TARGET_UC)/Libraries)
+LIBS_DIR=$(subst \,/,$(subst :,,$(MAXIM_PATH))/Firmware/$(TARGET_UC)/Libraries)
 endif
 CMSIS_ROOT=$(LIBS_DIR)/CMSIS
 export CMSIS_ROOT

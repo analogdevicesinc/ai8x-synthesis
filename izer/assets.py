@@ -11,15 +11,16 @@ Copy assets
 import os
 import shutil
 
+from . import state
 from . import tornadocnn as tc
 
 
 def copy(
-        base,
-        source,
-        target,
-        test_name,
-):
+        base: str,
+        source: str,
+        target: str,
+        test_name: str,
+) -> None:
     """
     Copy all files from `base`/`source` to `target`/`test_name`.
     """
@@ -30,20 +31,21 @@ def copy(
 
 
 def from_template(
-        base,
-        source,
-        target,
-        test_name,
-        board_name,
-        insert='',
-        riscv=False,
-):
+        base: str,
+        source: str,
+        target: str,
+        test_name: str,
+        board_name: str,
+        insert: str = '',
+) -> None:
     """
     Copy all files `base`/`source` to `target`/`test_name`, with file name and
     content substitution.
     """
     template = 'template'
-    if riscv:
+
+    assert tc.dev is not None
+    if state.riscv:
         elf_file = f'{tc.dev.partnum.lower()}-combined.elf'
     else:
         elf_file = f'{tc.dev.partnum.lower()}.elf'

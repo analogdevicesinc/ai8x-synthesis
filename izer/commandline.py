@@ -9,12 +9,12 @@ Command line parser for Tornado CNN
 """
 import argparse
 
-from . import camera
+from . import camera, state
 from .devices import device
 from .eprint import wprint
 
 
-def get_parser():
+def get_parser() -> argparse.Namespace:
     """
     Return an argparse parser.
     """
@@ -80,10 +80,23 @@ def get_parser():
                        help="use express kernel loading (default: false)")
     group.add_argument('--mlator', action='store_true', default=False,
                        help="use hardware to swap output bytes (default: false)")
+    group.add_argument('--unroll-mlator', type=int, metavar='N', default=8,
+                       help="number of assignments per loop iteration for mlator output "
+                            "(default: 8)")
+    group.add_argument('--unroll-8bit', type=int, metavar='N', default=1,
+                       help="number of assignments per loop iteration for 8-bit output "
+                            "(default: 1)")
+    group.add_argument('--unroll-wide', type=int, metavar='N', default=8,
+                       help="number of assignments per loop iteration for wide output "
+                            "(default: 8)")
     group.add_argument('--softmax', action='store_true', default=False,
                        help="add software softmax function (default: false)")
     group.add_argument('--unload', action='store_true', default=None,
-                       help="legacy argument - ignored")
+                       help="enable use of cnn_unload() function (default)")
+    group.add_argument('--no-unload', dest='unload', action='store_false',
+                       help="disable use of cnn_unload() function (default: enabled)")
+    group.add_argument('--no-kat', dest='generate_kat', action='store_false', default=True,
+                       help="disable known-answer test generation (KAT) (default: enabled)")
     group.add_argument('--boost', metavar='S', default=None,
                        help="dot-separated port and pin that is turned on during CNN run to "
                             "boost the power supply, e.g. --boost 2.5 (default: None)")
@@ -96,6 +109,9 @@ def get_parser():
                         help="use timer to time the inference (default: off, supply timer number)")
     mgroup.add_argument('--energy', action='store_true', default=False,
                         help="insert instrumentation code for energy measurement")
+    group.add_argument('--no-greedy-kernel', action='store_false', dest='greedy_kernel_allocator',
+                       default=True,
+                       help="do not use greedy kernel memory allocator (default: use)")
 
     # File names
     group = parser.add_argument_group('File names')
@@ -110,6 +126,12 @@ def get_parser():
                        help="sample data header file name (default: 'sampledata.h')")
     group.add_argument('--sample-input', metavar='S', default=None,
                        help="sample data input file name (default: 'tests/sample_dataset.npy')")
+    group.add_argument('--sample-output-filename', dest='result_filename', metavar='S',
+                       default='sampleoutput.h',
+                       help="sample result header file name (default: 'sampleoutput.h', use "
+                            "'None' to inline code)")
+    group.add_argument('--sample-numpy-filename', dest='result_numpy', metavar='S',
+                       help="save sample result as NumPy file (default: disabled)")
 
     # Streaming and FIFOs
     group = parser.add_argument_group('Streaming and FIFOs')
@@ -152,8 +174,10 @@ def get_parser():
     group = parser.add_argument_group('Debug and logging')
     group.add_argument('-v', '--verbose', action='store_true', default=False,
                        help="verbose output (default: false)")
-    group.add_argument('-L', '--log', action='store_true', default=False,
-                       help="redirect stdout to log file (default: false)")
+    group.add_argument('-L', '--log', action='store_true', default=None,
+                       help="redirect stdout to log file (default)")
+    group.add_argument('--no-log', dest='log', action='store_false',
+                       help="do not redirect stdout to log file (default: false)")
     group.add_argument('--log-intermediate', action='store_true', default=False,
                        help="log weights/data between layers to .mem files (default: false)")
     group.add_argument('--log-pooling', action='store_true', default=False,
@@ -329,7 +353,8 @@ def get_parser():
                             "(default: false)")
     group.add_argument('--synthesize-words', type=int, metavar='N', default=8,
                        help="number of input words to use (default all or 8)")
-    group.add_argument('--max-checklines', type=int, metavar='N', default=None, dest='max_count',
+    group.add_argument('--max-verify-length', '--max-checklines',
+                       type=int, metavar='N', default=None, dest='max_count',
                        help="output only N output check lines (default: all)")
 
     args = parser.parse_args()
@@ -341,6 +366,12 @@ def get_parser():
 
     if not args.c_filename:
         args.c_filename = 'main' if args.embedded_code else 'test'
+
+    # Set default
+    if args.log is None:
+        args.log = True
+    if args.unload is None:
+        args.unload = True
 
     if args.no_bias is None:
         args.no_bias = []
@@ -389,13 +420,125 @@ def get_parser():
     if args.riscv_cache is None:
         args.riscv_cache = args.riscv
 
-    if args.unload:
-        wprint('`--unload` is no longer needed, and is ignored.')
-
     if args.allow_streaming:
         wprint('`--allow-streaming` is unsupported.')
 
-    # Set disabled legacy arguments
-    args.unload = False
-
     return args
+
+
+def set_state(args: argparse.Namespace) -> None:
+    """
+    Set configuration state based on command line arguments.
+
+    :param args: list of command line arguments
+    """
+
+    state.allow_streaming = args.allow_streaming
+    if args.apb_base:
+        state.apb_base = args.apb_base
+    state.api_filename = args.api_filename
+    state.avg_pool_rounding = args.avg_pool_rounding
+    state.base_directory = args.test_dir
+    state.block_mode = not args.top_level
+    state.board_name = args.board_name
+    state.boost = args.boost
+    state.c_filename = args.c_filename
+    state.calcx4 = args.calcx4
+    state.clock_trim = args.clock_trim
+    state.compact_data = args.compact_data and not args.rtl_preload
+    state.compact_weights = args.compact_weights
+    state.debug = args.debug
+    state.debug_computation = args.debug_computation
+    state.debug_latency = args.debug_latency
+    state.debug_new_streaming = args.debug_new_streaming
+    state.debug_snoop = args.debug_snoop
+    state.debug_wait = args.debugwait
+    state.embedded_code = args.embedded_code
+    state.ext_rdy = args.ext_rdy
+    state.fast_fifo = args.fast_fifo
+    state.fast_fifo_quad = args.fast_fifo_quad
+    state.fifo = args.fifo
+    state.fifo_go = args.fifo_go
+    state.fixed_input = args.fixed_input
+    state.forever = args.forever
+    state.generate_kat = args.generate_kat
+    state.greedy_kernel_allocator = args.greedy_kernel_allocator
+    state.ignore_bias_groups = args.ignore_bias_groups
+    state.increase_delta1 = args.increase_delta1
+    state.increase_delta2 = args.increase_delta2
+    state.increase_start = args.increase_start
+    state.init_tram = args.init_tram
+    state.input_csv = args.input_csv
+    state.input_csv_format = args.input_csv_format
+    state.input_csv_period = args.input_csv_period
+    state.input_csv_retrace = args.input_csv_retrace
+    state.input_fifo = args.input_fifo
+    state.input_filename = args.input_filename
+    state.input_pix_clk = args.input_pix_clk
+    state.input_sync = args.input_sync
+    state.kernel_format = args.kernel_format
+    state.legacy_kernels = args.legacy_kernels
+    state.legacy_test = args.legacy_test
+    state.link_layer = args.link_layer
+    state.log = args.log
+    state.log_filename = args.log_filename
+    state.log_intermediate = args.log_intermediate
+    state.log_pooling = args.log_pooling
+    state.max_count = args.max_count
+    state.measure_energy = args.energy
+    state.mexpress = args.mexpress
+    state.mlator = args.mlator
+    state.mlator_chunk = args.unroll_mlator
+    state.mlator_noverify = args.mlator_noverify
+    state.narrow_chunk = args.unroll_8bit
+    state.no_error_stop = args.no_error_stop
+    state.oneshot = args.one_shot
+    state.output_filename = args.output_filename
+    state.override_delta1 = args.override_delta1
+    state.override_delta2 = args.override_delta2
+    state.override_rollover = args.override_rollover
+    state.override_start = args.override_start
+    state.overwrite = args.overwrite
+    state.overwrite_ok = args.overwrite_ok
+    state.pipeline = args.pipeline
+    state.pll = args.pll
+    state.powerdown = args.powerdown
+    state.prefix = args.prefix
+    state.pretend_zero_sram = args.pretend_zero_sram
+    state.repeat_layers = args.repeat_layers
+    state.reshape_inputs = args.reshape_inputs
+    state.result_filename = args.result_filename
+    state.result_numpy = args.result_numpy
+    state.result_output = args.result_output
+    state.riscv = args.riscv
+    state.riscv_cache = args.riscv_cache
+    state.riscv_debug = args.riscv_debug
+    state.riscv_exclusive = args.riscv_exclusive
+    state.riscv_flash = args.riscv_flash
+    state.rtl_preload = args.rtl_preload
+    state.runtest_filename = args.runtest_filename
+    state.sample_filename = args.sample_filename
+    state.simple1b = args.simple1b
+    state.sleep = args.deepsleep
+    state.slow_load = args.slow_load
+    state.softmax = args.softmax
+    state.split = args.input_split
+    state.start_layer = args.start_layer
+    state.stopstart = args.stop_start
+    state.synthesize_input = args.synthesize_input
+    state.synthesize_words = args.synthesize_words
+    state.test_dir = args.test_dir
+    state.timeout = args.timeout
+    state.timer = args.timer
+    state.unload = args.unload
+    state.verbose = args.verbose
+    state.verbose_all = args.verbose_all
+    state.verify_kernels = args.verify_kernels
+    state.verify_writes = args.verify_writes
+    state.weight_filename = args.weight_filename
+    state.weight_start = args.weight_start
+    state.wfi = args.wfi
+    state.wide_chunk = args.unroll_wide
+    state.write_zero_regs = args.write_zero_registers
+    state.zero_sram = args.zero_sram
+    state.zero_unused = args.zero_unused

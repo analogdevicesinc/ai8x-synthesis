@@ -7,7 +7,7 @@
 """
 Tornado CNN hardware constants - AI85, AI87, CMSIS-NN
 """
-from . import devices
+from . import devices, state
 from .eprint import eprint
 
 dev = None
@@ -17,8 +17,9 @@ class Dev:
     """
     Metaclass for all hardware devices
     """
-    device = 0
-    partnum = ''
+    device: int = 0
+    backend: str = ''
+    partnum: str = ''
 
     SUPPORT_STREAM_BIAS = False
     SUPPORT_DEPTHWISE = False
@@ -36,6 +37,7 @@ class Dev:
     SUPPORT_ARBITRARY_OUTPUT_WIDTH = False
     SUPPORT_FIFO_GO = False
     SUPPORT_SNOOP = False
+    SUPPORT_STREAM_NONPAD_FINAL = False
     REQUIRE_REG_CLEAR = False
     REQUIRE_SEMA_LPWKEN = False
     REQUIRE_ONESHOT_CLEAR = True
@@ -61,7 +63,7 @@ class Dev:
     APB_SPEED = IPO_SPEED // 2
     PLL_SPEED = 0
 
-    def mask_width(self, proc):
+    def mask_width(self, proc) -> int:
         """
         Returns the number of kernels (x9 bytes) for processor `proc`.
         """
@@ -112,6 +114,7 @@ class DevCMSISNN(Dev):
     CMSIS limitations
     """
     device = devices.CMSISNN
+    backend = 'cmsisnn'
     partnum = 'CMSIS-NN'
 
     SUPPORT_ARBITRARY_PADDING = True
@@ -134,6 +137,7 @@ class DevAI85(Dev):
     AI85 hardware constants
     """
     device = 85
+    backend = 'max7800x'
     partnum = 'MAX78000'
 
     SUPPORT_GCFR = True
@@ -276,6 +280,7 @@ class DevAI87(Dev):
     AI85 hardware constants
     """
     device = 87
+    backend = 'max7800x'
     partnum = 'MAX78002'
 
     APB_BASE = 0x50000000
@@ -452,6 +457,7 @@ class DevAI87(Dev):
     SUPPORT_KERNEL_BYPASS = True
     SUPPORT_FIFO_GO = True
     SUPPORT_SNOOP = True
+    SUPPORT_STREAM_NONPAD_FINAL = True
     SUPPORTED_X2D_PADS = [0, 1, 2]
     SUPPORTED_X2D_OUTPUT_PADS = [1]
     REQUIRE_REG_CLEAR = True
@@ -512,6 +518,8 @@ def get_device(
     """
     Change implementation configuration to match, depending on the `device`
     integer input value.
+
+    Modify state defaults to the selected device.
     """
     d = None
     if device == 85:
@@ -524,5 +532,8 @@ def get_device(
         eprint(f'Unknown device code `{device}`')
 
     print('Configuring device:', d.partnum)
+
+    # Set device dependent state defaults
+    state.apb_base = d.APB_BASE
 
     return d
