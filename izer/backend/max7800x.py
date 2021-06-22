@@ -569,7 +569,7 @@ class Backend(backend.Backend):
         if not block_mode and (embedded_code or compact_data):
             sampledata_header = \
                 open(os.path.join(base_directory, test_name, state.sample_filename), mode='w')
-            if state.generate_kat and state.result_filename.lower() != 'none':
+            if embedded_code and state.generate_kat and state.result_filename.lower() != 'none':
                 sampleoutput_header = \
                     open(os.path.join(base_directory, test_name, state.result_filename), mode='w')
             else:
@@ -2751,6 +2751,7 @@ class Backend(backend.Backend):
                 test_name,
                 timeout,
                 riscv=riscv,
+                groups_used=groups_used,
             )
             assets.copy('assets', 'rtlsim-ai' + str(device), base_directory, test_name)
             if riscv_cache:

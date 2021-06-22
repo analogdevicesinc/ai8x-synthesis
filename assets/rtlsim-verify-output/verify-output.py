@@ -48,6 +48,8 @@ matches = 0
 # corresponding file in 'data-output'. Open that file and make sure that the information matches.
 for _, _, fnames in sorted(os.walk('data-expected')):  # type: ignore
     for fname in sorted(fnames):
+        if not fname.startswith('DRAM_'):
+            continue
         outname = fname.replace('DRAM_', 'DRAM_out_')
         if not os.path.isfile(os.path.join('data-output', outname)):
             log.error('data-output/%s does not exist!', outname)

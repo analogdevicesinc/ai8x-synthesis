@@ -8,6 +8,7 @@
 RTL simulation support routines
 """
 import os
+from typing import List, Optional
 
 from . import state
 from . import tornadocnn as tc
@@ -19,6 +20,7 @@ def create_runtest_sv(
         test_name: str,
         timeout: int,
         riscv: bool = False,
+        groups_used: Optional[List[int]] = None,
 ):
     """
     For for test `test_name`, create the runtest.sv file named `runtest_filename`, in the
@@ -131,12 +133,8 @@ def create_runtest_sv(
                 '  if (!start_ena) begin\n'
             )
             if state.rtl_preload:
-                runfile.write(
-                    '    load_cnn_mems_0;\n'
-                    '    load_cnn_mems_1;\n'
-                    '    load_cnn_mems_2;\n'
-                    '    load_cnn_mems_3;\n'
-                )
+                for _, i in enumerate(groups_used):
+                    runfile.write(f'    load_cnn_mems_{i};\n')
             runfile.write(
                 '    start_time  = $realtime;\n'
                 '    start_ena   = 1;\n'
@@ -150,11 +148,9 @@ def create_runtest_sv(
                 '    clkena1   = 1;\n'
             )
             if result_output:
+                for _, i in enumerate(groups_used):
+                    runfile.write(f'    dump_cnn_mems_{i};\n')
                 runfile.write(
-                    '    dump_cnn_mems_0;\n'
-                    '    dump_cnn_mems_1;\n'
-                    '    dump_cnn_mems_2;\n'
-                    '    dump_cnn_mems_3;\n'
                     '    close_files;\n'
                     '    chk_stat = $system({`TARGET_DIR,"/verify-output.py ",`TARGET_DIR});\n'
                     '    if (chk_stat != 0)\n'
