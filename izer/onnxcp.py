@@ -17,9 +17,10 @@ import onnx.shape_inference
 import onnxruntime
 from onnx import numpy_helper
 
-import op as opn
-from eprint import eprint
-from utils import fls
+from . import op as opn
+from . import tornadocnn as tc
+from .eprint import eprint
+from .utils import fls
 
 
 def get_attribute(attr):
@@ -618,7 +619,6 @@ def load(  # pylint: disable=R0914
     checkpoint_file,
     cfg_layers,
     cfg,
-    fc_layer,
     quantization,
     bias_quantization,
     output_shift,
@@ -631,13 +631,11 @@ def load(  # pylint: disable=R0914
 ):
     """
     Load weights and biases from `checkpoint_file`. If `arch` is not None and does not match
-    the architecuture in the checkpoint file, abort with an error message. If `fc_layer` is
-    `True`, configure a single fully connected classification layer for software rather than
-    hardware.
-    `quantization` is a list of expected bit widths for the layer weights (always 8 for AI84).
+    the architecuture in the checkpoint file, abort with an error message. 
+    `quantization` is a list of expected bit widths for the layer weights.
     This value is checked against the weight inputs.
-    `bias_quantization` is a list of the expected bit widths for the layer weights (always
-    8 for AI84/AI85).
+    `bias_quantization` is a list of the expected bit widths for the layer bias weights (always
+    8).
     In addition to returning weights and biases, this function configures the network output
     channels and the number of layers.
     When `verbose` is set, display the shapes of the weights.
@@ -871,7 +869,7 @@ def load(  # pylint: disable=R0914
                         or node.op_type == "Add"
                     ):  # general matrix multiplication (FC layer)
                         if node.op_type == "Gemm" or node.op_type == "MatMul":
-                            if fc_layer:
+                            if False: #fc_layer:
                                 if inp == inputs[1]:  # weight
                                     assert w.min() >= -128 and w.max() <= 127
                                     fc_weights.append(w)
@@ -898,7 +896,7 @@ def load(  # pylint: disable=R0914
                             #       that needs to be transposed?
 
                             if inputs[0] == matmul_out or cst_seq is True:
-                                if fc_layer:
+                                if False: #fc_layer:
                                     if inp == inputs[1]:  # bias
                                         assert w.min() >= -128 and w.max() <= 127
                                         fc_bias.append(w)
@@ -1140,8 +1138,6 @@ def load(  # pylint: disable=R0914
         weights,
         bias,
         output_shift,
-        fc_weights,
-        fc_bias,
         input_channels,
         output_channels,
     )

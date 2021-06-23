@@ -59,7 +59,8 @@ def main():
                 input_channels, output_channels = \
                 onnxcp.load(
                     args.checkpoint_file,
-                    cfg['arch'],
+                    cfg_layers,
+                    cfg,
                     params['quantization'],
                     params['bias_quantization'],
                     params['output_shift'],
@@ -67,6 +68,8 @@ def main():
                     params['operator'],
                     args.display_checkpoint,
                     args.no_bias,
+                    args.scale,
+                    args.generate_dequantized_onnx_file,
                 )
         else:
             # PyTorch checkpoint file selected
