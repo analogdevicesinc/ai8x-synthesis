@@ -10,4 +10,3 @@ layers:
   kernel_size: 3x3
   groups: 3
   output_processors: 0x0000000000000070
-

@@ -23,4 +23,3 @@ layers:
   kernel_size: 3x3
   pad: 0
   groups: 64
-

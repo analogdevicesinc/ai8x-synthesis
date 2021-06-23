@@ -3,7 +3,7 @@
 The ‘izer’ includes an unsupported CMSIS-NN code generator. To use it:
 
 1. Understand it is incomplete and unsupported.
-2. Use only networks **without any** Conv1d, ConvTranspose2d, element-wise operations, and without input sequences (concatenation). It does not support wide (32-bit) output either. Some or more of these features could be added without too much effort, any suggestions or pull requests are welcome.
+2. Use only networks **without any** Conv1d, ConvTranspose2d, element-wise operations, and without input sequences (concatenation). Some or more of these features could be added without too much effort, any suggestions or pull requests are welcome.
 3. Understand that there is no proper build environment.
 
 ### Setup
@@ -33,7 +33,7 @@ This is very similar to generating code for MAX78000 (see `gen-demos-max7800.sh`
 Next, go to the target folder (`cmsis-demos/cifar-10` in the above example), and execute:
 
 ```shell
-(ai8x-synthesis) $ cd cmisis-demos/cifar-19
+(ai8x-synthesis) $ cd cmisis-demos/cifar-10
 (ai8x-synthesis) $ ./makelinks.sh
 (ai8x-synthesis) $ make
 ```

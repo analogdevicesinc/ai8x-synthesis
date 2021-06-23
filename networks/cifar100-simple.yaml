@@ -79,7 +79,7 @@ layers:
   kernel_size: 1x1
   activate: ReLU
   out_offset: 0x2000
-  processors: 0x0000ffffffffffff #11
+  processors: 0x00ffffffffffff00 #11
 - out_offset: 0x0000
   processors: 0xffffffffffffffff #12
   operation: conv2d

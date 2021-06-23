@@ -40,13 +40,13 @@ layers:
   out_offset: 0x2000
   processors: 0xffffffffffffffff
   operation: Conv1d
-  kernel_size: 3 
+  kernel_size: 3
 - pad: 0
   activate: ReLU
   out_offset: 0x0000
   processors: 0x00ffffffffffffff
   operation: Conv1d
-  kernel_size: 3  
+  kernel_size: 3
 - avg_pool: 2
   pool_stride: 2
   pad: 1
@@ -54,7 +54,7 @@ layers:
   out_offset: 0x2000
   processors: 0xffffffffffffffff
   operation: Conv1d
-  kernel_size: 3  
+  kernel_size: 3
 - pad: 0
   activate: ReLU
   out_offset: 0x0000

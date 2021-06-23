@@ -1,0 +1,43 @@
+# Allow for readahead memory organization
+
+arch: test
+dataset: test_ffs-multipass3
+
+layers:
+- pad: 1
+  activate: ReLU
+  out_offset: 0x4000
+  processors: 0x0000000000000007
+  data_format: HWC
+  op: Conv2d
+  streaming: True
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x8000
+  processors: 0xffffffffffffffff
+  op: Conv2d
+  streaming: True
+  readahead: True
+  calcx4: True
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0xC000
+  processors: 0xffffffffffffffff
+  op: Conv2d
+  streaming: True
+  readahead: True
+  calcx4: True
+- avg_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x10000
+  processors: 0xffffffffffffffff
+  op: Conv2d
+  streaming: True
+  readahead: True
+  calcx4: True

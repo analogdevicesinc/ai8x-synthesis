@@ -1,12 +1,10 @@
-# Test Conv1D
+# Test Conv1D (CMSIS-NN only)
 
 arch: test
 dataset: test_conv1d
 
 layers:
-- out_offset: 0x2000
-  processors: 0x0000000000000007
-  operation: conv1d
+- operation: conv1d
   kernel_size: 9
   stride: 3
   pad: 6

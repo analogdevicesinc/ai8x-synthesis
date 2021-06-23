@@ -1,0 +1,20 @@
+arch: test
+dataset: test_power-ai87
+
+layers:
+- out_offset: 0x4000
+  processors: 0xffffffffffffffff
+  operation: conv2d
+  kernel_size: 3x3
+  activation: none
+  readahead: True
+  calcx4: True
+  output_shift: -3
+- out_offset: 0x0000
+  processors: 0xffffffffffffffff
+  operation: conv2d
+  kernel_size: 3x3
+  activation: none
+  readahead: True
+  calcx4: True
+  output_shift: -3

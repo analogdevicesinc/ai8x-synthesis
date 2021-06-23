@@ -1,5 +1,3 @@
-# HME Test Network
-
 arch: test
 dataset: test_flatten-fc-quant-fc
 
