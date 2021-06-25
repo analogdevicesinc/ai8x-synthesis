@@ -11,4 +11,3 @@ layers:
   op: conv1d
   kernel_size: 1
   stride: 1
-

@@ -1,0 +1,2 @@
+#!/bin/sh
+./ai8xize.py --verbose -L --top-level cnn --test-dir tests/tensorflow --prefix conv1d_relu__maxpool__dense --checkpoint-file ../ai8x-training/TensorFlow/test/Conv1dReLU_MaxPool_Dense/saved_model/saved_model.onnx --config-file tests/tensorflow/simple-conv1d-relu--maxpool--dense.yaml --sample-input ../ai8x-training/TensorFlow/test/Conv1dReLU_MaxPool_Dense/saved_model/input_sample_7x7x1.npy --device 85 --compact-data --mexpress --embedded-code --scale 1.0 "$@"

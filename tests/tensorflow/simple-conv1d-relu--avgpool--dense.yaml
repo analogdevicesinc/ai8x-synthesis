@@ -1,0 +1,23 @@
+# Benchmark network. Uses all processors.
+
+arch: ai85net5
+dataset: simple-conv1d-relu-avgpool-dense
+
+# Define layer parameters in order of the layer sequence
+layers:
+- pad: 0
+  processors: 0x000000000000007f
+  out_offset: 0x2000
+  op: conv1d
+  kernel_size: 1
+  stride: 1
+  activate: ReLU
+- processors: 0x0000000000000003
+  out_offset: 0x0000
+  op: passthrough
+  avg_pool: 1
+  pool_stride: 2
+- flatten: true
+  operation: MLP
+  out_offset: 0x1000
+  processors: 0x00000000000000003

@@ -33,7 +33,7 @@
 *******************************************************************************/
 
 // tf-cifar10
-// Created using ./ai8xize.py --verbose -L --top-level cnn --test-dir sdk-tensorflow --prefix tf-cifar10 --checkpoint-file ../ai8x-training/TensorFlow/export/cifar10/saved_model.onnx --config-file ./networks/cifar10-hwc-ai85-tf.yaml --sample-input ../ai8x-training/TensorFlow/export/cifar10/sampledata.npy --device MAX78000 --compact-data --mexpress --embedded-code --scale 1.0 --softmax --generate-dequantized-onnx-file
+// Created using ./ai8xize.py --verbose -L --top-level cnn --test-dir sdk-tensorflow --prefix tf-cifar10 --checkpoint-file ../ai8x-training/TensorFlow/export/cifar10/saved_model.onnx --config-file ./networks/cifar10-hwc-ai85-tf.yaml --sample-input ../ai8x-training/TensorFlow/export/cifar10/sampledata.npy --device MAX78000 --compact-data --mexpress --embedded-code --scale 1.0 --softmax --generate-dequantized-onnx-file --overwrite
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -42,6 +42,7 @@
 #include "mxc.h"
 #include "cnn.h"
 #include "sampledata.h"
+#include "sampleoutput.h"
 
 volatile uint32_t cnn_time; // Stopwatch
 
@@ -62,19 +63,22 @@ void load_input(void)
   memcpy32((uint32_t *) 0x50400000, input_0, 1024);
 }
 
-// Expected output of layer 4 for tf-cifar10 given the sample input
+// Expected output of layer 4 for tf-cifar10 given the sample input (known-answer test)
+// Delete this function for production code
 int check_output(void)
 {
-  if ((*((volatile uint32_t *) 0x50401000)) != 0xffff5165) return CNN_FAIL; // 0,0,0
-  if ((*((volatile uint32_t *) 0x50401004)) != 0xffffe595) return CNN_FAIL; // 0,0,1
-  if ((*((volatile uint32_t *) 0x50401008)) != 0xfffd195d) return CNN_FAIL; // 0,0,2
-  if ((*((volatile uint32_t *) 0x5040100c)) != 0xfffef4e0) return CNN_FAIL; // 0,0,3
-  if ((*((volatile uint32_t *) 0x50409000)) != 0xfffe01db) return CNN_FAIL; // 0,0,4
-  if ((*((volatile uint32_t *) 0x50409004)) != 0xfffeb363) return CNN_FAIL; // 0,0,5
-  if ((*((volatile uint32_t *) 0x50409008)) != 0xfffdf454) return CNN_FAIL; // 0,0,6
-  if ((*((volatile uint32_t *) 0x5040900c)) != 0xffffb952) return CNN_FAIL; // 0,0,7
-  if ((*((volatile uint32_t *) 0x50411000)) != 0xffff1a53) return CNN_FAIL; // 0,0,8
-  if ((*((volatile uint32_t *) 0x50411004)) != 0x000242b8) return CNN_FAIL; // 0,0,9
+  int i;
+  uint32_t mask, len;
+  volatile uint32_t *addr;
+  const uint32_t sample_output[] = SAMPLE_OUTPUT;
+  const uint32_t *ptr = sample_output;
+
+  while ((addr = (volatile uint32_t *) *ptr++) != 0) {
+    mask = *ptr++;
+    len = *ptr++;
+    for (i = 0; i < len; i++)
+      if ((*addr++ & mask) != *ptr++) return CNN_FAIL;
+  }
 
   return CNN_OK;
 }
@@ -113,11 +117,12 @@ int main(void)
 
   cnn_init(); // Bring state machine into consistent state
   cnn_load_weights(); // Load kernels
-  // cnn_load_bias(); // Not used in this network
+  cnn_load_bias(); // Not used in this network
   cnn_configure(); // Configure state machine
   load_input(); // Load data input
   cnn_start(); // Start CNN processing
 
+  SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=0
   while (cnn_time == 0)
     __WFI(); // Wait for CNN
 
@@ -127,7 +132,7 @@ int main(void)
   printf("\n*** PASS ***\n\n");
 
 #ifdef CNN_INFERENCE_TIMER
-  printf("Approximate inference time: %d us\n\n", cnn_time);
+  printf("Approximate inference time: %u us\n\n", cnn_time);
 #endif
 
   cnn_disable(); // Shut down CNN clock, disable peripheral
@@ -146,6 +151,11 @@ int main(void)
 /*
   SUMMARY OF OPS
   Hardware: 12,148,288 ops (11,987,328 macc; 157,376 comp; 3,584 add; 0 mul; 0 bitwise)
+    Layer 0: 1,720,320 ops (1,658,880 macc; 61,440 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 1: 8,371,200 ops (8,294,400 macc; 76,800 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 2: 1,954,304 ops (1,935,360 macc; 18,944 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 3: 100,544 ops (96,768 macc; 192 comp; 3,584 add; 0 mul; 0 bitwise)
+    Layer 4: 1,920 ops (1,920 macc; 0 comp; 0 add; 0 mul; 0 bitwise)
 
   RESOURCE USAGE
   Weight memory: 72,228 bytes out of 442,368 bytes total (16%)

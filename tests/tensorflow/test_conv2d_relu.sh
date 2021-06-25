@@ -1,0 +1,2 @@
+#!/bin/sh
+./ai8xize.py --verbose -L --top-level cnn --test-dir tests/tensorflow --prefix conv2d-relu --checkpoint-file ../ai8x-training/TensorFlow/test/FusedConv2DReLU/saved_model/saved_model.onnx --config-file tests/tensorflow/simple-conv2d-relu.yaml --sample-input ../ai8x-training/TensorFlow/test/FusedConv2DReLU/saved_model/input_sample_1x4x4.npy --device 85 --compact-data --mexpress --embedded-code --scale 1.0 "$@"

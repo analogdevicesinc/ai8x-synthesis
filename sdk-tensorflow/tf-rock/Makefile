@@ -58,7 +58,7 @@ endif
 ifeq "$(MAXIM_PATH)" ""
 LIBS_DIR=../../../../Libraries
 else
-LIBS_DIR=/$(subst \,/,$(subst :,,$(MAXIM_PATH))/Libraries)
+LIBS_DIR=$(subst \,/,$(subst :,,$(MAXIM_PATH))/Libraries)
 endif
 CMSIS_ROOT=$(LIBS_DIR)/CMSIS
 
@@ -100,7 +100,7 @@ PROJ_CFLAGS+=-Wall -Wcast-align
 #STARTUPFILE=start.S
 
 # Override the default optimization level using this variable
-MXC_OPTIMIZE_CFLAGS=-O1
+MXC_OPTIMIZE_CFLAGS=-O2
 
 ################################################################################
 # Include external library makefiles here

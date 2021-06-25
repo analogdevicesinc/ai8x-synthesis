@@ -18,4 +18,3 @@ layers:
   op: conv2d
   kernel_size: 3x3
   stride: 1
-  

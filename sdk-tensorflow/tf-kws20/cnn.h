@@ -24,6 +24,16 @@ typedef int16_t q15_t;
 /*
   SUMMARY OF OPS
   Hardware: 13,860,352 ops (13,801,088 macc; 59,264 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 0: 1,651,200 ops (1,638,400 macc; 12,800 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 1: 1,292,800 ops (1,280,000 macc; 12,800 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 2: 646,400 ops (640,000 macc; 6,400 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 3: 104,448 ops (102,400 macc; 2,048 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 4: 593,920 ops (589,824 macc; 4,096 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 5: 2,367,488 ops (2,359,296 macc; 8,192 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 6: 4,726,784 ops (4,718,592 macc; 8,192 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 7: 2,215,680 ops (2,211,840 macc; 3,840 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 8: 242,816 ops (241,920 macc; 896 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 9: 18,816 ops (18,816 macc; 0 comp; 0 add; 0 mul; 0 bitwise)
 
   RESOURCE USAGE
   Weight memory: 126,490 bytes out of 442,368 bytes total (29%)
@@ -39,8 +49,10 @@ typedef int16_t q15_t;
 #define SYS_START LED_On(0)
 #define SYS_COMPLETE LED_Off(0)
 
-/* Unload data from accelerator and run software SoftMax */
+/* Run software SoftMax on unloaded data */
 void softmax_q17p14_q15(const q31_t * vec_in, const uint16_t dim_vec, q15_t * p_out);
+/* Shift the input, then calculate SoftMax */
+void softmax_shift_q17p14_q15(q31_t * vec_in, const uint16_t dim_vec, uint8_t in_shift, q15_t * p_out);
 
 /* Stopwatch - holds the runtime when accelerator finishes */
 extern volatile uint32_t cnn_time;

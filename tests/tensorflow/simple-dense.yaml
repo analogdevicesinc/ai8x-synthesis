@@ -10,5 +10,3 @@ layers:
   out_offset: 0x2000
   processors: 0x000000000000003ff
   #output_width: 32
-  
-  
