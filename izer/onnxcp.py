@@ -18,7 +18,6 @@ import onnxruntime
 from onnx import numpy_helper
 
 from . import op as opn
-from . import tornadocnn as tc
 from .eprint import eprint
 from .utils import fls
 
@@ -709,7 +708,6 @@ def load(  # pylint: disable=R0914
     save_perm = None
     op_list = []
 
-#!    print(f'nobias:{no_bias}')
     # looking for conv1d/conv2d indications
     for x in range(cfg_layers):
         op = cfg["layers"][x].get("op", None)
@@ -881,37 +879,32 @@ def load(  # pylint: disable=R0914
                             #       that needs to be transposed?
 
                             if inputs[0] == matmul_out or cst_seq is True:
-                                if False: #fc_layer:
-                                    if inp == inputs[1]:  # bias
-                                        assert w.min() >= -128 and w.max() <= 127
-                                        fc_bias.append(w)
-                                else:
-                                    if len(bias) == seq:
-                                        # remove default matmul bias entries if bias/Add detected
-                                        del bias[seq - 1]
-                                        del bias_min[seq - 1]
-                                        del bias_max[seq - 1]
-                                        del bias_keys[seq - 1]
-                                        del bias_quant[seq - 1]
-                                        del bias_size[seq - 1]
+                                if len(bias) == seq:
+                                    # remove default matmul bias entries if bias/Add detected
+                                    del bias[seq - 1]
+                                    del bias_min[seq - 1]
+                                    del bias_max[seq - 1]
+                                    del bias_keys[seq - 1]
+                                    del bias_quant[seq - 1]
+                                    del bias_size[seq - 1]
 
-                                    manage_bias(
-                                        w,
-                                        bias,
-                                        bias_min,
-                                        bias_max,
-                                        bias_keys,
-                                        bias_quant,
-                                        bias_size,
-                                        param_size,
-                                        bias_quantization,
-                                        seq - 1,
-                                        inp,
-                                        param_count,
-                                        do_quantize,
-                                        False,
-                                        scale_factor,
-                                    )
+                                manage_bias(
+                                    w,
+                                    bias,
+                                    bias_min,
+                                    bias_max,
+                                    bias_keys,
+                                    bias_quant,
+                                    bias_size,
+                                    param_size,
+                                    bias_quantization,
+                                    seq - 1,
+                                    inp,
+                                    param_count,
+                                    do_quantize,
+                                    False,
+                                    scale_factor,
+                                )
                             is_not_layer = True
                             continue
 
