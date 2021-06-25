@@ -13,6 +13,3 @@ layers:
   activate: ReLU
   avg_pool: 2
   pool_stride: 1
-
-
-

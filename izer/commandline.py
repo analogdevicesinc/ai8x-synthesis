@@ -109,7 +109,7 @@ def get_parser() -> argparse.Namespace:
                         help="use timer to time the inference (default: off, supply timer number)")
     mgroup.add_argument('--energy', action='store_true', default=False,
                         help="insert instrumentation code for energy measurement")
-    group.add_argument('--scale', metavar='S', required=None,
+    group.add_argument('--scale', metavar='S',
                        help="scale factor for quantizing onnx weights, not required"
                             "Typical values: PyTorch - 0.8; TensorFlow - 2.0; Default: no scaling")
     group.add_argument('--generate-dequantized-onnx-file', action='store_true', default=False,

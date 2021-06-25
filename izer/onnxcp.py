@@ -631,7 +631,7 @@ def load(  # pylint: disable=R0914
 ):
     """
     Load weights and biases from `checkpoint_file`. If `arch` is not None and does not match
-    the architecuture in the checkpoint file, abort with an error message. 
+    the architecuture in the checkpoint file, abort with an error message.
     `quantization` is a list of expected bit widths for the layer weights.
     This value is checked against the weight inputs.
     `bias_quantization` is a list of the expected bit widths for the layer bias weights (always
@@ -709,6 +709,7 @@ def load(  # pylint: disable=R0914
     save_perm = None
     op_list = []
 
+#!    print(f'nobias:{no_bias}')
     # looking for conv1d/conv2d indications
     for x in range(cfg_layers):
         op = cfg["layers"][x].get("op", None)
@@ -868,22 +869,6 @@ def load(  # pylint: disable=R0914
                         or node.op_type == "MatMul"
                         or node.op_type == "Add"
                     ):  # general matrix multiplication (FC layer)
-                        if node.op_type == "Gemm" or node.op_type == "MatMul":
-                            if False: #fc_layer:
-                                if inp == inputs[1]:  # weight
-                                    assert w.min() >= -128 and w.max() <= 127
-                                    fc_weights.append(w)
-
-                                if node.op_type == "Gemm":
-                                    if len(inputs) == 3:  # have optional bias input
-                                        if inp == inputs[2]:  # bias
-                                            assert w.min() >= -128 and w.max() <= 127
-                                            fc_bias.append(w)
-                                    elif inp == inputs[1]:  # add bias 'None'
-                                        fc_bias.append(
-                                            None
-                                        )  # during weight input processing
-
                         if node.op_type == "Add":
                             is_not_layer = True
                             if len(oplist) > 3:
