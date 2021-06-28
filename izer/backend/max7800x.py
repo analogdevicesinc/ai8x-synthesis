@@ -492,23 +492,24 @@ class Backend(backend.Backend):
 
             if in_sequences[ll] is not None:
                 if operands[ll] == 1:  # cat
-                    min_proc = -1
-                    max_proc = -1
-                    for _, lt in enumerate(in_sequences[ll]):
-                        first_proc = ffs(output_processor_map[lt])
-                        last_proc = fls(output_processor_map[lt])
-                        if first_proc <= min_proc:
-                            eprint(f'Layer {ll}: In `in_sequences` {in_sequences[ll]}, '
-                                   'an earlier layer in the sequence uses a higher first '
-                                   f'processor ({min_proc}) than layer {lt} which uses '
-                                   f'processor {first_proc}.')
-                        if last_proc <= max_proc:
-                            eprint(f'Layer {ll}: In `in_sequences` {in_sequences[ll]}, '
-                                   'an earlier layer in the sequence uses a higher last '
-                                   f'processor ({max_proc}) than layer {lt} which uses '
-                                   f'processor {last_proc}.')
-                        min_proc = first_proc
-                        max_proc = last_proc
+                    if write_gap[ll] == 0:
+                        min_proc = -1
+                        max_proc = -1
+                        for _, lt in enumerate(in_sequences[ll]):
+                            first_proc = ffs(output_processor_map[lt])
+                            last_proc = fls(output_processor_map[lt])
+                            if first_proc <= min_proc:
+                                eprint(f'Layer {ll}: In `in_sequences` {in_sequences[ll]}, '
+                                       'an earlier layer in the sequence uses a higher first '
+                                       f'processor ({min_proc}) than layer {lt} which uses '
+                                       f'processor {first_proc}.')
+                            if last_proc <= max_proc:
+                                eprint(f'Layer {ll}: In `in_sequences` {in_sequences[ll]}, '
+                                       'an earlier layer in the sequence uses a higher last '
+                                       f'processor ({max_proc}) than layer {lt} which uses '
+                                       f'processor {last_proc}.')
+                            min_proc = first_proc
+                            max_proc = last_proc
                 else:  # eltwise
                     eltwise_proc_map = 0
                     for _, lt in enumerate(in_sequences[ll]):
