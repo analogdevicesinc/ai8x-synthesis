@@ -33,7 +33,7 @@
 *******************************************************************************/
 
 // tf-rock
-// Created using ./ai8xize.py --verbose -L --top-level cnn --test-dir sdk-tensorflow --prefix tf-rock --checkpoint-file ../ai8x-training/TensorFlow/export/rock/saved_model.onnx --config-file ./networks/rock-hwc-tf.yaml --sample-input ../ai8x-training/TensorFlow/export/rock/sampledata.npy --device MAX78000 --compact-data --mexpress --embedded-code --scale 1.0 --softmax --generate-dequantized-onnx-file
+// Created using ./ai8xize.py --verbose -L --top-level cnn --test-dir sdk-tensorflow --prefix tf-rock --checkpoint-file ../ai8x-training/TensorFlow/export/rock/saved_model.onnx --config-file ./networks/rock-hwc-tf.yaml --sample-input ../ai8x-training/TensorFlow/export/rock/sampledata.npy --device MAX78000 --compact-data --mexpress --embedded-code --scale 1.0 --softmax --generate-dequantized-onnx-file --overwrite
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -42,6 +42,7 @@
 #include "mxc.h"
 #include "cnn.h"
 #include "sampledata.h"
+#include "sampleoutput.h"
 
 volatile uint32_t cnn_time; // Stopwatch
 
@@ -62,12 +63,22 @@ void load_input(void)
   memcpy32((uint32_t *) 0x50400000, input_0, 4096);
 }
 
-// Expected output of layer 6 for tf-rock given the sample input
+// Expected output of layer 6 for tf-rock given the sample input (known-answer test)
+// Delete this function for production code
 int check_output(void)
 {
-  if ((*((volatile uint32_t *) 0x50401000)) != 0xffff061a) return CNN_FAIL; // 0,0,0
-  if ((*((volatile uint32_t *) 0x50401004)) != 0x0001033f) return CNN_FAIL; // 0,0,1
-  if ((*((volatile uint32_t *) 0x50401008)) != 0xffff1d32) return CNN_FAIL; // 0,0,2
+  int i;
+  uint32_t mask, len;
+  volatile uint32_t *addr;
+  const uint32_t sample_output[] = SAMPLE_OUTPUT;
+  const uint32_t *ptr = sample_output;
+
+  while ((addr = (volatile uint32_t *) *ptr++) != 0) {
+    mask = *ptr++;
+    len = *ptr++;
+    for (i = 0; i < len; i++)
+      if ((*addr++ & mask) != *ptr++) return CNN_FAIL;
+  }
 
   return CNN_OK;
 }
@@ -106,11 +117,12 @@ int main(void)
 
   cnn_init(); // Bring state machine into consistent state
   cnn_load_weights(); // Load kernels
-  // cnn_load_bias(); // Not used in this network
+  cnn_load_bias(); // Not used in this network
   cnn_configure(); // Configure state machine
   load_input(); // Load data input
   cnn_start(); // Start CNN processing
 
+  SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=0
   while (cnn_time == 0)
     __WFI(); // Wait for CNN
 
@@ -120,7 +132,7 @@ int main(void)
   printf("\n*** PASS ***\n\n");
 
 #ifdef CNN_INFERENCE_TIMER
-  printf("Approximate inference time: %d us\n\n", cnn_time);
+  printf("Approximate inference time: %u us\n\n", cnn_time);
 #endif
 
   cnn_disable(); // Shut down CNN clock, disable peripheral
@@ -139,6 +151,13 @@ int main(void)
 /*
   SUMMARY OF OPS
   Hardware: 11,470,560 ops (11,250,720 macc; 219,840 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 0: 1,720,320 ops (1,658,880 macc; 61,440 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 1: 4,239,360 ops (4,147,200 macc; 92,160 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 2: 4,193,280 ops (4,147,200 macc; 46,080 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 3: 1,054,080 ops (1,036,800 macc; 17,280 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 4: 132,000 ops (129,600 macc; 2,400 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 5: 130,080 ops (129,600 macc; 480 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 6: 1,440 ops (1,440 macc; 0 comp; 0 add; 0 mul; 0 bitwise)
 
   RESOURCE USAGE
   Weight memory: 54,495 bytes out of 442,368 bytes total (12%)

@@ -24,6 +24,20 @@ typedef int16_t q15_t;
 /*
   SUMMARY OF OPS
   Hardware: 18,607,744 ops (18,461,184 macc; 146,560 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 0: 458,752 ops (442,368 macc; 16,384 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 1: 2,969,600 ops (2,949,120 macc; 20,480 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 2: 3,706,880 ops (3,686,400 macc; 20,480 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 3: 3,706,880 ops (3,686,400 macc; 20,480 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 4: 947,200 ops (921,600 macc; 25,600 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 5: 926,720 ops (921,600 macc; 5,120 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 6: 2,038,784 ops (2,027,520 macc; 11,264 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 7: 1,230,848 ops (1,216,512 macc; 14,336 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 8: 1,330,176 ops (1,327,104 macc; 3,072 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 9: 668,160 ops (663,552 macc; 4,608 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 10: 200,192 ops (196,608 macc; 3,584 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 11: 262,656 ops (262,144 macc; 512 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 12: 148,096 ops (147,456 macc; 640 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 13: 12,800 ops (12,800 macc; 0 comp; 0 add; 0 mul; 0 bitwise)
 
   RESOURCE USAGE
   Weight memory: 381,792 bytes out of 442,368 bytes total (86%)
@@ -39,8 +53,10 @@ typedef int16_t q15_t;
 #define SYS_START LED_On(0)
 #define SYS_COMPLETE LED_Off(0)
 
-/* Unload data from accelerator and run software SoftMax */
+/* Run software SoftMax on unloaded data */
 void softmax_q17p14_q15(const q31_t * vec_in, const uint16_t dim_vec, q15_t * p_out);
+/* Shift the input, then calculate SoftMax */
+void softmax_shift_q17p14_q15(q31_t * vec_in, const uint16_t dim_vec, uint8_t in_shift, q15_t * p_out);
 
 /* Stopwatch - holds the runtime when accelerator finishes */
 extern volatile uint32_t cnn_time;

@@ -1,0 +1,22 @@
+arch: test
+dataset: test_snoop-skip
+snoop: [0, 0, 0, 0, 0, 0, 0, 0, 9, 8, 7, 6, 0x201001,
+        0, 0x7f49baec, 0, 0, 0, 0x82022003, 0x3000,
+        17, 22, 55, 22, 9, 8, 7, 6, 17, 22, 55, 22]
+
+layers:
+- out_offset: 0x4000
+  processors: 0x0000000000000007
+  operation: conv2d
+  kernel_size: 3x3
+  activation: none
+  output_shift: -1
+  simulated_sequence: stop
+- out_offset: 0x2000
+  processors: 0xffffffffffffffff
+  operation: conv2d
+  kernel_size: 1x1
+  activation: none
+  quantization: binary
+  conv_groups: 64
+  pad: 0

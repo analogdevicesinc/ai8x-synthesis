@@ -33,23 +33,23 @@
 *******************************************************************************/
 
 // tf-cifar10
-// Created using ./ai8xize.py --verbose -L --top-level cnn --test-dir sdk-tensorflow --prefix tf-cifar10 --checkpoint-file ../ai8x-training/TensorFlow/export/cifar10/saved_model.onnx --config-file ./networks/cifar10-hwc-ai85-tf.yaml --sample-input ../ai8x-training/TensorFlow/export/cifar10/sampledata.npy --device MAX78000 --compact-data --mexpress --embedded-code --scale 1.0 --softmax --generate-dequantized-onnx-file
+// Created using ./ai8xize.py --verbose -L --top-level cnn --test-dir sdk-tensorflow --prefix tf-cifar10 --checkpoint-file ../ai8x-training/TensorFlow/export/cifar10/saved_model.onnx --config-file ./networks/cifar10-hwc-ai85-tf.yaml --sample-input ../ai8x-training/TensorFlow/export/cifar10/sampledata.npy --device MAX78000 --compact-data --mexpress --embedded-code --scale 1.0 --softmax --generate-dequantized-onnx-file --overwrite
 
 // DO NOT EDIT - regenerate this file instead!
 
 // Configuring 5 layers:
-// Layer 0: 3x32x32 (HWC data), no pooling, conv2d with kernel size 3x3, stride 1/1, pad 1/1, 60x32x32 output
-// Layer 1: 60x32x32 (HWC data), 2x2 max pool with stride 2/2, conv2d with kernel size 3x3, stride 1/1, pad 1/1, 60x16x16 output
-// Layer 2: 60x16x16 (HWC data), 2x2 max pool with stride 2/2, conv2d with kernel size 3x3, stride 1/1, pad 1/1, 56x8x8 output
-// Layer 3: 56x8x8 (HWC data), 2x2 avg pool with stride 2/2, conv2d with kernel size 3x3, stride 1/1, pad 1/1, 12x4x4 output
-// Layer 4: 12x4x4 (flattened HWC data), no pooling, conv2d with kernel size 1x1, stride 1/1, pad 0/0, 10x1x1 output
+// Layer 0: 3x32x32 (HWC data), no pooling, conv2d with kernel size 3x3, stride 1/1, pad 1/1, ReLU, 60x32x32 output
+// Layer 1: 60x32x32 (HWC data), 2x2 max pool with stride 2/2, conv2d with kernel size 3x3, stride 1/1, pad 1/1, ReLU, 60x16x16 output
+// Layer 2: 60x16x16 (HWC data), 2x2 max pool with stride 2/2, conv2d with kernel size 3x3, stride 1/1, pad 1/1, ReLU, 56x8x8 output
+// Layer 3: 56x8x8 (HWC data), 2x2 avg pool with stride 2/2, conv2d with kernel size 3x3, stride 1/1, pad 1/1, ReLU, 12x4x4 output
+// Layer 4: 12x4x4 (flattened to 192x1x1, HWC data), no pooling, linear with kernel size 1x1, stride 1/1, pad 0/0, no activation, 10x1x1 output
 
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
 #include "mxc.h"
-#include "bbfc_regs.h"
+#include "gcfr_regs.h"
 #include "cnn.h"
 #include "weights.h"
 
@@ -324,7 +324,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x50100090) = 0x00010021; // Columns
   *((volatile uint32_t *) 0x50100310) = 0x00002800; // SRAM write ptr
   *((volatile uint32_t *) 0x50100410) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x50100490) = 0x00000001; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x50100590) = 0x00000b20; // Layer control
   *((volatile uint32_t *) 0x50100a10) = 0x0001d800; // Layer control 2
   *((volatile uint32_t *) 0x50100610) = 0x000001d8; // Mask offset and count
@@ -336,7 +335,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x50500090) = 0x00010021; // Columns
   *((volatile uint32_t *) 0x50500310) = 0x00002800; // SRAM write ptr
   *((volatile uint32_t *) 0x50500410) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x50500490) = 0x00000001; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x50500590) = 0x00000b20; // Layer control
   *((volatile uint32_t *) 0x50500a10) = 0x0001d800; // Layer control 2
   *((volatile uint32_t *) 0x50500610) = 0x000001d8; // Mask offset and count
@@ -347,7 +345,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x50900090) = 0x00010021; // Columns
   *((volatile uint32_t *) 0x50900310) = 0x00002800; // SRAM write ptr
   *((volatile uint32_t *) 0x50900410) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x50900490) = 0x00000001; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x50900590) = 0x00000b20; // Layer control
   *((volatile uint32_t *) 0x50900a10) = 0x0001d800; // Layer control 2
   *((volatile uint32_t *) 0x50900610) = 0x000001d8; // Mask offset and count
@@ -358,7 +355,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x50d00090) = 0x00010021; // Columns
   *((volatile uint32_t *) 0x50d00310) = 0x00002800; // SRAM write ptr
   *((volatile uint32_t *) 0x50d00410) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x50d00490) = 0x00000001; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x50d00590) = 0x00000b20; // Layer control
   *((volatile uint32_t *) 0x50d00a10) = 0x0001d800; // Layer control 2
   *((volatile uint32_t *) 0x50d00610) = 0x000001d8; // Mask offset and count
@@ -372,7 +368,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x50100294) = 0x00000001; // Stride
   *((volatile uint32_t *) 0x50100314) = 0x00002000; // SRAM write ptr
   *((volatile uint32_t *) 0x50100414) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x50100494) = 0x00000001; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x50100514) = 0x00000800; // SRAM read ptr
   *((volatile uint32_t *) 0x50100594) = 0x0000eba0; // Layer control
   *((volatile uint32_t *) 0x50100a14) = 0x0001d800; // Layer control 2
@@ -388,7 +383,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x50500294) = 0x00000001; // Stride
   *((volatile uint32_t *) 0x50500314) = 0x00002000; // SRAM write ptr
   *((volatile uint32_t *) 0x50500414) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x50500494) = 0x00000001; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x50500514) = 0x00000800; // SRAM read ptr
   *((volatile uint32_t *) 0x50500594) = 0x00000ba0; // Layer control
   *((volatile uint32_t *) 0x50500a14) = 0x0001d800; // Layer control 2
@@ -404,7 +398,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x50900294) = 0x00000001; // Stride
   *((volatile uint32_t *) 0x50900314) = 0x00002000; // SRAM write ptr
   *((volatile uint32_t *) 0x50900414) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x50900494) = 0x00000001; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x50900514) = 0x00000800; // SRAM read ptr
   *((volatile uint32_t *) 0x50900594) = 0x00000ba0; // Layer control
   *((volatile uint32_t *) 0x50900a14) = 0x0001d800; // Layer control 2
@@ -420,7 +413,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x50d00294) = 0x00000001; // Stride
   *((volatile uint32_t *) 0x50d00314) = 0x00002000; // SRAM write ptr
   *((volatile uint32_t *) 0x50d00414) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x50d00494) = 0x00000001; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x50d00514) = 0x00000800; // SRAM read ptr
   *((volatile uint32_t *) 0x50d00594) = 0x00000ba0; // Layer control
   *((volatile uint32_t *) 0x50d00a14) = 0x0001d800; // Layer control 2
@@ -436,7 +428,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x50100298) = 0x00000001; // Stride
   *((volatile uint32_t *) 0x50100318) = 0x00002800; // SRAM write ptr
   *((volatile uint32_t *) 0x50100418) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x50100498) = 0x00000001; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x50100598) = 0x0000eba0; // Layer control
   *((volatile uint32_t *) 0x50100a18) = 0x0001b800; // Layer control 2
   *((volatile uint32_t *) 0x50100618) = 0x01e00398; // Mask offset and count
@@ -451,7 +442,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x50500298) = 0x00000001; // Stride
   *((volatile uint32_t *) 0x50500318) = 0x00002800; // SRAM write ptr
   *((volatile uint32_t *) 0x50500418) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x50500498) = 0x00000001; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x50500598) = 0x00000ba0; // Layer control
   *((volatile uint32_t *) 0x50500a18) = 0x0001b800; // Layer control 2
   *((volatile uint32_t *) 0x50500618) = 0x01e00398; // Mask offset and count
@@ -466,7 +456,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x50900298) = 0x00000001; // Stride
   *((volatile uint32_t *) 0x50900318) = 0x00002800; // SRAM write ptr
   *((volatile uint32_t *) 0x50900418) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x50900498) = 0x00000001; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x50900598) = 0x00000ba0; // Layer control
   *((volatile uint32_t *) 0x50900a18) = 0x0001b800; // Layer control 2
   *((volatile uint32_t *) 0x50900618) = 0x01e00398; // Mask offset and count
@@ -481,7 +470,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x50d00298) = 0x00000001; // Stride
   *((volatile uint32_t *) 0x50d00318) = 0x00002800; // SRAM write ptr
   *((volatile uint32_t *) 0x50d00418) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x50d00498) = 0x00000001; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x50d00598) = 0x00000ba0; // Layer control
   *((volatile uint32_t *) 0x50d00a18) = 0x0001b800; // Layer control 2
   *((volatile uint32_t *) 0x50d00618) = 0x01e00398; // Mask offset and count
@@ -495,7 +483,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x5010021c) = 0x00000001; // Pooling columns
   *((volatile uint32_t *) 0x5010029c) = 0x00000001; // Stride
   *((volatile uint32_t *) 0x5010041c) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x5010049c) = 0x00000001; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x5010051c) = 0x00000800; // SRAM read ptr
   *((volatile uint32_t *) 0x5010059c) = 0x0000eaa0; // Layer control
   *((volatile uint32_t *) 0x50100a1c) = 0x00005800; // Layer control 2
@@ -510,7 +497,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x5050021c) = 0x00000001; // Pooling columns
   *((volatile uint32_t *) 0x5050029c) = 0x00000001; // Stride
   *((volatile uint32_t *) 0x5050041c) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x5050049c) = 0x00000001; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x5050051c) = 0x00000800; // SRAM read ptr
   *((volatile uint32_t *) 0x5050059c) = 0x00000aa0; // Layer control
   *((volatile uint32_t *) 0x50500a1c) = 0x00005800; // Layer control 2
@@ -525,7 +511,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x5090021c) = 0x00000001; // Pooling columns
   *((volatile uint32_t *) 0x5090029c) = 0x00000001; // Stride
   *((volatile uint32_t *) 0x5090041c) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x5090049c) = 0x00000001; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x5090051c) = 0x00000800; // SRAM read ptr
   *((volatile uint32_t *) 0x5090059c) = 0x00000aa0; // Layer control
   *((volatile uint32_t *) 0x50900a1c) = 0x00005800; // Layer control 2
@@ -540,7 +525,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x50d0021c) = 0x00000001; // Pooling columns
   *((volatile uint32_t *) 0x50d0029c) = 0x00000001; // Stride
   *((volatile uint32_t *) 0x50d0041c) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x50d0049c) = 0x00000001; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x50d0051c) = 0x00000800; // SRAM read ptr
   *((volatile uint32_t *) 0x50d0059c) = 0x00000aa0; // Layer control
   *((volatile uint32_t *) 0x50d00a1c) = 0x00005800; // Layer control 2
@@ -552,7 +536,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x50100320) = 0x00000400; // SRAM write ptr
   *((volatile uint32_t *) 0x501003a0) = 0x00000001; // Write ptr time slot offs
   *((volatile uint32_t *) 0x50100420) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x501004a0) = 0x00000004; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x501005a0) = 0x00010920; // Layer control
   *((volatile uint32_t *) 0x50100a20) = 0x0000480f; // Layer control 2
   *((volatile uint32_t *) 0x50100620) = 0x240028f8; // Mask offset and count
@@ -563,7 +546,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x50500320) = 0x00000400; // SRAM write ptr
   *((volatile uint32_t *) 0x505003a0) = 0x00000001; // Write ptr time slot offs
   *((volatile uint32_t *) 0x50500420) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x505004a0) = 0x00000004; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x505005a0) = 0x00010920; // Layer control
   *((volatile uint32_t *) 0x50500a20) = 0x0000480f; // Layer control 2
   *((volatile uint32_t *) 0x50500620) = 0x240028f8; // Mask offset and count
@@ -573,7 +555,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x50900320) = 0x00000400; // SRAM write ptr
   *((volatile uint32_t *) 0x509003a0) = 0x00000001; // Write ptr time slot offs
   *((volatile uint32_t *) 0x50900420) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x509004a0) = 0x00000004; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x509005a0) = 0x00010920; // Layer control
   *((volatile uint32_t *) 0x50900a20) = 0x0000480f; // Layer control 2
   *((volatile uint32_t *) 0x50900620) = 0x240028f8; // Mask offset and count
@@ -583,7 +564,6 @@ int cnn_configure(void)
   *((volatile uint32_t *) 0x50d00320) = 0x00000400; // SRAM write ptr
   *((volatile uint32_t *) 0x50d003a0) = 0x00000001; // Write ptr time slot offs
   *((volatile uint32_t *) 0x50d00420) = 0x00002000; // Write ptr mask offs
-  *((volatile uint32_t *) 0x50d004a0) = 0x00000004; // Write ptr multi-pass channel offs
   *((volatile uint32_t *) 0x50d005a0) = 0x00010920; // Layer control
   *((volatile uint32_t *) 0x50d00a20) = 0x0000480f; // Layer control 2
   *((volatile uint32_t *) 0x50d00620) = 0x240028f8; // Mask offset and count
@@ -616,6 +596,7 @@ int cnn_start(void)
 int cnn_unload(uint32_t *out_buf)
 {
   volatile uint32_t *addr;
+
   addr = (volatile uint32_t *) 0x50401000;
   *out_buf++ = *addr++;
   *out_buf++ = *addr++;
@@ -636,11 +617,11 @@ int cnn_unload(uint32_t *out_buf)
 int cnn_enable(uint32_t clock_source, uint32_t clock_divider)
 {
   // Reset all domains, restore power to CNN
-  MXC_BBFC->reg3 = 0xf; // Reset
-  MXC_BBFC->reg1 = 0xf; // Mask memory
-  MXC_BBFC->reg0 = 0xf; // Power
-  MXC_BBFC->reg2 = 0x0; // Iso
-  MXC_BBFC->reg3 = 0x0; // Reset
+  MXC_GCFR->reg3 = 0xf; // Reset
+  MXC_GCFR->reg1 = 0xf; // Mask memory
+  MXC_GCFR->reg0 = 0xf; // Power
+  MXC_GCFR->reg2 = 0x0; // Iso
+  MXC_GCFR->reg3 = 0x0; // Reset
 
   MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & ~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | MXC_F_GCR_PCLKDIV_CNNCLKSEL))
                      | clock_divider | clock_source;
@@ -683,11 +664,11 @@ int cnn_disable(void)
   MXC_SYS_ClockDisable(MXC_SYS_PERIPH_CLOCK_CNN);
 
   // Disable power to CNN
-  MXC_BBFC->reg3 = 0xf; // Reset
-  MXC_BBFC->reg1 = 0x0; // Mask memory
-  MXC_BBFC->reg0 = 0x0; // Power
-  MXC_BBFC->reg2 = 0xf; // Iso
-  MXC_BBFC->reg3 = 0x0; // Reset
+  MXC_GCFR->reg3 = 0xf; // Reset
+  MXC_GCFR->reg2 = 0xf; // Iso
+  MXC_GCFR->reg0 = 0x0; // Power
+  MXC_GCFR->reg1 = 0x0; // Mask memory
+  MXC_GCFR->reg3 = 0x0; // Reset
 
   return CNN_OK;
 }

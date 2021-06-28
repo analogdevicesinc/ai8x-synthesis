@@ -1,0 +1,20 @@
+arch: test
+dataset: test_bypass-id-small
+bias: one
+
+layers:
+- out_offset: 0x4000
+  processors: 0x0000000000000001
+  operation: conv2d
+  kernel_size: 1x1
+  activation: none
+  pad: 0
+  bypass: True
+  in_channels: 1
+- out_offset: 0x0
+  processors: 0x0000000000000001
+  operation: conv2d
+  kernel_size: 1x1
+  activation: abs
+  pad: 0
+  bypass: True

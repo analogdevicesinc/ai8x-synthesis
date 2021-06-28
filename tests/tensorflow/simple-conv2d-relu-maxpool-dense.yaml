@@ -1,0 +1,22 @@
+# Benchmark network. Uses all processors.
+
+arch: ai85net5
+dataset: simple-conv2dReluMaxPool
+
+# Define layer parameters in order of the layer sequence
+layers:
+- pad: 1
+  max_pool: 2
+  pool_stride: 2
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0x0000000000000001
+  data_format: CHW
+  op: conv2d
+  kernel_size: 3x3
+  stride: 1
+- flatten: true
+  operation: MLP
+  out_offset: 0x0000
+  #processors: 0x0000000000000001f
+  processors: 0x00000000000000003

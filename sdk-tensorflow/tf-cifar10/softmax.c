@@ -131,6 +131,38 @@ void softmax_q17p14_q15(const q31_t * vec_in, const uint16_t dim_vec, q15_t * p_
 
 }
 
+  /**
+   * @brief Q17.14 fixed point softmax function with input shift, returns Q15
+   * @param[in]       vec_in      pointer to input vector
+   * @param[in]       dim_vec     input vector dimension
+   * @param[in]       in_shift    input vector shift count
+   * @param[out]      p_out       pointer to output vector
+   * @return none.
+   *
+   * @details
+   *
+   *  Here, instead of typical e based softmax, we use
+   *  2-based softmax, i.e.,:
+   *
+   *  y_i = 2^(x_i/16384) / sum(2^(x_j/16384))
+   *
+   *  The relative output will be different here.
+   *  But mathematically, the gradient will be the same
+   *  with a log(2) scaling factor.
+   */
+
+void softmax_shift_q17p14_q15(q31_t * vec_in, const uint16_t dim_vec, uint8_t in_shift, q15_t * p_out)
+{
+    int16_t   i;
+
+    for (i = 0; i < dim_vec; i++)
+    {
+        vec_in[i] <<= in_shift;
+    }
+
+    softmax_q17p14_q15(vec_in, dim_vec, p_out);
+}
+
 /**
  * @} end of Softmax group
  */

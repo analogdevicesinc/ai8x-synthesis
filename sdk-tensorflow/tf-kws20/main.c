@@ -33,7 +33,7 @@
 *******************************************************************************/
 
 // tf-kws20
-// Created using ./ai8xize.py --verbose -L --top-level cnn --test-dir sdk-tensorflow --prefix tf-kws20 --checkpoint-file ../ai8x-training/TensorFlow/export/kws20/saved_model.onnx --config-file ./networks/kws20-hwc-tf.yaml --sample-input ../ai8x-training/TensorFlow/export/kws20/sampledata.npy --device MAX78000 --compact-data --mexpress --embedded-code --scale 1.0 --softmax --generate-dequantized-onnx-file
+// Created using ./ai8xize.py --verbose -L --top-level cnn --test-dir sdk-tensorflow --prefix tf-kws20 --checkpoint-file ../ai8x-training/TensorFlow/export/kws20/saved_model.onnx --config-file ./networks/kws20-hwc-tf.yaml --sample-input ../ai8x-training/TensorFlow/export/kws20/sampledata.npy --device MAX78000 --compact-data --mexpress --embedded-code --scale 1.0 --softmax --generate-dequantized-onnx-file --overwrite
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -42,6 +42,7 @@
 #include "mxc.h"
 #include "cnn.h"
 #include "sampledata.h"
+#include "sampleoutput.h"
 
 volatile uint32_t cnn_time; // Stopwatch
 
@@ -138,30 +139,22 @@ void load_input(void)
   memcpy32((uint32_t *) 0x51018000, input_60, 256);
 }
 
-// Expected output of layer 9 for tf-kws20 given the sample input
+// Expected output of layer 9 for tf-kws20 given the sample input (known-answer test)
+// Delete this function for production code
 int check_output(void)
 {
-  if ((*((volatile uint32_t *) 0x50402000)) != 0xfffff74a) return CNN_FAIL; // 0,0,0
-  if ((*((volatile uint32_t *) 0x50402004)) != 0x00003540) return CNN_FAIL; // 0,0,1
-  if ((*((volatile uint32_t *) 0x50402008)) != 0x0001a768) return CNN_FAIL; // 0,0,2
-  if ((*((volatile uint32_t *) 0x5040200c)) != 0x0000528e) return CNN_FAIL; // 0,0,3
-  if ((*((volatile uint32_t *) 0x5040a000)) != 0xffff911b) return CNN_FAIL; // 0,0,4
-  if ((*((volatile uint32_t *) 0x5040a004)) != 0xffff48a7) return CNN_FAIL; // 0,0,5
-  if ((*((volatile uint32_t *) 0x5040a008)) != 0x0000a81f) return CNN_FAIL; // 0,0,6
-  if ((*((volatile uint32_t *) 0x5040a00c)) != 0x0000c2f3) return CNN_FAIL; // 0,0,7
-  if ((*((volatile uint32_t *) 0x50412000)) != 0xfffef4ef) return CNN_FAIL; // 0,0,8
-  if ((*((volatile uint32_t *) 0x50412004)) != 0xffffd053) return CNN_FAIL; // 0,0,9
-  if ((*((volatile uint32_t *) 0x50412008)) != 0x0000c660) return CNN_FAIL; // 0,0,10
-  if ((*((volatile uint32_t *) 0x5041200c)) != 0xfffe9877) return CNN_FAIL; // 0,0,11
-  if ((*((volatile uint32_t *) 0x5041a000)) != 0xffff1733) return CNN_FAIL; // 0,0,12
-  if ((*((volatile uint32_t *) 0x5041a004)) != 0xffff1410) return CNN_FAIL; // 0,0,13
-  if ((*((volatile uint32_t *) 0x5041a008)) != 0xffff77e4) return CNN_FAIL; // 0,0,14
-  if ((*((volatile uint32_t *) 0x5041a00c)) != 0xffff3055) return CNN_FAIL; // 0,0,15
-  if ((*((volatile uint32_t *) 0x50802000)) != 0xffffaada) return CNN_FAIL; // 0,0,16
-  if ((*((volatile uint32_t *) 0x50802004)) != 0xffff0698) return CNN_FAIL; // 0,0,17
-  if ((*((volatile uint32_t *) 0x50802008)) != 0x00010a4f) return CNN_FAIL; // 0,0,18
-  if ((*((volatile uint32_t *) 0x5080200c)) != 0xffff39c2) return CNN_FAIL; // 0,0,19
-  if ((*((volatile uint32_t *) 0x5080a000)) != 0x00025e55) return CNN_FAIL; // 0,0,20
+  int i;
+  uint32_t mask, len;
+  volatile uint32_t *addr;
+  const uint32_t sample_output[] = SAMPLE_OUTPUT;
+  const uint32_t *ptr = sample_output;
+
+  while ((addr = (volatile uint32_t *) *ptr++) != 0) {
+    mask = *ptr++;
+    len = *ptr++;
+    for (i = 0; i < len; i++)
+      if ((*addr++ & mask) != *ptr++) return CNN_FAIL;
+  }
 
   return CNN_OK;
 }
@@ -200,11 +193,12 @@ int main(void)
 
   cnn_init(); // Bring state machine into consistent state
   cnn_load_weights(); // Load kernels
-  // cnn_load_bias(); // Not used in this network
+  cnn_load_bias(); // Not used in this network
   cnn_configure(); // Configure state machine
   load_input(); // Load data input
   cnn_start(); // Start CNN processing
 
+  SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=0
   while (cnn_time == 0)
     __WFI(); // Wait for CNN
 
@@ -214,7 +208,7 @@ int main(void)
   printf("\n*** PASS ***\n\n");
 
 #ifdef CNN_INFERENCE_TIMER
-  printf("Approximate inference time: %d us\n\n", cnn_time);
+  printf("Approximate inference time: %u us\n\n", cnn_time);
 #endif
 
   cnn_disable(); // Shut down CNN clock, disable peripheral
@@ -233,6 +227,16 @@ int main(void)
 /*
   SUMMARY OF OPS
   Hardware: 13,860,352 ops (13,801,088 macc; 59,264 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 0: 1,651,200 ops (1,638,400 macc; 12,800 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 1: 1,292,800 ops (1,280,000 macc; 12,800 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 2: 646,400 ops (640,000 macc; 6,400 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 3: 104,448 ops (102,400 macc; 2,048 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 4: 593,920 ops (589,824 macc; 4,096 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 5: 2,367,488 ops (2,359,296 macc; 8,192 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 6: 4,726,784 ops (4,718,592 macc; 8,192 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 7: 2,215,680 ops (2,211,840 macc; 3,840 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 8: 242,816 ops (241,920 macc; 896 comp; 0 add; 0 mul; 0 bitwise)
+    Layer 9: 18,816 ops (18,816 macc; 0 comp; 0 add; 0 mul; 0 bitwise)
 
   RESOURCE USAGE
   Weight memory: 126,490 bytes out of 442,368 bytes total (29%)

@@ -1,0 +1,18 @@
+arch: test
+dataset: test_flatten-bias
+bias: flatten-bias
+
+layers:
+- max_pool: 16
+  pool_stride: 8
+  pad: 1
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0x0000000000000007
+  data_format: HWC
+  op: conv2d
+- op: mlp
+  flatten: true
+  out_offset: 0x1000
+  output_width: 32
+  processors: 0x0000000000000010
