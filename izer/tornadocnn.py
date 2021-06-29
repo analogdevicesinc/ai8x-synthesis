@@ -44,6 +44,7 @@ class Dev:
     REQUIRE_NEW_STREAMING = False
     REQUIRE_FIFO_CPL = True
     EMULATE_ELTWISE_MP = False
+    EMULATE_1X1_STREAMING = True
     USE_PROCESSORS = True
     MODERN_SIM = False
 

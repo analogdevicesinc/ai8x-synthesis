@@ -61,6 +61,29 @@ def convolve(data, weight, expected):
     print("SUCCESS" if np.array_equal(output, expected) else "*** FAILURE ***")
     assert np.array_equal(output, expected)
 
+    # Create 3x3 weights from 1x1 weights
+    # and emulate using 3x3 kernels
+    shape33 = (weight.shape[0], weight.shape[1], 3, 3)
+    weight33 = np.zeros(shape33, dtype=np.int64)
+    weight33[:, :, 1, 1] = weight[:, :, 0, 0]
+
+    output = compute.conv2d(
+        data,
+        weight33,
+        None,
+        data.shape,
+        expected.shape,
+        kernel_size=[3, 3],
+        stride=[1, 1],
+        pad=[1, 1],
+        dilation=[1, 1],
+        fractional_stride=[1, 1],
+        output_pad=[0, 0],
+        groups=1,
+    )
+    print("PYTORCH OK" if np.array_equal(output, t) else "*** FAILURE ***")
+    assert np.array_equal(output, t)
+
 
 def test_conv2d():
     """Main program to test compute.conv2d."""
