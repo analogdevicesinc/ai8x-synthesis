@@ -1212,43 +1212,47 @@ class Backend(backend.Backend):
                     for _, group in enumerate(groups_used):
                         apb.output(f'  // Layer {r * layers + ll} group {group}\n', embedded_code)
 
-                        if hasattr(tc.dev, 'LREG_NXTLYR'):
-                            val = 0
-                            if link_layer:
-                                if ll != final_layer:
-                                    val = 1 << 7 | (ll + 1)
-                                else:
-                                    val = 1 << 8  # Stop
+                        val = 0
+                        if link_layer:
+                            if ll != final_layer:
+                                val = 1 << 7 | (ll + 1)
                             else:
-                                lt = next_sequence[ll]
-                                if lt == -1:
-                                    if ll != layers - 1:  # Don't set stop bit unless required
-                                        val = 1 << 8
-                                elif lt != ll + 1:
-                                    val = 1 << 7 | lt
-                                elif snoop_sequence[ll] is not None:
-                                    lt = snoop_sequence[ll]
-                                    assert lt >= 0
-                                    val = 1 << 7 | lt
-                                if lt != -1:
-                                    if in_sequences[lt] is not None and ll in in_sequences[lt] \
-                                       and operands[lt] == 1:
-                                        if in_offset[lt] != out_offset[ll]:
-                                            wprint(f'Layer {ll}: The input offset of the next '
-                                                   f'sequence (layer {lt}, 0x{in_offset[lt]:04x}) '
-                                                   "does not match the current layer's output "
-                                                   f'offset (0x{out_offset[ll]:04x}).')
-                                        if input_chan[lt] != output_chan[ll] \
-                                           * len(in_sequences[lt]) \
-                                           or input_dim[lt] != output_dim[ll]:
-                                            wprint(f'Layer {ll}: The input dimensions of the next '
-                                                   f'sequence (layer {lt}, '
-                                                   f'{len(in_sequences[lt])} inputs, '
-                                                   f'{input_chan[lt]}x{input_dim_str[lt]}) do '
-                                                   "not match the current layer's output "
-                                                   "dimensions "
-                                                   f'({output_chan[ll]}x{output_dim_str[ll]}).')
+                                val = 1 << 8  # Stop
+                        else:
+                            lt = next_sequence[ll]
+                            if lt == -1:
+                                if ll != layers - 1:  # Don't set stop bit unless required
+                                    val = 1 << 8
+                            elif lt != ll + 1:
+                                val = 1 << 7 | lt
+                            elif snoop_sequence[ll] is not None:
+                                lt = snoop_sequence[ll]
+                                assert lt >= 0
+                                val = 1 << 7 | lt
+                            if lt != -1:
+                                if in_sequences[lt] is not None and ll in in_sequences[lt] \
+                                   and operands[lt] == 1:
+                                    ll_index = in_sequences[lt].index(ll)
+                                    ll_offset = out_offset[ll] - ll_index * write_gap[ll] * 4
+                                    if in_offset[lt] != ll_offset:
+                                        wprint(f'Layer {ll}: The input offset of the next '
+                                               f'sequence (layer {lt}, 0x{in_offset[lt]:04x}) '
+                                               "does not match the current layer's output "
+                                               f'(offset 0x{out_offset[ll]:04x} - write gap '
+                                               f'{write_gap[ll]} * sequence position '
+                                               f'{ll_index} * 4 = 0x{ll_offset:04x}).')
+                                    if input_chan[lt] != output_chan[ll] \
+                                       * len(in_sequences[lt]) \
+                                       or input_dim[lt] != output_dim[ll]:
+                                        wprint(f'Layer {ll}: The input dimensions of the next '
+                                               f'sequence (layer {lt}, '
+                                               f'{len(in_sequences[lt])} inputs, '
+                                               f'{input_chan[lt]}x{input_dim_str[lt]}) do '
+                                               "not match the current layer's output "
+                                               "dimensions "
+                                               f'({output_chan[ll]}x{output_dim_str[ll]}).')
 
+                        if hasattr(tc.dev, 'LREG_NXTLYR'):
                             apb.write_lreg(group, r * layers + ll, tc.dev.LREG_NXTLYR, val,
                                            comment=' // Next Layer')
 
