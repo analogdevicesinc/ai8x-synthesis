@@ -492,23 +492,24 @@ class Backend(backend.Backend):
 
             if in_sequences[ll] is not None:
                 if operands[ll] == 1:  # cat
-                    min_proc = -1
-                    max_proc = -1
-                    for _, lt in enumerate(in_sequences[ll]):
-                        first_proc = ffs(output_processor_map[lt])
-                        last_proc = fls(output_processor_map[lt])
-                        if first_proc <= min_proc:
-                            eprint(f'Layer {ll}: In `in_sequences` {in_sequences[ll]}, '
-                                   'an earlier layer in the sequence uses a higher first '
-                                   f'processor ({min_proc}) than layer {lt} which uses '
-                                   f'processor {first_proc}.')
-                        if last_proc <= max_proc:
-                            eprint(f'Layer {ll}: In `in_sequences` {in_sequences[ll]}, '
-                                   'an earlier layer in the sequence uses a higher last '
-                                   f'processor ({max_proc}) than layer {lt} which uses '
-                                   f'processor {last_proc}.')
-                        min_proc = first_proc
-                        max_proc = last_proc
+                    if write_gap[ll] == 0:
+                        min_proc = -1
+                        max_proc = -1
+                        for _, lt in enumerate(in_sequences[ll]):
+                            first_proc = ffs(output_processor_map[lt])
+                            last_proc = fls(output_processor_map[lt])
+                            if first_proc <= min_proc:
+                                eprint(f'Layer {ll}: In `in_sequences` {in_sequences[ll]}, '
+                                       'an earlier layer in the sequence uses a higher first '
+                                       f'processor ({min_proc}) than layer {lt} which uses '
+                                       f'processor {first_proc}.')
+                            if last_proc <= max_proc:
+                                eprint(f'Layer {ll}: In `in_sequences` {in_sequences[ll]}, '
+                                       'an earlier layer in the sequence uses a higher last '
+                                       f'processor ({max_proc}) than layer {lt} which uses '
+                                       f'processor {last_proc}.')
+                            min_proc = first_proc
+                            max_proc = last_proc
                 else:  # eltwise
                     eltwise_proc_map = 0
                     for _, lt in enumerate(in_sequences[ll]):
@@ -569,7 +570,7 @@ class Backend(backend.Backend):
         if not block_mode and (embedded_code or compact_data):
             sampledata_header = \
                 open(os.path.join(base_directory, test_name, state.sample_filename), mode='w')
-            if state.generate_kat and state.result_filename.lower() != 'none':
+            if embedded_code and state.generate_kat and state.result_filename.lower() != 'none':
                 sampleoutput_header = \
                     open(os.path.join(base_directory, test_name, state.result_filename), mode='w')
             else:
@@ -1211,43 +1212,47 @@ class Backend(backend.Backend):
                     for _, group in enumerate(groups_used):
                         apb.output(f'  // Layer {r * layers + ll} group {group}\n', embedded_code)
 
-                        if hasattr(tc.dev, 'LREG_NXTLYR'):
-                            val = 0
-                            if link_layer:
-                                if ll != final_layer:
-                                    val = 1 << 7 | (ll + 1)
-                                else:
-                                    val = 1 << 8  # Stop
+                        val = 0
+                        if link_layer:
+                            if ll != final_layer:
+                                val = 1 << 7 | (ll + 1)
                             else:
-                                lt = next_sequence[ll]
-                                if lt == -1:
-                                    if ll != layers - 1:  # Don't set stop bit unless required
-                                        val = 1 << 8
-                                elif lt != ll + 1:
-                                    val = 1 << 7 | lt
-                                elif snoop_sequence[ll] is not None:
-                                    lt = snoop_sequence[ll]
-                                    assert lt >= 0
-                                    val = 1 << 7 | lt
-                                if lt != -1:
-                                    if in_sequences[lt] is not None and ll in in_sequences[lt] \
-                                       and operands[lt] == 1:
-                                        if in_offset[lt] != out_offset[ll]:
-                                            wprint(f'Layer {ll}: The input offset of the next '
-                                                   f'sequence (layer {lt}, 0x{in_offset[lt]:04x}) '
-                                                   "does not match the current layer's output "
-                                                   f'offset (0x{out_offset[ll]:04x}).')
-                                        if input_chan[lt] != output_chan[ll] \
-                                           * len(in_sequences[lt]) \
-                                           or input_dim[lt] != output_dim[ll]:
-                                            wprint(f'Layer {ll}: The input dimensions of the next '
-                                                   f'sequence (layer {lt}, '
-                                                   f'{len(in_sequences[lt])} inputs, '
-                                                   f'{input_chan[lt]}x{input_dim_str[lt]}) do '
-                                                   "not match the current layer's output "
-                                                   "dimensions "
-                                                   f'({output_chan[ll]}x{output_dim_str[ll]}).')
+                                val = 1 << 8  # Stop
+                        else:
+                            lt = next_sequence[ll]
+                            if lt == -1:
+                                if ll != layers - 1:  # Don't set stop bit unless required
+                                    val = 1 << 8
+                            elif lt != ll + 1:
+                                val = 1 << 7 | lt
+                            elif snoop_sequence[ll] is not None:
+                                lt = snoop_sequence[ll]
+                                assert lt >= 0
+                                val = 1 << 7 | lt
+                            if lt != -1:
+                                if in_sequences[lt] is not None and ll in in_sequences[lt] \
+                                   and operands[lt] == 1:
+                                    ll_index = in_sequences[lt].index(ll)
+                                    ll_offset = out_offset[ll] - ll_index * write_gap[ll] * 4
+                                    if in_offset[lt] != ll_offset:
+                                        wprint(f'Layer {ll}: The input offset of the next '
+                                               f'sequence (layer {lt}, 0x{in_offset[lt]:04x}) '
+                                               "does not match the current layer's output "
+                                               f'(offset 0x{out_offset[ll]:04x} - write gap '
+                                               f'{write_gap[ll]} * sequence position '
+                                               f'{ll_index} * 4 = 0x{ll_offset:04x}).')
+                                    if input_chan[lt] != output_chan[ll] \
+                                       * len(in_sequences[lt]) \
+                                       or input_dim[lt] != output_dim[ll]:
+                                        wprint(f'Layer {ll}: The input dimensions of the next '
+                                               f'sequence (layer {lt}, '
+                                               f'{len(in_sequences[lt])} inputs, '
+                                               f'{input_chan[lt]}x{input_dim_str[lt]}) do '
+                                               "not match the current layer's output "
+                                               "dimensions "
+                                               f'({output_chan[ll]}x{output_dim_str[ll]}).')
 
+                        if hasattr(tc.dev, 'LREG_NXTLYR'):
                             apb.write_lreg(group, r * layers + ll, tc.dev.LREG_NXTLYR, val,
                                            comment=' // Next Layer')
 
@@ -2751,6 +2756,7 @@ class Backend(backend.Backend):
                 test_name,
                 timeout,
                 riscv=riscv,
+                groups_used=groups_used,
             )
             assets.copy('assets', 'rtlsim-ai' + str(device), base_directory, test_name)
             if riscv_cache:
