@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_June 29, 2021_
+_June 30, 2021_
 
 The Maxim Integrated AI project is comprised of five repositories:
 
@@ -225,8 +225,8 @@ Change to the project root and run the following commands. Use your GitHub crede
 
 ```shell
 $ cd $AI_PROJECT_ROOT
-$ git clone https://github.com/MaximIntegratedAI/ai8x-training.git
-$ git clone https://github.com/MaximIntegratedAI/ai8x-synthesis.git
+$ git clone --recursive https://github.com/MaximIntegratedAI/ai8x-training.git
+$ git clone --recursive https://github.com/MaximIntegratedAI/ai8x-synthesis.git
 ```
 
 #### Creating the Virtual Environment
@@ -245,7 +245,6 @@ $ git checkout develop  # optional
 Then continue with the following:
 
 ```shell
-$ git submodule update --init
 $ pyenv local 3.8.10
 $ python3 -m venv .
 $ source bin/activate
@@ -368,7 +367,6 @@ $ git checkout develop  # optional
 Then continue:
 
 ```shell
-$ git submodule update --init
 $ pyenv local 3.8.10
 $ python3 -m venv .
 $ source bin/activate
