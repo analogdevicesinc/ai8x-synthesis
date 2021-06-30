@@ -268,10 +268,23 @@ class Backend(backend.Backend):
             eprint('Streaming in the first layer requires use of a FIFO.')
         if any(streaming) and start_layer != 0:
             eprint('`--start_layer` must be 0 when using streaming.')
+
         for ll in range(min(tc.dev.MAX_STREAM_LAYERS, layers)):
             if next_sequence[ll] != -1 and next_sequence[ll] != ll + 1 and streaming[ll]:
                 eprint(f'`next_sequence` must be {ll+1} when using streaming in layer {ll}. '
                        f'Currently configured: {next_sequence[ll]}')
+
+            if tc.dev.EMULATE_1X1_STREAMING and streaming[ll] and kernel_size[ll] == [1, 1]:
+                wprint(f'Layer {ll}: Using 3x3 kernels to emulate 1x1 streaming layer')
+                # Create 3x3 weights from 1x1 weights and emulate using 3x3 kernels
+                weight33 = np.zeros((kernel[ll].shape[0], 3, 3), dtype=np.int64)
+                weight33[:, 1, 1] = kernel[ll][:, 0, 0]
+                kernel[ll] = weight33
+                assert padding[ll] == [0, 0]
+                padding[ll] = [1, 1]
+                effective_pad[ll] = [1, 1]
+                kernel_size[ll][0] = kernel_size[ll][1] = 3
+
             if not tc.dev.SUPPORT_STREAM_NONPAD_FINAL and streaming[ll] \
                and (next_sequence[ll] == -1 or not streaming[next_sequence[ll]]) \
                and (padding[ll][0] == 0 or padding[ll][1] == 0):
