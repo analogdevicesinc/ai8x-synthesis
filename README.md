@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_June 30, 2021_
+_July 1, 2021_
 
 The Maxim Integrated AI project is comprised of five repositories:
 
@@ -412,7 +412,7 @@ if [ $? -eq 1 ] ; then
 fi
 ```
 
-The debugger requires OpenOCD. On Windows, an OpenOCD executable is installed with the SDK. On macOS and Linux, the OpenOCD fork from [https://github.com/MaximIntegratedMicros/openocd.git](https://github.com/MaximIntegratedMicros/openocd.git) must be used. An x86_64 Ubuntu Linux binary is available at https://github.com/MaximIntegratedAI/MAX78000_SDK/blob/master/Tools/OpenOCD/openocd. *Note: A copy of the configuration files and a `run-openocd-maxdap` script are contained in the `hardware` folder of the `ai8x-synthesis` project.*
+The debugger requires OpenOCD. On Windows, an OpenOCD executable is installed with the SDK. On macOS and Linux, scripts and binaries are provided in the `openocd` folder of the `ai8x-synthesis` project, see [openocd/Readme.md](openocd/Readme.md).
 
 `gen-demos-max78000.sh` will create code that is compatible with the SDK and copy it into the SDK’s Example directories.
 

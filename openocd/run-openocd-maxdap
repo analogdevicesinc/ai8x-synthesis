@@ -1,0 +1,12 @@
+#!/bin/sh
+ARCH=$(uname -m)
+OS=$(uname -s)
+EXEC="bin/${OS}_${ARCH}/openocd"
+
+if [ ! -x "${EXEC}" ]
+then
+    echo "No pre-built binary for $OS on $DARWIN ($EXEC)!"
+    exit 1
+fi
+
+${EXEC} -f interface/cmsis-dap.cfg -f max78000.cfg -s tcl "$@"
