@@ -1,5 +1,5 @@
 #!/bin/sh
-ln -s ../../../CMSIS_5/CMSIS .
+ln -s ../../../../CMSIS_5/CMSIS .
 # ln -s CMSIS/NN/Source/ConvolutionFunctions/arm_convolve_HWC_q7_basic_nonsquare.c .
 # ln -s CMSIS/NN/Source/ConvolutionFunctions/arm_convolve_HWC_q7_basic.c .
 # ln -s CMSIS/NN/Source/ConvolutionFunctions/arm_convolve_HWC_q7_fast.c .
