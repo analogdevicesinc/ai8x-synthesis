@@ -1,11 +1,16 @@
-#!/bin/sh
-ARCH=$(uname -m)
+#!/bin/bash
 OS=$(uname -s)
-EXEC="bin/${OS}_${ARCH}/openocd"
+
+if [ -z "${HOSTTYPE}" ]
+then
+    HOSTTYPE=$(uname -m)
+fi
+
+EXEC="bin/${OS}_${HOSTTYPE}/openocd"
 
 if [ ! -x "${EXEC}" ]
 then
-    echo "No pre-built binary for $OS on $DARWIN ($EXEC)!"
+    echo "No pre-built binary for $OS on $HOSTTYPE ($EXEC)!"
     exit 1
 fi
 
