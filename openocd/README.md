@@ -1,6 +1,6 @@
 # Pre-built OpenOCD
 
-For your convenience, this folder contains the files and binaries needed to run OpenOCD for MAX78000 on macOS Catalina/Big Sur and on Ubuntu Linux 20.04 LTS, as well as 64-bit Raspberry Pi OS 10 “Buster”.
+For your convenience, this folder contains the files and binaries needed to run OpenOCD for MAX78000 on macOS Catalina/Big Sur and on Ubuntu Linux 20.04 LTS, as well as 32-bit and 64-bit Raspberry Pi OS 10 “Buster”.
 
 
 
@@ -8,11 +8,15 @@ For your convenience, this folder contains the files and binaries needed to run 
 
 The `run-openocd-maxdap` and `run-openocd-olimex` scripts automatically select an appropriate binary and run OpenOCD with all arguments required for MAX78000.
 
+##### Linux
+
 On Linux, several packages are required:
 
 ```shell
 $ sudo apt-get install libusb-1.0 libusb-0.1 libhidapi-libusb0 libhidapi-hidraw0
 ```
+
+##### macOS
 
 On macOS, both the command line developer tools and Homebrew must be installed. Follow the instructions to set up your shell.
 
