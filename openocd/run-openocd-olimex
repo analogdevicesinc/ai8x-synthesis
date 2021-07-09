@@ -1,0 +1,17 @@
+#!/bin/bash
+OS=$(uname -s)
+
+if [ -z "${HOSTTYPE}" ]
+then
+    HOSTTYPE=$(uname -m)
+fi
+
+EXEC="bin/${OS}_${HOSTTYPE}/openocd"
+
+if [ ! -x "${EXEC}" ]
+then
+    echo "No pre-built binary for $OS on $HOSTTYPE ($EXEC)!"
+    exit 1
+fi
+
+${EXEC} -f interface/ftdi/olimex-arm-usb-ocd-h.cfg -f interface/ftdi/olimex-arm-jtag-swd.cfg -f max78000.cfg -s tcl "$@"
