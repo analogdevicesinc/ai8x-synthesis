@@ -46,8 +46,10 @@ matches = 0
 
 # Go through all the files in 'data-expected' and read them. For each, make sure there is a
 # corresponding file in 'data-output'. Open that file and make sure that the information matches.
-for _, _, fnames in sorted(os.walk('data-expected')):
+for _, _, fnames in sorted(os.walk('data-expected')):  # type: ignore
     for fname in sorted(fnames):
+        if not fname.startswith('DRAM_'):
+            continue
         outname = fname.replace('DRAM_', 'DRAM_out_')
         if not os.path.isfile(os.path.join('data-output', outname)):
             log.error('data-output/%s does not exist!', outname)
@@ -66,23 +68,23 @@ for _, _, fnames in sorted(os.walk('data-expected')):
                 sys.exit(-3)
 
             try:
-                addr = int(addr[1:], base=16)
+                addr = int(addr[1:], base=16)  # type: ignore
                 val = val.strip().lower()
                 mask = ''
-                for _, m in enumerate(val):
+                for _, m in enumerate(val):  # type: ignore
                     mask += '0' if m == 'x' else 'f'
-                mask = int(mask, base=16)
-                val = int(val.replace('x', '0'), base=16)
+                mask = int(mask, base=16)  # type: ignore
+                val = int(val.replace('x', '0'), base=16)  # type: ignore
             except ValueError:
                 log.error('Malformed line %s in file data-expected/%s!', e.strip(), fname)
                 sys.exit(-3)
 
-            if addr > len(data):
+            if addr > len(data):  # type: ignore
                 log.error('Address from %s not present in file data-output/%s!',
                           e.strip(), outname)
                 failures += 1
             else:
-                result = data[addr].strip().lower()
+                result = data[addr].strip().lower()  # type: ignore
                 if result == 'x' * len(result):
                     log.error('Output is %s at address %04x in file data-output/%s!',
                               result, addr, outname)
@@ -93,11 +95,14 @@ for _, _, fnames in sorted(os.walk('data-expected')):
                         resultf = int(result.replace('x', 'f'), base=16)
                     except ValueError:
                         log.error('Malformed line %04x: %s in file data-output/%s!',
-                                  addr, data[addr].strip(), fname)
+                                  addr, data[addr].strip(), fname)  # type: ignore
                         sys.exit(-3)
 
                     log.debug('Found address %04x, val %08x, comp %s', addr, val, result)
-                    if result0 & mask != val & mask or resultf & mask != val & mask:
+                    if (
+                        result0 & mask != val & mask  # type: ignore
+                        or resultf & mask != val & mask  # type: ignore
+                       ):
                         log.error('Data mismatch at address %04x in file data-output/%s. '
                                   'Expected: %08x, got %s (mask %08x)!',
                                   addr, outname, val, result, mask)

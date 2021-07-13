@@ -1,7 +1,7 @@
 [MESSAGES CONTROL]
-disable=invalid-name,fixme,import-error
+disable=invalid-name, consider-using-with, fixme, import-error
 [TYPECHECK]
-ignored-modules = numpy, matplotlib.cm, torch, distiller
+ignored-modules = numpy, matplotlib.cm, torch
 ignored-classes = ModelProto
 [FORMAT]
 max-line-length = 99
@@ -18,4 +18,4 @@ max-public-methods=35
 max-bool-expr=8
 max-parents=15
 [MASTER]
-ignore=CMSIS_5,distiller,sdk
+ignore=CMSIS_5,sdk

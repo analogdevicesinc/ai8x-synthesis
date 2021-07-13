@@ -7,23 +7,25 @@
 """
 Unload AI8X HWC memory into standard representation.
 """
-from . import toplevel
+import os
+from typing import List, TextIO
+
+import numpy as np
+
+from . import state, toplevel
 from . import tornadocnn as tc
 from .eprint import eprint, wprint
 from .utils import ffs, popcount
 
 
 def unload(
-        memfile,
-        apb_base,
-        processor_map,
-        input_shape,
-        out_offset,
-        out_expand,
-        out_expand_thresh,
-        output_width=8,
-        mlator=False,
-        blocklevel=False,
+        memfile: TextIO,
+        processor_map: int,
+        input_shape: List[int],
+        out_offset: int,
+        out_expand: int,
+        out_expand_thresh: int,
+        output_width: int = 8,
 ):
     """
     Unload HWC memory from hardware, writing C code to the `memfile` handle.
@@ -34,19 +36,50 @@ def unload(
     When `mlator` is set, use the hardware mechanism to rearrange 4-channel data into single
     channels.
     """
-    assert not blocklevel or not mlator
+    assert tc.dev is not None
+
+    # Cache for faster access
+    apb_base = state.apb_base
+    mlator = state.mlator
+    mlator_chunk = state.mlator_chunk if state.embedded_code else 1
+    narrow_chunk = state.narrow_chunk if state.embedded_code else 0
+    wide_chunk = state.wide_chunk if state.embedded_code else 0
+
+    assert not state.block_mode or not mlator
+
+    if not mlator and output_width == 8 and state.embedded_code \
+       and input_shape[1] * input_shape[2] % 4 == 0:
+        wprint('Use --mlator to optimize cnn_unload() for 8-bit output values.')
+
+    if mlator and output_width != 8:
+        wprint('ignoring --mlator for 32-bit output.')
+        mlator = False
+
+    if mlator and input_shape[0] > 1 and input_shape[1] * input_shape[2] % 4 != 0:
+        wprint(f'ignoring --mlator for {input_shape[1]}x{input_shape[2]} frame size '
+               f'({input_shape[1] * input_shape[2]} bytes) that is not divisible by 4')
+        mlator = False
 
     memfile.write('// Custom unload for this network: '
                   f'{output_width}-bit data, shape: {input_shape}\n')
     toplevel.function_header(memfile, function='unload',
                              arguments=f'uint32_t *out_buf{"32" if output_width != 32 else ""}')
-    memfile.write('  volatile uint32_t *addr;\n')
+    if not mlator:
+        memfile.write('  volatile uint32_t *addr;\n')
+    else:
+        memfile.write('  volatile uint32_t *mlat, *ctrl;\n')
+        if mlator_chunk > 1:
+            memfile.write('  int i;\n')
     if output_width != 32:
-        memfile.write(f'  uint{output_width}_t *out_buf = (uint{output_width}_t *) out_buf32;\n')
-        if input_shape[1] * input_shape[2] == 1:
-            memfile.write('  uint32_t val;\n\n')
-        else:
-            memfile.write('  uint32_t val, offs;\n\n')
+        if not mlator:
+            memfile.write(f'  uint{output_width}_t *out_buf = (uint{output_width}_t *) '
+                          'out_buf32;\n')
+            if input_shape[1] * input_shape[2] == 1:
+                memfile.write('  uint32_t val;\n')
+            else:
+                memfile.write('  uint32_t val, offs;\n')
+        elif input_shape[1] * input_shape[2] != 1:
+            memfile.write('  uint32_t offs;\n\n')
 
     coffs_start = ffs(processor_map) & ~(tc.dev.P_SHARED-1)
     coffs = coffs_start
@@ -61,6 +94,8 @@ def unload(
     read_addr = None
     write_addr = None
     mlat_addr = None
+    emit_list = []
+    need_i = False
     c = 0
     while c < input_shape[0]:
         if c % out_expand_thresh == 0:
@@ -70,72 +105,72 @@ def unload(
         expand = c // out_expand_thresh  # Channels 64+ handled by processors 0+
         proc = poffs & ~(tc.dev.P_SHARED-1)
 
-        if not mlator or out_size > 1:
+        if not mlator:
             for doffs in range(input_shape[1] * input_shape[2]):
                 row, col = divmod(doffs, input_shape[2])
                 this_map = next_layer_map
                 this_c = c
 
-                # Get four bytes from memory array
+                # Source
                 offs = out_offset + \
                     (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
-                      (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
-                     doffs * width + expand * out_size) * 4
+                        (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
+                        doffs * width + expand * out_size) * 4
 
-                if offs != read_addr:
-                    memfile.write('  addr = (volatile uint32_t *) '
-                                  f'0x{apb_base + tc.dev.C_SRAM_BASE + offs:08x};\n')
-                if out_size != 4:
-                    memfile.write('  val = *addr++;\n')
-                    read_addr = offs + 4
-                else:
-                    read_addr = offs
-
-                # Singulate bytes, ignoring unused processors
                 for shift in range(4):
-                    addr = this_c * input_shape[1] * input_shape[2] + row * input_shape[1] + col
-                    if (shift == 0 or out_size > 1) \
-                       and out_size != 4 and input_shape[1] * input_shape[2] != 1:
-                        if addr != write_addr:
-                            memfile.write(f'  offs = 0x{addr:04x};\n')
-                        else:
-                            memfile.write('  offs++;\n')
-                        write_addr = addr + 1
                     if this_map & 1:
-                        if out_size != 4:
-                            if input_shape[1] * input_shape[2] != 1:
-                                memfile.write('  out_buf[offs')
-                                if shift > 0:
-                                    memfile.write(f'+0x{0x10 * shift:02x}')
-                                memfile.write('] = ')
-                            else:
-                                memfile.write('  *out_buf++ = ')
-                            if shift == 0:
-                                memfile.write('val')
-                            else:
-                                memfile.write(f'(val >> {shift * 8})')
-                            if out_size == 1:
-                                memfile.write(' & 0xff;\n')
-                            else:
-                                memfile.write(';\n')
-                        else:  # out_size == 4
-                            memfile.write('  *out_buf++ = *addr++;\n')
-                            write_addr = addr + 4
-                            read_addr += 4
-
+                        if out_size == 4:
+                            emit_list.append(offs)
+                            offs += 4
+                        else:  # out_size == 1
+                            emit_list.append((offs, shift))
                         this_c += 1
                     this_map >>= 1
         else:  # mlator
+            def mlator_write_one(
+                    prefix: str = '',
+                    comment: str = '',
+            ) -> None:
+                """
+                Print a single mlator unload line
+                """
+                memfile.write(f'{prefix}  out_buf{"32" if out_size != 32 else ""}'
+                              f'[offs++] = *mlat;{comment}\n')
+
+            def mlator_loop(
+                    num: int = 1,
+            ) -> None:
+                """
+                Print multiple mlator unload lines using a partially unrolled loop
+                """
+                if mlator_chunk == 1:
+                    return
+
+                # Gather several statements in a partially unrolled loop. The for() statement is
+                # only useful when the for loop runs at least twice.
+                if num >= 2 * mlator_chunk:
+                    memfile.write(f'  for (i = 0; i < {num // mlator_chunk}; i++) {{\n')
+                    for _ in range(mlator_chunk):
+                        mlator_write_one('  ', '')
+                    memfile.write('  }\n')
+                    num = num % mlator_chunk
+
+                # Emit single lines for all remaining statements
+                while num > 0:
+                    mlator_write_one('', '')
+                    num -= 1
+
             assert out_size == 1
             this_map = next_layer_map
-            mlat = tc.ctl_addr(proc // tc.dev.P_NUMPRO, tc.dev.REG_MLAT)
-            ctrl = tc.ctl_addr(proc // tc.dev.P_NUMPRO, tc.dev.REG_CTL)
+            mlat = apb_base + tc.ctl_addr(proc // tc.dev.P_NUMPRO, tc.dev.REG_MLAT)
+            ctrl = apb_base + tc.ctl_addr(proc // tc.dev.P_NUMPRO, tc.dev.REG_CTL)
             if mlat_addr != mlat:
                 mlat_addr = mlat
                 memfile.write(f'  ctrl = (volatile uint32_t *) 0x{ctrl:08x};\n')
                 memfile.write(f'  mlat = (volatile uint32_t *) 0x{mlat:08x};\n')
 
             this_c = c
+            loop_count = 0
             for shift in range(4):
                 if this_map & 1:
                     memfile.write(f'  // Channel {this_c}\n')
@@ -155,15 +190,20 @@ def unload(
                         if target != write_addr:
                             memfile.write(f'  offs = 0x{target >> 2:04x};\n')
                         if source != read_addr:
+                            if loop_count > 0:
+                                mlator_loop(loop_count)
+                                loop_count = 0
                             if doffs != 0:
                                 memfile.write(f'  *ctrl = 0x{tc.dev.READY_SEL << 1 | 1 << 3:08x}; '
                                               '// Disable mlator\n')
                             # Set wptr to start address
-                            val = tc.lreg_addr(proc // tc.dev.P_NUMPRO, tc.dev.LREG_WPTR_BASE)
+                            val = apb_base + tc.lreg_addr(proc // tc.dev.P_NUMPRO,
+                                                          tc.dev.LREG_WPTR_BASE)
                             memfile.write(f'  *((volatile uint32_t *) 0x{val:08x}) = '
                                           f'0x{doffs:08x}; // Set SRAM address\n')
                             # Set wptr_inc to set increment value (default: 1)
-                            val = tc.lreg_addr(proc // tc.dev.P_NUMPRO, tc.dev.LREG_LCTL2)
+                            val = apb_base + tc.lreg_addr(proc // tc.dev.P_NUMPRO,
+                                                          tc.dev.LREG_LCTL2)
                             memfile.write(f'  *((volatile uint32_t *) 0x{val:08x}) = '
                                           f'0x{expand:08x}; // Set pointer increment\n')
                             # Set mlatorld enable bit to load write ptr; select byte 0..3
@@ -175,11 +215,15 @@ def unload(
                                           ' // Prime\n')
 
                         # FIXME: Do not write more than `num_bytes = min(4, input_shape[2] - col)`
-                        memfile.write(f'  out_buf{"32" if out_size != 32 else ""}[offs++] = *mlat;'
-                                      f' // {this_c},{row},{col}-{col+3}\n')
+                        if mlator_chunk == 1:
+                            mlator_write_one('', f' // {this_c},{row},{col}-{col+3}')
+                        loop_count += 1
                         read_addr = source + 4
                         write_addr = target + 4
 
+                    if loop_count > 0:
+                        mlator_loop(loop_count)
+                        loop_count = 0
                     # Disable mlator
                     memfile.write(f'  *ctrl = 0x{tc.dev.READY_SEL << 1 | 1 << 3:08x}; '
                                   '// Disable mlator\n')
@@ -192,6 +236,128 @@ def unload(
         c += popcount(next_layer_map & 0x0f)
         next_layer_map >>= 4
 
+    out_text = ''
+    if len(emit_list) > 0:
+        xy_dim = input_shape[1] * input_shape[2]
+        if out_size == 4:
+            idx = 0
+            chunk = max(1, wide_chunk)
+            while idx < len(emit_list):
+                # Collect runs of same-delta sources
+                run = 0
+                if idx + 1 < len(emit_list):
+                    delta_r = emit_list[idx + 1] - emit_list[idx]
+                    assert delta_r % 4 == 0
+                else:
+                    delta_r = 4
+                while (idx + run + 1 < len(emit_list)
+                       and emit_list[run + 1] - emit_list[run] == delta_r):
+                    run += 1
+
+                # Output as a loop
+                out_text += '  addr = (volatile uint32_t *) ' \
+                            f'0x{apb_base + tc.dev.C_SRAM_BASE + emit_list[idx]:08x};\n'
+
+                remaining = run + 1
+                while remaining > 0:
+                    loop_runs = max(
+                        1,
+                        remaining // chunk if wide_chunk > 0 else 1,
+                    )
+                    if loop_runs > 1:
+                        need_i = True
+                        out_text += f'  for (i = 0; i < {loop_runs}; i++) {{\n'
+                        prefix = '  '
+                    else:
+                        prefix = ''
+                    for _ in range(min(remaining, chunk)):
+                        if delta_r == 4:
+                            out_text += f'{prefix}  *out_buf++ = *addr++;\n'
+                        else:
+                            out_text += f'{prefix}  *out_buf++ = *addr;\n' \
+                                        f'{prefix}  addr += 0x{delta_r // 4:04x};\n'
+                    if loop_runs > 1:
+                        out_text += '  }\n'
+                    remaining -= loop_runs * chunk
+                idx += run + 1
+        else:  # out_size == 1
+            idx = 0
+            short_write = xy_dim == 1
+            chunk = max(1, narrow_chunk)
+            if not short_write:
+                out_text += '  offs = 0x0000;\n'
+            while idx < len(emit_list):
+                # Find how many have the same r/w addresses with different shift,
+                # then how many the same deltas between rs and ws with the same set of shifts.
+                shift_list = []
+                shift_count = 0
+                read_addr = emit_list[idx][0]
+                while (idx + shift_count < len(emit_list)
+                       and emit_list[idx + shift_count][0] == read_addr):
+                    shift_list.append(emit_list[idx + shift_count][1])
+                    shift_count += 1
+                run = 0
+                if idx + shift_count < len(emit_list):
+                    delta_r = emit_list[idx + shift_count][0] - emit_list[idx][0]
+                    assert delta_r % 4 == 0
+                else:
+                    # delta_w = 1
+                    delta_r = 4
+                while (idx + shift_count * (run + 1) < len(emit_list)
+                       and emit_list[idx + shift_count * (run + 1)][0]
+                       - emit_list[idx + shift_count * run][0] == delta_r):
+                    run += 1
+
+                # Output as a loop
+                out_text += '  addr = (volatile uint32_t *) ' \
+                            f'0x{apb_base + tc.dev.C_SRAM_BASE + read_addr:08x};\n'
+
+                remaining = run + 1
+                while remaining > 0:
+                    loop_runs = max(
+                        1,
+                        remaining // chunk if narrow_chunk > 0 else 1,
+                    )
+                    if loop_runs > 1:
+                        need_i = True
+                        out_text += f'  for (i = 0; i < {loop_runs}; i++) {{\n'
+                        prefix = '  '
+                    else:
+                        prefix = ''
+                    for _ in range(min(remaining, chunk)):
+                        if delta_r == 4:
+                            out_text += f'{prefix}  val = *addr++;\n'
+                        else:
+                            out_text += f'{prefix}  val = *addr;\n' \
+                                        f'{prefix}  addr += 0x{delta_r // 4:04x};\n'
+                        for _, shift in enumerate(shift_list):
+                            if not short_write:
+                                out_text += f'{prefix}  out_buf[offs'
+                                if shift > 0:
+                                    out_text += f'+0x{xy_dim * shift:02x}'
+                                out_text += '] = '
+                            else:
+                                out_text += f'{prefix}  *out_buf++ = '
+                            if shift == 0:
+                                out_text += 'val'
+                            else:
+                                out_text += f'(val >> {shift * 8})'
+                            out_text += ' & 0xff;\n'
+
+                        if not short_write:
+                            out_text += f'{prefix}  offs++;\n'
+                    if loop_runs > 1:
+                        out_text += '  }\n'
+                    remaining -= loop_runs * chunk
+
+                idx += (run + 1) * shift_count
+                if not short_write and idx < len(emit_list) and shift_count > 1:
+                    out_text += f'  offs += 0x{xy_dim * (shift_count - 1):04x};\n'
+    if need_i:
+        memfile.write('  int i;\n')
+    if out_text != '':
+        memfile.write('\n')
+        memfile.write(out_text)
     toplevel.function_footer(memfile)  # unload()
 
 
@@ -208,13 +374,12 @@ def verify(
         out_expand_thresh,
         output_width=8,
         overwrite_ok=False,
-        no_error_stop=False,
         mlator=False,
-        apb_base=0,
         stream=None,
-        max_count=None,
         write_gap=0,
         final_layer=0,
+        embedded=False,
+        test_name=None,
 ):
     """
     Verify HWC memory from AI8X, writing C or mem code using the `verify_fn` function.
@@ -227,6 +392,24 @@ def verify(
     When `mlator` is set, use the hardware mechanism to rearrange 4-channel data into single
     channels.
     """
+    # Cache for faster access
+    apb_base = state.apb_base
+    max_count = state.max_count
+    no_error_stop = state.no_error_stop
+
+    if state.result_numpy is not None:
+        # Also save as a NumPy pickle
+        np.save(os.path.join(state.base_directory, test_name, state.result_numpy),
+                out_buf, allow_pickle=False, fix_imports=False)
+
+    if embedded:
+        # check_output() does not use mlator for embedded code (it is used for cnn_unload(),
+        # and for RTL sims)
+        mlator = False
+    if mlator and output_width != 8:
+        wprint('ignoring --mlator for 32-bit output.')
+        mlator = False
+
     count = 0
 
     def check_overwrite(
@@ -269,10 +452,7 @@ def verify(
     out_size = output_width // 8
     width = out_expand * out_size
 
-    if not mlator or out_size > 1:
-        if mlator:
-            wprint('ignoring --mlator for 32-bit output.')
-
+    if not mlator:
         for doffs in range(input_shape[1] * input_shape[2]):
             row, col = divmod(doffs, input_shape[2])
             this_map = next_layer_map

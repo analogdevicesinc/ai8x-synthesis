@@ -9,6 +9,7 @@ Bias related functions
 """
 import numpy as np
 
+from . import state
 from . import tornadocnn as tc
 from .eprint import eprint, wprint
 from .utils import argmin, ffs, fls, popcount
@@ -17,10 +18,8 @@ _INVALID_VALUE = -(2**63)
 
 
 def load(
-        verbose,  # pylint: disable=unused-argument
         embedded_code,
         apb,
-        start_layer,
         layers,
         bias,
         group_map,
@@ -33,9 +32,6 @@ def load(
         output_processor_map,
         out_expand,
         groups_used,
-        fast_fifo_quad=False,
-        calcx4=None,
-        debug=False,  # pylint: disable=unused-argument
 ):
     """
     Write `bias` values for the network to C code.
@@ -43,6 +39,10 @@ def load(
     # Bias: Each group has one bias memory (size BIAS_SIZE bytes). Use only the bias memory in
     # one selected group for the layer, and only if the layer uses a bias. Keep track of the
     # offsets so they can be programmed into the mask count register later.
+
+    # Cache for faster access
+    calcx4 = state.calcx4
+    start_layer = state.first_layer_used
 
     if embedded_code:
         bias_values = np.zeros((tc.dev.P_NUMGROUPS, tc.dev.BIAS_SIZE), dtype=np.int64)
@@ -69,7 +69,7 @@ def load(
         if not np.any(bias[ll] != 0):
             wprint(f'Layer {ll}: All bias values are zero. Ignoring the input.')
             continue
-        if conv_groups[ll] == 1 and not (fast_fifo_quad and ll == start_layer):
+        if conv_groups[ll] == 1 and not (state.fast_fifo_quad and ll == start_layer):
             # For regular convolutions, collect length data
             # Round up the divided length of bias values
             bias_len[ll] = output_chan[ll] \
@@ -90,7 +90,7 @@ def load(
             """
             assert 0 <= group < tc.dev.P_NUMGROUPS_ALL
             if group_bias_max[group] >= tc.dev.BIAS_SIZE:
-                eprint(f'Layer {layer}: bias memory capacity for group {group} exceeded, '
+                eprint(f'Layer {layer}: bias memory capacity for group {group} exhausted, '
                        f'used so far: {group_bias_max[group]}.')
 
             if val is not None and val != _INVALID_VALUE:  # else just consume the space
@@ -195,9 +195,10 @@ def load(
             group_bias_max[group] = (group_bias_max[group] + 3) & ~3  # Round up for x4 mode
 
         if group_bias_max[group] + blen > tc.dev.BIAS_SIZE:
-            eprint(f'Layer {ll}: bias memory capacity exceeded - available groups: '
-                   f'{gmap}, used so far: {group_bias_max}, needed: {blen}, '
-                   f'best available: group {group}.')
+            eprint(f'Layer {ll}: bias memory capacity exhausted - available groups: '
+                   f'{gmap}, used so far: {group_bias_max}, needed: {blen} bytes, '
+                   f'best available: group {group} with '
+                   f'{tc.dev.BIAS_SIZE - group_bias_max[group]} bytes available.')
         bias_group[ll] = group
         for i in range(tc.dev.P_NUMGROUPS):
             bias_offs[ll][i] = group_bias_max[group]
@@ -205,7 +206,7 @@ def load(
 
     for ll in range(start_layer, layers):
         if bias[ll] is None or group_map[ll] is None or conv_groups[ll] > 1 \
-           or not np.any(bias[ll] != 0) or fast_fifo_quad and ll == start_layer:
+           or not np.any(bias[ll] != 0) or state.fast_fifo_quad and ll == start_layer:
             continue
 
         # Round up the divided length of bias values
@@ -213,7 +214,7 @@ def load(
 
         if streaming[ll] and not tc.dev.SUPPORT_STREAM_BIAS:
             wprint(f'Layer {ll} uses streaming and a bias. '
-                   'THIS COMBINATION MIGHT NOT BE FUNCTIONING CORRECTLY!!!')
+                   'THIS COMBINATION MIGHT NOT FUNCTION CORRECTLY!!!')
 
         group = bias_group[ll]
 
@@ -261,7 +262,7 @@ def load(
             for group in range(tc.dev.P_NUMGROUPS):
                 if group_bias_max[group] == 0:
                     continue
-                addr = apb.apb_base + tc.dev.C_GROUP_OFFS*group + tc.dev.C_BRAM_BASE
+                addr = state.apb_base + tc.dev.C_GROUP_OFFS*group + tc.dev.C_BRAM_BASE
                 apb.output(f'  memcpy_8to32((uint32_t *) 0x{addr:08x}, bias_{group}, '
                            f'sizeof(uint8_t) * {group_bias_max[group]});\n', embedded_code)
         else:

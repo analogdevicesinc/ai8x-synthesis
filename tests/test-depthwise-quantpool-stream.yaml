@@ -33,4 +33,3 @@ layers:
   pool_stride: 1
   quantization: 2
   streaming: true
-

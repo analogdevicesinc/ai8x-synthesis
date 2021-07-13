@@ -28,4 +28,5 @@ jobs:
           VALIDATE_MARKDOWN: false
           VALIDATE_PYTHON_BLACK: false
           VALIDATE_JSCPD: false
+          VALIDATE_CPP: false
           FILTER_REGEX_EXCLUDE: attic/.*

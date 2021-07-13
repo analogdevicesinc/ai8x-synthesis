@@ -12,9 +12,10 @@ import sys
 import numpy as np
 import torch
 
-from . import op as opn
+# Do not import state - it is not set yet
+from . import op
 from . import tornadocnn as tc
-from .eprint import eprint
+from .eprint import eprint, wprint
 from .utils import fls
 
 
@@ -58,12 +59,16 @@ def load(
     checkpoint = torch.load(checkpoint_file, map_location='cpu')
     print(f'Reading {checkpoint_file} to configure network weights...')
 
-    if 'state_dict' not in checkpoint or 'arch' not in checkpoint:
-        raise RuntimeError("\nNo `state_dict` or `arch` in checkpoint file.")
-
-    if arch and checkpoint['arch'].lower() != arch.lower():
-        eprint(f"Network architecture of configuration file ({arch}) does not match "
-               f"network architecture of checkpoint file ({checkpoint['arch']}).")
+    if 'state_dict' not in checkpoint:
+        eprint("No `state_dict` in checkpoint file.")
+    if 'arch' not in checkpoint:
+        wprint("No `arch` in checkpoint file.")
+        checkpoint_arch = ''
+    else:
+        checkpoint_arch = checkpoint['arch']
+        if arch and checkpoint_arch.lower() != arch.lower():
+            eprint(f"Network architecture of configuration file ({arch}) does not match "
+                   f"network architecture of checkpoint file ({checkpoint_arch}).")
 
     checkpoint_state = checkpoint['state_dict']
     layers = 0
@@ -77,18 +82,26 @@ def load(
 
     for _, k in enumerate(checkpoint_state.keys()):
         # Skip over non-weight layers
-        while seq < len(operator) and (operator[seq] == opn.NONE or bypass[seq]):
+        while seq < len(operator) and (operator[seq] == op.NONE or bypass[seq]):
             seq += 1
 
-        operation, parameter = k.rsplit(sep='.', maxsplit=1)
+        param_levels = k.rsplit(sep='.', maxsplit=2)
+        if len(param_levels) == 3:
+            layer, this_op, parameter = param_levels[0], param_levels[1], param_levels[2]
+        elif len(param_levels) == 2:
+            layer, this_op, parameter = param_levels[0], None, param_levels[1]
+        else:
+            continue
+
         if parameter in ['weight']:
-            _, op = k.split(sep='.', maxsplit=1)
-            op = op.rsplit(sep='.', maxsplit=1)[0]
             if layers >= num_conv_layers or seq >= num_conv_layers:
                 continue
 
             w = checkpoint_state[k].numpy().astype(np.int64)
             w_min, w_max, w_abs = w.min(), w.max(), np.abs(w)
+
+            if np.all(w == 0):
+                wprint(f'All weights for `{k}` are zero.')
 
             # Determine quantization or make sure that what was given fits
             if quantization[seq] is not None:
@@ -98,7 +111,8 @@ def load(
                     assert w_min >= -(2**(quantization[seq]-1))
                     assert w_max < 2**(quantization[seq]-1)
             else:
-                if tc.dev.SUPPORT_BINARY_WEIGHTS and w_abs.min() == w_abs.max() == 1:
+                if tc.dev.SUPPORT_BINARY_WEIGHTS and w_abs.min() == w_abs.max() == 1 \
+                   and not np.any(w_abs == 0):
                     quantization[seq] = -1
                 else:
                     if w_max > 0:
@@ -109,20 +123,23 @@ def load(
                         w_min_m = int(w_min)
                     else:
                         w_min_m = int(abs(w_min)) - 1
-                    quantization[seq] = 1 << (fls(max(fls(w_max_m), fls(w_min_m)) + 1) + 1)
+                    if w_max_m > 0 or w_min_m > 0:
+                        quantization[seq] = 1 << (fls(max(fls(w_max_m), fls(w_min_m)) + 1) + 1)
+                    else:
+                        quantization[seq] = 1  # all weights zero
                 assert quantization[seq] <= 8
             quant.append(quantization[seq])
 
             weight_min.append(w_min)
             weight_max.append(w_max)
 
-            if operator[seq] == opn.CONVTRANSPOSE2D:
+            if operator[seq] == op.CONVTRANSPOSE2D:
                 # For ConvTranspose2d, flip the weights as follows:
                 w = np.flip(w, axis=(2, 3)).swapaxes(0, 1)
 
-            mult = conv_groups[seq] if operator[seq] != opn.CONVTRANSPOSE2D else 1
+            mult = conv_groups[seq] if operator[seq] != op.CONVTRANSPOSE2D else 1
             input_channels.append(w.shape[1] * mult)  # Input channels
-            mult = conv_groups[seq] if operator[seq] == opn.CONVTRANSPOSE2D else 1
+            mult = conv_groups[seq] if operator[seq] == op.CONVTRANSPOSE2D else 1
             output_channels.append(w.shape[0] * mult)  # Output channels
 
             if len(w.shape) == 2:  # MLP
@@ -160,11 +177,21 @@ def load(
             weight_keys.append(k)
 
             # Is there a bias for this layer?
-            bias_name = operation + '.bias'
+            bias_name = '.'.join([layer, 'bias']) if this_op is None \
+                else '.'.join([layer, this_op, 'bias'])
+            wb_name = '.'.join([layer, 'weight_bits'])
 
             if bias_name in checkpoint_state and seq not in no_bias:
-                w = checkpoint_state[bias_name].numpy(). \
-                    astype(np.int64) // tc.dev.BIAS_DIV
+                wb = checkpoint_state[wb_name].numpy().astype(np.int64) \
+                     if wb_name in checkpoint_state else 8
+                # Use floating point division and rounding to integer to deal with checkpoint
+                # files that are not properly quantized. The bias values in quantized checkpoints
+                # are multiples of 128, so there will be no rounding for those checkpoints.
+                w = np.floor((checkpoint_state[bias_name] / 2**(wb - 1)).numpy()). \
+                    astype(np.int64)
+
+                if np.all(w == 0):
+                    wprint(f'All bias values for `{bias_name}` are zero.')
 
                 w_min, w_max = w.min(), w.max()
                 assert w_min >= -(2**(bias_quantization[seq]-1))
@@ -193,7 +220,7 @@ def load(
 
             # Not overriding output_shift?
             if output_shift[seq] is None:
-                output_shift_name = operation.rsplit(sep='.', maxsplit=1)[0] + '.output_shift'
+                output_shift_name = '.'.join([layer, 'output_shift'])
                 # Is there an output_shift for this layer?
                 if output_shift_name in checkpoint_state:
                     w = checkpoint_state[output_shift_name].numpy().astype(np.int64)
@@ -210,7 +237,7 @@ def load(
             seq += 1
 
     if verbose:
-        print(f'Checkpoint for epoch {checkpoint["epoch"]}, model {checkpoint["arch"]} - '
+        print(f'Checkpoint for epoch {checkpoint["epoch"]}, model {checkpoint_arch} - '
               'weight and bias data:')
         print(' InCh OutCh  Weights         Quant Shift  Min  Max   Size '
               'Key                                 Bias       Quant  Min  Max Size Key')
@@ -233,7 +260,8 @@ def load(
                       f'{bias_shape:10} '
                       f'{bias_quant[ll]:5} {bias_min[ll]:4} {bias_max[ll]:4} {bias_size[ll]:4} '
                       f'{bias_keys[ll]:25}')
-        print(f'TOTAL: {layers} layers, {param_count:,} parameters, {param_size:,} bytes')
+        print(f'TOTAL: {layers} parameter layers, {param_count:,} parameters, '
+              f'{param_size:,} bytes')
 
     if error_exit:
         sys.exit(1)

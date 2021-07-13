@@ -22,4 +22,3 @@ layers:
   pad: 0
   groups: 63
   output_processors: 0x7fffffffffffffff
-

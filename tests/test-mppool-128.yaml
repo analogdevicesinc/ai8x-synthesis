@@ -15,4 +15,3 @@ layers:
   operation: None
   out_offset: 0x0000
   processors: 0xffffffffffffffff
-

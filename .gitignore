@@ -14,8 +14,7 @@
 /ninja-python-distributions
 /pip-selfcheck.json
 /pyvenv.cfg
-/rtldev/rtlsim-*/
-/rtldev/blocklevel-*/
+/rtldev/
 /share/
 /tensorflow/
 **/__pycache__/

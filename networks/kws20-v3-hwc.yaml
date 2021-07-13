@@ -68,4 +68,3 @@ layers:
   processors: 0xffffffffffffffff
   operation: MLP
   output_width: 32
-

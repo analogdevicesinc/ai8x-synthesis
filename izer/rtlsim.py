@@ -8,36 +8,33 @@
 RTL simulation support routines
 """
 import os
+from typing import List, Optional
 
+from . import state
 from . import tornadocnn as tc
 
 GLOBAL_TIME_OFFSET = 3
 
 
 def create_runtest_sv(
-        block_mode,
-        base_directory,
-        test_name,
-        runtest_filename,
-        input_filename,
-        c_filename,
-        timeout,
-        riscv=False,
-        input_csv=None,
-        input_period=80,
-        input_sync=False,
-        rtl_preload=False,
-        result_output=False,
-        input_pix_clk=9,
+        test_name: str,
+        timeout: int,
+        riscv: bool = False,
+        groups_used: Optional[List[int]] = None,
 ):
     """
     For for test `test_name`, create the runtest.sv file named `runtest_filename`, in the
     directory `base_directory`. The file contains the timeout value `timeout`.
     If in `block_mode`, it will refer to the `input_filename`.
     """
+    assert tc.dev is not None
 
-    with open(os.path.join(base_directory, test_name, runtest_filename), mode='w') as runfile:
-        if block_mode:
+    # Cache for faster access
+    result_output = state.result_output
+
+    with open(os.path.join(state.base_directory, test_name,
+                           state.runtest_filename), mode='w') as runfile:
+        if state.block_mode:
             runfile.write('// Check default register values.\n')
             runfile.write('// Write all registers.\n')
             runfile.write('// Make sure only writable bits will change.\n')
@@ -50,7 +47,7 @@ def create_runtest_sv(
             runfile.write('  // Initialize the CNN\n')
             runfile.write('  //----------------------------------------------------------------\n')
             runfile.write('  #200000;\n')
-            runfile.write(f'  fn = {{`TARGET_DIR,"/{input_filename}.mem"}};\n')
+            runfile.write(f'  fn = {{`TARGET_DIR,"/{state.input_filename}.mem"}};\n')
             runfile.write('  inp1=$fopen(fn, "r");\n')
             runfile.write('  if (inp1 == 0) begin\n')
             runfile.write('    $display("ERROR : CAN NOT OPEN THE FILE");\n')
@@ -68,10 +65,10 @@ def create_runtest_sv(
             runfile.write('  -> StartTest;\n')
             runfile.write('end\n')
         else:
-            runfile.write(f'// {runtest_filename}\n')
-            runfile.write(f'`define ARM_PROG_SOURCE {c_filename}.c\n')
+            runfile.write(f'// {state.runtest_filename}\n')
+            runfile.write(f'`define ARM_PROG_SOURCE {state.c_filename}.c\n')
             if riscv:
-                runfile.write(f'`define RISCV_PROG_SOURCE {c_filename}_riscv.c\n')
+                runfile.write(f'`define RISCV_PROG_SOURCE {state.c_filename}_riscv.c\n')
                 runfile.write('`define MULTI_CPU_SETUP\n')
             if timeout:
                 runfile.write(f'// Timeout: {timeout} ms\n')
@@ -91,8 +88,13 @@ def create_runtest_sv(
                 )
             if tc.dev.MODERN_SIM:
                 runfile.write(
-                    '\n`define CNN_ENA  `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.cnnena\n'
-                    '`define CNN_CLK  `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.clk\n\n'
+                    '\n`ifdef gate_sims\n'
+                    '  `define CNN_ENA  `DIGITAL_TOP.xuut1.x16proc_0__xproc_xuut.xcnn_fsm2.cnnena'
+                    '\n  `define CNN_CLK  `DIGITAL_TOP.xuut1.x16proc_0__xproc_xuut.clk\n'
+                    '`else\n'
+                    '  `define CNN_ENA  `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.cnnena\n'
+                    '  `define CNN_CLK  `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.clk\n'
+                    '`endif\n\n'
                 )
             else:
                 runfile.write(
@@ -110,6 +112,7 @@ def create_runtest_sv(
             if result_output:
                 runfile.write('int   chk_stat;\n')
             runfile.write(
+                'logic chk_clk;\n'
                 '\ninitial begin\n'
             )
             if result_output:
@@ -129,30 +132,25 @@ def create_runtest_sv(
                 'always @(posedge `CNN_ENA) begin\n'
                 '  if (!start_ena) begin\n'
             )
-            if rtl_preload:
-                runfile.write(
-                    '    load_cnn_mems_0;\n'
-                    '    load_cnn_mems_1;\n'
-                    '    load_cnn_mems_2;\n'
-                    '    load_cnn_mems_3;\n'
-                )
+            if state.rtl_preload:
+                for _, i in enumerate(groups_used):
+                    runfile.write(f'    load_cnn_mems_{i};\n')
             runfile.write(
                 '    start_time  = $realtime;\n'
                 '    start_ena   = 1;\n'
                 '    $display("CNN enabled");\n'
                 '  end\n'
                 'end\n\n'
-                'always @(negedge `CNN_ENA) begin\n'
+                'assign #10 chk_clk = `CNN_ENA;\n\n'
+                'always @(negedge chk_clk) begin\n'
                 '  if (start_ena) begin\n'
                 '    end_time  = $realtime;\n'
                 '    clkena1   = 1;\n'
             )
             if result_output:
+                for _, i in enumerate(groups_used):
+                    runfile.write(f'    dump_cnn_mems_{i};\n')
                 runfile.write(
-                    '    dump_cnn_mems_0;\n'
-                    '    dump_cnn_mems_1;\n'
-                    '    dump_cnn_mems_2;\n'
-                    '    dump_cnn_mems_3;\n'
                     '    close_files;\n'
                     '    chk_stat = $system({`TARGET_DIR,"/verify-output.py ",`TARGET_DIR});\n'
                     '    if (chk_stat != 0)\n'
@@ -174,8 +172,8 @@ def create_runtest_sv(
                 '  end\n'
                 'end\n'
             )
-            if input_csv is not None:
-                runfile.write(f'\n`define CSV_FILE {{`TARGET_DIR,"/{input_csv}"}}\n')
+            if state.input_csv is not None:
+                runfile.write(f'\n`define CSV_FILE {{`TARGET_DIR,"/{state.input_csv}"}}\n')
                 runfile.write('`include "pcif_defines_af2.sv"\n')
                 runfile.write('`define NO_FLASH_MODEL\n\n')
                 runfile.write('integer input_file;\n')
@@ -203,8 +201,8 @@ def create_runtest_sv(
                 runfile.write('assign `PCIF_DATA_1  = data_val[1];\n')
                 runfile.write('assign `PCIF_DATA_0  = data_val[0];\n')
 
-                if input_sync:
-                    runfile.write(f'\nparameter pclk_ai_per_pix = {input_pix_clk};\n\n')
+                if state.input_sync:
+                    runfile.write(f'\nparameter pclk_ai_per_pix = {state.input_pix_clk};\n\n')
                     if tc.dev.MODERN_SIM:
                         runfile.write('`define PCLK_AI  `DIGITAL_TOP.pclk_ai\n')
                     else:
@@ -244,7 +242,7 @@ def create_runtest_sv(
                 runfile.write('  data_val = \'0;\n')
                 runfile.write('  input_file = $fopen(`CSV_FILE, "r");\n')
 
-                if input_sync:
+                if state.input_sync:
                     runfile.write('\n  start_io    = 0;\n')
                     runfile.write('  end_of_file = 0;\n')
                     runfile.write('  clk_pix_i   = 0;\n')
@@ -258,7 +256,7 @@ def create_runtest_sv(
                 runfile.write('  $fgets(null_string, input_file);\n')
                 runfile.write('  $display("Reading camera image from %s", `CSV_FILE);\n')
 
-                if input_sync:
+                if state.input_sync:
                     runfile.write('\n  start_io = 1;\n')
                     runfile.write('  while (!end_of_file) begin\n')
                     runfile.write('    count++;\n')
@@ -270,7 +268,7 @@ def create_runtest_sv(
                     runfile.write('      count++;\n')
                     runfile.write('      $fscanf(input_file, "%H,%H,%H,%H", '
                                   'vsync_val, hsync_val, pixclk_val, data_val);\n')
-                    runfile.write(f'      #{input_period}ns;\n')
+                    runfile.write(f'      #{state.input_csv_period}ns;\n')
                     runfile.write('    end\n')
 
                 runfile.write('\n  $fclose(input_file);\n')
