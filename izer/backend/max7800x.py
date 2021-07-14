@@ -274,7 +274,8 @@ class Backend(backend.Backend):
                 eprint(f'`next_sequence` must be {ll+1} when using streaming in layer {ll}. '
                        f'Currently configured: {next_sequence[ll]}')
 
-            if tc.dev.EMULATE_1X1_STREAMING and streaming[ll] and kernel_size[ll] == [1, 1]:
+            if tc.dev.EMULATE_1X1_STREAMING and streaming[ll] and kernel_size[ll] == [1, 1] \
+               and operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D]:
                 wprint(f'Layer {ll}: Using 3x3 kernels to emulate 1x1 streaming layer')
                 # Create 3x3 weights from 1x1 weights and emulate using 3x3 kernels
                 weight33 = np.zeros((kernel[ll].shape[0], 3, 3), dtype=np.int64)
