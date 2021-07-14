@@ -136,9 +136,9 @@ $ sudo dnf install openssl-devel zlib-devel \
 
 #### Python 3.8
 
-*The software in this project uses Python 3.8.10 or a later 3.8.x version.*
+*The software in this project uses Python 3.8.11 or a later 3.8.x version.*
 
-It is not necessary to install Python 3.8.10 system-wide, or to rely on the system-provided Python. To manage Python versions, use `pyenv` (https://github.com/pyenv/pyenv).
+It is not necessary to install Python 3.8.11 system-wide, or to rely on the system-provided Python. To manage Python versions, use `pyenv` (https://github.com/pyenv/pyenv).
 
 On macOS (no CUDA support available):
 
@@ -167,7 +167,7 @@ $ pyenv init
 ...
 ```
 
-Next, close the Terminal, open a new Terminal and install Python 3.8.10.
+Next, close the Terminal, open a new Terminal and install Python 3.8.11.
 
 On macOS:
 
@@ -179,13 +179,13 @@ $ env \
   PKG_CONFIG_PATH="$(brew --prefix tcl-tk)/lib/pkgconfig" \
   CFLAGS="-I$(brew --prefix tcl-tk)/include" \
   PYTHON_CONFIGURE_OPTS="--with-tcltk-includes='-I$(brew --prefix tcl-tk)/include' --with-tcltk-libs='-L$(brew --prefix tcl-tk)/lib -ltcl8.6 -ltk8.6'" \
-  pyenv install 3.8.10
+  pyenv install 3.8.11
 ```
 
 On Linux:
 
 ```shell
-$ pyenv install 3.8.10
+$ pyenv install 3.8.11
 ```
 
 #### git Environment
@@ -245,7 +245,7 @@ $ git checkout develop  # optional
 Then continue with the following:
 
 ```shell
-$ pyenv local 3.8.10
+$ pyenv local 3.8.11
 $ python3 -m venv .
 $ source bin/activate
 (ai8x-training) $ pip3 install -U pip wheel setuptools
@@ -304,11 +304,11 @@ On Windows, please *also* use the Maintenance Tool as documented in the [Maxim M
 
 ##### Python Version Updates
 
-Updating Python may require updating `pyenv` first. Should `pyenv install 3.8.10` fail,
+Updating Python may require updating `pyenv` first. Should `pyenv install 3.8.11` fail,
 
 ```shell
-$ pyenv install 3.8.10
-python-build: definition not found: 3.8.10
+$ pyenv install 3.8.11
+python-build: definition not found: 3.8.11
 ```
 
 then `pyenv` must be updated. On macOS, use:
@@ -331,12 +331,12 @@ $
 The update should now succeed:
 
 ```shell
-$ pyenv install 3.8.10
-Downloading Python-3.8.10.tar.xz...
--> https://www.python.org/ftp/python/3.8.10/Python-3.8.10.tar.xz
-Installing Python-3.8.10...
+$ pyenv install 3.8.11
+Downloading Python-3.8.11.tar.xz...
+-> https://www.python.org/ftp/python/3.8.11/Python-3.8.11.tar.xz
+Installing Python-3.8.11...
 ...
-$ pyenv local 3.8.10
+$ pyenv local 3.8.11
 ```
 
 
@@ -367,7 +367,7 @@ $ git checkout develop  # optional
 Then continue:
 
 ```shell
-$ pyenv local 3.8.10
+$ pyenv local 3.8.11
 $ python3 -m venv .
 $ source bin/activate
 (ai8x-synthesis) $ pip3 install -U pip setuptools
