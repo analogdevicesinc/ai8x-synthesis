@@ -206,6 +206,9 @@ class Backend(backend.Backend):
         if snoop is not None and not tc.dev.SUPPORT_SNOOP:
             eprint("`snoop` is not supported on this device.")
 
+        if oneshot and not tc.dev.SUPPORT_ONESHOT:
+            eprint("`--one-shot` is not supported on this device.")
+
         if state.pipeline is None:
             state.pipeline = tc.dev.SUPPORT_PIPELINE
         pipeline = state.pipeline  # Cache
