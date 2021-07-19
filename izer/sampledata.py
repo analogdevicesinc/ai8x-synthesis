@@ -28,6 +28,10 @@ def get(
     #         allow_pickle=False, fix_imports=False)
 
     data = np.load(filename)
+    if data.dtype.type is not np.dtype('int64').type:
+        eprint(f'The sample data array in {filename} is of type {data.dtype}, rather than '
+               'int64!')
+
     if synthesize_input is not None:
         # Every 8 (or synthesize_words) words, add data to the
         # combined 32-bit word for up to 4 channels
