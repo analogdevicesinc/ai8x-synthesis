@@ -875,6 +875,7 @@ class Backend(backend.Backend):
                     output_processor_map,
                     out_expand,
                     list(set().union(groups_used)),
+                    flatten,
                 )
 
             apb.function_header(function='init')
@@ -1069,6 +1070,7 @@ class Backend(backend.Backend):
                     output_processor_map,
                     out_expand,
                     list(set().union(groups_used)),
+                    flatten,
                 )
 
             if verbose:

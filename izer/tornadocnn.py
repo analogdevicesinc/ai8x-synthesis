@@ -44,6 +44,7 @@ class Dev:
     REQUIRE_ONESHOT_CLEAR = True
     REQUIRE_NEW_STREAMING = False
     REQUIRE_FIFO_CPL = True
+    REQUIRE_FLATTEN_BIAS_FIRST = False
     EMULATE_ELTWISE_MP = False
     EMULATE_1X1_STREAMING = True
     USE_PROCESSORS = True
@@ -262,6 +263,7 @@ class DevAI85(Dev):
     FAST_FIFO_DR = 4  # Data register
     FAST_FIFO_DMA = 5  # DMA register (reserved function, not yet supported)
 
+    REQUIRE_FLATTEN_BIAS_FIRST = True
     EMULATE_ELTWISE_MP = True
     SUPPORTED_X2D_PADS = [0, 1, 2]
     SUPPORTED_X2D_OUTPUT_PADS = [1]
@@ -483,7 +485,7 @@ class DevAI87(Dev):
     C_PAD = 2
 
     # PLL Speed in MHz
-    PLL_SPEED = 240
+    PLL_SPEED = 200
 
     def __str__(self):
         return self.__class__.__name__
