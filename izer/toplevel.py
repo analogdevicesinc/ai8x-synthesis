@@ -118,7 +118,8 @@ def header(
             memfile.write(f'#include "{state.weight_filename}"\n')
         if not lib and (embedded_code or state.compact_data):
             memfile.write(f'#include "{state.sample_filename}"\n')
-            if not cmsis_nn and state.generate_kat and state.result_filename.lower() != 'none':
+            if not cmsis_nn and embedded_code and state.generate_kat \
+               and state.result_filename.lower() != 'none':
                 memfile.write(f'#include "{state.result_filename}"\n')
     memfile.write('\n')
 
