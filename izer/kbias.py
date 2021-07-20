@@ -32,6 +32,7 @@ def load(
         output_processor_map,
         out_expand,
         groups_used,
+        flatten,
 ):
     """
     Write `bias` values for the network to C code.
@@ -78,7 +79,7 @@ def load(
                 bias_len[ll] += 1  # Work around a problem on AI85
 
             bias_map += [(ll, groups_used if bias_group_map[ll] is None else bias_group_map[ll],
-                          bias_len[ll])]
+                          bias_len[ll], flatten[ll])]
             continue
 
         # For depth-wise convolutions, and qupac, each group needs to have 'its own' bias values
@@ -175,7 +176,10 @@ def load(
     # Reverse-sort the data structure for a Fit-First Descending (FFD) algorithm
     def bias_sort(e):
         """Order bias tuples"""
-        # Highest priority: If only one group is allowed
+        # Highest priority: flatten
+        if tc.dev.REQUIRE_FLATTEN_BIAS_FIRST and e[3]:  # flatten
+            return -1
+        # Next highest priority: If only one group is allowed
         if len(e[1]) == 1:
             return 0
         # For all other cases, reverse sort by size; sorted() will keep the original order
@@ -187,7 +191,7 @@ def load(
 
     bias_map = sorted(bias_map, key=bias_sort)
 
-    for _, (ll, gmap, blen) in enumerate(bias_map):
+    for _, (ll, gmap, blen, _) in enumerate(bias_map):
         if not calcx4[ll]:
             group = gmap[argmin(group_bias_max[t] for t in gmap)]
         else:
