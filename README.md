@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_July 20, 2021_
+_July 28, 2021_
 
 The Maxim Integrated AI project is comprised of five repositories:
 
@@ -63,7 +63,7 @@ When going beyond simple models, model training does not work well without CUDA 
 
 #### Shared (Multi-User) and Remote Systems
 
-On a shared (multi-user) system that has previously been set up, only local installation is needed. CUDA and any `apt-get` or `brew` tasks are not necessary.
+On a shared (multi-user) system that has previously been set up, only local installation is needed. CUDA and any `apt-get` or `brew` tasks are not necessary, with the exception of the CUDA [Environment Setup](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html#environment-setup).
 
 The `screen` command (or alternatively, the more powerful `tmux`) can be used inside a remote terminal to disconnect a session from the controlling terminal, so that a long running training session doesn’t abort due to network issues, or local power saving. In addition, screen can log all console output to a text file.
 
@@ -78,17 +78,25 @@ Ctrl+A,D to disconnect
 
 `man screen` and `man tmux` describe the software in more detail.
 
-#### Recommended Software
+#### Additional Software
 
 The following software is optional, and can be replaced with other similar software of the user’s choosing.
 
-1. Visual Studio Code (Editor, Free), https://code.visualstudio.com, with the “Remote - SSH” plugin
-2. Typora (Markdown Editor, Free during beta), http://typora.io
-3. CoolTerm (Serial Terminal, Free), http://freeware.the-meiers.org
-   or Serial ($30), https://apps.apple.com/us/app/serial/id877615577?mt=12
-4. Git Fork (Graphical Git Client, $50), https://git-fork.com
-   or GitHub Desktop (Graphical Git Client, Free), https://desktop.github.com
-5. Beyond Compare (Diff and Merge Tool, $60), https://scootersoftware.com
+1. Code Editor
+   Visual Studio Code (free), https://code.visualstudio.com or the VSCodium version, https://vscodium.com, with the “Remote - SSH” plugin; *to use Visual Studio Code as a full development environment (including debug), see https://github.com/MaximIntegratedTechSupport/VSCode-Maxim*
+   Sublime Text ($100), https://www.sublimetext.com
+2. Markdown Editor
+   Typora (free during beta), http://typora.io
+3. Serial Terminal
+   CoolTerm (free), http://freeware.the-meiers.org
+   Serial ($30), https://apps.apple.com/us/app/serial/id877615577?mt=12
+   Putty (free), https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html
+   Tera Term (free), https://osdn.net/projects/ttssh2/releases/
+4. Graphical Git Client
+   GitHub Desktop (free), https://desktop.github.com
+   Git Fork ($50), https://git-fork.com
+5. Diff and Merge Tool
+   Beyond Compare ($60), https://scootersoftware.com
 
 ### Project Installation
 
@@ -1066,6 +1074,27 @@ The `ai8x.py` file contains customized PyTorch classes (subclasses of `torch.nn.
 2. Rounding and clipping that matches the hardware.
 3. Support for quantized operation (when using the `-8` command line argument).
 
+##### set_device()
+
+`ai8x.py` defines the `set_device()` function which configures the training system:
+
+```python
+def set_device(
+        device,
+        simulate,
+        round_avg,
+        verbose=True,
+):
+```
+
+where *device* is `85` (the MAX78000 device code), *simulate* is `True` when clipping and rounding are set to simulate hardware behavior, and *round_avg* picks one of the two hardware rounding modes for AvgPool.
+
+##### update_model()
+
+ai8x.py defines `update_model()`. This function is called after loading a checkpoint file, and recursively applies output shift, weight scaling, and quantization clamping to the model.
+
+
+
 #### List of Predefined Modules
 
 The following modules are predefined:
@@ -1756,9 +1785,7 @@ The `bias` configuration is only used for test data. *To use bias with trained n
 
 ##### `dataset` (Mandatory)
 
-`dataset` configures the data set for the network. This determines the input data size and dimensions as well as the number of input channels.
-
-Data sets are for example `mnist`, `fashionmnist`, and `cifar-10`.
+`dataset` configures the data set for the network. Data sets are for example `mnist`, `fashionmnist`, and `cifar-10`. This key is descriptive only, it does not configure input or output dimensions or channel count.
 
 ##### `output_map` (Optional)
 
