@@ -1,0 +1,38 @@
+{
+    "terminal.integrated.env.windows": {
+        "Path":"${config:MAXIM_PATH}/Tools/MinGW/msys/1.0/bin;${config:MAXIM_PATH}/Tools/OpenOCD;${config:MAXIM_PATH}/Tools/GNUTools/bin;${env:Path}"  
+    },
+
+    "MAXIM_PATH":"C:/MaximSDK", //<-- This is the root installation directory of the Maxim Micros Toolchain.  Change this if you used a non-default installation location.
+
+    "target":"MAX78000",/*<-- Change to the correct target micro.
+    Options :
+    "MAX32520"
+    "MAX32570"
+    "MAX32655"
+    "MAX32660"
+    "MAX32665" (for MAX32665-MAX32668)
+    "MAX32670"
+    "MAX32672"
+    "MAX32675"
+    "MAX78000"
+    */ 
+
+    "board":"##__BOARD__##",/*<-- Select target board.
+    Options:
+    "EvKit_V1",
+    "FTHR_RevA",
+    "FTHR",
+    etc. Find the right path in your SDK and set accordingly.  FTHR board paths are not standardized.
+    */
+
+    "debugger":"cmsis-dap",/*<-- Debugger to use.  
+    Options :
+    "cmsis-dap" (for PICO)
+    "ftdi/olimex-arm-jtag-swd" (for https://www.olimex.com/Products/ARM/JTAG/ARM-JTAG-SWD/ w/ ftdi interface)
+    "ftdi/olimex-arm-usb-ocd" (for http://www.olimex.com/dev/arm-usb-ocd.html w/ ftdi interface)
+    "ftdi/olimex-arm-usb-ocd-h" (for http://www.olimex.com/dev/arm-usb-ocd-h.html w/ ftdi interface)
+    "ftdi/olimex-arm-usb-tiny-h" (for http://www.olimex.com/dev/arm-usb-tiny-h.html w/ ftdi interface)
+    "ftdi/olimex-jtag-tiny" (for http://www.olimex.com/dev/arm-usb-tiny.html w/ ftdi interface)
+    */
+}

@@ -2808,6 +2808,8 @@ class Backend(backend.Backend):
                                      test_name, board_name, '')
             assets.from_template('assets', 'eclipse', base_directory,
                                  test_name, board_name, '')
+            assets.from_template('assets', 'vscode', base_directory,
+                                 test_name, board_name, '')
             assets.from_template('assets', 'device-all', base_directory,
                                  test_name, board_name, insert)
             assets.from_template('assets', 'device-ai' + str(device), base_directory,
