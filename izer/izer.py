@@ -8,12 +8,14 @@
 Embedded network and simulation test generator program for Tornado CNN
 """
 import os
+import time
 from pydoc import locate
 
 import numpy as np
 
 from . import checkpoint, commandline, onnxcp, op, rtlsim, sampledata, sampleweight, state
 from . import tornadocnn as tc
+from . import versioncheck
 from . import yamlcfg
 from .eprint import eprint, wprint
 
@@ -25,6 +27,15 @@ def main():
     np.set_printoptions(threshold=np.inf, linewidth=190)
 
     args = commandline.get_parser()
+
+    # Check whether code is up-to-date
+    if not args.no_version_check:
+        now = round(time.time())
+        last_check = versioncheck.get_last_check()
+        if now - last_check >= args.version_check_interval * 60 * 60:
+            if versioncheck.check_repo(args.upstream):
+                # Check succeeded, don't check again for a while
+                versioncheck.set_last_check(now)
 
     # Configure device and set device dependent state
     tc.dev = tc.get_device(args.device)
