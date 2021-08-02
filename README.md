@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_July 28, 2021_
+_August 3, 2021_
 
 The Maxim Integrated AI project is comprised of five repositories:
 
@@ -52,14 +52,67 @@ where “....” is the project root, for example `~/Documents/Source/AI`.
 
 ### Prerequisites
 
-This software currently supports Ubuntu Linux 20.04 LTS. The server version is sufficient, see https://ubuntu.com/download/server. *Alternatively, Ubuntu Linux can also be used inside the Windows Subsystem for Linux (WSL2) by following 
-https://docs.nvidia.com/cuda/wsl-user-guide/. However, please note that WSL2 with CUDA is a pre-release and unexpected behavior may occur.*
+This software requires PyTorch. *For TensorFlow / Keras, please use the `develop-tf` branch.*
 
-When going beyond simple models, model training does not work well without CUDA hardware acceleration. The network loader (“izer”) does not require CUDA, and very simple models can also be trained on systems without CUDA.
+PyTorch operating system and hardware support are constantly evolving. This document does not cover all possible combinations of operating system and hardware, and there is only one officially supported platform.
 
-*Recommendation:* Install the latest version of CUDA 11 on Ubuntu 20.04 LTS. See https://developer.nvidia.com/cuda-toolkit-archive.
+#### Platform Recommendation and Full Support
 
-*Note: When using multiple GPUs, the software will automatically use all available GPUs and distribute the workload. To prevent this, set the `CUDA_VISIBLE_DEVICES` environment variable. Use the `--gpus` command line argument to set the default GPU.*
+Full support and documentation are provided for the following platform:
+
+* CPU: 64-bit amd64/x86_64 “PC” with [Ubuntu Linux 20.04 LTS](https://ubuntu.com/download/server)
+* GPU for hardware acceleration (optional): Nvidia with [CUDA 11](https://developer.nvidia.com/cuda-toolkit-archive)
+* [PyTorch 1.8.1 (LTS)](https://pytorch.org/get-started/locally/) on Python 3.8.11
+
+Limited support and advice for using other hardware and software combinations is available as follows.
+
+#### Operating System Support
+
+##### Linux
+
+**The only officially supported platform** is Ubuntu Linux 20.04 LTS on amd64/x86_64, either the desktop or the [server version](https://ubuntu.com/download/server).
+
+*Note that hardware acceleration/CUDA is <u>not available</u> in PyTorch for Raspberry Pi 4 and other <u>aarch64/arm64</u> devices, even those running Ubuntu Linux 20.04. See also [Development on Raspberry Pi 4 and 400](docs/RaspberryPi.md) (unsupported).*
+
+This document also provides instructions for installing on RedHat Enterprise Linux / CentOS 8 with limited support.
+
+##### Windows
+
+Ubuntu Linux 20.04 can be used inside the Windows Subsystem for Linux (WSL2) by following
+https://docs.nvidia.com/cuda/wsl-user-guide/.
+*Please note that WSL2 with CUDA is a pre-release, and unexpected behavior may occur.*
+
+##### macOS
+
+The software works on macOS, but model training suffers from the lack of hardware acceleration.
+
+##### Virtual Machines (Unsupported)
+
+This software works inside a virtual machine running Ubuntu Linux 20.04. However, GPU passthrough is typically <u>not available</u> for Linux VMs, so there will be no CUDA hardware acceleration. Certain Nvidia cards support [vGPU software](https://www.nvidia.com/en-us/data-center/graphics-cards-for-virtualization/); see also [vGPUs and CUDA](https://docs.nvidia.com/cuda/vGPU/), but vGPU features may come at substantial additional cost and vGPU software is not covered by this document.
+
+##### Docker Containers (Unsupported)
+
+This software also works inside Docker containers. However, CUDA support inside containers requires Nvidia Docker ([see blog entry](https://developer.nvidia.com/blog/nvidia-docker-gpu-server-application-deployment-made-easy/)) and is not covered by this document.
+
+#### PyTorch and Python
+
+The officially supported version of [PyTorch is 1.8.1 (LTS)](https://pytorch.org/get-started/locally/) running on Python 3.8.11. Newer versions will typically work, but are not covered by support, documentation, and installation scripts.
+
+#### Hardware Acceleration
+
+When going beyond simple models, model training does not work well without CUDA hardware acceleration. The network loader (“izer”) does <u>not</u> require CUDA, and very simple models can also be trained on systems without CUDA.
+
+* CUDA requires Nvidia GPUs.
+
+* There is a PyTorch pre-release with ROCm acceleration for certain AMD GPUs on Linux ([see blog entry](https://pytorch.org/blog/pytorch-for-amd-rocm-platform-now-available-as-python-package/)), but this is not currently covered by the installation instructions in this document, and it is not supported.
+
+* There is neither CUDA nor ROCm support on macOS, and therefore no hardware acceleration.
+
+* PyTorch does not include CUDA support for aarch64/arm64 systems. *Rebuilding PyTorch from source is not covered by this document.*
+
+##### Using Multiple GPUs
+
+When using multiple GPUs (graphics cards), the software will automatically use all available GPUs and distribute the workload. To prevent this (for example, when the GPUs are not balanced), set the `CUDA_VISIBLE_DEVICES` environment variable. Use the `--gpus` command line argument to set the default GPU.
 
 #### Shared (Multi-User) and Remote Systems
 
@@ -83,7 +136,7 @@ Ctrl+A,D to disconnect
 The following software is optional, and can be replaced with other similar software of the user’s choosing.
 
 1. Code Editor
-   Visual Studio Code (free), https://code.visualstudio.com or the VSCodium version, https://vscodium.com, with the “Remote - SSH” plugin; *to use Visual Studio Code as a full development environment (including debug), see https://github.com/MaximIntegratedTechSupport/VSCode-Maxim*
+   Visual Studio Code (free), https://code.visualstudio.com or the VSCodium version, https://vscodium.com, with the “Remote - SSH” plugin; *to use Visual Studio Code on Windows as a full development environment (including debug), see https://github.com/MaximIntegratedTechSupport/VSCode-Maxim*
    Sublime Text ($100), https://www.sublimetext.com
 2. Markdown Editor
    Typora (free during beta), http://typora.io
@@ -222,10 +275,6 @@ Nirvana Distiller is package for neural network compression and quantization. Ne
 #### Manifold
 
 Manifold is a model-agnostic visual debugging tool for machine learning. The [Manifold guide](https://github.com/MaximIntegratedAI/MaximAI_Documentation/blob/master/Guides/Manifold.md) shows how to integrate this optional package into the training software.
-
-#### Windows Systems
-
-Windows/MS-DOS is not supported for training networks at this time. *This includes the Windows Subsystem for Linux (WSL) since it currently lacks CUDA support.*
 
 ### Upstream Code
 
