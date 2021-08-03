@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_August 3, 2021_
+_August 5, 2021_
 
 The Maxim Integrated AI project is comprised of five repositories:
 
@@ -70,7 +70,7 @@ Limited support and advice for using other hardware and software combinations is
 
 ##### Linux
 
-**The only officially supported platform** is Ubuntu Linux 20.04 LTS on amd64/x86_64, either the desktop or the [server version](https://ubuntu.com/download/server).
+**The only officially supported platform for model training** is Ubuntu Linux 20.04 LTS on amd64/x86_64, either the desktop or the [server version](https://ubuntu.com/download/server).
 
 *Note that hardware acceleration/CUDA is <u>not available</u> in PyTorch for Raspberry Pi 4 and other <u>aarch64/arm64</u> devices, even those running Ubuntu Linux 20.04. See also [Development on Raspberry Pi 4 and 400](docs/RaspberryPi.md) (unsupported).*
 
@@ -926,6 +926,37 @@ The example shows a fractionally-strided convolution with a stride of 2, a pad o
 ---
 
 ## Model Training and Quantization
+
+#### Hardware Acceleration
+
+If hardware acceleration is not available, skip the following two steps and continue with [Training Script](#Training Script).
+
+1. Before the first training session, check that CUDA hardware acceleration is available using `nvidia-smi -q`:
+
+```shell
+(ai8x-training) $ nvidia-smi -q
+...
+Driver Version                            : 470.57.02
+CUDA Version                              : 11.4
+
+Attached GPUs                             : 1
+GPU 00000000:01:00.0
+    Product Name                          : NVIDIA TITAN RTX
+    Product Brand                         : Titan
+...
+```
+
+2. Verify that PyTorch recognizes CUDA:
+
+```shell
+(ai8x-training) $ ./check_cuda.py
+System:            linux
+Python version:    3.8.11 (default, Jul 14 2021, 12:46:05) [GCC 9.3.0]
+PyTorch version:   1.8.1+cu111
+CUDA acceleration: available in PyTorch
+```
+
+#### Training Script
 
 The main training software is `train.py`. It drives the training aspects, including model creation, checkpointing, model save, and status display (see `--help` for the many supported options, and the `scripts/train_*.sh` scripts for example usage).
 
