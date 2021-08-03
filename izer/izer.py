@@ -15,8 +15,7 @@ import numpy as np
 
 from . import checkpoint, commandline, onnxcp, op, rtlsim, sampledata, sampleweight, state
 from . import tornadocnn as tc
-from . import versioncheck
-from . import yamlcfg
+from . import versioncheck, yamlcfg
 from .eprint import eprint, wprint
 
 

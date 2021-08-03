@@ -17,7 +17,6 @@ import github
 
 from .eprint import wprint
 
-
 VERSION_CHECK_FILE = ".version-check"
 
 
