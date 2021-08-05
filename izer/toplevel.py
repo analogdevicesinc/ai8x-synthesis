@@ -118,7 +118,8 @@ def header(
             memfile.write(f'#include "{state.weight_filename}"\n')
         if not lib and (embedded_code or state.compact_data):
             memfile.write(f'#include "{state.sample_filename}"\n')
-            if not cmsis_nn and state.generate_kat and state.result_filename.lower() != 'none':
+            if not cmsis_nn and embedded_code and state.generate_kat \
+               and state.result_filename.lower() != 'none':
                 memfile.write(f'#include "{state.result_filename}"\n')
     memfile.write('\n')
 
@@ -656,20 +657,7 @@ def main(
             memfile.write('    cnn_start(); // Run inference\n')
             if fifo:
                 memfile.write('    load_input(); // Load data input via FIFO\n')
-            if not riscv:
-                memfile.write('    SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=0\n')
-            memfile.write('    while (cnn_time == 0)\n')
-            if not riscv:
-                memfile.write('      __WFI(); // Wait for CNN\n')
-            else:
-                memfile.write('      asm volatile("wfi"); // Wait for CNN\n')
-            memfile.write('  }\n'
-                          '  CNN_COMPLETE;\n\n')
-
-        if oneshot > 0:
-            memfile.write(f'  for (i = 0; i < {oneshot}; i++) {{\n')
-            memfile.write('    cnn_continue();\n')
-            if embedded_code or tc.dev.MODERN_SIM:
+            if state.wfi:
                 if not riscv:
                     memfile.write('    SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=0\n')
                 memfile.write('    while (cnn_time == 0)\n')
@@ -677,6 +665,25 @@ def main(
                     memfile.write('      __WFI(); // Wait for CNN\n')
                 else:
                     memfile.write('      asm volatile("wfi"); // Wait for CNN\n')
+            else:
+                memfile.write('    while (cnn_time == 0); // Spin wait\n')
+            memfile.write('  }\n'
+                          '  CNN_COMPLETE;\n\n')
+
+        if oneshot > 0:
+            memfile.write(f'  for (i = 0; i < {oneshot}; i++) {{\n')
+            memfile.write('    cnn_continue();\n')
+            if embedded_code or tc.dev.MODERN_SIM:
+                if state.wfi:
+                    if not riscv:
+                        memfile.write('    SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=0\n')
+                    memfile.write('    while (cnn_time == 0)\n')
+                    if not riscv:
+                        memfile.write('      __WFI(); // Wait for CNN\n')
+                    else:
+                        memfile.write('      asm volatile("wfi"); // Wait for CNN\n')
+                else:
+                    memfile.write('    while (cnn_time == 0); // Spin wait\n')
             else:
                 memfile.write('    cnn_wait();\n')
             memfile.write('  }\n\n')
