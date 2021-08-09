@@ -356,6 +356,12 @@ def get_parser() -> argparse.Namespace:
     group.add_argument('--max-verify-length', '--max-checklines',
                        type=int, metavar='N', default=None, dest='max_count',
                        help="output only N output check lines (default: all)")
+    group.add_argument('--no-version-check', action='store_true', default=False,
+                       help='do not check GitHub for newer versions of the repository')
+    group.add_argument('--version-check-interval', type=int, metavar='HOURS', default=24,
+                       help='version check update interval (hours), default = 24')
+    group.add_argument('--upstream', metavar='REPO', default="MaximIntegratedAI/ai8x-synthesis",
+                       help='GitHub repository name for update checking')
 
     args = parser.parse_args()
 

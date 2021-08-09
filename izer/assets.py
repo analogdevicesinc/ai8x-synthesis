@@ -50,15 +50,29 @@ def from_template(
     else:
         elf_file = f'{tc.dev.partnum.lower()}.elf'
 
-    for _, _, files in sorted(os.walk(os.path.join(base, source))):
+    basepath = os.path.join(base, source)
+    for folderpath, _, files in sorted(os.walk(basepath)):
+        folder = os.path.relpath(folderpath, basepath)
+        if folder != '.':
+            test_path = os.path.join(test_name, folder)
+            os.makedirs(os.path.join(target, test_path), exist_ok=True)
+        else:
+            test_path = test_name
+
         for name in sorted(files):
+            if folder != '.':
+                source_path = os.path.join(folder, name)
+            else:
+                source_path = name
             if name.startswith(template):
                 dst = os.path.join(
                     target,
-                    test_name,
+                    test_path,
                     name[len(template):].replace('##__PROJ_NAME__##', test_name),
                 )
-                with open(os.path.join(base, source, name)) as infile, open(dst, 'w+') as outfile:
+                with open(
+                    os.path.join(base, source, source_path)
+                ) as infile, open(dst, 'w+') as outfile:
                     for line in infile:
                         outfile.write(
                             line.replace('##__PROJ_NAME__##', test_name).
@@ -67,4 +81,5 @@ def from_template(
                             replace('##__FILE_INSERT__##', insert)
                         )
             else:
-                shutil.copy(os.path.join(base, source, name), os.path.join(target, test_name))
+                shutil.copy(os.path.join(base, source, source_path),
+                            os.path.join(target, test_path))
