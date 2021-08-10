@@ -263,7 +263,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             # Initially, start looking at 0 and subsequently at the first available for the
             # previously examined processors. Stop looking at the highest used offset for all
             # processors.
-            search_col = 0  # 0 is a multiple of tc.dev.P_SHARED
+            search_col = (start_offs + tc.dev.P_SHARED - 1) & ~(tc.dev.P_SHARED - 1)
             p = first_proc
             while p < last_proc+1:
                 if (proc_map >> p) & 1 == 0:
