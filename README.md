@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_August 9, 2021_
+_August 16, 2021_
 
 The Maxim Integrated AI project is comprised of five repositories:
 
@@ -308,11 +308,13 @@ $ pyenv local 3.8.11
 And verify that the correct Python version is used:
 
 ```shell
+$ which python3
+..../.pyenv/shims/python3
 $ python3 --version
 Python 3.8.11
 ```
 
-If this does <u>*not*</u> return the correct version, please install and initialize [pyenv](#Python 3.8 / pyenv).
+If this does <u>*not*</u> return the correct path <u>*and*</u> version, please install and initialize [pyenv](#Python 3.8 / pyenv).
 
 Then continue with the following:
 
@@ -623,14 +625,14 @@ Examples:
 | 1111 1110 | −2/128       |
 | 1111 1111 | −1/128       |
 
-On MAX78000/MAX78002, _weights_ can be 1, 2, 4, or 8 bits wide (configurable per layer using the `quantization` key). Bias values are always 8 bits wide. Data is 8 bits wide, except for the last layer that can optionally output 32 bits of unclipped data in Q17.14 format when not using activation.
+On MAX78000/MAX78002, _weights_ can be 1, 2, 4, or 8 bits wide (configurable per layer using the `quantization` key). Bias values are always 8 bits wide. Data is 8 bits wide, *except for the last layer that can optionally output 32 bits of unclipped data in Q17.14 format when not using activation.*
 
-|wt bits| min  | max  |
-|:-----:|-----:|-----:|
-|    8  | –128 | +127 |
-|    4  |   –8 |    7 |
-|    2  |   –2 |    1 |
-|    1  |   –1 |    0 |
+| weight bits |  min |  max |
+| :---------: | ---: | ---: |
+|      8      | –128 | +127 |
+|      4      |   –8 |    7 |
+|      2      |   –2 |    1 |
+|      1      |   –1 |    0 |
 
 Note that 1-bit weights (and, to a lesser degree, 2-bit weights) require the use of bias to produce useful results. Without bias, all sums of products of activated data from a prior layer would be negative, and activation of that data would always be zero.
 
@@ -843,7 +845,7 @@ The MAX78000 hardware does not support arbitrary network parameters. Specificall
 
 * A programmable layer-specific shift operator is available at the output of a convolution, see [`output_shift` (Optional)](#output_shift \(Optional\)).
 
-* The supported activation functions are `ReLU` and `Abs`, and a limited subset of `Linear`.
+* The supported activation functions are `ReLU` and `Abs`, and a limited subset of `Linear`. *Note that due to clipping, non-linearities are introduced even when not explicitly specifying an activation function.*
 
 * Pooling:
   * Both max pooling and average pooling are available, with or without convolution.
@@ -1151,7 +1153,7 @@ $ nvidia-smi
 The `ai8x.py` file contains customized PyTorch classes (subclasses of `torch.nn.Module`). Any model that is designed to run on MAX78000/MAX78002 should use these classes. There are three main changes over the default classes in `torch.nn.Module`:
 
 1. Additional “Fused” operators that model in-flight pooling and activation.
-2. Rounding and clipping that matches the hardware.
+2. Rounding, clipping and activation that matches the hardware.
 3. Support for quantized operation (when using the `-8` command line argument).
 
 ##### set_device()
@@ -1275,6 +1277,16 @@ After fusing/folding, the network will no longer contain any batchnorm layers. T
 * When using [Post-Training Quantization](#Post-Training Quantization), the `batchnormfuser.py` script (see [BatchNorm Fusing](#BatchNorm-Fusing)) must be called before `quantize.py` to explicitly fuse the batchnorm layers.
 
 *Note: Using batch normalization in conjunction with [dropout](#Dropout) can sometimes degrade training results.*
+
+### Adapting Pre-existing Models
+
+In some cases, it may be possible to use generic models that were designed for non-MAX7800X platforms. To adapt pre-existing models to MAX7800X, several steps are needed:
+
+1. Check that all operators are supported in hardware (see [List of Predefined Modules](#List of Predefined Modules), [Dropout](#Dropout), and [Batch Normalization](#Batch Normalization)).
+2. Check that the model size, parameter count, and parameters to the operators are supported (see [Limitations of MAX78000 Networks](#Limitations of MAX78000 Networks)). For example, padding must always be zero-padding, and `Conv2d()` supports 1×1 and 3×3 kernels.
+3. Change from PyTorch *nn.modules* to the *ai8x* versions of the modules. For example, `nn.Conv2d(…)` ⟶ `ai8x.Conv2d(…)`.
+4. Merge modules where possible (for example, `MaxPool2d()` + `Conv2d()` + `ReLU()` = `FusedMaxPoolConv2dReLU()`).
+5. [Re-train](#Model Training and Quantization) the model. *This is necessary to correctly model clipping and quantization effects of the hardware.*
 
 ### Model Comparison and Feature Attribution
 
@@ -1980,14 +1992,13 @@ Example:
 
 ##### `activate` (Optional)
 
-This key describes whether to activate the layer output (the default is to not activate). When specified, this key must be `ReLU`, `Abs` or `None` (the default). *Please note that there is always an implicit non-linearity when outputting 8-bit data since outputs are clamped to $[–1, +127/128]$ during training.*
+This key describes whether to activate the layer output (the default is to not activate). When specified, this key must be `ReLU`, `Abs` or `None` (the default). *Please note that there is always an implicit non-linearity when outputting 8-bit data since outputs are clamped to $[–1, +127/128]$.*
 
 Note that the output values are clipped (saturated) to $[0, +127]$. Because of this, `ReLU` behaves more similar to PyTorch’s `nn.Hardtanh(min_value=0, max_value=127)` than to PyTorch’s `nn.ReLU()`.
 
-Note that `output_shift` can be used for (limited) “linear” activation.
+`output_shift` can be used for (limited) “linear” activation.
 
-<img src="docs/relu.png" alt="relu" style="zoom:33%;" />
-<img src="docs/abs.png" alt="abs" style="zoom:33%;" />
+<img src="docs/relu.png" alt="relu" style="zoom:33%;" /><img src="docs/abs.png" alt="abs" style="zoom:33%;" /><img src="docs/noactivation.png" alt="no activation" style="zoom:33%;" />
 
 ##### `quantization` (Optional)
 
@@ -2585,6 +2596,8 @@ There can be many reasons why the known-answer test (KAT) fails for a given netw
 * `--no-bias LIST` where `LIST` is a comma-separated list of layers (e.g., `0,1,2,3`) can rule out problems due to the bias. This option zeros out the bias for the given layers without having to remove bias values from the weight input file. 
 
 * `--ignore-streaming` ignores all `streaming` statements in the YAML file. Note that this typically only works when the sample input is replaced with a different, lower-dimension sample input (for example, use 3×32×32 instead of 3×128×128), and does not support fully connected layers without retraining (use `--stop-after` to remove final layers). Ensure that the network (or partial network when using `--stop-after`) does not produce all-zero intermediate data or final outputs when using reduced-dimension inputs. The log file (`log.txt` by default) will contain the necessary information.
+
+* Certain C library functions (such as `memcpy` or `printf`) use byte-wide or 16-bit wide accesses and may not work correctly when accessing CNN memory *directly* (i.e., pointing inside the accelerator memory). They *will* function as expected when operating on data memory that is *not* located inside the CNN accelerator, for example data returned by `cnn_unload()`.
 
   
 
