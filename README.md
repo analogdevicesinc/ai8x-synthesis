@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_August 16, 2021_
+_August 19, 2021_
 
 The Maxim Integrated AI project is comprised of five repositories:
 
@@ -1529,7 +1529,7 @@ The file must include the `models` data structure that describes the model. `mod
 
 For each model, three fields are required in the data structure:
 
-* The `name` field assigns a name to the model for discovery by `train.py`, for example “`resnet5`”. *Note: The `name` must be unique.*
+* The `name` field assigns a name to the model for discovery by `train.py`, for example “`resnet5`”, and the name must match a function that instantiates the model. *Note: The `name` must be unique.*
 * The `min_input` field describes the minimum width for 2D models, it is typically `1` *(when the input `W` dimension is smaller than `min_input`, it is padded to `min_input`)*.
 * The `dim` field is either `1` (the model handles 1D inputs) or `2` (the model handles 2D inputs).
 
@@ -1563,10 +1563,46 @@ On the other hand, a different sensor may produce unsigned data values in the fu
 
 Add the new data loader to a new file in the `datasets` directory (for example `datasets/mnist.py`). The file must include the `datasets` data structure that describes the dataset and points to the new loader. `datasets` can list multiple datasets in the same file.
 
-* The `name` field assigns a name to the dataset for discovery by `train.py`, for example “`MNIST`”. *Note: The `name` must be unique.*
-* The `input` field describes the dimensionality of the data, and the first dimension is passed as `num_channels` to the model, whereas the remaining dimensions are passed as `dimension`. For example, `'input': (1, 28, 28)` will be passed to the model as `num_channels=1` and `dimensions=(28, 28)`. One-dimensional input uses a single “dimension”, for example `'input': (2, 512)` will be passed to the model as `num_channels=2` and `dimensions=(512, )`.
-* The optional `regression` field in the structure can be set to `True` to automatically select the `--regression` command line argument. `regression` defaults to `False`.
-* The optional `visualize` field can point to a custom visualization function used when creating `--embedding`. The input to the function (format NCHW for 2D data, or NCL for 1D data) is a batch of data (with N ≤ 100). The default handles square RGB or monochrome images. For any other data, a custom function must be supplied.
+###### `name`
+
+The `name` field assigns a name to the dataset for discovery by `train.py`, for example “`MNIST`”. *Note: The `name` must be unique.*
+
+###### `input`
+
+The `input` field describes the dimensionality of the data, and the first dimension is passed as `num_channels` to the model, whereas the remaining dimensions are passed as `dimension`. For example, `'input': (1, 28, 28)` will be passed to the model as `num_channels=1` and `dimensions=(28, 28)`. One-dimensional input uses a single “dimension”, for example `'input': (2, 512)` will be passed to the model as `num_channels=2` and `dimensions=(512, )`.
+
+###### `output`
+
+The `output` field is a tuple of strings or numbers that describe the output classes (for example, `'output': (1, 2, 3, …)` or `'output': ('cat', 'dog', …)`).
+
+###### `loader`
+
+`loader` points to a loader function for the dataset (see [Data Loader](#Data Loader)).
+
+###### `weight` (optional)
+
+The optional `weight` tuple can be set based on the *[a priori probabilities](#https://en.wikipedia.org/wiki/A_priori_probability)* for the classes, i.e., it answers the question *“how likely is it that data submitted for inference belongs to the given class?”.* For instance, if the sample counts for each class in the training dataset are equal, the `weight` tuple indicates the a priori probabilities of the occurrence of the classes. Note that the number of samples in a dataset for a given class does not always reflect the real-world probabilities. When there is a mismatch, a given “weight” value can degrade the performance on the test set, yet improve real-world inference, or vice versa.
+
+Each value in the tuple defines the weight for one output class, in the same order as `output`. When `weight` is <u>not</u> specified, all classes are given the same probability. When specifying a weight for the class “other,” increasing the value may improve results (e.g., multiplying the weight by 4×).
+
+*Example:*
+
+```
+ 'output': ('zero', 'one', 'two', 'three', 'four', 'five', 'other'),
+ 'weight': (1, 1, 1, 1, 1, 1, 0.06),
+```
+
+This defines that the probabilities for ‘zero’ to ‘five’ are equal, and that ‘other’ is 1/0.06 = 16.67 times more likely to occur assuming the numbers of the samples in the training dataset from each class are equal.
+
+Note: It is generally recommended to have at least 1,000 samples available for training for each class.
+
+###### `regression` (optional)
+
+The optional `regression` field in the structure can be set to `True` to automatically select the `--regression` command line argument. `regression` defaults to `False`.
+
+###### `visualize` (optional)
+
+The optional `visualize` field can point to a custom visualization function used when creating `--embedding`. The input to the function (format NCHW for 2D data, or NCL for 1D data) is a batch of data (with N ≤ 100). The default handles square RGB or monochrome images. For any other data, a custom function must be supplied.
 
 #### Training and Verification Data
 
@@ -1591,7 +1627,7 @@ The behavior of a training session might change when Quantization Aware Training
 
 While there can be multiple reasons for this, check two important settings that can influence the training behavior:
 
-* The initial learning rate may be set too high. Reduce LR by a factor of 10 or 100 by specifying a smaller initial `--lr` on the command line, and possibly by reducing the epoch `milestones` for further reduction of the learning rate in the scheduler file specified by `—compress`. Note that the the selected optimizer and the batch size both affect the learning rate.
+* The initial learning rate may be set too high. Reduce LR by a factor of 10 or 100 by specifying a smaller initial `--lr` on the command line, and possibly by reducing the epoch `milestones` for further reduction of the learning rate in the scheduler file specified by `--compress`. Note that the the selected optimizer and the batch size both affect the learning rate.
 * The epoch when QAT is engaged may be set too low. Increase `start_epoch` in the QAT scheduler file specified by `--qat-policy`, and increase the total number of training epochs by increasing the value specified by the `--epochs` command line argument and by editing the `ending_epoch` in the scheduler file specified by `--compress`.
 
 
@@ -1784,7 +1820,7 @@ The following table describes the most important command line arguments for `ai8
 | `--ready-sel-aon`        | Specify AON waitstates                                       |                                 |
 | Various                  |                                                              |                                 |
 | `--synthesize-input`     | Instead of using large sample input data, use only the first `--synthesize-words` words of the sample input, and add N to each subsequent set of `--synthesize-words` 32-bit words | `--synthesize-input 0x112233` |
-| `--synthesize-words`     | When using `—synthesize-input`, specifies how many words to use from the input. The default is 8. This number must be a divisor of the total number of pixels per channel. | `--synthesize-words 64` |
+| `--synthesize-words`     | When using `--synthesize-input`, specifies how many words to use from the input. The default is 8. This number must be a divisor of the total number of pixels per channel. | `--synthesize-words 64` |
 | `--max-verify-length` | Instead of checking all of the expected output data, verify only the first N words | `--max-verify-length 1024` |
 | `--no-unload`            | Do not create the `cnn_unload()` function                    |                                 |
 | `--no-kat` | Do not generate the `check_output()` function (disable known-answer test) | |
@@ -2274,14 +2310,14 @@ The same network can also be viewed graphically:
 ### Adding New Models and New Datasets to the Network Loader
 
 Adding new datasets to the Network Loader is implemented as follows:
-1. Provide the network model, its YAML description and weights. Place the YAML file (e.g., `new.yaml`) in the `networks` directory, and weights in the `trained` directory.
+1. Provide the [network model](#Model), its YAML description and weights. Place the YAML file (e.g., `new.yaml`) in the `networks` directory, and weights in the `trained` directory.
    The non-quantized weights are obtained from a training checkpoint, for example:
    `(ai8x-synthesis) $ cp ../ai8x-training/logs/2020.06.02-154133/best.pth.tar trained/new-unquantized.pth.tar`
 
 2. When using post-training quantization, the quantized weights are the result of the quantization step. Copy and customize an existing quantization shell script, for example:
    `(ai8x-synthesis) $ cp scripts/quantize_mnist.sh scripts/quantize_new.sh`
 
-   Then, *edit this script to point to the new model and dataset* (`vi scripts/quantize_new.sh`), and call the script to generate the quantized weights. Example:
+   Then, *edit this script to point to the new [model](#Model) and [dataset](#Data Loader)* (`vi scripts/quantize_new.sh`), and call the script to generate the quantized weights. Example:
    ```shell
    (ai8x-synthesis) $ scripts/quantize_new.sh 
    Configuring device: MAX78000.
@@ -2424,7 +2460,7 @@ Run `ai8xize.py` with the new network and the new sample data to generate embedd
 
 #### Starting an Inference, Waiting for Completion, Multiple Inferences in Sequence
 
-An inference is started by configuring registers and weights, loading the input, and enabling processing.  This code is automatically generated—see the `cnn_init()`, `cnn_load_weights()`, `cnn_load_bias()`, `cnn_configure()`, and `load_input()` functions. The sample data can be used as a self-checking feature on device power-up since the output for the sample data is known.
+An inference is started by configuring registers and weights, loading the input, and enabling processing.  This code is automatically generated — see the `cnn_init()`, `cnn_load_weights()`, `cnn_load_bias()`, `cnn_configure()`, and `load_input()` functions. The sample data can be used as a self-checking feature on device power-up since the output for the sample data is known.
 To start the accelerator, use `cnn_start()`. The `load_input()` function is called either before `cnn_start()`, or after `cnn_start()`, depending on whether FIFOs are used. To run a second inference with new data, call `cnn_start()` again (after or before loading the new data input using load_input()`).
 
 The MAX78000/MAX78002 accelerator can generate an interrupt on completion, and it will set a status bit (see `cnn.c`). The resulting data can now be unloaded from the accelerator (code for this is also auto-generated in `cnn_unload()`).
@@ -2567,7 +2603,7 @@ To deal with this issue, there are several options:
 
 * The sample input data can be stored in external memory. This requires modifications to the generated code. Please see the SDK examples to learn how to access external memory.
 * The sample input data can be programmatically generated. Typically, this requires manual modification of the generated code, and a corresponding modification of the sample input file.
-  The generator also contains a built-in generator (supported *only* when using `—fifo`, and only for HWC inputs); the command line option `--synthesize-input` uses only the first few words of the sample input data, and then adds the specified value N (for example, 0x112233 if three input channels are used) to each subsequent set of M 32-bit words. M can be specified using `--synthesize-words` and defaults to 8. Note that M must be a divisor of the number of pixels per channel.
+  The generator also contains a built-in generator (supported *only* when using `--fifo`, and only for HWC inputs); the command line option `--synthesize-input` uses only the first few words of the sample input data, and then adds the specified value N (for example, 0x112233 if three input channels are used) to each subsequent set of M 32-bit words. M can be specified using `--synthesize-words` and defaults to 8. Note that M must be a divisor of the number of pixels per channel.
 * The output check can be truncated. The command line option `--max-verify-length` checks only the first N words of output data (for example, 1024). To completely disable the output check, use `--no-kat`.
 * For 8-bit output values, `--mlator` typically generates more compact code.
 * Change the compiler optimization level in `Makefile`. To change the default optimization levels, modify `MXC_OPTIMIZE_CFLAGS` in `assets/embedded-ai85/templateMakefile` for Arm code and `assets/embedded-riscv-ai85/templateMakefile.RISCV` for RISC-V code. Both `-O1` and `-Os` may result in smaller code compared to `-O2`.
