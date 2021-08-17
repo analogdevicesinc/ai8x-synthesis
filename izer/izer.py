@@ -42,8 +42,9 @@ def main():
     # Manipulate device defaults based on command line (FIXME: this should go into state)
     if args.max_proc:
         tc.dev.MAX_PROC = args.max_proc
-        tc.dev.P_NUMPRO = args.max_proc
-        tc.dev.P_NUMGROUPS = 1
+        tc.dev.P_NUMPRO = min(args.max_proc, tc.dev.P_NUMPRO)
+        tc.dev.P_NUMGROUPS = tc.dev.MAX_PROC // tc.dev.P_NUMPRO
+        assert tc.dev.MAX_PROC % tc.dev.P_NUMPRO == 0
     if args.ready_sel:
         tc.dev.READY_SEL = args.ready_sel
     if args.ready_sel_fifo:
