@@ -198,6 +198,8 @@ def get_parser() -> argparse.Namespace:
                        help="do not stop on errors (default: stop)")
     group.add_argument('--stop-after', type=int, metavar='N',
                        help="stop after layer")
+    group.add_argument('--skip-checkpoint-layers', type=int, metavar='N', default=0,
+                       help="ignore first N layers in the checkpoint (default: 0)")
     group.add_argument('--stop-start', action='store_true', default=False,
                        help="stop and then restart the accelerator (default: false)")
     group.add_argument('--one-shot', action='store_true', default=False,

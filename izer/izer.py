@@ -95,6 +95,7 @@ def main():
                     args.no_bias,
                     params['conv_groups'],
                     params['bypass'],
+                    args.skip_checkpoint_layers,
                 )
     else:  # Get some hard-coded sample weights
         layers, weights, output_shift, \
