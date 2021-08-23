@@ -137,9 +137,10 @@ def parse(
     tcalc = [None] * tc.dev.MAX_LAYERS
 
     sequence = 0
+    skip = skip_layers
     for ll in cfg['layers']:
-        if skip_layers > 0:
-            skip_layers -= 1
+        if skip > 0:
+            skip -= 1
             continue
 
         if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'conv_groups', 'dilation',
@@ -156,7 +157,7 @@ def parse(
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
 
         if 'sequence' in ll:
-            sequence = ll['sequence']  # Override sequence information
+            sequence = ll['sequence'] - skip_layers  # Override sequence information
 
         if sequence >= tc.dev.MAX_LAYERS:
             error_exit(f'This device supports up to {tc.dev.MAX_LAYERS} layers', sequence)
@@ -428,23 +429,24 @@ def parse(
             in_sequences[sequence] = ll['in_sequences']
             if not isinstance(in_sequences[sequence], list):
                 in_sequences[sequence] = [in_sequences[sequence]]
+            in_sequences[sequence] = [x - skip_layers for x in in_sequences[sequence]]
 
         if 'next_sequence' in ll:
             if isinstance(ll['next_sequence'], str) \
                and ll['next_sequence'].lower() == 'stop':
                 next_sequence[sequence] = -1
             else:
-                next_sequence[sequence] = ll['next_sequence']
+                next_sequence[sequence] = ll['next_sequence'] - skip_layers
 
         if 'simulated_sequence' in ll:
             if isinstance(ll['simulated_sequence'], str) \
                and ll['simulated_sequence'].lower() == 'stop':
                 simulated_sequence[sequence] = -1
             else:
-                simulated_sequence[sequence] = ll['simulated_sequence']
+                simulated_sequence[sequence] = ll['simulated_sequence'] - skip_layers
 
         if 'snoop_sequence' in ll:
-            snoop_sequence[sequence] = ll['snoop_sequence']
+            snoop_sequence[sequence] = ll['snoop_sequence'] - skip_layers
 
         if 'conv_groups' in ll or 'groups' in ll:
             key = 'conv_groups' if 'conv_groups' in ll else 'groups'
