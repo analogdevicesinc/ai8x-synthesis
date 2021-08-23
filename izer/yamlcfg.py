@@ -52,7 +52,10 @@ class UniqueKeyLoader(yaml.Loader):
         return mapping
 
 
-def parse(config_file):
+def parse(
+        config_file,
+        skip_layers=0,
+):
     """
     Configure network parameters from the YAML configuration file `config_file`.
     `max_conv` can be set to force an early termination of the parser.
@@ -135,6 +138,10 @@ def parse(config_file):
 
     sequence = 0
     for ll in cfg['layers']:
+        if skip_layers > 0:
+            skip_layers -= 1
+            continue
+
         if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'conv_groups', 'dilation',
                                'groups', 'in_channels', 'in_dim', 'in_sequences', 'in_skip',
                                'in_channel_skip', 'in_offset', 'kernel_size', 'pool_stride',
