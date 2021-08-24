@@ -211,7 +211,7 @@ def main():
            and next_sequence[ll] != -1 and next_sequence[ll] < layers:
             output_processor_map[ll] = processor_map[next_sequence[ll]]
 
-        if args.stop_after is not None and ll == args.stop_after:
+        if args.stop_after is not None and ll == args.stop_after - args.skip_yaml_layers:
             next_sequence[ll] = -1
 
         prev_sequence[ll] = prev_ll
