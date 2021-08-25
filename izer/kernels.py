@@ -7,7 +7,6 @@
 """
 Kernel related functions
 """
-import math
 import sys
 
 import numpy as np
@@ -30,7 +29,7 @@ def print_map(
     Print map of all used kernels in kernel map `kmap`. `layers` describes the number of layers
     in the network and is used to align the map.
     """
-    width = int(math.log10(layers)) + 1
+    width = int(np.log10(layers)) + 1
     if width > 1:
         width += 1  # Add space if wider than a single character
 
