@@ -587,7 +587,7 @@ class Backend(backend.Backend):
         if not block_mode and (embedded_code or compact_data):
             sampledata_header = \
                 open(os.path.join(base_directory, test_name, state.sample_filename), mode='w')
-            if embedded_code and state.generate_kat and state.result_filename.lower() != 'none':
+            if state.generate_kat and state.result_filename is not None:
                 sampleoutput_header = \
                     open(os.path.join(base_directory, test_name, state.result_filename), mode='w')
             else:

@@ -7,7 +7,6 @@
 """
 Kernel related functions
 """
-import math
 import sys
 
 import numpy as np
@@ -30,7 +29,7 @@ def print_map(
     Print map of all used kernels in kernel map `kmap`. `layers` describes the number of layers
     in the network and is used to align the map.
     """
-    width = int(math.log10(layers)) + 1
+    width = int(np.log10(layers)) + 1
     if width > 1:
         width += 1  # Add space if wider than a single character
 
@@ -263,7 +262,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             # Initially, start looking at 0 and subsequently at the first available for the
             # previously examined processors. Stop looking at the highest used offset for all
             # processors.
-            search_col = 0  # 0 is a multiple of tc.dev.P_SHARED
+            search_col = (start_offs + tc.dev.P_SHARED - 1) & ~(tc.dev.P_SHARED - 1)
             p = first_proc
             while p < last_proc+1:
                 if (proc_map >> p) & 1 == 0:

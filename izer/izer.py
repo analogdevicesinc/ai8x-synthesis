@@ -42,8 +42,9 @@ def main():
     # Manipulate device defaults based on command line (FIXME: this should go into state)
     if args.max_proc:
         tc.dev.MAX_PROC = args.max_proc
-        tc.dev.P_NUMPRO = args.max_proc
-        tc.dev.P_NUMGROUPS = 1
+        tc.dev.P_NUMPRO = min(args.max_proc, tc.dev.P_NUMPRO)
+        tc.dev.P_NUMGROUPS = tc.dev.MAX_PROC // tc.dev.P_NUMPRO
+        assert tc.dev.MAX_PROC % tc.dev.P_NUMPRO == 0
     if args.ready_sel:
         tc.dev.READY_SEL = args.ready_sel
     if args.ready_sel_fifo:
@@ -55,7 +56,7 @@ def main():
     commandline.set_state(args)
 
     # Load configuration file
-    cfg, cfg_layers, params = yamlcfg.parse(args.config_file)
+    cfg, cfg_layers, params = yamlcfg.parse(args.config_file, args.skip_yaml_layers)
 
     # If not using test data, load weights and biases
     # This also configures the network's output channels
@@ -94,6 +95,7 @@ def main():
                     args.no_bias,
                     params['conv_groups'],
                     params['bypass'],
+                    args.skip_checkpoint_layers,
                 )
     else:  # Get some hard-coded sample weights
         layers, weights, output_shift, \
@@ -209,7 +211,7 @@ def main():
            and next_sequence[ll] != -1 and next_sequence[ll] < layers:
             output_processor_map[ll] = processor_map[next_sequence[ll]]
 
-        if args.stop_after is not None and ll == args.stop_after:
+        if args.stop_after is not None and ll == args.stop_after - args.skip_yaml_layers:
             next_sequence[ll] = -1
 
         prev_sequence[ll] = prev_ll
