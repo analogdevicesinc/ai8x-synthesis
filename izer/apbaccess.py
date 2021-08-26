@@ -256,7 +256,7 @@ class APB():
             rv=rv,
             api=api,
             data=data,
-            use_list=self.embedded_code,
+            use_list=self.embedded_code or state.result_filename is not None,
         )
 
     def wait(

@@ -127,7 +127,7 @@ def get_parser() -> argparse.Namespace:
     group.add_argument('--sample-input', metavar='S', default=None,
                        help="sample data input file name (default: 'tests/sample_dataset.npy')")
     group.add_argument('--sample-output-filename', dest='result_filename', metavar='S',
-                       default='sampleoutput.h',
+                       default=None,
                        help="sample result header file name (default: 'sampleoutput.h', use "
                             "'None' to inline code)")
     group.add_argument('--sample-numpy-filename', dest='result_numpy', metavar='S',
@@ -432,6 +432,11 @@ def get_parser() -> argparse.Namespace:
 
     if args.allow_streaming:
         wprint('`--allow-streaming` is unsupported.')
+
+    if args.result_filename is None:
+        args.result_filename = 'sampleoutput.h' if args.embedded_code else None
+    elif args.result_filename.lower() == 'none':
+        args.result_filename = None
 
     return args
 
