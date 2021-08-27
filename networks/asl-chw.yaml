@@ -1,0 +1,52 @@
+# CHW (big data) configuration for Rock Paper Scissor image classification
+
+arch: ai85rpsnet
+dataset: asl_big
+
+# Define layer parameters in order of the layer sequence
+layers:
+- pad: 1
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0x0000000100010001
+  data_format: CHW
+  operation: Conv2d
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0x000ffff000000000
+  operation: Conv2d
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0x0000000ffffffff0
+  operation: Conv2d
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0xfffffffffffffff0
+  operation: Conv2d
+- max_pool: 2
+  pool_stride: 2
+  pad: 1
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0x00000000ffffffff
+  operation: Conv2d
+- pad: 1
+  activate: ReLU
+  out_offset: 0x2000
+  #output_width: 32
+  processors: 0xffffffff00000000
+  operation: Conv2d
+- op: mlp
+  flatten: true
+  out_offset: 0x1000
+  output_width: 32
+  processors: 0x00000000ffffffff
