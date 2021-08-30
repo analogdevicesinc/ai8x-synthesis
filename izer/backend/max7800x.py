@@ -2605,6 +2605,8 @@ class Backend(backend.Backend):
                     apb.output(f'// Expected output of layer {ll} for {test_name} '
                                'given the sample input (known-answer test)\n'
                                '// Delete this function for production code\n')
+                    if sampleoutput_header is not None:
+                        apb.output('static const uint32_t sample_output[] = SAMPLE_OUTPUT;\n')
                     apb.function_header(dest='wrapper', prefix='', function='check_output')
                     if ll == terminating_layer and mlator \
                        and not state.mlator_noverify and not embedded_code:
