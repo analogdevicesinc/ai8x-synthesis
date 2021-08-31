@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_August 25, 2021_
+_August 31, 2021_
 
 The Maxim Integrated AI project is comprised of five repositories:
 
