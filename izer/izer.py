@@ -43,8 +43,7 @@ def main():
     if args.max_proc:
         tc.dev.MAX_PROC = args.max_proc
         tc.dev.P_NUMPRO = min(args.max_proc, tc.dev.P_NUMPRO)
-        tc.dev.P_NUMGROUPS = tc.dev.MAX_PROC // tc.dev.P_NUMPRO
-        assert tc.dev.MAX_PROC % tc.dev.P_NUMPRO == 0
+        tc.dev.P_NUMGROUPS = (tc.dev.MAX_PROC + tc.dev.P_NUMPRO - 1) // tc.dev.P_NUMPRO
     if args.ready_sel:
         tc.dev.READY_SEL = args.ready_sel
     if args.ready_sel_fifo:
