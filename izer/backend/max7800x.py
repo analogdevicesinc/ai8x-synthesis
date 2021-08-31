@@ -2019,7 +2019,7 @@ class Backend(backend.Backend):
                             for pl in range(ll):
                                 if stream_buf[pl] is None:
                                     continue
-                                if stream_buf[pl][2] & dmap != 0\
+                                if stream_buf[pl][2] & dmap != 0 \
                                    and overlap(stream_buf[ll], stream_buf[pl]):
                                     eprint(f'Streaming buffer for layer {ll} '
                                            f'({stream_buf[ll][0]:04x}-{stream_buf[ll][1]:04x}, '
@@ -2044,7 +2044,7 @@ class Backend(backend.Backend):
                                         continue
                                     if stream_buf[pl][2] & dmap != 0 \
                                        and overlap((out_offset[ll], out_offset[ll]
-                                                   + output_dim[ll][0] * output_dim[ll][1]
+                                                   + output_dim[ll][0] * output_dim[ll][1] * 4
                                                    * output_width[ll] // 8), stream_buf[pl]):
                                         eprint(f'Output for layer {ll} '
                                                f'({out_offset[ll]:04x}-{stream_buf[ll][1]:04x}, '
