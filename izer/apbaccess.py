@@ -776,7 +776,6 @@ class APB():
             self.memfile.write('  int i;\n'
                                '  uint32_t mask, len;\n'
                                '  volatile uint32_t *addr;\n'
-                               '  const uint32_t sample_output[] = SAMPLE_OUTPUT;\n'
                                '  const uint32_t *ptr = sample_output;\n\n'
                                '  while ((addr = (volatile uint32_t *) *ptr++) != 0) {\n'
                                '    mask = *ptr++;\n'

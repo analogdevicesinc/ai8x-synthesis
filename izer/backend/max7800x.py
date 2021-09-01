@@ -2019,7 +2019,7 @@ class Backend(backend.Backend):
                             for pl in range(ll):
                                 if stream_buf[pl] is None:
                                     continue
-                                if stream_buf[pl][2] & dmap != 0\
+                                if stream_buf[pl][2] & dmap != 0 \
                                    and overlap(stream_buf[ll], stream_buf[pl]):
                                     eprint(f'Streaming buffer for layer {ll} '
                                            f'({stream_buf[ll][0]:04x}-{stream_buf[ll][1]:04x}, '
@@ -2044,7 +2044,7 @@ class Backend(backend.Backend):
                                         continue
                                     if stream_buf[pl][2] & dmap != 0 \
                                        and overlap((out_offset[ll], out_offset[ll]
-                                                   + output_dim[ll][0] * output_dim[ll][1]
+                                                   + output_dim[ll][0] * output_dim[ll][1] * 4
                                                    * output_width[ll] // 8), stream_buf[pl]):
                                         eprint(f'Output for layer {ll} '
                                                f'({out_offset[ll]:04x}-{stream_buf[ll][1]:04x}, '
@@ -2605,6 +2605,8 @@ class Backend(backend.Backend):
                     apb.output(f'// Expected output of layer {ll} for {test_name} '
                                'given the sample input (known-answer test)\n'
                                '// Delete this function for production code\n')
+                    if sampleoutput_header is not None:
+                        apb.output('static const uint32_t sample_output[] = SAMPLE_OUTPUT;\n')
                     apb.function_header(dest='wrapper', prefix='', function='check_output')
                     if ll == terminating_layer and mlator \
                        and not state.mlator_noverify and not embedded_code:
