@@ -180,18 +180,18 @@ def main():
     ll = args.start_layer
     while ll < layers:
         if in_sequences[ll] is not None:
-            if isinstance(in_sequences[ll], list):
-                if params['eltwise'][ll] == op.NONE:
-                    # Concatenate
-                    input_channels[ll] = sum(output_channels[i] for i in in_sequences[ll])
-                else:
-                    # Element-wise operation
-                    input_channels[ll] = output_channels[in_sequences[ll][0]]
-                    for i in range(1, len(in_sequences[ll])):
-                        assert output_channels[in_sequences[ll][0]] \
-                            == output_channels[in_sequences[ll][i]]
+            assert isinstance(in_sequences[ll], list)
+            if params['eltwise'][ll] == op.NONE:
+                # Concatenate
+                input_channels[ll] = sum(input_size[0] if i == -1 else output_channels[i]
+                                         for i in in_sequences[ll])
             else:
-                input_channels[ll] = output_channels[in_sequences[ll]]
+                # Element-wise operation
+                input_channels[ll] = input_size[0] if in_sequences[ll][0] == -1 \
+                    else output_channels[in_sequences[ll][0]]
+                for i in range(1, len(in_sequences[ll])):
+                    assert output_channels[in_sequences[ll][0]] \
+                        == output_channels[in_sequences[ll][i]]
 
         if input_channels[ll] <= 0:
             if ll == 0:
@@ -364,32 +364,24 @@ def main():
 
         if in_sequences[ll] is not None:
             if tc.dev.SUPPORT_LINK_LAYER:
-                if isinstance(in_sequences[ll], list) \
-                   and any(i > len(in_sequences) for i in in_sequences[ll]) \
-                   or not isinstance(in_sequences[ll], list) \
-                   and in_sequences[ll] > final_layer:
+                if any(i > len(in_sequences) for i in in_sequences[ll]):
                     eprint(f'`in_sequences` in layer {ll} cannot be greater than the last layer.')
             else:
-                if isinstance(in_sequences[ll], list) \
-                   and any(i >= ll for i in in_sequences[ll]) \
-                   or not isinstance(in_sequences[ll], list) \
-                   and in_sequences[ll] >= ll:
+                if any(i >= ll for i in in_sequences[ll]):
                     eprint(f'`in_sequences` in layer {ll} cannot be greater than layer sequence '
                            'on this device')
 
         if input_dim[ll] is None:
             if in_sequences[ll] is not None:
-                if isinstance(in_sequences[ll], list):
-                    dim = output_dim[in_sequences[ll][0]]
-                    for _, e in enumerate(in_sequences[ll], start=1):
-                        if output_dim[e] != dim:
-                            eprint('Cannot concatenate outputs of different dimensions in layer '
-                                   f'{ll}: {dim} vs {output_dim[e]}.')
-                    auto_input_dim[ll] = dim
-                    prev_op = operator[in_sequences[ll][0]]
-                else:
-                    auto_input_dim[ll] = output_dim[in_sequences[ll]]
-                    prev_op = operator[in_sequences[ll]]
+                dim = auto_input_dim[0] if in_sequences[ll][0] == -1 \
+                    else output_dim[in_sequences[ll][0]]
+                for _, e in enumerate(in_sequences[ll], start=1):
+                    odim = auto_input_dim[0] if e == -1 else output_dim[e]
+                    if odim != dim:
+                        eprint('Cannot concatenate outputs of different dimensions in layer '
+                               f'{ll}: {dim} vs {odim}.')
+                auto_input_dim[ll] = dim
+                prev_op = operator[in_sequences[ll][0]]
             else:
                 auto_input_dim[ll] = output_dim[prev_sequence[ll]]
                 prev_op = operator[prev_sequence[ll]]
