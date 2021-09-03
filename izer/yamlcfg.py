@@ -82,9 +82,10 @@ def parse(
     with open(config_file) as cfg_file:
         cfg = yaml.load(cfg_file, Loader=UniqueKeyLoader)
 
-    if bool(set(cfg) - set(['bias', 'dataset', 'layers',
-                            'output_map', 'arch', 'weights', 'snoop'])):
-        eprint(f'Configuration file {config_file} contains unknown key(s).')
+    cfg_set = set(cfg) - set(['bias', 'dataset', 'layers',
+                              'output_map', 'arch', 'weights', 'snoop'])
+    if bool(cfg_set):
+        eprint(f'Configuration file {config_file} contains unknown key(s): {cfg_set}.')
 
     if 'layers' not in cfg or 'arch' not in cfg or 'dataset' not in cfg:
         eprint(f'Configuration file {config_file} does not contain '
@@ -143,18 +144,20 @@ def parse(
             skip -= 1
             continue
 
-        if bool(set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'conv_groups', 'dilation',
-                               'groups', 'in_channels', 'in_dim', 'in_sequences', 'in_skip',
-                               'in_channel_skip', 'in_offset', 'kernel_size', 'pool_stride',
-                               'out_channels', 'out_offset', 'activate', 'activation',
-                               'data_format', 'eltwise', 'flatten', 'op', 'operands', 'operation',
-                               'operator', 'output_processors', 'output_width', 'output_shift',
-                               'pool_first', 'processors', 'pad', 'quantization', 'next_sequence',
-                               'snoop_sequence', 'simulated_sequence',
-                               'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
-                               'bias_group', 'calcx4', 'readahead', 'pool_dilation',
-                               'output_pad', 'tcalc'])):
-            eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`.')
+        cfg_set = set(ll) - set(['max_pool', 'avg_pool', 'convolution', 'conv_groups', 'dilation',
+                                 'groups', 'in_channels', 'in_dim', 'in_sequences', 'in_skip',
+                                 'in_channel_skip', 'in_offset', 'kernel_size', 'pool_stride',
+                                 'out_channels', 'out_offset', 'activate', 'activation',
+                                 'data_format', 'eltwise', 'flatten', 'op', 'operands', 'operation',
+                                 'operator', 'output_processors', 'output_width', 'output_shift',
+                                 'pool_first', 'processors', 'pad', 'quantization', 'next_sequence',
+                                 'snoop_sequence', 'simulated_sequence',
+                                 'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
+                                 'bias_group', 'calcx4', 'readahead', 'pool_dilation',
+                                 'output_pad', 'tcalc'])
+        if bool(cfg_set):
+            eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`: '
+                   f'{cfg_set}.')
 
         if 'sequence' in ll:
             sequence = ll['sequence'] - skip_layers  # Override sequence information
