@@ -1,7 +1,7 @@
 # CHW (big data) configuration for ASL image classification
 
 arch: ai85aslnet
-dataset: asl_big
+dataset: asl
 
 # Define layer parameters in order of the layer sequence
 layers:

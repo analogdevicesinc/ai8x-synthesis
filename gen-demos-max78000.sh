@@ -13,4 +13,4 @@ COMMON_ARGS="--device $DEVICE --compact-data --mexpress --timer 0 --display-chec
 ./ai8xize.py --test-dir $TARGET --prefix kws20_v3 --checkpoint-file trained/ai85-kws20_v3-qat8-q.pth.tar --config-file networks/kws20-v3-hwc.yaml --softmax $COMMON_ARGS "$@"
 ./ai8xize.py --test-dir $TARGET --prefix faceid --checkpoint-file trained/ai85-faceid-qat8-q.pth.tar --config-file networks/faceid.yaml --fifo $COMMON_ARGS "$@"
 ./ai8xize.py --test-dir $TARGET --prefix cats-dogs --checkpoint-file trained/ai85-catsdogs-qat8-q.pth.tar --config-file networks/cats-dogs-chw.yaml --softmax $COMMON_ARGS "$@"
-./ai8xize.py --test-dir $TARGET --prefix asl --checkpoint-file trained/ai85-asl-qat8-q.pth.tar --config-file networks/asl-chw.yaml --softmax $COMMON_ARGS "$@"
+./ai8xize.py --test-dir $TARGET --prefix asl --checkpoint-file trained/ai85-asl-qat8-q.pth.tar --config-file networks/asl-chw.yaml --softmax --fifo $COMMON_ARGS "$@"
