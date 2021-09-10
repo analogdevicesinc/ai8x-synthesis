@@ -155,13 +155,12 @@ def convert_checkpoint(input_file, output_file, arguments):
                     clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Default to 8 bits
 
             bias_name = '.'.join([layer, operation, 'bias'])
+            params_r = torch.flatten(checkpoint_state[k])
             if sat_fn == get_max_bit_shift:
                 if bias_name in checkpoint_state:
                     weight_r = torch.flatten(checkpoint_state[k])
                     bias_r = torch.flatten(checkpoint_state[bias_name])
                     params_r = torch.cat((weight_r, bias_r))
-                else:
-                    params_r = torch.flatten(checkpoint_state[k])
 
                 shift_quantile_name = '.'.join([layer, 'shift_quantile'])
                 shift_quantile = 1.0
@@ -232,7 +231,7 @@ def convert_checkpoint(input_file, output_file, arguments):
             # Set output shift
             if arguments.clip_mode is None:
                 out_shift_name = '.'.join([layer, 'output_shift'])
-                out_shift = torch.Tensor([-1 * get_max_bit_shift(checkpoint_state[k],
+                out_shift = torch.Tensor([-1 * get_max_bit_shift(params_r,
                                                                  shift_quantile, True)])
                 new_checkpoint_state[out_shift_name] = out_shift
                 if new_masks_dict is not None:
