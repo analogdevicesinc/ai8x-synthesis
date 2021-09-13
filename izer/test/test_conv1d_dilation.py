@@ -219,7 +219,6 @@ def test_conv1d():
 
     convolve(2, d1, w1, e1)
 
-
     # 2x64
     d2 = d1
 
