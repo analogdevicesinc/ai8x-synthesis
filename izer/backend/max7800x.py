@@ -206,6 +206,9 @@ class Backend(backend.Backend):
         if snoop is not None and not tc.dev.SUPPORT_SNOOP:
             eprint("`snoop` is not supported on this device.")
 
+        if oneshot and not tc.dev.SUPPORT_ONESHOT:
+            eprint("`--one-shot` is not supported on this device.")
+
         if state.pipeline is None:
             state.pipeline = tc.dev.SUPPORT_PIPELINE
         pipeline = state.pipeline  # Cache
@@ -274,7 +277,8 @@ class Backend(backend.Backend):
                 eprint(f'`next_sequence` must be {ll+1} when using streaming in layer {ll}. '
                        f'Currently configured: {next_sequence[ll]}')
 
-            if tc.dev.EMULATE_1X1_STREAMING and streaming[ll] and kernel_size[ll] == [1, 1]:
+            if tc.dev.EMULATE_1X1_STREAMING and streaming[ll] and kernel_size[ll] == [1, 1] \
+               and operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D]:
                 wprint(f'Layer {ll}: Using 3x3 kernels to emulate 1x1 streaming layer')
                 # Create 3x3 weights from 1x1 weights and emulate using 3x3 kernels
                 weight33 = np.zeros((kernel[ll].shape[0], 3, 3), dtype=np.int64)
@@ -583,7 +587,7 @@ class Backend(backend.Backend):
         if not block_mode and (embedded_code or compact_data):
             sampledata_header = \
                 open(os.path.join(base_directory, test_name, state.sample_filename), mode='w')
-            if embedded_code and state.generate_kat and state.result_filename.lower() != 'none':
+            if state.generate_kat and state.result_filename is not None:
                 sampleoutput_header = \
                     open(os.path.join(base_directory, test_name, state.result_filename), mode='w')
             else:
@@ -871,6 +875,7 @@ class Backend(backend.Backend):
                     output_processor_map,
                     out_expand,
                     list(set().union(groups_used)),
+                    flatten,
                 )
 
             apb.function_header(function='init')
@@ -1065,6 +1070,7 @@ class Backend(backend.Backend):
                     output_processor_map,
                     out_expand,
                     list(set().union(groups_used)),
+                    flatten,
                 )
 
             if verbose:
@@ -2013,7 +2019,7 @@ class Backend(backend.Backend):
                             for pl in range(ll):
                                 if stream_buf[pl] is None:
                                     continue
-                                if stream_buf[pl][2] & dmap != 0\
+                                if stream_buf[pl][2] & dmap != 0 \
                                    and overlap(stream_buf[ll], stream_buf[pl]):
                                     eprint(f'Streaming buffer for layer {ll} '
                                            f'({stream_buf[ll][0]:04x}-{stream_buf[ll][1]:04x}, '
@@ -2038,7 +2044,7 @@ class Backend(backend.Backend):
                                         continue
                                     if stream_buf[pl][2] & dmap != 0 \
                                        and overlap((out_offset[ll], out_offset[ll]
-                                                   + output_dim[ll][0] * output_dim[ll][1]
+                                                   + output_dim[ll][0] * output_dim[ll][1] * 4
                                                    * output_width[ll] // 8), stream_buf[pl]):
                                         eprint(f'Output for layer {ll} '
                                                f'({out_offset[ll]:04x}-{stream_buf[ll][1]:04x}, '
@@ -2599,6 +2605,8 @@ class Backend(backend.Backend):
                     apb.output(f'// Expected output of layer {ll} for {test_name} '
                                'given the sample input (known-answer test)\n'
                                '// Delete this function for production code\n')
+                    if sampleoutput_header is not None:
+                        apb.output('static const uint32_t sample_output[] = SAMPLE_OUTPUT;\n')
                     apb.function_header(dest='wrapper', prefix='', function='check_output')
                     if ll == terminating_layer and mlator \
                        and not state.mlator_noverify and not embedded_code:
@@ -2801,6 +2809,8 @@ class Backend(backend.Backend):
                 assets.from_template('assets', 'embedded-ai' + str(device), base_directory,
                                      test_name, board_name, '')
             assets.from_template('assets', 'eclipse', base_directory,
+                                 test_name, board_name, '')
+            assets.from_template('assets', 'vscode', base_directory,
                                  test_name, board_name, '')
             assets.from_template('assets', 'device-all', base_directory,
                                  test_name, board_name, insert)

@@ -31,6 +31,7 @@ def load(
         no_bias=None,
         conv_groups=None,
         bypass=None,
+        skip_layers=0,
 ):
     """
     Load weights and biases from `checkpoint_file`. If `arch` is not None and does not match
@@ -95,6 +96,9 @@ def load(
 
         if parameter in ['weight']:
             if layers >= num_conv_layers or seq >= num_conv_layers:
+                continue
+            if skip_layers > 0:
+                skip_layers -= 1
                 continue
 
             w = checkpoint_state[k].numpy().astype(np.int64)

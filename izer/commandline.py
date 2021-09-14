@@ -127,7 +127,7 @@ def get_parser() -> argparse.Namespace:
     group.add_argument('--sample-input', metavar='S', default=None,
                        help="sample data input file name (default: 'tests/sample_dataset.npy')")
     group.add_argument('--sample-output-filename', dest='result_filename', metavar='S',
-                       default='sampleoutput.h',
+                       default=None,
                        help="sample result header file name (default: 'sampleoutput.h', use "
                             "'None' to inline code)")
     group.add_argument('--sample-numpy-filename', dest='result_numpy', metavar='S',
@@ -198,6 +198,10 @@ def get_parser() -> argparse.Namespace:
                        help="do not stop on errors (default: stop)")
     group.add_argument('--stop-after', type=int, metavar='N',
                        help="stop after layer")
+    group.add_argument('--skip-checkpoint-layers', type=int, metavar='N', default=0,
+                       help="ignore first N layers in the checkpoint (default: 0)")
+    group.add_argument('--skip-yaml-layers', type=int, metavar='N', default=0,
+                       help="ignore first N layers in the yaml file (default: 0)")
     group.add_argument('--stop-start', action='store_true', default=False,
                        help="stop and then restart the accelerator (default: false)")
     group.add_argument('--one-shot', action='store_true', default=False,
@@ -356,6 +360,12 @@ def get_parser() -> argparse.Namespace:
     group.add_argument('--max-verify-length', '--max-checklines',
                        type=int, metavar='N', default=None, dest='max_count',
                        help="output only N output check lines (default: all)")
+    group.add_argument('--no-version-check', action='store_true', default=False,
+                       help='do not check GitHub for newer versions of the repository')
+    group.add_argument('--version-check-interval', type=int, metavar='HOURS', default=24,
+                       help='version check update interval (hours), default = 24')
+    group.add_argument('--upstream', metavar='REPO', default="MaximIntegratedAI/ai8x-synthesis",
+                       help='GitHub repository name for update checking')
 
     args = parser.parse_args()
 
@@ -422,6 +432,11 @@ def get_parser() -> argparse.Namespace:
 
     if args.allow_streaming:
         wprint('`--allow-streaming` is unsupported.')
+
+    if args.result_filename is None:
+        args.result_filename = 'sampleoutput.h' if args.embedded_code else None
+    elif args.result_filename.lower() == 'none':
+        args.result_filename = None
 
     return args
 

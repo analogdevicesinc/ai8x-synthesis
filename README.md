@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_July 1, 2021_
+_August 25, 2021_
 
 The Maxim Integrated AI project is comprised of five repositories:
 
@@ -52,18 +52,71 @@ where “....” is the project root, for example `~/Documents/Source/AI`.
 
 ### Prerequisites
 
-This software currently supports Ubuntu Linux 18.04 LTS and 20.04 LTS. The server version is sufficient, see https://ubuntu.com/download/server. *Alternatively, Ubuntu Linux can also be used inside the Windows Subsystem for Linux (WSL2) by following 
-https://docs.nvidia.com/cuda/wsl-user-guide/. However, please note that WSL2 with CUDA is a pre-release and unexpected behavior may occur.*
+This software requires PyTorch. *For TensorFlow / Keras, please use the `develop-tf` branch.*
 
-When going beyond simple models, model training does not work well without CUDA hardware acceleration. The network loader (“izer”) does not require CUDA, and very simple models can also be trained on systems without CUDA.
+PyTorch operating system and hardware support are constantly evolving. This document does not cover all possible combinations of operating system and hardware, and there is only one officially supported platform.
 
-*Recommendation:* Install the latest version of CUDA 11 on Ubuntu 20.04 LTS. See https://developer.nvidia.com/cuda-toolkit-archive.
+#### Platform Recommendation and Full Support
 
-*Note: When using multiple GPUs, the software will automatically use all available GPUs and distribute the workload. To prevent this, set the `CUDA_VISIBLE_DEVICES` environment variable. Use the `--gpus` command line argument to set the default GPU.*
+Full support and documentation are provided for the following platform:
+
+* CPU: 64-bit amd64/x86_64 “PC” with [Ubuntu Linux 20.04 LTS](https://ubuntu.com/download/server)
+* GPU for hardware acceleration (optional): Nvidia with [CUDA 11](https://developer.nvidia.com/cuda-toolkit-archive)
+* [PyTorch 1.8.1 (LTS)](https://pytorch.org/get-started/locally/) on Python 3.8.11
+
+Limited support and advice for using other hardware and software combinations is available as follows.
+
+#### Operating System Support
+
+##### Linux
+
+**The only officially supported platform for model training** is Ubuntu Linux 20.04 LTS on amd64/x86_64, either the desktop or the [server version](https://ubuntu.com/download/server).
+
+*Note that hardware acceleration/CUDA is <u>not available</u> in PyTorch for Raspberry Pi 4 and other <u>aarch64/arm64</u> devices, even those running Ubuntu Linux 20.04. See also [Development on Raspberry Pi 4 and 400](docs/RaspberryPi.md) (unsupported).*
+
+This document also provides instructions for installing on RedHat Enterprise Linux / CentOS 8 with limited support.
+
+##### Windows
+
+Ubuntu Linux 20.04 can be used inside the Windows Subsystem for Linux (WSL2) by following
+https://docs.nvidia.com/cuda/wsl-user-guide/.
+*Please note that WSL2 with CUDA is a pre-release, and unexpected behavior may occur, for example unwanted upgrades to a pre-release of the operating system.*
+
+##### macOS
+
+The software works on macOS, but model training suffers from the lack of hardware acceleration.
+
+##### Virtual Machines (Unsupported)
+
+This software works inside a virtual machine running Ubuntu Linux 20.04. However, GPU passthrough is typically <u>not available</u> for Linux VMs, so there will be no CUDA hardware acceleration. Certain Nvidia cards support [vGPU software](https://www.nvidia.com/en-us/data-center/graphics-cards-for-virtualization/); see also [vGPUs and CUDA](https://docs.nvidia.com/cuda/vGPU/), but vGPU features may come at substantial additional cost and vGPU software is not covered by this document.
+
+##### Docker Containers (Unsupported)
+
+This software also works inside Docker containers. However, CUDA support inside containers requires Nvidia Docker ([see blog entry](https://developer.nvidia.com/blog/nvidia-docker-gpu-server-application-deployment-made-easy/)) and is not covered by this document.
+
+#### PyTorch and Python
+
+The officially supported version of [PyTorch is 1.8.1 (LTS)](https://pytorch.org/get-started/locally/) running on Python 3.8.11. Newer versions will typically work, but are not covered by support, documentation, and installation scripts.
+
+#### Hardware Acceleration
+
+When going beyond simple models, model training does not work well without CUDA hardware acceleration. The network loader (“izer”) does <u>not</u> require CUDA, and very simple models can also be trained on systems without CUDA.
+
+* CUDA requires Nvidia GPUs.
+
+* There is a PyTorch pre-release with ROCm acceleration for certain AMD GPUs on Linux ([see blog entry](https://pytorch.org/blog/pytorch-for-amd-rocm-platform-now-available-as-python-package/)), but this is not currently covered by the installation instructions in this document, and it is not supported.
+
+* There is neither CUDA nor ROCm support on macOS, and therefore no hardware acceleration.
+
+* PyTorch does not include CUDA support for aarch64/arm64 systems. *Rebuilding PyTorch from source is not covered by this document.*
+
+##### Using Multiple GPUs
+
+When using multiple GPUs (graphics cards), the software will automatically use all available GPUs and distribute the workload. To prevent this (for example, when the GPUs are not balanced), set the `CUDA_VISIBLE_DEVICES` environment variable. Use the `--gpus` command line argument to set the default GPU.
 
 #### Shared (Multi-User) and Remote Systems
 
-On a shared (multi-user) system that has previously been set up, only local installation is needed. CUDA and any `apt-get` or `brew` tasks are not necessary.
+On a shared (multi-user) system that has previously been set up, only local installation is needed. CUDA and any `apt-get` or `brew` tasks are not necessary, with the exception of the CUDA [Environment Setup](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html#environment-setup).
 
 The `screen` command (or alternatively, the more powerful `tmux`) can be used inside a remote terminal to disconnect a session from the controlling terminal, so that a long running training session doesn’t abort due to network issues, or local power saving. In addition, screen can log all console output to a text file.
 
@@ -78,17 +131,25 @@ Ctrl+A,D to disconnect
 
 `man screen` and `man tmux` describe the software in more detail.
 
-#### Recommended Software
+#### Additional Software
 
 The following software is optional, and can be replaced with other similar software of the user’s choosing.
 
-1. Visual Studio Code (Editor, Free), https://code.visualstudio.com, with the “Remote - SSH” plugin
-2. Typora (Markdown Editor, Free during beta), http://typora.io
-3. CoolTerm (Serial Terminal, Free), http://freeware.the-meiers.org
-   or Serial ($30), https://apps.apple.com/us/app/serial/id877615577?mt=12
-4. Git Fork (Graphical Git Client, $50), https://git-fork.com
-   or GitHub Desktop (Graphical Git Client, Free), https://desktop.github.com
-5. Beyond Compare (Diff and Merge Tool, $60), https://scootersoftware.com
+1. Code Editor
+   Visual Studio Code (free), https://code.visualstudio.com or the VSCodium version, https://vscodium.com, with the “Remote - SSH” plugin; *to use Visual Studio Code on Windows as a full development environment (including debug), see https://github.com/MaximIntegratedTechSupport/VSCode-Maxim*
+   Sublime Text ($100), https://www.sublimetext.com
+2. Markdown Editor
+   Typora (free during beta), http://typora.io
+3. Serial Terminal
+   CoolTerm (free), http://freeware.the-meiers.org
+   Serial ($30), https://apps.apple.com/us/app/serial/id877615577?mt=12
+   Putty (free), https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html
+   Tera Term (free), https://osdn.net/projects/ttssh2/releases/
+4. Graphical Git Client
+   GitHub Desktop (free), https://desktop.github.com
+   Git Fork ($50), https://git-fork.com
+5. Diff and Merge Tool
+   Beyond Compare ($60), https://scootersoftware.com
 
 ### Project Installation
 
@@ -134,11 +195,11 @@ $ sudo dnf install openssl-devel zlib-devel \
   libsndfile libsndfile-devel portaudio-devel
 ```
 
-#### Python 3.8
+#### Python 3.8 / pyenv
 
-*The software in this project uses Python 3.8.10 or a later 3.8.x version.*
+*The software in this project uses Python 3.8.11 or a later 3.8.x version.*
 
-It is not necessary to install Python 3.8.10 system-wide, or to rely on the system-provided Python. To manage Python versions, use `pyenv` (https://github.com/pyenv/pyenv).
+It is not necessary to install Python 3.8.11 system-wide, or to rely on the system-provided Python. To manage Python versions, use `pyenv` (https://github.com/pyenv/pyenv).
 
 On macOS (no CUDA support available):
 
@@ -167,7 +228,7 @@ $ pyenv init
 ...
 ```
 
-Next, close the Terminal, open a new Terminal and install Python 3.8.10.
+Next, close the Terminal, open a new Terminal and install Python 3.8.11.
 
 On macOS:
 
@@ -179,13 +240,13 @@ $ env \
   PKG_CONFIG_PATH="$(brew --prefix tcl-tk)/lib/pkgconfig" \
   CFLAGS="-I$(brew --prefix tcl-tk)/include" \
   PYTHON_CONFIGURE_OPTS="--with-tcltk-includes='-I$(brew --prefix tcl-tk)/include' --with-tcltk-libs='-L$(brew --prefix tcl-tk)/lib -ltcl8.6 -ltk8.6'" \
-  pyenv install 3.8.10
+  pyenv install 3.8.11
 ```
 
 On Linux:
 
 ```shell
-$ pyenv install 3.8.10
+$ pyenv install 3.8.11
 ```
 
 #### git Environment
@@ -215,10 +276,6 @@ Nirvana Distiller is package for neural network compression and quantization. Ne
 
 Manifold is a model-agnostic visual debugging tool for machine learning. The [Manifold guide](https://github.com/MaximIntegratedAI/MaximAI_Documentation/blob/master/Guides/Manifold.md) shows how to integrate this optional package into the training software.
 
-#### Windows Systems
-
-Windows/MS-DOS is not supported for training networks at this time. *This includes the Windows Subsystem for Linux (WSL) since it currently lacks CUDA support.*
-
 ### Upstream Code
 
 Change to the project root and run the following commands. Use your GitHub credentials if prompted.
@@ -242,10 +299,26 @@ If you want to use the “develop” branch, switch to “develop” using this 
 $ git checkout develop  # optional
 ```
 
+Next, set the local directory to use Python 3.8.11.
+
+```shell
+$ pyenv local 3.8.11
+```
+
+And verify that the correct Python version is used:
+
+```shell
+$ which python3
+..../.pyenv/shims/python3
+$ python3 --version
+Python 3.8.11
+```
+
+If this does <u>*not*</u> return the correct path <u>*and*</u> version, please install and initialize [pyenv](#Python 3.8 / pyenv).
+
 Then continue with the following:
 
 ```shell
-$ pyenv local 3.8.10
 $ python3 -m venv .
 $ source bin/activate
 (ai8x-training) $ pip3 install -U pip wheel setuptools
@@ -304,11 +377,11 @@ On Windows, please *also* use the Maintenance Tool as documented in the [Maxim M
 
 ##### Python Version Updates
 
-Updating Python may require updating `pyenv` first. Should `pyenv install 3.8.10` fail,
+Updating Python may require updating `pyenv` first. Should `pyenv install 3.8.11` fail,
 
 ```shell
-$ pyenv install 3.8.10
-python-build: definition not found: 3.8.10
+$ pyenv install 3.8.11
+python-build: definition not found: 3.8.11
 ```
 
 then `pyenv` must be updated. On macOS, use:
@@ -331,12 +404,12 @@ $
 The update should now succeed:
 
 ```shell
-$ pyenv install 3.8.10
-Downloading Python-3.8.10.tar.xz...
--> https://www.python.org/ftp/python/3.8.10/Python-3.8.10.tar.xz
-Installing Python-3.8.10...
+$ pyenv install 3.8.11
+Downloading Python-3.8.11.tar.xz...
+-> https://www.python.org/ftp/python/3.8.11/Python-3.8.11.tar.xz
+Installing Python-3.8.11...
 ...
-$ pyenv local 3.8.10
+$ pyenv local 3.8.11
 ```
 
 
@@ -367,7 +440,7 @@ $ git checkout develop  # optional
 Then continue:
 
 ```shell
-$ pyenv local 3.8.10
+$ pyenv local 3.8.11
 $ python3 -m venv .
 $ source bin/activate
 (ai8x-synthesis) $ pip3 install -U pip setuptools
@@ -430,7 +503,7 @@ To minimize data movement, the accelerator is optimized for convolutions with in
 
 ![CNNInFlight](docs/CNNInFlight.png)
 
-The MAX78000/MAX78002 accelerators contain 64 parallel processors. There are four groups that contain 16 processors each.
+The MAX78000/MAX78002 accelerators contain 64 parallel processors. There are four quadrants that contain 16 processors each.
 
 Each processor includes a pooling unit and a convolutional engine with dedicated weight memory:
 
@@ -448,8 +521,8 @@ Data memory, weight memory, and processors are interdependent.
 In the MAX78000/MAX78002 accelerator, processors are organized as follows:
 
 * Each processor is connected to its own dedicated weight memory instance.
-* Four processors share one data memory instance.
-* A group of sixteen processors shares certain common controls and can be operated as a slave to another group, or independently/separately.
+* A group of four processors shares one data memory instance.
+* A quadrant of sixteen processors shares certain common controls and can be operated tethered to another quadrant, or independently/separately.
 
 Any given processor has visibility of:
 
@@ -458,9 +531,13 @@ Any given processor has visibility of:
 
 #### Weight Memory
 
-For each of the four 16-processor groups, weight memory and processors can be visualized as follows. Assuming one input channel processed by processor 0, and 8 output channels, the 8 shaded kernels will be used:
+*Note: Depending on context, weights may also be referred to as “kernels” or “masks”. Additionally, weights are also part of a network’s “parameters”.*
+
+For each of the four 16-processor quadrants, weight memory and processors can be visualized as follows. Assuming one input channel processed by processor 0, and 8 output channels, the 8 shaded kernels will be used:
 
 ![Weight Memory Map](docs/KernelMemory.png)
+
+*Note: Weights that are not 3×3×8 (= 72-bits) per kernel are packed to save space.*
 
 #### Data Memory
 
@@ -548,14 +625,14 @@ Examples:
 | 1111 1110 | −2/128       |
 | 1111 1111 | −1/128       |
 
-On MAX78000/MAX78002, _weights_ can be 1, 2, 4, or 8 bits wide (configurable per layer using the `quantization` key). Bias values are always 8 bits wide. Data is 8 bits wide, except for the last layer that can optionally output 32 bits of unclipped data in Q17.14 format when not using activation.
+On MAX78000/MAX78002, _weights_ can be 1, 2, 4, or 8 bits wide (configurable per layer using the `quantization` key). Bias values are always 8 bits wide. Data is 8 bits wide, *except for the last layer that can optionally output 32 bits of unclipped data in Q17.14 format when not using activation.*
 
-|wt bits| min  | max  |
-|:-----:|-----:|-----:|
-|    8  | –128 | +127 |
-|    4  |   –8 |    7 |
-|    2  |   –2 |    1 |
-|    1  |   –1 |    0 |
+| weight bits |  min |  max |
+| :---------: | ---: | ---: |
+|      8      | –128 | +127 |
+|      4      |   –8 |    7 |
+|      2      |   –2 |    1 |
+|      1      |   –1 |    0 |
 
 Note that 1-bit weights (and, to a lesser degree, 2-bit weights) require the use of bias to produce useful results. Without bias, all sums of products of activated data from a prior layer would be negative, and activation of that data would always be zero.
 
@@ -768,7 +845,7 @@ The MAX78000 hardware does not support arbitrary network parameters. Specificall
 
 * A programmable layer-specific shift operator is available at the output of a convolution, see [`output_shift` (Optional)](#output_shift \(Optional\)).
 
-* The supported activation functions are `ReLU` and `Abs`, and a limited subset of `Linear`.
+* The supported activation functions are `ReLU` and `Abs`, and a limited subset of `Linear`. *Note that due to clipping, non-linearities are introduced even when not explicitly specifying an activation function.*
 
 * Pooling:
   * Both max pooling and average pooling are available, with or without convolution.
@@ -852,6 +929,37 @@ The example shows a fractionally-strided convolution with a stride of 2, a pad o
 
 ## Model Training and Quantization
 
+#### Hardware Acceleration
+
+If hardware acceleration is not available, skip the following two steps and continue with [Training Script](#Training Script).
+
+1. Before the first training session, check that CUDA hardware acceleration is available using `nvidia-smi -q`:
+
+```shell
+(ai8x-training) $ nvidia-smi -q
+...
+Driver Version                            : 470.57.02
+CUDA Version                              : 11.4
+
+Attached GPUs                             : 1
+GPU 00000000:01:00.0
+    Product Name                          : NVIDIA TITAN RTX
+    Product Brand                         : Titan
+...
+```
+
+2. Verify that PyTorch recognizes CUDA:
+
+```shell
+(ai8x-training) $ python3 check_cuda.py
+System:            linux
+Python version:    3.8.11 (default, Jul 14 2021, 12:46:05) [GCC 9.3.0]
+PyTorch version:   1.8.1+cu111
+CUDA acceleration: available in PyTorch
+```
+
+#### Training Script
+
 The main training software is `train.py`. It drives the training aspects, including model creation, checkpointing, model save, and status display (see `--help` for the many supported options, and the `scripts/train_*.sh` scripts for example usage).
 
 The `ai84net.py` and `ai85net.py` files contain models that fit into AI84’s weight memory. These models rely on the MAX78000/MAX78002 hardware operators that are defined in `ai8x.py`.
@@ -859,6 +967,122 @@ The `ai84net.py` and `ai85net.py` files contain models that fit into AI84’s we
 To train the FP32 model for MNIST on MAX78000, run `scripts/train_mnist.sh` from the `ai8x-training` project. This script will place checkpoint files into the log directory. Training makes use of the Distiller framework, but the `train.py` software has been modified slightly to improve it and add some MAX78000/MAX78002 specifics.
 
 Since training can take hours or days, the training script does not overwrite any weights previously produced. Results are placed in sub-directories under `logs/` named with the date and time when training began. The latest results are always soft-linked to by `latest-log_dir` and `latest_log_file`.
+
+#### Example Training Session
+
+Using the MNIST dataset and a simple model as an example, run `scripts/train_mnist.sh`. The following is the shortened output of an MNIST training session:
+
+```shell
+(ai8x-training) $ scripts/train_mnist.sh 
+Configuring device: MAX78000, simulate=False.
+Log file for this run: logs/2021.07.13-111453/2021.07.13-111453.log
+{'start_epoch': 10, 'weight_bits': 8}
+Optimizer Type: <class 'torch.optim.sgd.SGD'>
+Optimizer Args: {'lr': 0.1, 'momentum': 0.9, 'dampening': 0, 'weight_decay': 0.0001, 'nesterov': False}
+Downloading https://ossci-datasets.s3.amazonaws.com/mnist/train-images-idx3-ubyte.gz
+Downloading https://ossci-datasets.s3.amazonaws.com/mnist/train-images-idx3-ubyte.gz to data/MNIST/raw/train-images-idx3-ubyte.gz
+9913344it [00:01, 5712259.71it/s]                                                                                                                                                                                                                           
+Extracting data/MNIST/raw/train-images-idx3-ubyte.gz to data/MNIST/raw
+
+...
+
+Dataset sizes:
+	training=54000
+	validation=6000
+	test=10000
+Reading compression schedule from: schedule.yaml
+
+
+Training epoch: 54000 samples (256 per mini-batch)
+Named tensors and all their associated APIs are an experimental feature and subject to change. Please do not use them for anything important until they are released as stable. (Triggered internally at  /pytorch/c10/core/TensorImpl.h:1156.)
+
+Epoch: [0][   10/  211]    Overall Loss 2.298435    Objective Loss 2.298435    Top1 13.710937    Top5 52.070313    LR 0.100000    Time 0.054167    
+Epoch: [0][   20/  211]    Overall Loss 2.267082    Objective Loss 2.267082    Top1 16.464844    Top5 58.535156    LR 0.100000    Time 0.039278    
+...
+Epoch: [0][  211/  211]    Overall Loss 0.867936    Objective Loss 0.867936    Top1 71.101852    Top5 92.837037    LR 0.100000    Time 0.025054    
+
+--- validate (epoch=0)-----------
+6000 samples (256 per mini-batch)
+Epoch: [0][   10/   24]    Loss 0.295286    Top1 91.367188    Top5 99.492188    
+Epoch: [0][   20/   24]    Loss 0.293729    Top1 91.054688    Top5 99.550781    
+Epoch: [0][   24/   24]    Loss 0.296180    Top1 91.000000    Top5 99.550000    
+==> Top1: 91.000    Top5: 99.550    Loss: 0.296
+
+==> Confusion:
+[[581   2   3   1   2   3   4   3   2   4]
+ [  0 675   4   1   3   0   1   4   0   0]
+ [  5   6 501  21  11   2   4  25   7   4]
+ [  1   4   7 549   3   5   0  11   2   1]
+ [  2   6   7   0 525   1   3   9   0  12]
+ [  0   8   2  10   5 464   3   8   6  12]
+ [ 13  18   1   0  10   8 574   0   6   1]
+ [  1  11   8   7   3   4   0 588   0   3]
+ [ 26   4   7   5   9   9  16   5 482  21]
+ [  4   9   5   7  36   8   0  19   6 521]]
+
+==> Best [Top1: 91.000   Top5: 99.550   Sparsity:0.00   Params: 71148 on epoch: 0]
+Saving checkpoint to: logs/2021.07.13-111453/checkpoint.pth.tar
+
+...
+
+Training epoch: 54000 samples (256 per mini-batch)
+Epoch: [199][   10/  211]    Overall Loss 0.033614    Objective Loss 0.033614    Top1 98.984375    Top5 100.000000    LR 0.000100    Time 0.052778    
+...
+Epoch: [199][  211/  211]    Overall Loss 0.027310    Objective Loss 0.027310    Top1 99.181481    Top5 99.992593    LR 0.000100    Time 0.024874    
+
+--- validate (epoch=199)-----------
+6000 samples (256 per mini-batch)
+Epoch: [199][   10/   24]    Loss 0.027533    Top1 98.984375    Top5 100.000000    
+Epoch: [199][   20/   24]    Loss 0.028965    Top1 98.984375    Top5 100.000000    
+Epoch: [199][   24/   24]    Loss 0.028365    Top1 98.983333    Top5 100.000000    
+==> Top1: 98.983    Top5: 100.000    Loss: 0.028
+
+==> Confusion:
+[[599   0   1   1   0   0   3   0   0   1]
+ [  0 685   0   1   0   0   0   2   0   0]
+ [  0   1 581   0   0   0   0   2   2   0]
+ [  0   0   1 578   0   2   0   1   1   0]
+ [  0   1   1   0 558   0   0   0   1   4]
+ [  1   0   0   2   0 513   1   0   1   0]
+ [  2   1   0   0   1   0 625   0   2   0]
+ [  0   1   3   1   0   0   0 619   0   1]
+ [  1   0   1   1   1   1   2   0 577   0]
+ [  0   0   0   0   2   1   0   6   2 604]]
+
+==> Best [Top1: 99.283   Top5: 100.000   Sparsity:0.00   Params: 71148 on epoch: 180]
+Saving checkpoint to: logs/2021.07.13-111453/qat_checkpoint.pth.tar
+--- test ---------------------
+10000 samples (256 per mini-batch)
+Test: [   10/   40]    Loss 0.017528    Top1 99.453125    Top5 100.000000    
+Test: [   20/   40]    Loss 0.015671    Top1 99.492188    Top5 100.000000    
+Test: [   30/   40]    Loss 0.013522    Top1 99.583333    Top5 100.000000    
+Test: [   40/   40]    Loss 0.013415    Top1 99.590000    Top5 100.000000    
+==> Top1: 99.590    Top5: 100.000    Loss: 0.013
+
+==> Confusion:
+[[ 980    0    0    0    0    0    0    0    0    0]
+ [   0 1133    1    0    0    0    0    1    0    0]
+ [   1    0 1025    1    0    0    0    5    0    0]
+ [   0    0    0 1010    0    0    0    0    0    0]
+ [   0    0    0    0  978    0    2    0    0    2]
+ [   0    0    0    3    0  888    1    0    0    0]
+ [   0    1    0    0    1    2  953    0    1    0]
+ [   0    1    0    0    0    0    0 1026    0    1]
+ [   0    0    2    1    1    1    0    1  967    1]
+ [   0    0    0    0    5    2    0    3    0  999]]
+
+
+Log file for this run: logs/2021.07.13-111453/2021.07.13-111453.log
+
+```
+
+For classification, the “Top-1” score refers to the percentage of samples that returned the correct class (the correct target label), while “Top-5” is the percentage of samples the correct answer was one of the five highest ranked predictions. The “Loss” shows the output of the loss function that the training session aims to minimize (the “loss” numbers may be larger than 1, depending on the dataset and model). “LR” is the learning rate, and depending on the learning rate schedule used, LR may decrease as training progresses.
+
+The “Confusion Matrix” shows both the target (expected) label on the vertical (Y) axis, as well as the highest ranked prediction on the horizontal (X) axis. If the network returns 100% expected labels, then only the diagonal (top left to bottom right) will contain values greater than 0.
+
+When enabling TensorBoard (see [TensorBoard](#TensorBoard)), these and other statistics are also available in graphical form:
+
+![confusionmatrix](docs/confusionmatrix.png)
 
 ### Command Line Arguments
 
@@ -913,7 +1137,7 @@ The ONNX model export (via `--summary onnx` or `--summary onnx_simplified`) is p
 ```
 $ nvidia-smi
 +-----------------------------------------------------------------------------+
-| NVIDIA-SMI 430.50       Driver Version: 430.50       CUDA Version: 10.1     |
+|  NVIDIA-SMI 470.42.01    Driver Version: 470.42.01    CUDA Version: 11.4    |
 |-------------------------------+----------------------+----------------------+
 | GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
 | Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
@@ -929,8 +1153,29 @@ $ nvidia-smi
 The `ai8x.py` file contains customized PyTorch classes (subclasses of `torch.nn.Module`). Any model that is designed to run on MAX78000/MAX78002 should use these classes. There are three main changes over the default classes in `torch.nn.Module`:
 
 1. Additional “Fused” operators that model in-flight pooling and activation.
-2. Rounding and clipping that matches the hardware.
+2. Rounding, clipping and activation that matches the hardware.
 3. Support for quantized operation (when using the `-8` command line argument).
+
+##### set_device()
+
+`ai8x.py` defines the `set_device()` function which configures the training system:
+
+```python
+def set_device(
+        device,
+        simulate,
+        round_avg,
+        verbose=True,
+):
+```
+
+where *device* is `85` (the MAX78000 device code), *simulate* is `True` when clipping and rounding are set to simulate hardware behavior, and *round_avg* picks one of the two hardware rounding modes for AvgPool.
+
+##### update_model()
+
+`ai8x.py` defines `update_model()`. This function is called after loading a checkpoint file, and recursively applies output shift, weight scaling, and quantization clamping to the model.
+
+
 
 #### List of Predefined Modules
 
@@ -982,7 +1227,9 @@ The following modules are predefined:
 
 Dropout modules such as `torch.nn.Dropout()` and `torch.nn.Dropout2d()` are automatically disabled during inference, and can therefore be used for training without affecting inference.
 
-#### view and reshape
+*Note: Using [batch normalization](#Batch Normalization) in conjunction with dropout can sometimes degrade training results.*
+
+#### view() and reshape()
 
 There are two supported cases for `view()` or `reshape()`.
 
@@ -1029,26 +1276,46 @@ After fusing/folding, the network will no longer contain any batchnorm layers. T
 * When using [Quantization-Aware Training (QAT)](#Quantization-Aware Training (QAT)), batchnorm layers <u>are automatically folded</u> during training and no further action is needed.
 * When using [Post-Training Quantization](#Post-Training Quantization), the `batchnormfuser.py` script (see [BatchNorm Fusing](#BatchNorm-Fusing)) must be called before `quantize.py` to explicitly fuse the batchnorm layers.
 
+*Note: Using batch normalization in conjunction with [dropout](#Dropout) can sometimes degrade training results.*
+
+### Adapting Pre-existing Models
+
+In some cases, it may be possible to use generic models that were designed for non-MAX7800X platforms. To adapt pre-existing models to MAX7800X, several steps are needed:
+
+1. Check that all operators are supported in hardware (see [List of Predefined Modules](#List of Predefined Modules), [Dropout](#Dropout), and [Batch Normalization](#Batch Normalization)).
+2. Check that the model size, parameter count, and parameters to the operators are supported (see [Limitations of MAX78000 Networks](#Limitations of MAX78000 Networks)). For example, padding must always be zero-padding, and `Conv2d()` supports 1×1 and 3×3 kernels.
+3. Change from PyTorch *nn.modules* to the *ai8x* versions of the modules. For example, `nn.Conv2d(…)` ⟶ `ai8x.Conv2d(…)`.
+4. Merge modules where possible (for example, `MaxPool2d()` + `Conv2d()` + `ReLU()` = `FusedMaxPoolConv2dReLU()`).
+5. [Re-train](#Model Training and Quantization) the model. *This is necessary to correctly model clipping and quantization effects of the hardware.*
+
 ### Model Comparison and Feature Attribution
 
 Both TensorBoard and [Manifold](#Manifold) can be used for model comparison and feature attribution.
 
 #### TensorBoard
 
-TensorBoard is built into `train.py`. When enabled using `--enable-tensorboard`, it provides a local web server that can be started before, during, or after training, and it picks up all data that is written to the `logs/` directory. 
+[TensorBoard](https://www.tensorflow.org/tensorboard/) support is built into `train.py`. When enabled using `--enable-tensorboard`, it provides a local web server that can be started before, during, or after training, and it picks up all data that is written to the `logs/` directory. 
 
 For classification models, TensorBoard supports the optional `--param-hist` and `--embedding` command line arguments. `--embedding` randomly selects up to 100 data points from the last batch of each verification epoch. These can be viewed in the “projector” tab in TensorBoard.
+
+`--pr-curves` adds support for displaying precision-recall curves.
 
 To start the TensorBoard server, use a second terminal window:
 
 ```shell
 (ai8x-training) $ tensorboard --logdir='./logs'
-TensorBoard 2.2.2 at http://127.0.0.1:6006/ (Press CTRL+C to quit)
+TensorBoard 2.4.1 at http://127.0.0.1:6006/ (Press CTRL+C to quit)
 ```
 
 On a shared system, add the `--port 0` command line option.
 
 The training progress can be observed by starting TensorBoard and pointing a web browser to the port indicated.
+
+##### Examples
+
+TensorBoard produces graphs and displays metrics that may help optimize the training process, and can compare the performance of multiple training sessions and their settings. Additionally, TensorBoard can show a graphical representation of the model and its parameters, and help discover labeling errors. For more information, please see the [TensorBoard web site](https://www.tensorflow.org/tensorboard/).
+
+<img src="docs/lr.png" alt="learning rate" style="zoom: 50%;" /><img src="docs/top1.png" alt="top-1" style="zoom:50%;" /><img src="docs/objectiveloss.png" alt="objective loss" style="zoom:42%;" /><img src="docs/histogram.png" alt="histogram" style="zoom:50%;" /><img src="docs/model.png" alt="model" style="zoom:50%;" /><img src="docs/projector.png" alt="projector" style="zoom:50%;" />
 
 ##### Remote Access to TensorBoard
 
@@ -1068,10 +1335,10 @@ When using PuTTY, port forwarding is achieved as follows:
 
 The training software integrates code to generate SHAP plots (see https://github.com/slundberg/shap). This  can help with feature attribution for input images.
 
-The train.py program can create plots using the `--shap` command line argument in combination with `--evaluate`:
+The `train.py` program can create plots using the `--shap` command line argument in combination with `--evaluate`:
 
 ```shell
-./train.py --model ai85net5 --dataset CIFAR10 --confusion --evaluate --device MAX78000 --exp-load-weights-from logs/CIFAR-new/best.pth.tar --shap 3
+$ python3 train.py --model ai85net5 --dataset CIFAR10 --confusion --evaluate --device MAX78000 --exp-load-weights-from logs/CIFAR-new/best.pth.tar --shap 3
 ```
 
 This will create a plot with a random selection of 3 test images. The plot shows ten outputs (the ten classes) for the three different input images on the left. Red pixels increase the model’s output while blue pixels decrease the output. The sum of the SHAP values equals the difference between the expected model output (averaged over the background dataset) and the current model output.
@@ -1107,7 +1374,17 @@ For both approaches, the `quantize.py` software quantizes an existing PyTorch ch
 
 #### Quantization-Aware Training (QAT)
 
-Quantization-aware training is the better performing approach. It is enabled by default. QAT learns additional parameters during training that help with quantization (see [Weights: Quantization-Aware Training (QAT)](#Weights: Quantization-Aware Training (QAT)). No additional arguments are needed for `quantize.py`.
+Quantization-aware training is the better performing approach. It is enabled by default. QAT learns additional parameters during training that help with quantization (see [Weights: Quantization-Aware Training (QAT)](#Weights: Quantization-Aware Training (QAT)). No additional arguments (other than input, output, and device) are needed for `quantize.py`.
+
+The input checkpoint to `quantize.py` is either `qat_best.pth.tar`, the best QAT epoch’s checkpoint, or `qat_checkpoint.pth.tar`, the final QAT epoch’s checkpoint.
+
+Example:
+
+```shell
+(ai8x-synthesis) $ python3 quantize.py proj/qat_best.pth.tar proj/proj_q8.pth.tar --device MAX78000
+```
+
+
 
 #### Post-Training Quantization
 
@@ -1116,6 +1393,17 @@ This approach is also called *”naive quantization”*. It should be used when 
 While several approaches for clipping are implemented in `quantize.py`, clipping with a simple fixed scale factor performs best, based on experimental results. The approach requires the clamping operators implemented in `ai8x.py`.
 
 Note that the “optimum” scale factor for simple clipping is highly dependent on the model and weight data. For the MNIST example, a `--scale 0.85` works well. For the CIFAR-100 example on the other hand, Top-1 performance is 30 points better with `--scale 1.0`.
+
+The input checkpoint to `quantize.py` for post-training quantization is typically `best.pth.tar`, the best epoch’s checkpoint, or `checkpoint.pth.tar`, the final epoch’s checkpoint.
+
+Example:
+
+```shell
+(ai8x-synthesis) $ python3 quantize.py proj2/best.pth.tar proj2/proj2_q8.pth.tar \
+--device MAX78000 --scale 0.85 --clip-method SCALE
+```
+
+
 
 #### Command Line Arguments
 
@@ -1135,7 +1423,7 @@ The `quantize.py` software has the following important command line arguments:
 
 *Note: The syntax for the optional YAML file is described below. The same file can be used for both `quantize.py` and `ai8xize.py`.*
 
-`quantize.py` does not need access to the dataset.
+*Note:* `quantize.py` does <u>not</u> need access to the dataset.
 
 #### Example and Evaluation
 
@@ -1145,13 +1433,50 @@ Example for MNIST:
 
 ```shell
 (ai8x-synthesis) $ scripts/quantize_mnist.sh
+Configuring device: MAX78000
+Converting checkpoint file trained/ai85-mnist-qat8.pth.tar to trained/ai85-mnist-qat8-q.pth.tar
+
+Model keys (state_dict):
+conv1.output_shift, conv1.weight_bits, conv1.bias_bits, conv1.quantize_activation, conv1.adjust_output_shift, conv1.op.weight, conv2.output_shift, conv2.weight_bits, conv2.bias_bits, conv2.quantize_activation, conv2.adjust_output_shift, conv2.op.weight, conv3.output_shift, conv3.weight_bits, conv3.bias_bits, conv3.quantize_activation, conv3.adjust_output_shift, conv3.op.weight, conv4.output_shift, conv4.weight_bits, conv4.bias_bits, conv4.quantize_activation, conv4.adjust_output_shift, conv4.op.weight, fc.output_shift, fc.weight_bits, fc.bias_bits, fc.quantize_activation, fc.adjust_output_shift, fc.op.weight, fc.op.bias, conv1.shift_quantile, conv2.shift_quantile, conv3.shift_quantile, conv4.shift_quantile, fc.shift_quantile
+conv1.op.weight avg_max: 0.34562021 max: 0.51949096 mean: 0.02374955 factor: [128.] bits: 8
+conv2.op.weight avg_max: 0.2302317 max: 0.269847 mean: -0.021919029 factor: [256.] bits: 8
+conv3.op.weight avg_max: 0.42106587 max: 0.49686784 mean: -0.021314206 factor: [256.] bits: 8
+conv4.op.weight avg_max: 0.49237916 max: 0.5019533 mean: 0.010923488 factor: [128.] bits: 8
+fc.op.weight avg_max: 0.9884483 max: 1.0039074 mean: -0.0033990005 factor: [64.] bits: 8
+fc.op.bias avg_max: 0.00029080958 max: 0.26957372 mean: -0.00029080958 factor: [64.] bits: 8
 ```
 
-To evaluate the quantized network for MAX78000 (run from the training project):
+To evaluate the quantized network for MAX78000 (**run from the training project**):
 
 ```shell
 (ai8x-training) $ scripts/evaluate_mnist.sh
+...
+--- test ---------------------
+10000 samples (256 per mini-batch)
+Named tensors and all their associated APIs are an experimental feature and subject to change. Please do not use them for anything important until they are released as stable. (Triggered internally at  /pytorch/c10/core/TensorImpl.h:1156.)
+
+Test: [   10/   40]    Loss 0.007288    Top1 99.531250    Top5 100.000000    
+Test: [   20/   40]    Loss 0.010161    Top1 99.414062    Top5 100.000000    
+Test: [   30/   40]    Loss 0.007681    Top1 99.492188    Top5 100.000000    
+Test: [   40/   40]    Loss 0.009589    Top1 99.440000    Top5 100.000000    
+==> Top1: 99.440    Top5: 100.000    Loss: 0.010
+
+==> Confusion:
+[[ 978    0    1    0    0    0    0    0    1    0]
+ [   0 1132    1    1    0    0    1    0    0    0]
+ [   0    0 1028    0    0    0    0    4    0    0]
+ [   0    1    0 1007    0    1    0    1    0    0]
+ [   0    0    1    0  977    0    1    0    1    2]
+ [   1    0    0    3    0  884    3    0    0    1]
+ [   3    0    1    0    1    3  949    0    1    0]
+ [   0    2    1    0    0    0    0 1024    0    1]
+ [   0    0    2    1    1    1    0    0  968    1]
+ [   0    0    0    0    7    1    0    4    0  997]]
+
+Log file for this run: 2021.07.20-123302/2021.07.20-123302.log
 ```
+
+*Note that the “Loss” output is not always directly comparable to the unquantized network, depending on the loss function itself.*
 
 #### Alternative Quantization Approaches
 
@@ -1171,7 +1496,32 @@ In all cases, ensure that the quantizer writes out a checkpoint file that the Ne
 
 The following step is needed to add new network models:
 
-Implement a new network model based on the constraints described earlier, see [Custom nn.Modules](#custom-nnmodules) (and `models/ai85net.py` for an example). 
+Implement a new network model based on the constraints described earlier, see [Custom nn.Modules](#custom-nnmodules) (and `models/ai85net.py` for an example).
+
+***Note:*** *When re-using existing models, please note that some of the example models are designed to be used with [Neural Architecture Search (NAS)](#Neural Architecture Search (NAS)). These models will typically not perform well, or not fit into hardware without the NAS steps. These models have “nas” as part of their name.*
+
+##### Model Instantiation and Initialization
+
+To support *evaluation* of the quantized model using PyTorch, the model must be instantiated and initialized using all parameters supplied by `train.py`, and the parameters must be passed to the individual *nn.Modules*.
+
+Example:
+
+```python
+class NewModel(nn.Module):
+    def __init__(self, num_classes=10, num_channels=3, dimensions=(64, 64), bias=False, **kwargs):
+        super().__init__()
+        self.conv1 = ai8x.FusedConv2dReLU(..., bias=bias, **kwargs)
+				...
+
+    def forward(self, x):
+      	...
+        
+def newmodel(pretrained=False, **kwargs):
+    ...
+    return NewModel(**kwargs)
+```
+
+Note the  `__init(...)__` function signature, the extra arguments to `ai8x.FusedConv2dReLU(...)` and the `NewModel(**kwargs)` instantiation.
 
 ##### `models` Data Structure
 
@@ -1179,9 +1529,13 @@ The file must include the `models` data structure that describes the model. `mod
 
 For each model, three fields are required in the data structure:
 
-* The `name` field assigns a name to the model for discovery by `train.py`, for example “`resnet5`”.
+* The `name` field assigns a name to the model for discovery by `train.py`, for example “`resnet5`”, and the name must match a function that instantiates the model. *Note: The `name` must be unique.*
 * The `min_input` field describes the minimum width for 2D models, it is typically `1` *(when the input `W` dimension is smaller than `min_input`, it is padded to `min_input`)*.
 * The `dim` field is either `1` (the model handles 1D inputs) or `2` (the model handles 2D inputs).
+
+##### Model File Location
+
+Place the new model file (with its unique model name as specified by `name` in the data structure described above) into the `models` folder. `train.py` will now be able to discover and use the new model by specifying `--model modelname`.
 
 #### Data Loader
 
@@ -1197,23 +1551,58 @@ The loader returns a tuple of two PyTorch Datasets for training and test data.
 
 ##### Normalizing Input Data
 
-For training, input data is expected to be in the range $[–\frac{128}{128}, +\frac{127}{128}]$. When evaluating quantized weights, or when running on hardware, input data is instead expected to be in the native MAX7800X range of $[–128, +127]$. Conversely, the majority of PyTorch datasets are PIL images of range $[0, 1]$. The respective data loaders therefore call the `ai8x.normalize()` function, which expects an input of 0 to 1 and normalizes the data to either of these output ranges.
+For training, input data is expected to be in the range $[–\frac{128}{128}, +\frac{127}{128}]$​. When evaluating quantized weights, or when running on hardware, input data is instead expected to be in the native MAX7800X range of $[–128, +127]$​. Conversely, the majority of PyTorch datasets are PIL images of range $[0, 1]$​​. The respective data loaders therefore call the `ai8x.normalize()` function, which expects an input of 0 to 1 and normalizes the data, automatically switching between the two supported data ranges.
 
 When running inference on MAX7800X hardware, it is important to take the native data format into account, and it is desirable to perform as little preprocessing as possible during inference. For example, an image sensor may return “signed” data in the range $[–128, +127]$ for each color. No additional preprocessing or mapping is needed for this sensor since the model was trained with this data range.
 
 In many cases, image data is delivered as fewer than 8 bits per channel (for example, RGB565). In these cases, retraining the model with this limited range  (0 to 31 for 5-bit color and 0 to 63 for 6-bit color, respectively) can potentially eliminate the need for inference-time preprocessing.
 
-On the other hand, a different sensor may produce unsigned data values in the full 8-bit range $[0, 255]$. This range must be mapped to $[–128, +127]$ to match hardware and the trained model. The mapping can be performed during inference by subtracting 128 from each input byte, but this requires extra processing time during inference.
+On the other hand, a different sensor may produce unsigned data values in the full 8-bit range $[0, 255]$. This range must be mapped to $[–128, +127]$ to match hardware and the trained model. The mapping can be performed during inference by subtracting 128 from each input byte, but this requires extra (pre-)processing time during inference.
 
 ##### `datasets` Data Structure
 
 Add the new data loader to a new file in the `datasets` directory (for example `datasets/mnist.py`). The file must include the `datasets` data structure that describes the dataset and points to the new loader. `datasets` can list multiple datasets in the same file.
 
-* The `input` field describes the dimensionality of the data, and the first dimension is passed as `num_channels` to the model, whereas the remaining dimensions are passed as `dimension`. For example, `'input': (1, 28, 28)` will be passed to the model as `num_channels=1` and `dimensions=(28,28)`.
+###### `name`
 
-* The optional `regression` field in the structure can be set to `True` to automatically select the `--regression` command line argument. `regression` defaults to `False`.
+The `name` field assigns a name to the dataset for discovery by `train.py`, for example “`MNIST`”. *Note: The `name` must be unique.*
 
-* The optional `visualize` field can point to a custom visualization function used when creating `--embedding`. The input to the function (format NCHW for 2D data, or NCL for 1D data) is a batch of data (with N ≤ 100). The default handles square RGB or monochrome images. For any other data, a custom function must be supplied.
+###### `input`
+
+The `input` field describes the dimensionality of the data, and the first dimension is passed as `num_channels` to the model, whereas the remaining dimensions are passed as `dimension`. For example, `'input': (1, 28, 28)` will be passed to the model as `num_channels=1` and `dimensions=(28, 28)`. One-dimensional input uses a single “dimension”, for example `'input': (2, 512)` will be passed to the model as `num_channels=2` and `dimensions=(512, )`.
+
+###### `output`
+
+The `output` field is a tuple of strings or numbers that describe the output classes (for example, `'output': (1, 2, 3, …)` or `'output': ('cat', 'dog', …)`).
+
+###### `loader`
+
+`loader` points to a loader function for the dataset (see [Data Loader](#Data Loader)).
+
+###### `weight` (optional)
+
+The optional `weight` tuple can be set based on the *[a priori probabilities](#https://en.wikipedia.org/wiki/A_priori_probability)* for the classes, i.e., it answers the question *“how likely is it that data submitted for inference belongs to the given class?”.* For instance, if the sample counts for each class in the training dataset are equal, the `weight` tuple indicates the a priori probabilities of the occurrence of the classes. Note that the number of samples in a dataset for a given class does not always reflect the real-world probabilities. When there is a mismatch, a given “weight” value can degrade the performance on the test set, yet improve real-world inference, or vice versa.
+
+Each value in the tuple defines the weight for one output class, in the same order as `output`. When `weight` is <u>not</u> specified, all classes are given the same probability. When specifying a weight for the class “other,” increasing the value may improve results (e.g., multiplying the weight by 4×).
+
+*Example:*
+
+```
+ 'output': ('zero', 'one', 'two', 'three', 'four', 'five', 'other'),
+ 'weight': (1, 1, 1, 1, 1, 1, 0.06),
+```
+
+This defines that the probabilities for ‘zero’ to ‘five’ are equal, and that ‘other’ is 1/0.06 = 16.67 times more likely to occur assuming the numbers of the samples in the training dataset from each class are equal.
+
+Note: It is generally recommended to have at least 1,000 samples available for training for each class.
+
+###### `regression` (optional)
+
+The optional `regression` field in the structure can be set to `True` to automatically select the `--regression` command line argument. `regression` defaults to `False`.
+
+###### `visualize` (optional)
+
+The optional `visualize` field can point to a custom visualization function used when creating `--embedding`. The input to the function (format NCHW for 2D data, or NCL for 1D data) is a batch of data (with N ≤ 100). The default handles square RGB or monochrome images. For any other data, a custom function must be supplied.
 
 #### Training and Verification Data
 
@@ -1228,8 +1617,18 @@ Train the new network/new dataset. See `scripts/train_mnist.sh` for a command li
 The [Netron tool](https://github.com/lutzroeder/Netron) can visualize networks, similar to what is available within Tensorboard. To use Netron, use `train.py` to export the trained network to ONNX, and upload the ONNX file.
 
 ```shell
-(ai8x-training) $ ./train.py --model ai85net5 --dataset MNIST --evaluate --exp-load-weights-from checkpoint.pth.tar --device MAX78000 --summary onnx
+(ai8x-training) $ python3 train.py --model ai85net5 --dataset MNIST --evaluate --exp-load-weights-from checkpoint.pth.tar --device MAX78000 --summary onnx
 ```
+
+
+### Troubleshooting
+
+The behavior of a training session might change when Quantization Aware Training is enabled, either by no longer learning or by returning unacceptable results when evaluating the quantized weights on the test set.
+
+While there can be multiple reasons for this, check two important settings that can influence the training behavior:
+
+* The initial learning rate may be set too high. Reduce LR by a factor of 10 or 100 by specifying a smaller initial `--lr` on the command line, and possibly by reducing the epoch `milestones` for further reduction of the learning rate in the scheduler file specified by `--compress`. Note that the the selected optimizer and the batch size both affect the learning rate.
+* The epoch when QAT is engaged may be set too low. Increase `start_epoch` in the QAT scheduler file specified by `--qat-policy`, and increase the total number of training epochs by increasing the value specified by the `--epochs` command line argument and by editing the `ending_epoch` in the scheduler file specified by `--compress`.
 
 
 
@@ -1395,7 +1794,7 @@ The following table describes the most important command line arguments for `ai8
 | `--debug-computation`    | Debug computation (SLOW)                                     |                                 |
 | `--stop-after`           | Stop after layer                                             | `--stop-after 2`                |
 | `--one-shot`             | Use layer-by-layer one-shot mechanism                        |                                 |
-| `--ignore-bias-groups`   | Do not force `bias_group` to only available x16 groups       |                                 |
+| `--ignore-bias-groups`   | Do not force `bias_group` to only available x16 quadrants |                                 |
 | *Streaming tweaks*       |                                                              |                                 |
 | `--overlap-data`         | Allow output to overwrite input                              |                                 |
 | `--override-start`       | Override auto-computed streaming start value (x8 hex)        |                                 |
@@ -1421,7 +1820,7 @@ The following table describes the most important command line arguments for `ai8
 | `--ready-sel-aon`        | Specify AON waitstates                                       |                                 |
 | Various                  |                                                              |                                 |
 | `--synthesize-input`     | Instead of using large sample input data, use only the first `--synthesize-words` words of the sample input, and add N to each subsequent set of `--synthesize-words` 32-bit words | `--synthesize-input 0x112233` |
-| `--synthesize-words`     | When using `—synthesize-input`, specifies how many words to use from the input. The default is 8. This number must be a divisor of the total number of pixels per channel. | `--synthesize-words 64` |
+| `--synthesize-words`     | When using `--synthesize-input`, specifies how many words to use from the input. The default is 8. This number must be a divisor of the total number of pixels per channel. | `--synthesize-words 64` |
 | `--max-verify-length` | Instead of checking all of the expected output data, verify only the first N words | `--max-verify-length 1024` |
 | `--no-unload`            | Do not create the `cnn_unload()` function                    |                                 |
 | `--no-kat` | Do not generate the `check_output()` function (disable known-answer test) | |
@@ -1479,7 +1878,7 @@ layers:
 To generate an embedded MAX78000 demo in the `demos/ai85-mnist/` folder, use the following command line:
 
 ```shell
-(ai8x-synthesize) $ ./ai8xize.py --verbose --test-dir demos --prefix ai85-mnist --checkpoint-file trained/ai85-mnist.pth.tar --config-file networks/mnist-chw-ai85.yaml --device MAX78000 --compact-data --mexpress --softmax
+(ai8x-synthesize) $ python3 ai8xize.py --verbose --test-dir demos --prefix ai85-mnist --checkpoint-file trained/ai85-mnist.pth.tar --config-file networks/mnist-chw-ai85.yaml --device MAX78000 --compact-data --mexpress --softmax
 ```
 
 Running this command will combine the network described above with a fully connected software classification layer. The generated code will include all loading, unloading, and configuration steps.
@@ -1487,7 +1886,7 @@ Running this command will combine the network described above with a fully conne
 To generate an RTL simulation for the same network and sample data in the directory `tests/ai85-mnist-....` (where .... is an autogenerated string based on the network topology), use:
 
 ```shell
-(ai8x-synthesize) $ ./ai8xize.py --rtl --verbose --autogen rtlsim --test-dir rtlsim --prefix ai85-mnist --checkpoint-file trained/ai85-mnist.pth.tar --config-file networks/mnist-chw-ai85.yaml --device MAX78000
+(ai8x-synthesize) $ python3 ai8xize.py --rtl --verbose --autogen rtlsim --test-dir rtlsim --prefix ai85-mnist --checkpoint-file trained/ai85-mnist.pth.tar --config-file networks/mnist-chw-ai85.yaml --device MAX78000
 ```
 
 
@@ -1518,9 +1917,7 @@ The `bias` configuration is only used for test data. *To use bias with trained n
 
 ##### `dataset` (Mandatory)
 
-`dataset` configures the data set for the network. This determines the input data size and dimensions as well as the number of input channels.
-
-Data sets are for example `mnist`, `fashionmnist`, and `cifar-10`.
+`dataset` configures the data set for the network. Data sets are for example `mnist`, `fashionmnist`, and `cifar-10`. This key is descriptive only, it does not configure input or output dimensions or channel count.
 
 ##### `output_map` (Optional)
 
@@ -1631,14 +2028,13 @@ Example:
 
 ##### `activate` (Optional)
 
-This key describes whether to activate the layer output (the default is to not activate). When specified, this key must be `ReLU`, `Abs` or `None` (the default). *Please note that there is always an implicit non-linearity when outputting 8-bit data since outputs are clamped to $[–1, +127/128]$ during training.*
+This key describes whether to activate the layer output (the default is to not activate). When specified, this key must be `ReLU`, `Abs` or `None` (the default). *Please note that there is always an implicit non-linearity when outputting 8-bit data since outputs are clamped to $[–1, +127/128]$.*
 
 Note that the output values are clipped (saturated) to $[0, +127]$. Because of this, `ReLU` behaves more similar to PyTorch’s `nn.Hardtanh(min_value=0, max_value=127)` than to PyTorch’s `nn.ReLU()`.
 
-Note that `output_shift` can be used for (limited) “linear” activation.
+`output_shift` can be used for (limited) “linear” activation.
 
-<img src="docs/relu.png" alt="relu" style="zoom:33%;" />
-<img src="docs/abs.png" alt="abs" style="zoom:33%;" />
+<img src="docs/relu.png" alt="relu" style="zoom:33%;" /><img src="docs/abs.png" alt="abs" style="zoom:33%;" /><img src="docs/noactivation.png" alt="no activation" style="zoom:33%;" />
 
 ##### `quantization` (Optional)
 
@@ -1785,9 +2181,9 @@ Example:
 
 ##### `bias_group` (Optional)
 
-For layers that use a bias, this key can specify one or more bias memories that should be used. By default, the software uses a “Fit First Descending (FFD)” allocation algorithm that considers the largest bias lengths first, and then the layer number, and places each bias in the available group with the most available space, descending to the smallest bias length.
+For layers that use a bias, this key can specify one or more bias memories that should be used. By default, the software uses a “Fit First Descending (FFD)” allocation algorithm that considers the largest bias lengths first, and then the layer number, and places each bias in the available quadrant with the most available space, descending to the smallest bias length.
 
-“Available groups” is the complete list of groups used by the network (in any layer). `bias_group` must reference one or more of these available groups.
+“Available quadrants” is the complete list of quadrants used by the network (in any layer). `bias_group` must reference one or more of these available quadrants.
 
 `bias_group` can be a list of integers or a single integer.
 
@@ -1914,14 +2310,14 @@ The same network can also be viewed graphically:
 ### Adding New Models and New Datasets to the Network Loader
 
 Adding new datasets to the Network Loader is implemented as follows:
-1. Provide the network model, its YAML description and weights. Place the YAML file (e.g., `new.yaml`) in the `networks` directory, and weights in the `trained` directory.
+1. Provide the [network model](#Model), its YAML description and weights. Place the YAML file (e.g., `new.yaml`) in the `networks` directory, and weights in the `trained` directory.
    The non-quantized weights are obtained from a training checkpoint, for example:
    `(ai8x-synthesis) $ cp ../ai8x-training/logs/2020.06.02-154133/best.pth.tar trained/new-unquantized.pth.tar`
 
 2. When using post-training quantization, the quantized weights are the result of the quantization step. Copy and customize an existing quantization shell script, for example:
    `(ai8x-synthesis) $ cp scripts/quantize_mnist.sh scripts/quantize_new.sh`
 
-   Then, *edit this script to point to the new model and dataset* (`vi scripts/quantize_new.sh`), and call the script to generate the quantized weights. Example:
+   Then, *edit this script to point to the new [model](#Model) and [dataset](#Data Loader)* (`vi scripts/quantize_new.sh`), and call the script to generate the quantized weights. Example:
    ```shell
    (ai8x-synthesis) $ scripts/quantize_new.sh 
    Configuring device: MAX78000.
@@ -1948,9 +2344,13 @@ Adding new datasets to the Network Loader is implemented as follows:
    fc.linear.bias   
    ```
 
-3. Provide a sample input. The sample input is used to generate a known-answer test (self test). The sample input is provided as a NumPy “pickle” — add `sample_dset.npy` for the dataset named `dset` to the `tests` directory. This file can be generated by saving a sample in CHW format (no batch dimension) using `numpy.save()`, see below.
+3. Provide a sample input. The sample input is used to generate a known-answer test (self test) against the predicted label. The purpose of the sample input is to ensure that the generated code matches the model — it does <u>*not*</u> ensure that the model is of good quality. However, it can help finding issues in the YAML description of the model.
 
-   For example, the MNIST 1×28×28 image sample would be stored in `tests/sample_mnist.npy` in an `np.array` with shape `[1, 28, 28]` and datatype `<i8`. The file can be random, or can be obtained from the `train.py` software.
+   The sample input is provided as a NumPy “pickle” — add `sample_dset.npy` for the dataset named `dset` to the `tests` directory. This file can be generated by saving a sample in CHW format (no batch dimension) using `numpy.save()`, see below.
+   
+   For example, the MNIST 1×28×28 image sample would be stored in `tests/sample_mnist.npy` in an `np.array` with shape `[1, 28, 28]` and datatype `>i8` (`np.int64`). The file can contain random integers, or it can be obtained from the `train.py` software.
+   
+   *Note: To convert an existing sample input file to `np.int64`, use the `tests/convert_sample.py` script.*
 
 #### Generating a Random Sample Input
 
@@ -1964,7 +2364,8 @@ a = np.random.randint(-128, 127, size=(1, 28, 28), dtype=np.int64)
 np.save(os.path.join('tests', 'sample_mnist'), a, allow_pickle=False, fix_imports=False)
 ```
 
-For RGB image inputs, there are three channels. For example, a 3×80×60 (C×H×W) input is created using `size=(3, 80, 60)`.
+For RGB image inputs, there are three channels. For example, a 3×80×60 (C×H×W) input is created using `size=(3, 80, 60)`. 
+**Note:** The array must be of data type `np.int64`.
 
 #### Saving a Sample Input from Training Data
 
@@ -2059,12 +2460,12 @@ Run `ai8xize.py` with the new network and the new sample data to generate embedd
 
 #### Starting an Inference, Waiting for Completion, Multiple Inferences in Sequence
 
-An inference is started by configuring registers and weights, loading the input, and enabling processing.  This code is automatically generated—see the `cnn_init()`, `cnn_load_weights()`, `cnn_load_bias()`, `cnn_configure()`, and `load_input()` functions. The sample data can be used as a self-checking feature on device power-up since the output for the sample data is known.
+An inference is started by configuring registers and weights, loading the input, and enabling processing.  This code is automatically generated — see the `cnn_init()`, `cnn_load_weights()`, `cnn_load_bias()`, `cnn_configure()`, and `load_input()` functions. The sample data can be used as a self-checking feature on device power-up since the output for the sample data is known.
 To start the accelerator, use `cnn_start()`. The `load_input()` function is called either before `cnn_start()`, or after `cnn_start()`, depending on whether FIFOs are used. To run a second inference with new data, call `cnn_start()` again (after or before loading the new data input using load_input()`).
 
 The MAX78000/MAX78002 accelerator can generate an interrupt on completion, and it will set a status bit (see `cnn.c`). The resulting data can now be unloaded from the accelerator (code for this is also auto-generated in `cnn_unload()`).
 
-To run another inference, ensure all groups are disabled (stopping the state machine, as shown in `cnn_init()`). Next, load the new input data and start processing.
+To run another inference, ensure all quadrants are disabled (stopping the state machine, as shown in `cnn_init()`). Next, load the new input data and start processing.
 
 
 #### Overview of the Functions in main.c
@@ -2202,7 +2603,7 @@ To deal with this issue, there are several options:
 
 * The sample input data can be stored in external memory. This requires modifications to the generated code. Please see the SDK examples to learn how to access external memory.
 * The sample input data can be programmatically generated. Typically, this requires manual modification of the generated code, and a corresponding modification of the sample input file.
-  The generator also contains a built-in generator (supported *only* when using `—fifo`, and only for HWC inputs); the command line option `--synthesize-input` uses only the first few words of the sample input data, and then adds the specified value N (for example, 0x112233 if three input channels are used) to each subsequent set of M 32-bit words. M can be specified using `--synthesize-words` and defaults to 8. Note that M must be a divisor of the number of pixels per channel.
+  The generator also contains a built-in generator (supported *only* when using `--fifo`, and only for HWC inputs); the command line option `--synthesize-input` uses only the first few words of the sample input data, and then adds the specified value N (for example, 0x112233 if three input channels are used) to each subsequent set of M 32-bit words. M can be specified using `--synthesize-words` and defaults to 8. Note that M must be a divisor of the number of pixels per channel.
 * The output check can be truncated. The command line option `--max-verify-length` checks only the first N words of output data (for example, 1024). To completely disable the output check, use `--no-kat`.
 * For 8-bit output values, `--mlator` typically generates more compact code.
 * Change the compiler optimization level in `Makefile`. To change the default optimization levels, modify `MXC_OPTIMIZE_CFLAGS` in `assets/embedded-ai85/templateMakefile` for Arm code and `assets/embedded-riscv-ai85/templateMakefile.RISCV` for RISC-V code. Both `-O1` and `-Os` may result in smaller code compared to `-O2`.
@@ -2224,11 +2625,15 @@ There can be many reasons why the known-answer test (KAT) fails for a given netw
 * The default compiler optimization level is `-O2`, and incorrect code may be generated under rare circumstances. Lower the optimization level in the generated `Makefile` to `-O1`, clean (`make distclean && make clean`), and rebuild the project (`make`). If this solves the problem, one of the possible reasons is that code is missing the `volatile` keyword for certain variables.
   To permanently adjust the default compiler optimization level, modify `MXC_OPTIMIZE_CFLAGS` in `assets/embedded-ai85/templateMakefile` for Arm code and `assets/embedded-riscv-ai85/templateMakefile.RISCV` for RISC-V code.
 
+* When allocating large amounts of data on the stack, ensure the stack is sized appropriately. The stack size is configured in the linker file (by default, part of the SDK).
+  
 * `--stop-after N` where `N` is a layer number may help to find the problematic layer by terminating the network early without having to retrain and without having to change the weight input file. Note that this may also require `--max-verify-length` as [described above](#Handling Linker Flash Section Overflows) since intermediate outputs tend to be large, and additionally `--no-unload` to suppress generation of the `cnn_unload()` function.
 
 * `--no-bias LIST` where `LIST` is a comma-separated list of layers (e.g., `0,1,2,3`) can rule out problems due to the bias. This option zeros out the bias for the given layers without having to remove bias values from the weight input file. 
 
 * `--ignore-streaming` ignores all `streaming` statements in the YAML file. Note that this typically only works when the sample input is replaced with a different, lower-dimension sample input (for example, use 3×32×32 instead of 3×128×128), and does not support fully connected layers without retraining (use `--stop-after` to remove final layers). Ensure that the network (or partial network when using `--stop-after`) does not produce all-zero intermediate data or final outputs when using reduced-dimension inputs. The log file (`log.txt` by default) will contain the necessary information.
+
+* Certain C library functions (such as `memcpy` or `printf`) use byte-wide or 16-bit wide accesses and may not work correctly when accessing CNN memory *directly* (i.e., pointing inside the accelerator memory). They *will* function as expected when operating on data memory that is *not* located inside the CNN accelerator, for example data returned by `cnn_unload()`.
 
   
 
@@ -2263,181 +2668,183 @@ The following tables show the AHB memory addresses for the MAX78000 accelerator:
 
 Total: 512 KiB (16 instances of 8192 × 32)
 
-| **Group** | **Instance** | **Address Range**       |
-| --------- | ------------ | ----------------------- |
-| 0         | 0            | 0x50400000 - 0x50407FFF |
-| 0         | 1            | 0x50408000 - 0x5040FFFF |
-| 0         | 2            | 0x50410000 - 0x50417FFF |
-| 0         | 3            | 0x50418000 - 0x5041FFFF |
-| 1         | 0            | 0x50800000 - 0x50807FFF |
-| 1         | 1            | 0x50808000 - 0x5080FFFF |
-| 1         | 2            | 0x50810000 - 0x50817FFF |
-| 1         | 3            | 0x50818000 - 0x5081FFFF |
-| 2         | 0            | 0x50C00000 - 0x50C07FFF |
-| 2         | 1            | 0x50C08000 - 0x50C0FFFF |
-| 2         | 2            | 0x50C10000 - 0x50C17FFF |
-| 2         | 3            | 0x50C18000 - 0x50C1FFFF |
-| 3         | 0            | 0x51000000 - 0x51007FFF |
-| 3         | 1            | 0x51008000 - 0x5100FFFF |
-| 3         | 2            | 0x51010000 - 0x51017FFF |
-| 3         | 3            | 0x51018000 - 0x5101FFFF |
+| **Quadrant** | **Instance** | **Address Range**       |
+| ------------ | ------------ | ----------------------- |
+| 0            | 0            | 0x50400000 - 0x50407FFF |
+| 0            | 1            | 0x50408000 - 0x5040FFFF |
+| 0            | 2            | 0x50410000 - 0x50417FFF |
+| 0            | 3            | 0x50418000 - 0x5041FFFF |
+| 1            | 0            | 0x50800000 - 0x50807FFF |
+| 1            | 1            | 0x50808000 - 0x5080FFFF |
+| 1            | 2            | 0x50810000 - 0x50817FFF |
+| 1            | 3            | 0x50818000 - 0x5081FFFF |
+| 2            | 0            | 0x50C00000 - 0x50C07FFF |
+| 2            | 1            | 0x50C08000 - 0x50C0FFFF |
+| 2            | 2            | 0x50C10000 - 0x50C17FFF |
+| 2            | 3            | 0x50C18000 - 0x50C1FFFF |
+| 3            | 0            | 0x51000000 - 0x51007FFF |
+| 3            | 1            | 0x51008000 - 0x5100FFFF |
+| 3            | 2            | 0x51010000 - 0x51017FFF |
+| 3            | 3            | 0x51018000 - 0x5101FFFF |
 
 ### TRAM
 
 Total: 384 KiB (64 instances of 3072 × 16)
 
-| **Group** | **Instance** | **Address Range\***     |
-| --------- | ------------ | ----------------------- |
-| 0         | 0            | 0x50110000 - 0x50112FFF |
-| 0         | 1            | 0x50114000 - 0x50116FFF |
-| 0         | 2            | 0x50118000 - 0x5011AFFF |
-| 0         | 3            | 0x5011C000 - 0x5011EFFF |
-| 0         | 4            | 0x50120000 - 0x50122FFF |
-| 0         | 5            | 0x50124000 - 0x50126FFF |
-| 0         | 6            | 0x50128000 - 0x5012AFFF |
-| 0         | 7            | 0x5012C000 - 0x5012EFFF |
-| 0         | 8            | 0x50130000 - 0x50132FFF |
-| 0         | 9            | 0x50134000 - 0x50136FFF |
-| 0         | 10           | 0x50138000 - 0x5013AFFF |
-| 0         | 11           | 0x5013C000 - 0x5013EFFF |
-| 0         | 12           | 0x50140000 - 0x50142FFF |
-| 0         | 13           | 0x50144000 - 0x50146FFF |
-| 0         | 14           | 0x50148000 - 0x5014AFFF |
-| 0         | 15           | 0x5014C000 - 0x5014EFFF |
-| 1         | 0            | 0x50510000 - 0x50512FFF |
-| 1         | 1            | 0x50514000 - 0x50516FFF |
-| 1         | 2            | 0x50518000 - 0x5051AFFF |
-| 1         | 3            | 0x5051C000 - 0x5051EFFF |
-| 1         | 4            | 0x50520000 - 0x50522FFF |
-| 1         | 5            | 0x50524000 - 0x50526FFF |
-| 1         | 6            | 0x50528000 - 0x5052AFFF |
-| 1         | 7            | 0x5052C000 - 0x5052EFFF |
-| 1         | 8            | 0x50530000 - 0x50532FFF |
-| 1         | 9            | 0x50534000 - 0x50536FFF |
-| 1         | 10           | 0x50538000 - 0x5053AFFF |
-| 1         | 11           | 0x5053C000 - 0x5053EFFF |
-| 1         | 12           | 0x50540000 - 0x50542FFF |
-| 1         | 13           | 0x50544000 - 0x50546FFF |
-| 1         | 14           | 0x50548000 - 0x5054AFFF |
-| 1         | 15           | 0x5054C000 - 0x5054EFFF |
-| 2         | 0            | 0x50910000 - 0x50912FFF |
-| 2         | 1            | 0x50914000 - 0x50916FFF |
-| 2         | 2            | 0x50918000 - 0x5091AFFF |
-| 2         | 3            | 0x5091C000 - 0x5091EFFF |
-| 2         | 4            | 0x50920000 - 0x50922FFF |
-| 2         | 5            | 0x50924000 - 0x50926FFF |
-| 2         | 6            | 0x50928000 - 0x5092AFFF |
-| 2         | 7            | 0x5092C000 - 0x5092EFFF |
-| 2         | 8            | 0x50930000 - 0x50932FFF |
-| 2         | 9            | 0x50934000 - 0x50936FFF |
-| 2         | 10           | 0x50938000 - 0x5093AFFF |
-| 2         | 11           | 0x5093C000 - 0x5093EFFF |
-| 2         | 12           | 0x50940000 - 0x50942FFF |
-| 2         | 13           | 0x50944000 - 0x50946FFF |
-| 2         | 14           | 0x50948000 - 0x5094AFFF |
-| 2         | 15           | 0x5094C000 - 0x5094EFFF |
-| 3         | 0            | 0x50D10000 - 0x50D12FFF |
-| 3         | 1            | 0x50D14000 - 0x50D16FFF |
-| 3         | 2            | 0x50D18000 - 0x50D1AFFF |
-| 3         | 3            | 0x50D1C000 - 0x50D1EFFF |
-| 3         | 4            | 0x50D20000 - 0x50D22FFF |
-| 3         | 5            | 0x50D24000 - 0x50D26FFF |
-| 3         | 6            | 0x50D28000 - 0x50D2AFFF |
-| 3         | 7            | 0x50D2C000 - 0x50D2EFFF |
-| 3         | 8            | 0x50D30000 - 0x50D32FFF |
-| 3         | 9            | 0x50D34000 - 0x50D36FFF |
-| 3         | 10           | 0x50D38000 - 0x50D3AFFF |
-| 3         | 11           | 0x50D3C000 - 0x50D3EFFF |
-| 3         | 12           | 0x50D40000 - 0x50D42FFF |
-| 3         | 13           | 0x50D44000 - 0x50D46FFF |
-| 3         | 14           | 0x50D48000 - 0x50D4AFFF |
-| 3         | 15           | 0x50D4C000 - 0x50D4EFFF |
+| **Quadrant** | **Instance** | **Address Range\***     |
+| ------------ | ------------ | ----------------------- |
+| 0            | 0            | 0x50110000 - 0x50112FFF |
+| 0            | 1            | 0x50114000 - 0x50116FFF |
+| 0            | 2            | 0x50118000 - 0x5011AFFF |
+| 0            | 3            | 0x5011C000 - 0x5011EFFF |
+| 0            | 4            | 0x50120000 - 0x50122FFF |
+| 0            | 5            | 0x50124000 - 0x50126FFF |
+| 0            | 6            | 0x50128000 - 0x5012AFFF |
+| 0            | 7            | 0x5012C000 - 0x5012EFFF |
+| 0            | 8            | 0x50130000 - 0x50132FFF |
+| 0            | 9            | 0x50134000 - 0x50136FFF |
+| 0            | 10           | 0x50138000 - 0x5013AFFF |
+| 0            | 11           | 0x5013C000 - 0x5013EFFF |
+| 0            | 12           | 0x50140000 - 0x50142FFF |
+| 0            | 13           | 0x50144000 - 0x50146FFF |
+| 0            | 14           | 0x50148000 - 0x5014AFFF |
+| 0            | 15           | 0x5014C000 - 0x5014EFFF |
+| 1            | 0            | 0x50510000 - 0x50512FFF |
+| 1            | 1            | 0x50514000 - 0x50516FFF |
+| 1            | 2            | 0x50518000 - 0x5051AFFF |
+| 1            | 3            | 0x5051C000 - 0x5051EFFF |
+| 1            | 4            | 0x50520000 - 0x50522FFF |
+| 1            | 5            | 0x50524000 - 0x50526FFF |
+| 1            | 6            | 0x50528000 - 0x5052AFFF |
+| 1            | 7            | 0x5052C000 - 0x5052EFFF |
+| 1            | 8            | 0x50530000 - 0x50532FFF |
+| 1            | 9            | 0x50534000 - 0x50536FFF |
+| 1            | 10           | 0x50538000 - 0x5053AFFF |
+| 1            | 11           | 0x5053C000 - 0x5053EFFF |
+| 1            | 12           | 0x50540000 - 0x50542FFF |
+| 1            | 13           | 0x50544000 - 0x50546FFF |
+| 1            | 14           | 0x50548000 - 0x5054AFFF |
+| 1            | 15           | 0x5054C000 - 0x5054EFFF |
+| 2            | 0            | 0x50910000 - 0x50912FFF |
+| 2            | 1            | 0x50914000 - 0x50916FFF |
+| 2            | 2            | 0x50918000 - 0x5091AFFF |
+| 2            | 3            | 0x5091C000 - 0x5091EFFF |
+| 2            | 4            | 0x50920000 - 0x50922FFF |
+| 2            | 5            | 0x50924000 - 0x50926FFF |
+| 2            | 6            | 0x50928000 - 0x5092AFFF |
+| 2            | 7            | 0x5092C000 - 0x5092EFFF |
+| 2            | 8            | 0x50930000 - 0x50932FFF |
+| 2            | 9            | 0x50934000 - 0x50936FFF |
+| 2            | 10           | 0x50938000 - 0x5093AFFF |
+| 2            | 11           | 0x5093C000 - 0x5093EFFF |
+| 2            | 12           | 0x50940000 - 0x50942FFF |
+| 2            | 13           | 0x50944000 - 0x50946FFF |
+| 2            | 14           | 0x50948000 - 0x5094AFFF |
+| 2            | 15           | 0x5094C000 - 0x5094EFFF |
+| 3            | 0            | 0x50D10000 - 0x50D12FFF |
+| 3            | 1            | 0x50D14000 - 0x50D16FFF |
+| 3            | 2            | 0x50D18000 - 0x50D1AFFF |
+| 3            | 3            | 0x50D1C000 - 0x50D1EFFF |
+| 3            | 4            | 0x50D20000 - 0x50D22FFF |
+| 3            | 5            | 0x50D24000 - 0x50D26FFF |
+| 3            | 6            | 0x50D28000 - 0x50D2AFFF |
+| 3            | 7            | 0x50D2C000 - 0x50D2EFFF |
+| 3            | 8            | 0x50D30000 - 0x50D32FFF |
+| 3            | 9            | 0x50D34000 - 0x50D36FFF |
+| 3            | 10           | 0x50D38000 - 0x50D3AFFF |
+| 3            | 11           | 0x50D3C000 - 0x50D3EFFF |
+| 3            | 12           | 0x50D40000 - 0x50D42FFF |
+| 3            | 13           | 0x50D44000 - 0x50D46FFF |
+| 3            | 14           | 0x50D48000 - 0x50D4AFFF |
+| 3            | 15           | 0x50D4C000 - 0x50D4EFFF |
 
-**using 32 bits of address space for each 16-bit memory*
+**using 32 bits of address space for each 16-bit word*
 
-### Kernel memory (“MRAM”)
+### Kernel memory (MRAM)
 
 Total: 432 KiB (64 instances of 768 × 72)
 
-| **Group** | **Instance** | **Address Range\***     |
-| --------- | ------------ | ----------------------- |
-| 0         | 0            | 0x50180000 - 0x50182FFF |
-| 0         | 1            | 0x50184000 - 0x50186FFF |
-| 0         | 2            | 0x50188000 - 0x5018AFFF |
-| 0         | 3            | 0x5018c000 - 0x5018DFFF |
-| 0         | 4            | 0x50190000 - 0x50191FFF |
-| 0         | 5            | 0x50194000 - 0x50196FFF |
-| 0         | 6            | 0x50198000 - 0x5019AFFF |
-| 0         | 7            | 0x5019C000 - 0x5019DFFF |
-| 0         | 8            | 0x501A0000 - 0x501A2FFF |
-| 0         | 9            | 0x501A4000 - 0x501A6FFF |
-| 0         | 10           | 0x501A8000 - 0x501AAFFF |
-| 0         | 11           | 0x501AC000 - 0x501ADFFF |
-| 0         | 12           | 0x501B0000 - 0x501B2FFF |
-| 0         | 13           | 0x501B4000 - 0x501B6FFF |
-| 0         | 14           | 0x501B8000 - 0x501BAFFF |
-| 0         | 15           | 0x501BC000 - 0x501BDFFF |
-| 1         | 0            | 0x50580000 - 0x50582FFF |
-| 1         | 1            | 0x50584000 - 0x50586FFF |
-| 1         | 2            | 0x50588000 - 0x5058AFFF |
-| 1         | 3            | 0x5058C000 - 0x5058DFFF |
-| 1         | 4            | 0x50590000 - 0x50591FFF |
-| 1         | 5            | 0x50594000 - 0x50596FFF |
-| 1         | 6            | 0x50598000 - 0x5059AFFF |
-| 1         | 7            | 0x5059C000 - 0x5059DFFF |
-| 1         | 8            | 0x505A0000 - 0x505A2FFF |
-| 1         | 9            | 0x505A4000 - 0x505A6FFF |
-| 1         | 10           | 0x505A8000 - 0x505AAFFF |
-| 1         | 11           | 0x505AC000 - 0x505ADFFF |
-| 1         | 12           | 0x505B0000 - 0x505B2FFF |
-| 1         | 13           | 0x505B4000 - 0x505B6FFF |
-| 1         | 14           | 0x505B8000 - 0x505BAFFF |
-| 1         | 15           | 0x505BC000 - 0x505BDFFF |
-| 2         | 0            | 0x50980000 - 0x50982FFF |
-| 2         | 1            | 0x50984000 - 0x50986FFF |
-| 2         | 2            | 0x50988000 - 0x5098AFFF |
-| 2         | 3            | 0x5098C000 - 0x5098DFFF |
-| 2         | 4            | 0x50990000 - 0x50991FFF |
-| 2         | 5            | 0x50994000 - 0x50996FFF |
-| 2         | 6            | 0x50998000 - 0x5099AFFF |
-| 2         | 7            | 0x5099C000 - 0x5099DFFF |
-| 2         | 8            | 0x509A0000 - 0x509A2FFF |
-| 2         | 9            | 0x509A4000 - 0x509A6FFF |
-| 2         | 10           | 0x509A8000 - 0x509AAFFF |
-| 2         | 11           | 0x509AC000 - 0x509ADFFF |
-| 2         | 12           | 0x509B0000 - 0x509B2FFF |
-| 2         | 13           | 0x509B4000 - 0x509B6FFF |
-| 2         | 14           | 0x509B8000 - 0x509BAFFF |
-| 2         | 15           | 0x509BC000 - 0x509BDFFF |
-| 3         | 0            | 0x50D80000 - 0x50D82FFF |
-| 3         | 1            | 0x50D84000 - 0x50D86FFF |
-| 3         | 2            | 0x50D88000 - 0x50D8AFFF |
-| 3         | 3            | 0x50D8C000 - 0x50D8DFFF |
-| 3         | 4            | 0x50D90000 - 0x50D91FFF |
-| 3         | 5            | 0x50D94000 - 0x50D96FFF |
-| 3         | 6            | 0x50D98000 - 0x50D9AFFF |
-| 3         | 7            | 0x50D9C000 - 0x50D9DFFF |
-| 3         | 8            | 0x50DA0000 - 0x50DA2FFF |
-| 3         | 9            | 0x50DA4000 - 0x50DA6FFF |
-| 3         | 10           | 0x50DA8000 - 0x50DAAFFF |
-| 3         | 11           | 0x50DAC000 - 0x50DADFFF |
-| 3         | 12           | 0x50DB0000 - 0x50DB2FFF |
-| 3         | 13           | 0x50DB4000 - 0x50DB6FFF |
-| 3         | 14           | 0x50DB8000 - 0x50DBAFFF |
-| 3         | 15           | 0x50DBC000 - 0x50DBDFFF |
+| **Quadrant** | **Instance** | **Address Range\***     |
+| ------------ | ------------ | ----------------------- |
+| 0            | 0            | 0x50180000 - 0x50182FFF |
+| 0            | 1            | 0x50184000 - 0x50186FFF |
+| 0            | 2            | 0x50188000 - 0x5018AFFF |
+| 0            | 3            | 0x5018C000 - 0x5018EFFF |
+| 0            | 4            | 0x50190000 - 0x50192FFF |
+| 0            | 5            | 0x50194000 - 0x50196FFF |
+| 0            | 6            | 0x50198000 - 0x5019AFFF |
+| 0            | 7            | 0x5019C000 - 0x5019EFFF |
+| 0            | 8            | 0x501A0000 - 0x501A2FFF |
+| 0            | 9            | 0x501A4000 - 0x501A6FFF |
+| 0            | 10           | 0x501A8000 - 0x501AAFFF |
+| 0            | 11           | 0x501AC000 - 0x501AEFFF |
+| 0            | 12           | 0x501B0000 - 0x501B2FFF |
+| 0            | 13           | 0x501B4000 - 0x501B6FFF |
+| 0            | 14           | 0x501B8000 - 0x501BAFFF |
+| 0            | 15           | 0x501BC000 - 0x501BEFFF |
+| 1            | 0            | 0x50580000 - 0x50582FFF |
+| 1            | 1            | 0x50584000 - 0x50586FFF |
+| 1            | 2            | 0x50588000 - 0x5058AFFF |
+| 1            | 3            | 0x5058C000 - 0x5058EFFF |
+| 1            | 4            | 0x50590000 - 0x50592FFF |
+| 1            | 5            | 0x50594000 - 0x50596FFF |
+| 1            | 6            | 0x50598000 - 0x5059AFFF |
+| 1            | 7            | 0x5059C000 - 0x5059EFFF |
+| 1            | 8            | 0x505A0000 - 0x505A2FFF |
+| 1            | 9            | 0x505A4000 - 0x505A6FFF |
+| 1            | 10           | 0x505A8000 - 0x505AAFFF |
+| 1            | 11           | 0x505AC000 - 0x505AEFFF |
+| 1            | 12           | 0x505B0000 - 0x505B2FFF |
+| 1            | 13           | 0x505B4000 - 0x505B6FFF |
+| 1            | 14           | 0x505B8000 - 0x505BAFFF |
+| 1            | 15           | 0x505BC000 - 0x505BEFFF |
+| 2            | 0            | 0x50980000 - 0x50982FFF |
+| 2            | 1            | 0x50984000 - 0x50986FFF |
+| 2            | 2            | 0x50988000 - 0x5098AFFF |
+| 2            | 3            | 0x5098C000 - 0x5098EFFF |
+| 2            | 4            | 0x50990000 - 0x50992FFF |
+| 2            | 5            | 0x50994000 - 0x50996FFF |
+| 2            | 6            | 0x50998000 - 0x5099AFFF |
+| 2            | 7            | 0x5099C000 - 0x5099EFFF |
+| 2            | 8            | 0x509A0000 - 0x509A2FFF |
+| 2            | 9            | 0x509A4000 - 0x509A6FFF |
+| 2            | 10           | 0x509A8000 - 0x509AAFFF |
+| 2            | 11           | 0x509AC000 - 0x509AEFFF |
+| 2            | 12           | 0x509B0000 - 0x509B2FFF |
+| 2            | 13           | 0x509B4000 - 0x509B6FFF |
+| 2            | 14           | 0x509B8000 - 0x509BAFFF |
+| 2            | 15           | 0x509BC000 - 0x509BEFFF |
+| 3            | 0            | 0x50D80000 - 0x50D82FFF |
+| 3            | 1            | 0x50D84000 - 0x50D86FFF |
+| 3            | 2            | 0x50D88000 - 0x50D8AFFF |
+| 3            | 3            | 0x50D8C000 - 0x50D8EFFF |
+| 3            | 4            | 0x50D90000 - 0x50D92FFF |
+| 3            | 5            | 0x50D94000 - 0x50D96FFF |
+| 3            | 6            | 0x50D98000 - 0x50D9AFFF |
+| 3            | 7            | 0x50D9C000 - 0x50D9EFFF |
+| 3            | 8            | 0x50DA0000 - 0x50DA2FFF |
+| 3            | 9            | 0x50DA4000 - 0x50DA6FFF |
+| 3            | 10           | 0x50DA8000 - 0x50DAAFFF |
+| 3            | 11           | 0x50DAC000 - 0x50DAEFFF |
+| 3            | 12           | 0x50DB0000 - 0x50DB2FFF |
+| 3            | 13           | 0x50DB4000 - 0x50DB6FFF |
+| 3            | 14           | 0x50DB8000 - 0x50DBAFFF |
+| 3            | 15           | 0x50DBC000 - 0x50DBEFFF |
 
-**using 128 bits of address space for each 72-bit memory*
+**using 128 bits of address space for each 72-bit word*
 
-### Bias memory
+### Bias memory (BRAM)
 
-Total: 2 KiB (4 instances of 128 × 32) 
+Total: 2 KiB (4 instances of 512 × 8) 
 
-| **Group** | **Address Range**       |
-| --------- | ----------------------- |
-| 0         | 0x50108000 - 0x50109FFF |
-| 1         | 0x50508000 - 0x50509FFF |
-| 2         | 0x50908000 - 0x50909FFF |
-| 3         | 0x50D08000 - 0x50D09FFF |
+| **Quadrant** | **Address Range***      |
+| ------------ | ----------------------- |
+| 0            | 0x50108000 - 0x501087FF |
+| 1            | 0x50508000 - 0x505087FF |
+| 2            | 0x50908000 - 0x509087FF |
+| 3            | 0x50D08000 - 0x50D087FF |
+
+**using 32 bits of address space for each 8-bit value*
 
 ---
 

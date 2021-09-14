@@ -8,13 +8,14 @@
 Embedded network and simulation test generator program for Tornado CNN
 """
 import os
+import time
 from pydoc import locate
 
 import numpy as np
 
 from . import checkpoint, commandline, onnxcp, op, rtlsim, sampledata, sampleweight, state
 from . import tornadocnn as tc
-from . import yamlcfg
+from . import versioncheck, yamlcfg
 from .eprint import eprint, wprint
 
 
@@ -26,14 +27,23 @@ def main():
 
     args = commandline.get_parser()
 
+    # Check whether code is up-to-date
+    if not args.no_version_check:
+        now = round(time.time())
+        last_check = versioncheck.get_last_check()
+        if now - last_check >= args.version_check_interval * 60 * 60:
+            if versioncheck.check_repo(args.upstream):
+                # Check succeeded, don't check again for a while
+                versioncheck.set_last_check(now)
+
     # Configure device and set device dependent state
     tc.dev = tc.get_device(args.device)
 
     # Manipulate device defaults based on command line (FIXME: this should go into state)
     if args.max_proc:
         tc.dev.MAX_PROC = args.max_proc
-        tc.dev.P_NUMPRO = args.max_proc
-        tc.dev.P_NUMGROUPS = 1
+        tc.dev.P_NUMPRO = min(args.max_proc, tc.dev.P_NUMPRO)
+        tc.dev.P_NUMGROUPS = (tc.dev.MAX_PROC + tc.dev.P_NUMPRO - 1) // tc.dev.P_NUMPRO
     if args.ready_sel:
         tc.dev.READY_SEL = args.ready_sel
     if args.ready_sel_fifo:
@@ -45,7 +55,7 @@ def main():
     commandline.set_state(args)
 
     # Load configuration file
-    cfg, cfg_layers, params = yamlcfg.parse(args.config_file)
+    cfg, cfg_layers, params = yamlcfg.parse(args.config_file, args.skip_yaml_layers)
 
     # If not using test data, load weights and biases
     # This also configures the network's output channels
@@ -84,6 +94,7 @@ def main():
                     args.no_bias,
                     params['conv_groups'],
                     params['bypass'],
+                    args.skip_checkpoint_layers,
                 )
     else:  # Get some hard-coded sample weights
         layers, weights, output_shift, \
@@ -199,7 +210,7 @@ def main():
            and next_sequence[ll] != -1 and next_sequence[ll] < layers:
             output_processor_map[ll] = processor_map[next_sequence[ll]]
 
-        if args.stop_after is not None and ll == args.stop_after:
+        if args.stop_after is not None and ll == args.stop_after - args.skip_yaml_layers:
             next_sequence[ll] = -1
 
         prev_sequence[ll] = prev_ll
