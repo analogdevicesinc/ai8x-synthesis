@@ -155,20 +155,20 @@ def convert_checkpoint(input_file, output_file, arguments):
                     clamp_bits = tc.dev.DEFAULT_WEIGHT_BITS  # Default to 8 bits
 
             bias_name = '.'.join([layer, operation, 'bias'])
+            params_r = torch.flatten(checkpoint_state[k])
             if sat_fn == get_max_bit_shift:
                 if bias_name in checkpoint_state:
                     weight_r = torch.flatten(checkpoint_state[k])
                     bias_r = torch.flatten(checkpoint_state[bias_name])
                     params_r = torch.cat((weight_r, bias_r))
-                else:
-                    params_r = torch.flatten(checkpoint_state[k])
 
                 shift_quantile_name = '.'.join([layer, 'shift_quantile'])
                 shift_quantile = 1.0
                 if shift_quantile_name in checkpoint_state:
                     shift_quantile = checkpoint_state[shift_quantile_name]
 
-                factor = 2**(clamp_bits-1) * get_max_bit_shift(params_r, shift_quantile)
+                distribution_factor = get_max_bit_shift(params_r, shift_quantile)
+                factor = 2**(clamp_bits-1) * distribution_factor
             else:
                 factor = 2**(clamp_bits-1) * sat_fn(checkpoint_state[k])
 
@@ -207,7 +207,16 @@ def convert_checkpoint(input_file, output_file, arguments):
                           'mean:', unwrap(checkpoint_state[bias_name].mean()),
                           'factor:', unwrap(factor),
                           'bits:', clamp_bits)
-                bias = factor * checkpoint_state[bias_name]
+
+                bias = checkpoint_state[bias_name]
+                if distribution_factor:
+                    bias = bias * distribution_factor
+                # Quantize bias as how it is done in QAT
+                bias = (2**(CONV_DEFAULT_BIAS_BITS-1)*bias).add(0.5).floor(). \
+                    clamp(min=-(2**(CONV_DEFAULT_BIAS_BITS-1)),
+                          max=2**(CONV_DEFAULT_BIAS_BITS-1)-1). \
+                    div(2**(CONV_DEFAULT_BIAS_BITS-1))
+                bias = 2**(clamp_bits-1) * bias
 
                 # Save conv biases so PyTorch can still use them to run a model. This needs
                 # to be reversed before loading the weights into the hardware.
@@ -217,11 +226,6 @@ def convert_checkpoint(input_file, output_file, arguments):
                 # and is therefore always 128.
                 bias *= 2**(tc.dev.ACTIVATION_BITS-1)
 
-                # Ensure it fits and is an integer
-                bias = bias.add(.5).floor().clamp(min=-(2**(clamp_bits+tc.dev.ACTIVATION_BITS-2)),
-                                                  max=2**(clamp_bits+tc.dev.ACTIVATION_BITS-2)-1)
-
-                bias = (bias // 128) * 128
                 # Store modified bias back into model
                 new_checkpoint_state[bias_name] = bias
 
@@ -232,7 +236,7 @@ def convert_checkpoint(input_file, output_file, arguments):
             # Set output shift
             if arguments.clip_mode is None:
                 out_shift_name = '.'.join([layer, 'output_shift'])
-                out_shift = torch.Tensor([-1 * get_max_bit_shift(checkpoint_state[k],
+                out_shift = torch.Tensor([-1 * get_max_bit_shift(params_r,
                                                                  shift_quantile, True)])
                 new_checkpoint_state[out_shift_name] = out_shift
                 if new_masks_dict is not None:
