@@ -513,8 +513,10 @@ class Backend(backend.Backend):
                         min_proc = -1
                         max_proc = -1
                         for _, lt in enumerate(in_sequences[ll]):
-                            first_proc = ffs(output_processor_map[lt])
-                            last_proc = fls(output_processor_map[lt])
+                            first_proc = ffs(processor_map[0]) if lt == -1 \
+                                else ffs(output_processor_map[lt])
+                            last_proc = fls(processor_map[0]) if lt == -1 \
+                                else fls(output_processor_map[lt])
                             if first_proc <= min_proc:
                                 eprint(f'Layer {ll}: In `in_sequences` {in_sequences[ll]}, '
                                        'an earlier layer in the sequence uses a higher first '
@@ -530,12 +532,23 @@ class Backend(backend.Backend):
                 else:  # eltwise
                     eltwise_proc_map = 0
                     for _, lt in enumerate(in_sequences[ll]):
-                        if eltwise_proc_map not in (0, output_processor_map[lt]):
+                        emap = processor_map[0] if lt == -1 else output_processor_map[lt]
+                        if eltwise_proc_map not in (0, emap):
                             eprint(f'Layer {ll}: In `in_sequences` {in_sequences[ll]}, '
                                    'an earlier layer in the sequence uses a different output '
                                    f'processor map (0x{eltwise_proc_map:016x}) than layer {lt} '
-                                   f'which uses 0x{output_processor_map[lt]:016x}.')
-                        eltwise_proc_map = output_processor_map[lt]
+                                   f'which uses 0x{emap:016x}.')
+                        eltwise_proc_map = emap
+
+                # Merge the output of all processors of all input sequence members
+                emap = 0
+                for _, lt in enumerate(in_sequences[ll]):
+                    emap |= processor_map[0] if lt == -1 else output_processor_map[lt]
+                # Check that all out input processors have data from somewhere in the merged map
+                if processor_map[ll] & emap != processor_map[ll]:
+                    wprint(f'Layer {ll}: The processor map {processor_map[ll]:016x} specifies '
+                           'processors that have no data from any of the input sequences '
+                           f'{in_sequences[ll]}.')
 
         # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
         test_name = prefix
