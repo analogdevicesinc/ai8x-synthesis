@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_September 1, 2021_
+_September 22, 2021_
 
 The Maxim Integrated AI project is comprised of five repositories:
 
@@ -227,6 +227,8 @@ $ pyenv init
 ...
 ...
 ```
+
+*Note: Installing both conda and pyenv in parallel may cause issues. Ensure that the pyenv initialization tasks are executed <u>before</u> any conda related tasks.*
 
 Next, close the Terminal, open a new Terminal and install Python 3.8.11.
 
@@ -827,15 +829,17 @@ The MAX78000 hardware does not support arbitrary network parameters. Specificall
 
 * `Conv2d`:
   
-  * Kernel sizes must be 1×1 or 3×3.
+  * Kernel sizes must be 1×1 or 3×3. *Note: Stacked 3×3 kernels can achieve the effect of larger kernels. For example, two consecutive layers with 3×3 kernels have the same receptive field as a 5×5 kernel. To achieve the same activation as a 5×5 kernel, additional layers are necessary.*
   * Padding can be 0, 1, or 2. Padding always uses zeros.
   * Stride is fixed to [1, 1].
+  * Dilation is fixed to 1.
   
 * `Conv1d`:
   
   * Kernel sizes must be 1 through 9.
   * Padding can be 0, 1, or 2.
   * Stride is fixed to 1.
+  * Dilation is fixed to 1 for kernels with size greater than 3.
   
 * `ConvTranspose2d`:
 
@@ -907,7 +911,7 @@ The MAX78000 hardware does not support arbitrary network parameters. Specificall
   
 * Since the internal network format is HWC in groups of four channels, output concatenation only works properly when all components of the concatenation other than the last have multiples of four channels.
 
-* Dilation, groups, and depth-wise convolutions are not supported. *Note: Batch normalization should be folded into the weights, see [Batch Normalization](#Batch-Normalization).*
+* Groups, and depth-wise convolutions are not supported. *Note: Batch normalization should be folded into the weights, see [Batch Normalization](#Batch-Normalization).*
 
 ### Fully Connected (Linear) Layers
 
