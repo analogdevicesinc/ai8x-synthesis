@@ -34,13 +34,15 @@
 
 # This is the name of the build output file
 ifeq "$(PROJECT)" ""
-PROJECT=max78002
+PROJECT=##__PROJ_NAME__##
 endif
 
 # Specify the target processor
 ifeq "$(TARGET)" ""
-TARGET=MAX78002
+TARGET=##__TARGET_UC__##
 endif
+
+MAKE=make
 
 # Create Target name variables
 TARGET_UC:=$(shell echo $(TARGET) | tr a-z A-Z)
@@ -69,7 +71,7 @@ CMSIS_ROOT=$(LIBS_DIR)/CMSIS
 #Use this for other library make files so they are all based off the same as root as the project
 export CMSIS_ROOT
 
-# LINKERFILE=$(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/GCC/max78002_arm.ld
+# LINKERFILE=$(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/GCC/##__TARGET_LC__##_arm.ld
 
 # Source files for this test (add path to VPATH below)
 SRCS  = main.c cnn.c
@@ -81,13 +83,8 @@ VPATH += $(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source
 # Where to find header files for this test
 IPATH  = .
 
-# Enable assertion checking for development
-PROJ_CFLAGS+=-DMXC_ASSERT_ENABLE
-
-PROJ_CFLAGS+=-DARM_MATH_CM4
-
 # Enable all warnings
-PROJ_CFLAGS+=-Wall -Wcast-align
+PROJ_CFLAGS+=-Wall -Wcast-align ##__DEFINES_ARM__## ##__DEFINES__##
 
 # Specify the target revision to override default
 # "A2" in ASCII
@@ -95,10 +92,6 @@ PROJ_CFLAGS+=-Wall -Wcast-align
 
 # Use this variables to specify and alternate tool path
 #TOOL_DIR=/opt/gcc-arm-none-eabi-4_8-2013q4/bin
-
-# Use these variables to add project specific tool options
-#PROJ_CFLAGS+=-D__FPU_PRESENT -DKINTEX_EMU
-#PROJ_LDFLAGS+=--specs=nano.specs
 
 # Point this variable to a startup file to override the default file
 #STARTUPFILE=start.S

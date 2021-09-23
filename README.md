@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_September 22, 2021_
+_September 27, 2021_
 
 The Maxim Integrated AI project is comprised of five repositories:
 
@@ -1773,6 +1773,7 @@ The following table describes the most important command line arguments for `ai8
 | `--boost`                | Turn on a port pin to boost the CNN supply                   | `--boost 2.5`                   |
 | `--timer`                | Insert code to time the inference using a timer              | `--timer 0`                     |
 | `--no-wfi`               | Do not use WFI instructions when waiting for CNN completion  |                                 |
+| `--define` | Additional preprocessor defines | `--define "FAST GOOD"` |
 | *File names*             |                                                              |                                 |
 | `--c-filename`           | Main C file name base (default: main.c)                      | `--c-filename main.c`           |
 | `--api-filename`         | API C file name (default: cnn.c)                             | `--api-filename cnn.c`          |
@@ -2545,31 +2546,41 @@ The software Softmax function is optimized for processing time, and it quantizes
 
 The generated C code comprises the following files. Some of the files are customized based on the project name, and some are custom for a combination of project name and weight/sample data inputs:
 
-| File name      | Source                           | Project specific? | Model/weights change? |
-| -------------- | -------------------------------- | ----------------- | --------------------- |
-| Makefile       | template in assets/embedded-ai87 | Yes               | No                    |
-| cnn.c          | generated                        | Yes               | **Yes**               |
-| cnn.h          | template in assets/device-all    | Yes               | **Yes**               |
-| weights.h      | generated                        | Yes               | **Yes**               |
-| log.txt        | generated                        | Yes               | **Yes**               |
-| main.c         | generated                        | Yes               | No                    |
-| sampledata.h   | generated                        | Yes               | No                    |
-| sampleoutput.h | generated                        | Yes               | **Yes**               |
-| softmax.c      | assets/device-all                | No                | No                    |
-| model.launch   | template in assets/eclipse       | Yes               | No                    |
-| .cproject      | template in assets/eclipse       | Yes               | No                    |
-| .project       | template in assets/eclipse       | Yes               | No                    |
+| File name      | Source                                | Project specific? | Model/weights change? |
+| -------------- | ------------------------------------- | ----------------- | --------------------- |
+| Makefile*      | template(s) in assets/embedded-*      | Yes               | No                    |
+| cnn.c          | generated                             | Yes               | **Yes**               |
+| cnn.h          | template in assets/device-all         | Yes               | **Yes**               |
+| weights.h      | generated                             | Yes               | **Yes**               |
+| log.txt        | generated                             | Yes               | **Yes**               |
+| main.c         | generated                             | Yes               | No                    |
+| sampledata.h   | generated                             | Yes               | No                    |
+| sampleoutput.h | generated                             | Yes               | **Yes**               |
+| softmax.c      | assets/device-all                     | No                | No                    |
+| model.launch   | template in assets/eclipse            | Yes               | No                    |
+| .cproject      | template in assets/eclipse            | Yes               | No                    |
+| .project       | template in assets/eclipse            | Yes               | No                    |
+| .settings/*    | templates in assets/eclipse/.settings | Yes               | No                    |
 
 In order to upgrade an embedded project after retraining the model, point the network generator to a new empty directory and regenerate. Then, copy the four files that will have changed to your original project — `cnn.c`, `cnn.h`, `weights.h`, and `log.txt`. This allows for persistent customization of the I/O code and project (for example, in `main.c` and additional files) while allowing easy model upgrades.
 
-The generator also adds all files from the `assets/eclipse`, `assets/device-all`, and `assets/embedded-ai87` folders. These files (when starting with `template` in their name) will be automatically customized to include project-specific information as shown in the following table:
+The generator also adds all files from the `assets/eclipse`, `assets/device-all`, and `assets/embedded-*` folders. These files (when starting with `template` in their name) will be automatically customized to include project-specific information as shown in the following table:
 
-| Key                   | Replaced by                                                  |
-| --------------------- | ------------------------------------------------------------ |
-| `##__PROJ_NAME__##`   | Project name (works on file names as well as the file contents) |
-| `##__ELF_FILE__##`    | Output elf (binary) file name                                |
-| `##__BOARD__##`       | Board name (e.g., `EvKit_V1`)                                |
-| `##__FILE_INSERT__##` | Network statistics and timer                                 |
+| Key                       | Replaced by                                                  |
+| ------------------------- | ------------------------------------------------------------ |
+| `##__PROJ_NAME__##`       | Project name (works on file names as well as the file contents), from `--prefix` |
+| `##__ELF_FILE__##`        | Output elf (binary) file name (`PROJECT.elf` or `PROJECT-combined.elf`) |
+| `##__BOARD__##`           | Board name (e.g., `EvKit_V1`), from `--board-name`                   |
+| `##__FILE_INSERT__##`     | Network statistics and timer                                 |
+| `##__OPENOCD_PARAMS__##` | OpenOCD arguments (e.g., `-f interface/cmsis-dap.cfg -f target/max7800x.cfg`), from `--eclipse-openocd-args` |
+| `##__TARGET_UC__##` | Upper case device name (e.g., `MAX78000`), from `--device` |
+| `##__TARGET_LC__##` | Lower case device name (e.g., `max78000`), from `--device` |
+| `##__ADDITIONAL_INCLUDES__##` | Additional include files, from `--eclipse-includes`  (default: empty) |
+| `##__GCC_PREFIX__##` | `arm-non-eabi-` or `riscv-none-embed-` |
+| `##__DEFINE__##`<br />*or* `##__GCC_SUFFIX__##` | Additional #defines (e.g., `-D SUPERSPEED`), from `--define` (default: empty) |
+| `##__DEFINE_ARM__##`<br />*or* `##__ARM_DEFINES__##` | Replace default ARM #defines, from `--define-default-arm` (default: `"MXC_ASSERT_ENABLE ARM_MATH_CM4"`) |
+| `##__DEFINE_RISCV__##`<br />*or* `##__RISC_DEFINES__##` | Replace default RISC-V #defines, from `--define-default-riscv` (default: `"MXC_ASSERT_ENABLE RV32"`) |
+| `##__ADDITIONAL_VARS__##` | Additional variables, from `--eclipse-variables` (default: empty) |
 
 ##### Contents of the device-all Folder
 
@@ -2578,10 +2589,10 @@ The generator also adds all files from the `assets/eclipse`, `assets/device-all`
 
 #### Determining the Compiled Flash Image Size
 
-The generated `.elf` file (either `max78000.elf` or `max78000-combined.elf`) contains debug and other meta information. To determine the true Flash image size, either examine the `.map` file, or convert the `.elf` to a binary image and examine the resulting image.
+The generated `.elf` file (either `build/PROJECT.elf` or `build/PROJECT-combined.elf` when building for RISC-V) contains debug and other meta information. To determine the true Flash image size, either examine the `.map` file, or convert the `.elf` to a binary image and examine the resulting image.
 
 ```shell
-% arm-none-eabi-objcopy -I elf32-littlearm build/max78000.elf -O binary temp.bin                     
+% arm-none-eabi-objcopy -I elf32-littlearm build/mnist.elf -O binary temp.bin                     
 % ls -la temp.bin
 -rwxr-xr-x  1 user  staff  321968 Jan  1 11:11 temp.bin
 ```
@@ -2595,8 +2606,8 @@ $ make
   CC    main.c
   CC    cnn.c
   ...
-  LD    build/max78000.elf 
-arm-none-eabi/bin/ld: build/max78000.elf section `.text' will not fit in region `FLASH'
+  LD    build/mnist.elf 
+arm-none-eabi/bin/ld: build/mnist.elf section `.text' will not fit in region `FLASH'
 arm-none-eabi/bin/ld: region `FLASH' overflowed by 600176 bytes
 collect2: error: ld returned 1 exit status
 ```

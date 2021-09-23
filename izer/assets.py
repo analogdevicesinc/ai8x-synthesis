@@ -42,13 +42,13 @@ def from_template(
     Copy all files `base`/`source` to `target`/`test_name`, with file name and
     content substitution.
     """
-    template = 'template'
-
     assert tc.dev is not None
-    if state.riscv:
-        elf_file = f'{tc.dev.partnum.lower()}-combined.elf'
-    else:
-        elf_file = f'{tc.dev.partnum.lower()}.elf'
+
+    template = 'template'
+    part = tc.dev.partnum.lower()
+    openocd = state.eclipse_openocd_args.replace('##__TARGET_LC__##', part)
+    prefix = 'riscv-none-embed-' if state.riscv else 'arm-none-eabi-'
+    elf_file = f'{test_name}-combined.elf' if state.riscv else f'{test_name}.elf'
 
     basepath = os.path.join(base, source)
     for folderpath, _, files in sorted(os.walk(basepath)):
@@ -78,7 +78,19 @@ def from_template(
                             line.replace('##__PROJ_NAME__##', test_name).
                             replace('##__ELF_FILE__##', elf_file).
                             replace('##__BOARD__##', board_name).
-                            replace('##__FILE_INSERT__##', insert)
+                            replace('##__FILE_INSERT__##', insert).
+                            replace('##__OPENOCD_PARAMS__##', openocd).
+                            replace('##__TARGET_UC__##', part.upper()).
+                            replace('##__TARGET_LC__##', part).
+                            replace('##__ADDITIONAL_INCLUDES__##', state.eclipse_includes).
+                            replace('##__GCC_PREFIX__##', prefix).
+                            replace('##__GCC_SUFFIX__##', state.defines).
+                            replace('##__DEFINES__##', state.defines).
+                            replace('##__DEFINES_ARM__##', state.defines_arm).
+                            replace('##__ARM_DEFINES__##', state.defines_arm).
+                            replace('##__DEFINES_RISCV__##', state.defines_riscv).
+                            replace('##__RISC_DEFINES__##', state.defines_riscv).
+                            replace('##__ADDITIONAL_VARS__##', state.eclipse_variables)
                         )
             else:
                 shutil.copy(os.path.join(base, source, source_path),
