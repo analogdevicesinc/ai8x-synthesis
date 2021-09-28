@@ -516,6 +516,8 @@ def parse(
             pool[sequence][1] = 1
             pool_stride[sequence][1] = 1
             stride[sequence][1] = 1
+            dilation[sequence][1] = 1
+            pool_dilation[sequence][1] = 1
         elif operator[sequence] == op.NONE:
             kernel_size[sequence] = [1, 1]
         elif operator[sequence] == op.CONVTRANSPOSE2D:

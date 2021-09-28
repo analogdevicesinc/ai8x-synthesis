@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_September 27, 2021_
+_September 30, 2021_
 
 The Maxim Integrated AI project is comprised of five repositories:
 
@@ -2014,6 +2014,13 @@ Element-wise operations can also be added “in-flight” to `Conv2d`. In this c
 
 Example:
   `eltwise: add`
+
+##### `dilation` (Optional)
+
+Specifies the dilation for Conv1d operations (default: `1`).
+
+Example:
+	`dilation: 7`
 
 ##### `pool_first` (Optional)
 
