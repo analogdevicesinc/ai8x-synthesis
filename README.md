@@ -539,7 +539,7 @@ For each of the four 16-processor quadrants, weight memory and processors can be
 
 ![Weight Memory Map](docs/KernelMemory.png)
 
-*Note: Weights that are not 3×3×8 (= 72-bits) per kernel are packed to save space.*
+*Note: Weights that are not 3×3×8 (= 72-bits) per kernel are packed to save space. For example, when using 1×1 8-bit kernels, 9 kernels will be packed into a single 72-bit memory word.*
 
 #### Data Memory
 
@@ -1111,6 +1111,7 @@ The following table describes the most important command line arguments for `tra
 | `--qat-policy`             | Define QAT policy in YAML file (default: qat_policy.yaml). Use ‘’None” to disable QAT. | `--qat-policy qat_policy.yaml` |
 | `--nas`                    | Enable network architecture search                           |                                 |
 | `--nas-policy`             | Define NAS policy in YAML file                               | `--nas-policy nas/nas_policy.yaml` |
+| `--regression` | Select regression instead of classification (changes Loss function, and log output) |  |
 | *Display and statistics*   |                                                              |                                 |
 | `--enable-tensorboard`     | Enable logging to TensorBoard (default: disabled)            |                                 |
 | `--confusion`              | Display the confusion matrix                                 |                                 |
@@ -1126,7 +1127,7 @@ The following table describes the most important command line arguments for `tra
 | `--exp-load-weights-from`  | Load weights from file                                       |                                 |
 | *Export*                   |                                                              |                                 |
 | `--summary onnx`           | Export trained model to ONNX (default name: to model.onnx) — *see description below* |         |
-| `--summary onnx_simplified` | Export trained model to simplified ONNX file (default name: model.onnx) |                     |
+| `--summary onnx_simplified` | Export trained model to simplified [ONNX](https://onnx.ai/) file (default name: model.onnx) |                     |
 | `--summary-filename`       | Change the file name for the exported model                  | `--summary-filename mnist.onnx` |
 | `--save-sample`            | Save data[index] from the test set to a NumPy pickle for use as sample data | `--save-sample 10` |
 
@@ -1772,7 +1773,7 @@ The following table describes the most important command line arguments for `ai8
 | `--softmax`              | Add software Softmax functions to generated code             |                                 |
 | `--boost`                | Turn on a port pin to boost the CNN supply                   | `--boost 2.5`                   |
 | `--timer`                | Insert code to time the inference using a timer              | `--timer 0`                     |
-| `--no-wfi`               | Do not use WFI instructions when waiting for CNN completion  |                                 |
+| `--no-wfi`               | Do not use WFI (wait for interrupt) instructions when waiting for CNN completion |                                 |
 | `--define` | Additional preprocessor defines | `--define "FAST GOOD"` |
 | *File names*             |                                                              |                                 |
 | `--c-filename`           | Main C file name base (default: main.c)                      | `--c-filename main.c`           |
@@ -1817,7 +1818,7 @@ The following table describes the most important command line arguments for `ai8
 | `--input-offset`         | First layer input offset (x8 hex, defaults to 0x0000)        | `--input-offset 2000`           |
 | `--mlator-noverify`      | Do not check both mlator and non-mlator output               |                                 |
 | `--write-zero-registers` | Write registers even if the value is zero                    |                                 |
-| `--init-tram`            | Initialize TRAM to 0                                         |                                 |
+| `--init-tram`            | Initialize TRAM (compute cache) to 0                         |                                 |
 | `--zero-sram`            | Zero memories                                                |                                 |
 | `--zero-unused`          | Zero unused registers                                        |                                 |
 | `--ready-sel`            | Specify memory waitstates                                    |                                 |
@@ -1999,7 +2000,7 @@ When this key is not specified, a warning is displayed, and `Conv2d` is selected
 | `Conv2d`                  | 2D convolution over an input composed of several input planes |
 | `ConvTranspose2d`         | 2D transposed convolution (upsampling) over an input composed of several input planes |
 | `None` or `Passthrough`   | No operation *(note: input and output processors must be the same)* |
-| `Linear` or `FC` or `MLP` | Linear transformation to the incoming data                   |
+| `Linear` or `FC` or `MLP` | Linear transformation to the incoming data (fully connected layer) |
 | `Add`                     | Element-wise addition                                        |
 | `Sub`                     | Element-wise subtraction                                     |
 | `Xor`                     | Element-wise binary XOR                                      |
@@ -2265,7 +2266,7 @@ layers:
   operation: none
 - flatten: true
   out_offset: 0x0000
-  op: mlp
+  op: mlp  # The fully connected (FC) layer L5
   processors: 0x000000000000ff00
   output_width: 32
 ```
@@ -2635,7 +2636,7 @@ To deal with this issue, there are several options:
 
 There can be many reasons why the known-answer test (KAT) fails for a given network with an error message, or where the KAT does not complete. The following techniques may help in narrowing down where in the network or the YAML description of the network the error occurs:
 
-* For very short and small networks, disable the use of WFI instructions while waiting for completion of the CNN computations by using the command line option `--no-wfi`. *Explanation: In these cases, the network terminates more quickly than the time it takes between testing for completion and executing the WFI instruction, so the WFI instruction is never interrupted and the code may appear to hang.*
+* For very short and small networks, disable the use of WFI (wait for interrupt) instructions while waiting for completion of the CNN computations by using the command line option `--no-wfi`. *Explanation: In these cases, the network terminates more quickly than the time it takes between testing for completion and executing the WFI instruction, so the WFI instruction is never interrupted and the code may appear to hang.*
   
 * The `--no-wfi` option can also be useful when trying to debug code, since the debugger loses connection when the device enters sleep mode using `__WFI()`.
   
@@ -2709,7 +2710,7 @@ Total: 512 KiB (16 instances of 8192 × 32)
 | 3            | 2            | 0x51010000 - 0x51017FFF |
 | 3            | 3            | 0x51018000 - 0x5101FFFF |
 
-### TRAM
+### TRAM (Compute Cache)
 
 Total: 384 KiB (64 instances of 3072 × 16)
 
