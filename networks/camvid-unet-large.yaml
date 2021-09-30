@@ -2,7 +2,9 @@
 # UNet Model
 
 arch: ai85unetlarge
-dataset: CamVid_s352_c3
+#for KAT test reduced data is used to limited FLASH size
+dataset: CamVid_s352_c3_reduced
+#dataset: CamVid_s352_c3
 
 layers:
 
