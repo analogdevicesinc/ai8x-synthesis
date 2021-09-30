@@ -67,6 +67,30 @@ def get_parser() -> argparse.Namespace:
                        help="set test name prefix")
     group.add_argument('--debugwait', type=int, default=2, metavar='N',
                        help="set the delay in seconds before calling __WFI() (default: 2)")
+    group.add_argument('--define', default='', metavar='S',
+                       help="additional #defines for Makefile and auto-generated "
+                            "Eclipse project files (default: None; "
+                            "use quotes to specify multiple, separated by space)")
+    group.add_argument('--define-default-arm', default='MXC_ASSERT_ENABLE ARM_MATH_CM4',
+                       metavar='S',
+                       help="override default ARM #defines for Makefile and auto-generated "
+                            "Eclipse project files (default: 'MXC_ASSERT_ENABLE ARM_MATH_CM4'; "
+                            "use quotes to specify multiple, separated by space)")
+    group.add_argument('--define-default-riscv', default='MXC_ASSERT_ENABLE RV32', metavar='S',
+                       help="override default RISC-V #defines for Makefile and auto-generated "
+                            "Eclipse project files (default: 'MXC_ASSERT_ENABLE RV32'; "
+                            "use quotes to specify multiple, separated by space)")
+    group.add_argument('--eclipse-includes', default='', metavar='S',
+                       help="additional includes for auto-generated Eclipse project files "
+                            "(default: None)")
+    group.add_argument('--eclipse-variables', default='', metavar='S',
+                       help="additional variables for auto-generated Eclipse project files "
+                            "(default: None)")
+    group.add_argument('--eclipse-openocd-args',
+                       default='-f interface/cmsis-dap.cfg -f target/##__TARGET_LC__##.cfg',
+                       metavar='S',
+                       help="set the OpenOCD arguments for auto-generated Eclipse project files "
+                            "(default: -f interface/cmsis-dap.cfg -f target/<part>.cfg)")
 
     # Code generation
     group = parser.add_argument_group('Code generation')
@@ -438,6 +462,15 @@ def get_parser() -> argparse.Namespace:
     elif args.result_filename.lower() == 'none':
         args.result_filename = None
 
+    if args.define != '':
+        args.define = "-D" + " -D".join(args.define.split(' '))
+
+    if args.define_default_arm != '':
+        args.define_default_arm = "-D" + " -D".join(args.define_default_arm.split(' '))
+
+    if args.define_default_riscv != '':
+        args.define_default_riscv = "-D" + " -D".join(args.define_default_riscv.split(' '))
+
     return args
 
 
@@ -468,6 +501,12 @@ def set_state(args: argparse.Namespace) -> None:
     state.debug_new_streaming = args.debug_new_streaming
     state.debug_snoop = args.debug_snoop
     state.debug_wait = args.debugwait
+    state.defines = args.define
+    state.defines_arm = args.define_default_arm
+    state.defines_riscv = args.define_default_riscv
+    state.eclipse_includes = args.eclipse_includes
+    state.eclipse_openocd_args = args.eclipse_openocd_args
+    state.eclipse_variables = args.eclipse_variables
     state.embedded_code = args.embedded_code
     state.ext_rdy = args.ext_rdy
     state.fast_fifo = args.fast_fifo
