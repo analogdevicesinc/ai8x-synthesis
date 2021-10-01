@@ -172,7 +172,7 @@ def parse(
             pmap = ll['processors'] if 'processors' in ll else None
             if isinstance(pmap, str):
                 try:
-                    pmap = int(pmap.replace('.', ''), 16)
+                    pmap = int(pmap.replace('.', '').replace('_', ''), 16)
                 except ValueError:
                     pass
             if pmap is None:
@@ -186,7 +186,7 @@ def parse(
                 pmap = ll['output_processors']
                 if isinstance(pmap, str):
                     try:
-                        pmap = int(pmap.replace('.', ''), 16)
+                        pmap = int(pmap.replace('.', '').replace('_', ''), 16)
                     except ValueError:
                         pass
                 if not isinstance(pmap, int) or pmap < 1 or pmap >= 2**tc.dev.MAX_PROC:
