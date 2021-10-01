@@ -430,22 +430,6 @@ class Backend(backend.Backend):
                 if operands[ll] > 1:
                     eprint('Layer {ll}: Element-wise operations cannot be combined with Conv1d.')
 
-            # Dilation with pooling
-            if (pool[ll][0] > 1 or pool[ll][1] > 1) and \
-               (dilation[ll][0] < 1 or dilation[ll][1] < 1
-               or dilation[ll][0] > tc.dev.MAX_DILATION
-               or dilation[ll][1] > tc.dev.MAX_DILATION):
-                eprint(f'Layer {ll}: `dilation` values must be 1 or greater, and '
-                       f'{tc.dev.MAX_DILATION} or smaller on this device.')
-
-            # Conv1d dilation without pooling using the Conv2d operator
-            if (operator[ll] == op.CONV1D and pool[ll][0] == 1) and \
-               dilation[ll][0] < 1 \
-               or dilation[ll][0] > tc.dev.MAX_DILATION_1D \
-               or dilation[ll][1] != 1:
-                eprint(f'Layer {ll}: `dilation` values must be 1 or greater, and '
-                       f'{tc.dev.MAX_DILATION_1D} or smaller for Conv1d operations.')
-
             if dilation[ll][0] > 1:
                 if operator[ll] != op.CONV1D:
                     eprint(f'Layer {ll}: `dilation` > 1 is supported for Conv1d only.')
@@ -465,6 +449,8 @@ class Backend(backend.Backend):
                     hw_kernel_size[ll] = [k.shape[1], 1]
                 elif kernel_size[ll][0] <= tc.dev.MAX_DILATION_1D_KERNEL:
                     # Use Conv2d
+                    if pool[ll][0] != 1:
+                        eprint(f'Layer {ll}: Pooling must be 1 to use `dilation` > 4.')
                     if padding[ll][0] > tc.dev.MAX_DILATION_1D_PAD:
                         eprint(f'Layer {ll}: Padding must be {tc.dev.MAX_DILATION_1D_PAD} '
                                'or smaller to use `dilation` > 4.')
@@ -473,8 +459,9 @@ class Backend(backend.Backend):
                     if bypass[ll] or flatten[ll] or rd_ahead[ll] or streaming[ll]:
                         eprint(f'Layer {ll}: `bypass`, `flatten`, `rd_ahead`, `streaming` '
                                'must be False to use `dilation` > 4.')
-                    if in_expand[ll] > 1:
-                        eprint(f'Layer {ll}: Input expansion must be 1 to use `dilation` > 4.')
+                    if dilation[ll][0] > tc.dev.MAX_DILATION_1D:
+                        eprint(f'Layer {ll}: `dilation` must be {tc.dev.MAX_DILATION_1D} '
+                               'or smaller for Conv1d operations.')
 
                     nprint(f'Layer {ll}: Using Conv2d hardware for dilated Conv1d.')
                     hw_operator[ll] = op.CONV2D
