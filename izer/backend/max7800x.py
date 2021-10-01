@@ -171,6 +171,7 @@ class Backend(backend.Backend):
         stream_buf = [None] * layers
 
         out_ignore = [0] * layers
+        out_pad = [0] * layers
 
         terminating_layer = final_layer
         for i, s in enumerate(simulated_sequence):
@@ -394,15 +395,6 @@ class Backend(backend.Backend):
                        f'{input_dim[ll][1]} input (size {in_size}) '
                        f'with input offset 0x{in_offset[ll]:04x} and expansion {in_expand[ll]}x '
                        f'exceeds data memory instance size of {tc.dev.INSTANCE_WIDTH*16}.')
-            out_size = output_dim[ll][0] * output_dim[ll][1] * out_expand[ll] \
-                * 4 * output_width[ll] // 8
-            if (not streaming[ll] or ll == terminating_layer) \
-               and out_size + out_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
-                eprint(f'Layer {ll}: 4-channel, {output_width[ll]}-bit {output_dim[ll][0]}x'
-                       f'{output_dim[ll][1]} output (size {out_size}) '
-                       f'with output offset 0x{out_offset[ll]:04x} and expansion '
-                       f'{out_expand[ll]}x '
-                       f'exceeds data memory instance size of {tc.dev.INSTANCE_WIDTH*16}.')
 
             if operator[ll] != op.CONV1D:
                 input_dim_str[ll] = f'{input_dim[ll][0]}x{input_dim[ll][1]}'
@@ -464,14 +456,18 @@ class Backend(backend.Backend):
                                'or smaller for Conv1d operations.')
 
                     nprint(f'Layer {ll}: Using Conv2d hardware for dilated Conv1d.')
+                    # Use the Conv1d hardware with 1 pad on 'dilation' columns using 3x3 kernels
                     hw_operator[ll] = op.CONV2D
-                    hw_input_dim[ll][0] = (input_dim[ll][0] + 2 * dilation[ll][0] - 1) \
+                    hw_input_dim[ll][0] = (input_dim[ll][0] + dilation[ll][0] - 1) \
                         // dilation[ll][0]
                     hw_input_dim[ll][1] = dilation[ll][0]
                     hw_pooled_dim[ll] = hw_input_dim[ll]
                     hw_padding[ll] = [1, 1]
                     hw_kernel_size[ll] = [3, 3]
                     hw_dilation[ll] = [1, 1]
+                    # 2D output size is equal to the 2D input size since the pad is fixed to 1.
+                    # Subtract the original output dimensions to calculate the overage.
+                    out_pad[ll] = hw_input_dim[ll][0] * hw_input_dim[ll][1] - output_dim[ll][0]
 
                     # Create 3x3 kernel from 3x1 kernel -- move original into center column
                     k = np.insert(kernel[ll].reshape(output_chan[ll],
@@ -483,7 +479,7 @@ class Backend(backend.Backend):
                     elif kernel_size[ll][0] == 1:
                         k = np.insert(k, [0, 1], 0, axis=2)  # Use center
                     else:  # 3
-                        out_ignore[ll] = 4 * dilation[ll][0]
+                        out_ignore[ll] = 4 * dilation[ll][0] * out_expand[ll]
                     assert k.shape[2] == k.shape[3] == 3
                     hw_kernel[ll] = k.reshape(-1, k.shape[2], k.shape[3])
 
@@ -493,6 +489,16 @@ class Backend(backend.Backend):
                 else:
                     eprint(f'Layer {ll}: Kernel length must be {tc.dev.MAX_DILATION_1D_KERNEL} '
                            f'or smaller to use `dilation` of {dilation[ll][0]}.')
+
+            out_size = (output_dim[ll][0] * output_dim[ll][1] + out_pad[ll]) * out_expand[ll] \
+                * 4 * output_width[ll] // 8
+            if (not streaming[ll] or ll == terminating_layer) \
+               and out_size + out_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
+                eprint(f'Layer {ll}: 4-channel, {output_width[ll]}-bit {output_dim[ll][0]}x'
+                       f'{output_dim[ll][1]} output (size {out_size}) '
+                       f'with output offset 0x{out_offset[ll]:04x} and expansion '
+                       f'{out_expand[ll]}x '
+                       f'exceeds data memory instance size of {tc.dev.INSTANCE_WIDTH*16}.')
 
             if hw_operator[ll] == op.NONE:
                 if activation[ll] is not None:
@@ -2083,7 +2089,7 @@ class Backend(backend.Backend):
                                            f'in_offset 0x{in_offset[ll]:08x}.',
                                            error=not no_error_stop)
                                 if ll == terminating_layer:
-                                    osize = output_dim[ll][0] * output_dim[ll][1]
+                                    osize = output_dim[ll][0] * output_dim[ll][1] + out_pad[ll]
                                     if out_offset[ll] + osize * out_expand[ll] * 4 >= \
                                        in_offset[ll]:
                                         eprint(f'Layer {ll}: Overlapping input and output: '
@@ -2135,7 +2141,8 @@ class Backend(backend.Backend):
                                         continue
                                     if stream_buf[pl][2] & dmap != 0 \
                                        and overlap((out_offset[ll], out_offset[ll]
-                                                   + output_dim[ll][0] * output_dim[ll][1] * 4
+                                                   + (output_dim[ll][0] * output_dim[ll][1]
+                                                      + out_pad[ll]) * 4
                                                    * output_width[ll] // 8), stream_buf[pl]):
                                         eprint(f'Output for layer {ll} '
                                                f'({out_offset[ll]:04x}-{stream_buf[ll][1]:04x}, '
@@ -2161,8 +2168,9 @@ class Backend(backend.Backend):
                             out_instance = (
                                 tc.dev.datainstance_from_offs(out_offset[ll]),
                                 tc.dev.datainstance_from_offs(out_offset[ll] + 4 * out_expand[ll]
-                                                              * output_dim[ll][0]
-                                                              * output_dim[ll][1])
+                                                              * (output_dim[ll][0]
+                                                                 * output_dim[ll][1]
+                                                                 + out_pad[ll]))
                             )
                             if in_instance[0] == out_instance[0] \
                                or in_instance[1] == out_instance[1]:
