@@ -1,0 +1,12 @@
+---
+arch: test
+dataset: test_dilation_1d2
+
+layers:
+- out_offset: 0x2000
+  processors: 0x000000000000001f
+  operation: conv1d
+  kernel_size: 2
+  stride: 1
+  pad: 0
+  dilation: 4

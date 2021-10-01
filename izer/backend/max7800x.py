@@ -7,6 +7,7 @@
 """
 Backend for MAX7800X embedded code generation and RTL simulations
 """
+import copy
 import hashlib
 import os
 import sys
@@ -15,7 +16,7 @@ import numpy as np
 
 from izer import apbaccess, assets, compute, kbias, kernels, load, op, rtlsim, state, stats
 from izer import tornadocnn as tc
-from izer.eprint import eprint, wprint
+from izer.eprint import eprint, nprint, wprint
 from izer.simulate import (conv1d_layer, conv2d_layer, convtranspose2d_layer, eltwise_layer,
                            passthrough_layer, pooling_layer, print_data, show_data)
 from izer.utils import ffs, fls, overlap, popcount
@@ -156,7 +157,7 @@ class Backend(backend.Backend):
         in_expand_thresh = [0] * layers
         out_expand_thresh = [0] * layers
         tram_max = [0] * layers
-        effective_pad = padding.copy()
+        hw_padding = padding.copy()
 
         input_dim_str = [None] * layers
         output_dim_str = [None] * layers
@@ -168,6 +169,9 @@ class Backend(backend.Backend):
         dilation_str = [None] * layers
         stride_str = [None] * layers
         stream_buf = [None] * layers
+
+        out_ignore = [0] * layers
+        out_pad = [0] * layers
 
         terminating_layer = final_layer
         for i, s in enumerate(simulated_sequence):
@@ -279,14 +283,14 @@ class Backend(backend.Backend):
 
             if tc.dev.EMULATE_1X1_STREAMING and streaming[ll] and kernel_size[ll] == [1, 1] \
                and operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D]:
-                wprint(f'Layer {ll}: Using 3x3 kernels to emulate 1x1 streaming layer')
+                nprint(f'Layer {ll}: Using 3x3 kernel hardware for 1x1 streaming layer.')
                 # Create 3x3 weights from 1x1 weights and emulate using 3x3 kernels
                 weight33 = np.zeros((kernel[ll].shape[0], 3, 3), dtype=np.int64)
                 weight33[:, 1, 1] = kernel[ll][:, 0, 0]
                 kernel[ll] = weight33
                 assert padding[ll] == [0, 0]
                 padding[ll] = [1, 1]
-                effective_pad[ll] = [1, 1]
+                hw_padding[ll] = [1, 1]
                 kernel_size[ll][0] = kernel_size[ll][1] = 3
 
             if not tc.dev.SUPPORT_STREAM_NONPAD_FINAL and streaming[ll] \
@@ -331,6 +335,13 @@ class Backend(backend.Backend):
         # Check we're not using binary weights on devices that don't support it
         if binary_quantization and not tc.dev.SUPPORT_BINARY_WEIGHTS:
             eprint("Binary weights (-1/+1) are not supported on this device.")
+
+        hw_operator = operator.copy()
+        hw_input_dim = copy.deepcopy(input_dim)
+        hw_pooled_dim = copy.deepcopy(pooled_dim)
+        hw_kernel_size = copy.deepcopy(kernel_size)
+        hw_kernel = copy.deepcopy(kernel)
+        hw_dilation = copy.deepcopy(dilation)
 
         # Check that input channels are in separate memory instances if CHW (big) data format is
         # used, and calculate input and output expansion
@@ -384,15 +395,6 @@ class Backend(backend.Backend):
                        f'{input_dim[ll][1]} input (size {in_size}) '
                        f'with input offset 0x{in_offset[ll]:04x} and expansion {in_expand[ll]}x '
                        f'exceeds data memory instance size of {tc.dev.INSTANCE_WIDTH*16}.')
-            out_size = output_dim[ll][0] * output_dim[ll][1] * out_expand[ll] \
-                * 4 * output_width[ll] // 8
-            if (not streaming[ll] or ll == terminating_layer) \
-               and out_size + out_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
-                eprint(f'Layer {ll}: 4-channel, {output_width[ll]}-bit {output_dim[ll][0]}x'
-                       f'{output_dim[ll][1]} output (size {out_size}) '
-                       f'with output offset 0x{out_offset[ll]:04x} and expansion '
-                       f'{out_expand[ll]}x '
-                       f'exceeds data memory instance size of {tc.dev.INSTANCE_WIDTH*16}.')
 
             if operator[ll] != op.CONV1D:
                 input_dim_str[ll] = f'{input_dim[ll][0]}x{input_dim[ll][1]}'
@@ -420,7 +422,85 @@ class Backend(backend.Backend):
                 if operands[ll] > 1:
                     eprint('Layer {ll}: Element-wise operations cannot be combined with Conv1d.')
 
-            if operator[ll] == op.NONE:
+            if dilation[ll][0] > 1:
+                if operator[ll] != op.CONV1D:
+                    eprint(f'Layer {ll}: `dilation` > 1 is supported for Conv1d only.')
+
+                if kernel_size[ll][0] == 1:
+                    eprint(f'Layer {ll}: Kernel length must be greater than 1 to use '
+                           '`dilation` > 1.')
+
+                if (kernel_size[ll][0] - 1) * dilation[ll][0] < 9:
+                    # Stretch existing kernel if we can
+                    # 0 1 2 --> 0 X X X 1 X X X 2
+                    kzeros = []
+                    for s in range(1, kernel_size[ll][0]):
+                        kzeros += [s] * (dilation[ll][0] - 1)
+                    k = np.insert(kernel[ll], kzeros, 0, axis=1)
+                    hw_kernel[ll] = k
+                    hw_kernel_size[ll] = [k.shape[1], 1]
+                elif kernel_size[ll][0] <= tc.dev.MAX_DILATION_1D_KERNEL:
+                    # Use Conv2d
+                    if pool[ll][0] != 1:
+                        eprint(f'Layer {ll}: Pooling must be 1 to use `dilation` > 4.')
+                    if padding[ll][0] > tc.dev.MAX_DILATION_1D_PAD:
+                        eprint(f'Layer {ll}: Padding must be {tc.dev.MAX_DILATION_1D_PAD} '
+                               'or smaller to use `dilation` > 4.')
+                    if operands[ll] != 1:
+                        eprint(f'Layer {ll}: Operands must be 1 to use `dilation` > 4.')
+                    if bypass[ll] or flatten[ll] or rd_ahead[ll] or streaming[ll]:
+                        eprint(f'Layer {ll}: `bypass`, `flatten`, `rd_ahead`, `streaming` '
+                               'must be False to use `dilation` > 4.')
+                    if dilation[ll][0] > tc.dev.MAX_DILATION_1D:
+                        eprint(f'Layer {ll}: `dilation` must be {tc.dev.MAX_DILATION_1D} '
+                               'or smaller for Conv1d operations.')
+
+                    nprint(f'Layer {ll}: Using Conv2d hardware for dilated Conv1d.')
+                    # Use the Conv1d hardware with 1 pad on 'dilation' columns using 3x3 kernels
+                    hw_operator[ll] = op.CONV2D
+                    hw_input_dim[ll][0] = (input_dim[ll][0] + dilation[ll][0] - 1) \
+                        // dilation[ll][0]
+                    hw_input_dim[ll][1] = dilation[ll][0]
+                    hw_pooled_dim[ll] = hw_input_dim[ll]
+                    hw_padding[ll] = [1, 1]
+                    hw_kernel_size[ll] = [3, 3]
+                    hw_dilation[ll] = [1, 1]
+                    # 2D output size is equal to the 2D input size since the pad is fixed to 1.
+                    # Subtract the original output dimensions to calculate the overage.
+                    out_pad[ll] = hw_input_dim[ll][0] * hw_input_dim[ll][1] - output_dim[ll][0]
+
+                    # Create 3x3 kernel from 3x1 kernel -- move original into center column
+                    k = np.insert(kernel[ll].reshape(output_chan[ll],
+                                                     input_chan[ll] // conv_groups[ll],
+                                                     kernel_size[ll][0], -1),
+                                  [0, 1], 0, axis=3)
+                    if kernel_size[ll][0] == 2:
+                        k = np.insert(k, 0, 0, axis=2)  # Insert at top - throw away the padding
+                    elif kernel_size[ll][0] == 1:
+                        k = np.insert(k, [0, 1], 0, axis=2)  # Use center
+                    else:  # 3
+                        out_ignore[ll] = 4 * dilation[ll][0] * out_expand[ll]
+                    assert k.shape[2] == k.shape[3] == 3
+                    hw_kernel[ll] = k.reshape(-1, k.shape[2], k.shape[3])
+
+                    if out_offset[ll] < out_ignore[ll]:
+                        eprint(f'Layer {ll}: `out_offset` used with dilation of {dilation[ll][0]} '
+                               f'must be at least {out_ignore[ll]:04x}.')
+                else:
+                    eprint(f'Layer {ll}: Kernel length must be {tc.dev.MAX_DILATION_1D_KERNEL} '
+                           f'or smaller to use `dilation` of {dilation[ll][0]}.')
+
+            out_size = (output_dim[ll][0] * output_dim[ll][1] + out_pad[ll]) * out_expand[ll] \
+                * 4 * output_width[ll] // 8
+            if (not streaming[ll] or ll == terminating_layer) \
+               and out_size + out_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
+                eprint(f'Layer {ll}: 4-channel, {output_width[ll]}-bit {output_dim[ll][0]}x'
+                       f'{output_dim[ll][1]} output (size {out_size}) '
+                       f'with output offset 0x{out_offset[ll]:04x} and expansion '
+                       f'{out_expand[ll]}x '
+                       f'exceeds data memory instance size of {tc.dev.INSTANCE_WIDTH*16}.')
+
+            if hw_operator[ll] == op.NONE:
                 if activation[ll] is not None:
                     eprint(f'Layer {ll}: Pass-through layers must not use activation.')
                 if padding[ll][0] != 0 or padding[ll][1] != 0:
@@ -429,36 +509,36 @@ class Backend(backend.Backend):
                     eprint(f'Layer {ll}: `output_shift` must be zero for passthrough layers.')
                 if (pool[ll][0] > 1 or pool[ll][1] > 1) \
                    and in_expand[ll] > tc.dev.MAX_POOL_PASSES \
-                   and (pooled_dim[ll][0] > 1 or pooled_dim[ll][1] > 1):
+                   and (hw_pooled_dim[ll][0] > 1 or hw_pooled_dim[ll][1] > 1):
                     eprint(f'Layer {ll}: pooling in passthrough layer uses {in_expand[ll]} '
                            f'passes, which exceeds the maximum of {tc.dev.MAX_POOL_PASSES} '
                            'on this device.')
 
                 tram_max[ll] = 1
             else:
-                if operator[ll] == op.CONVTRANSPOSE2D:
+                if hw_operator[ll] == op.CONVTRANSPOSE2D:
                     # Flip padding around to match PyTorch conventions for ConvTranspose2d
-                    effective_pad[ll] = (
-                        dilation[ll][0] * (kernel_size[ll][0] - 1) - padding[ll][0],
-                        dilation[ll][1] * (kernel_size[ll][1] - 1) - padding[ll][1]
+                    hw_padding[ll] = (
+                        hw_dilation[ll][0] * (hw_kernel_size[ll][0] - 1) - hw_padding[ll][0],
+                        hw_dilation[ll][1] * (hw_kernel_size[ll][1] - 1) - hw_padding[ll][1]
                     )
-                    if padding[ll][0] not in tc.dev.SUPPORTED_X2D_PADS \
-                       or padding[ll][1] not in tc.dev.SUPPORTED_X2D_PADS:
+                    if hw_padding[ll][0] not in tc.dev.SUPPORTED_X2D_PADS \
+                       or hw_padding[ll][1] not in tc.dev.SUPPORTED_X2D_PADS:
                         eprint(f'Layer {ll}: The selected padding ({padding[ll]}) for '
                                'ConvTranspose2d is not supported on this device.')
                     if output_padding[ll][0] not in tc.dev.SUPPORTED_X2D_OUTPUT_PADS \
                        or output_padding[ll][1] not in tc.dev.SUPPORTED_X2D_OUTPUT_PADS:
                         eprint(f'Layer {ll}: The selected output padding ({output_padding[ll]}) '
                                'for ConvTranspose2d is not supported on this device.')
-                    tram_max[ll] = max(0, (pooled_dim[ll][1] - 1) * stride[ll][1] + 1
-                                       + output_padding[ll][1] + 2 * effective_pad[ll][1]
-                                       - kernel_size[ll][1]) + 1
+                    tram_max[ll] = max(0, (hw_pooled_dim[ll][1] - 1) * stride[ll][1] + 1
+                                       + output_padding[ll][1] + 2 * hw_padding[ll][1]
+                                       - hw_kernel_size[ll][1]) + 1
                 else:
-                    tram_max[ll] = max(0, pooled_dim[ll][1] + 2 * effective_pad[ll][1]
-                                       - kernel_size[ll][1]) + 1
+                    tram_max[ll] = max(0, hw_pooled_dim[ll][1] + 2 * hw_padding[ll][1]
+                                       - hw_kernel_size[ll][1]) + 1
 
-            if operator[ll] != op.CONVTRANSPOSE2D and (output_padding[ll][0] != 0
-                                                       or output_padding[ll][1] != 0):
+            if hw_operator[ll] != op.CONVTRANSPOSE2D and (output_padding[ll][0] != 0
+                                                          or output_padding[ll][1] != 0):
                 eprint(f'Layer {ll}: Output padding must be 0 for this operator.')
 
             if input_chan[ll] % conv_groups[ll] != 0 or output_chan[ll] % conv_groups[ll] != 0:
@@ -466,7 +546,7 @@ class Backend(backend.Backend):
                        f' the input channels ({input_chan[ll]}) or'
                        f' output channels ({output_chan[ll]}).')
 
-            if flatten[ll] and operator[ll] == op.NONE:
+            if flatten[ll] and hw_operator[ll] == op.NONE:
                 eprint(f'Layer {ll}: `flatten` is not compatible with passthrough layers.')
 
             if flatten[ll] and (pool[ll][0] > 1 or pool[ll][1] > 1):
@@ -495,12 +575,7 @@ class Backend(backend.Backend):
             if input_skip[ll] != 0 and not tc.dev.SUPPORT_MULTIPASS_STRIDE:
                 eprint(f'Layer {ll}: `in_skip` must be 0 for this device.')
 
-            if dilation[ll][0] < 1 or dilation[ll][1] < 1 \
-               or dilation[ll][0] > tc.dev.MAX_DILATION \
-               or dilation[ll][1] > tc.dev.MAX_DILATION:
-                eprint(f'Layer {ll}: `dilation` values must be 1 or greater, and '
-                       f'{tc.dev.MAX_DILATION} or smaller on this device.')
-
+            # Conv1d pool_dilation
             if pool_dilation[ll][0] < 1 or pool_dilation[ll][1] < 1 \
                or pool_dilation[ll][0] > tc.dev.MAX_POOL_DILATION \
                or pool_dilation[ll][1] > tc.dev.MAX_POOL_DILATION:
@@ -655,7 +730,7 @@ class Backend(backend.Backend):
             group_map[ll] = this_map
 
             # Ensure input and output map are the same for passthrough layers
-            if operator[ll] == op.NONE:
+            if hw_operator[ll] == op.NONE:
                 for group in range(tc.dev.P_NUMGROUPS):
                     in_pro = 2**popcount(
                         (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO
@@ -693,7 +768,7 @@ class Backend(backend.Backend):
             # Block certain element-wise operations when not using passthrough mode
             if tc.dev.EMULATE_ELTWISE_MP and operands[ll] > 1 and in_expand[ll] > 1 \
                and operands[ll] * in_expand[ll] != operands[ll] + in_expand[ll]:
-                if operator[ll] != op.NONE or pool[ll][0] > 1 or pool[ll][1] > 1 \
+                if hw_operator[ll] != op.NONE or pool[ll][0] > 1 or pool[ll][1] > 1 \
                    or pool_stride[ll][0] > 1 or pool_stride[ll][1] > 1:
                     eprint(f'The element-wise operation in layer {ll} exceeds a multi-pass of 2 '
                            'and therefore does not support pooling or convolution.')
@@ -701,7 +776,7 @@ class Backend(backend.Backend):
 
             # Warn if hidden layers use channel count that is not divisible by 4
             if ll != start_layer and input_chan[ll] % 4 != 0:
-                wprint(f'Layer {ll} uses an input channel count ({input_chan[ll]}) that is not '
+                nprint(f'Layer {ll} uses an input channel count ({input_chan[ll]}) that is not '
                        'a multiple of 4. Best energy performance is achieved with multiples of 4.')
 
         groups_used = []
@@ -805,7 +880,7 @@ class Backend(backend.Backend):
                             apb.output(f' and dilation {pool_dilation_str[ll]}', embedded_code)
                     else:
                         apb.output('no pooling', embedded_code)
-                    if operator[ll] != op.NONE:
+                    if hw_operator[ll] != op.NONE:
                         conv_str = f', {op.string(operator[ll])} with kernel size ' \
                                    f'{kernel_size_str[ll]}, ' \
                                    f'stride {stride_str[ll]}, ' \
@@ -847,7 +922,7 @@ class Backend(backend.Backend):
                     operands[start_layer],
                     in_expand_thresh[start_layer],
                     data,
-                    effective_pad[start_layer],
+                    hw_padding[start_layer],
                     csv_file=csv,
                 )
             if not block_mode and (embedded_code or compact_weights):
@@ -856,9 +931,9 @@ class Backend(backend.Backend):
                     True,
                     apb,
                     layers,
-                    operator,
-                    kernel,
-                    kernel_size,
+                    hw_operator,
+                    hw_kernel,
+                    hw_kernel_size,
                     quantization,
                     processor_map,
                     output_processor_map,
@@ -1052,9 +1127,9 @@ class Backend(backend.Backend):
                     embedded_code,
                     apb,
                     layers,
-                    operator,
-                    kernel,
-                    kernel_size,
+                    hw_operator,
+                    hw_kernel,
+                    hw_kernel_size,
                     quantization,
                     processor_map,
                     output_processor_map,
@@ -1208,7 +1283,7 @@ class Backend(backend.Backend):
                                 gap_min, gap_max = min(gap, gap_min), max(gap, gap_max)
                                 p += gap + 1
                             local_source = \
-                                gap_min != gap_max or gap_max > 0 and operator[ll] == op.NONE
+                                gap_min != gap_max or gap_max > 0 and hw_operator[ll] == op.NONE
 
                         # FIXME: Check that we don't overlap by-16 groups when in local_source mode
                         # FIXME: Non-uniform gaps are not supported
@@ -1216,7 +1291,7 @@ class Backend(backend.Backend):
                     # For passthrough, determine time slot count (maximum across all used groups)
                     tscnt_max = 0
                     for _, group in enumerate(groups_used):
-                        if operator[ll] == op.NONE:
+                        if hw_operator[ll] == op.NONE:
                             if popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
                                         % 2**tc.dev.P_NUMPRO) != 0:
                                 tscnt_max = max(
@@ -1293,15 +1368,15 @@ class Backend(backend.Backend):
                             in_row = pool[ll][0]
                             in_col = pool[ll][1]
                         else:
-                            if operator[ll] == op.CONVTRANSPOSE2D:
-                                in_row = stride[ll][0] * input_dim[ll][0]
-                                in_col = stride[ll][1] * input_dim[ll][1]
-                            elif operator[ll] == op.NONE and emulate_eltwise[ll]:
-                                in_row = input_dim[ll][0] * in_expand[ll]
-                                in_col = input_dim[ll][1]
+                            if hw_operator[ll] == op.CONVTRANSPOSE2D:
+                                in_row = stride[ll][0] * hw_input_dim[ll][0]
+                                in_col = stride[ll][1] * hw_input_dim[ll][1]
+                            elif hw_operator[ll] == op.NONE and emulate_eltwise[ll]:
+                                in_row = hw_input_dim[ll][0] * in_expand[ll]
+                                in_col = hw_input_dim[ll][1]
                             else:
-                                in_row = input_dim[ll][0]
-                                in_col = input_dim[ll][1]
+                                in_row = hw_input_dim[ll][0]
+                                in_col = hw_input_dim[ll][1]
                         if hasattr(tc.dev, 'CNT_DIFF_OFFS'):
                             diff = (in_row - ((in_row - pool[ll][0] - pool_dilation[ll][0] + 1)
                                               // pool_stride[ll][0]) * pool_stride[ll][0])
@@ -1309,7 +1384,7 @@ class Backend(backend.Backend):
                             assert val < 2**tc.dev.MAX_CNT_BITS
 
                             # Stop column
-                            if operator[ll] == op.CONV1D:
+                            if hw_operator[ll] == op.CONV1D:
                                 diff = 1
                             else:
                                 diff = (in_col - ((in_col - pool[ll][1] - pool_dilation[ll][1] + 1)
@@ -1319,16 +1394,16 @@ class Backend(backend.Backend):
                                 * (input_skip[ll] + 1) * operands[ll] * in_expand[ll]
 
                             val |= diff << tc.dev.CNT_DIFF_OFFS
-                            if effective_pad[ll][0] > 0:
-                                assert effective_pad[ll][0] - 1 < 2**2
+                            if hw_padding[ll][0] > 0:
+                                assert hw_padding[ll][0] - 1 < 2**2
                                 val |= 1 << tc.dev.PAD_ENA_OFFS
-                                val |= effective_pad[ll][0] - 1 << tc.dev.PAD_CNT_OFFS
+                                val |= hw_padding[ll][0] - 1 << tc.dev.PAD_CNT_OFFS
                         else:
                             val = in_row - 1
-                            assert effective_pad[ll][0] < 2**2
-                            assert val + 2*effective_pad[ll][0] < 2**tc.dev.MAX_CNT_BITS
-                            val |= effective_pad[ll][0] << tc.dev.PAD_CNT_OFFS
-                            val += 2*effective_pad[ll][0]
+                            assert hw_padding[ll][0] < 2**2
+                            assert val + 2*hw_padding[ll][0] < 2**tc.dev.MAX_CNT_BITS
+                            val |= hw_padding[ll][0] << tc.dev.PAD_CNT_OFFS
+                            val += 2*hw_padding[ll][0]
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_RCNT, val,
                                        comment=' // Rows')
 
@@ -1340,16 +1415,16 @@ class Backend(backend.Backend):
                             val = in_col - diff
                             assert val < 2**tc.dev.MAX_CNT_BITS
                             val |= diff << tc.dev.CNT_DIFF_OFFS
-                            if effective_pad[ll][1] > 0:
-                                assert effective_pad[ll][1] - 1 < 2**2
+                            if hw_padding[ll][1] > 0:
+                                assert hw_padding[ll][1] - 1 < 2**2
                                 val |= 1 << tc.dev.PAD_ENA_OFFS
-                                val |= effective_pad[ll][1] - 1 << tc.dev.PAD_CNT_OFFS
+                                val |= hw_padding[ll][1] - 1 << tc.dev.PAD_CNT_OFFS
                         else:
                             val = in_col - 1
-                            assert effective_pad[ll][1] < 2**2
-                            assert val + 2 * effective_pad[ll][1] < 2**tc.dev.MAX_CNT_BITS
-                            val |= effective_pad[ll][1] << tc.dev.PAD_CNT_OFFS
-                            val += 2 * effective_pad[ll][1]
+                            assert hw_padding[ll][1] < 2**2
+                            assert val + 2 * hw_padding[ll][1] < 2**tc.dev.MAX_CNT_BITS
+                            val |= hw_padding[ll][1] << tc.dev.PAD_CNT_OFFS
+                            val += 2 * hw_padding[ll][1]
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_CCNT, val,
                                        comment=' // Columns')
 
@@ -1370,7 +1445,7 @@ class Backend(backend.Backend):
                                        comment=' // Pooling columns')
 
                         # Configure pooling stride count
-                        if operator[ll] == op.CONVTRANSPOSE2D:
+                        if hw_operator[ll] == op.CONVTRANSPOSE2D:
                             val = 0
                         elif pool_stride[ll][0] > 1:
                             val = pool_stride[ll][0]-1
@@ -1383,13 +1458,13 @@ class Backend(backend.Backend):
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STRIDE, val,
                                        comment=' // Stride')
 
-                        val = out_offset[ll] // 4
+                        val = (out_offset[ll] - out_ignore[ll]) // 4
                         if not local_source:
                             # Configure SRAM write pointer -- write ptr is global
                             # (unless depth-wise w/o broadcast is used).
                             # Get offset to first available instance of the first used
                             # processor of the next layer.
-                            if operator[ll] != op.NONE \
+                            if hw_operator[ll] != op.NONE \
                                and conv_groups[ll] > 1 and not broadcast_mode[ll]:
                                 # First group used
                                 first_group = ffs(processor_map[ll]) // tc.dev.P_NUMPRO
@@ -1405,7 +1480,7 @@ class Backend(backend.Backend):
                                 else:
                                     val = 0
                             else:
-                                if operator[ll] != op.NONE:
+                                if hw_operator[ll] != op.NONE:
                                     instance = ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1)
                                 elif (output_processor_map[ll] &
                                       2**tc.dev.P_NUMPRO - 1 << group*tc.dev.P_NUMPRO > 0):
@@ -1430,12 +1505,12 @@ class Backend(backend.Backend):
                         # Write Pointer Timeslot Offset Register
                         # Used for 1x1 convolution, and pooling without convolution
                         val = 0
-                        if operator[ll] in [op.CONV2D, op.LINEAR]:
-                            if kernel_size[ll] == [1, 1] and conv_groups[ll] == 1:
+                        if hw_operator[ll] in [op.CONV2D, op.LINEAR]:
+                            if hw_kernel_size[ll] == [1, 1] and conv_groups[ll] == 1:
                                 val = 1
                             elif conv_groups[ll] > 1 and not broadcast_mode[ll]:
                                 val = tc.dev.INSTANCE_SIZE * 4
-                        elif operator[ll] == op.NONE:
+                        elif hw_operator[ll] == op.NONE:
                             if popcount(processor_map[ll]) > 4 \
                                or operands[ll] > 1 and in_expand[ll] > 1:
                                 val = tc.dev.INSTANCE_SIZE * 4
@@ -1445,7 +1520,7 @@ class Backend(backend.Backend):
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_TOFFS, val,
                                        comment=' // Write ptr time slot offs')
 
-                        if operator[ll] != op.NONE:
+                        if hw_operator[ll] != op.NONE:
                             # [15:0] Write Pointer Mask Offset Register
                             val = 1 << tc.dev.WRITE_PTR_SHIFT
                             apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_MOFFS, val,
@@ -1480,7 +1555,7 @@ class Backend(backend.Backend):
                             val |= 1 << 16
 
                         if (ll != start_layer or not fast_fifo_quad) \
-                           and operator[ll] != op.NONE and group == groups_used[0] \
+                           and hw_operator[ll] != op.NONE and group == groups_used[0] \
                            and conv_groups[ll] == 1:
                             # Set external source for other active processing groups (can be
                             # zero if no other groups are processing). Do not set the bit
@@ -1501,9 +1576,9 @@ class Backend(backend.Backend):
                         if rd_ahead[ll] and hasattr(tc.dev, 'RD_AHEAD_OFFS'):
                             val |= 1 << tc.dev.RD_AHEAD_OFFS
 
-                        if hasattr(tc.dev, 'CPRIME_MAX_OFFS') and operator[ll] != op.NONE:
-                            val |= kernel_size[ll][0] - 1 << tc.dev.RPRIME_MAX_OFFS
-                            val |= kernel_size[ll][1] - 1 << tc.dev.CPRIME_MAX_OFFS
+                        if hasattr(tc.dev, 'CPRIME_MAX_OFFS') and hw_operator[ll] != op.NONE:
+                            val |= hw_kernel_size[ll][0] - 1 << tc.dev.RPRIME_MAX_OFFS
+                            val |= hw_kernel_size[ll][1] - 1 << tc.dev.CPRIME_MAX_OFFS
 
                         if rd_ahead[ll] and hasattr(tc.dev, 'SHIFT_CNT_OFFS'):
                             val |= ((in_expand[ll] - 1) // 4 if tcalc[ll] else in_expand[ll] - 1) \
@@ -1519,9 +1594,9 @@ class Backend(backend.Backend):
                         if flatten[ll]:
                             # Store all bits, top programmed in post processing register
                             flatten_prod = \
-                                in_expand[ll] * pooled_dim[ll][0] * pooled_dim[ll][1] - 1
+                                in_expand[ll] * hw_pooled_dim[ll][0] * hw_pooled_dim[ll][1] - 1
                             in_exp = flatten_prod & 0x0f  # Lower 4 bits only
-                        elif operator[ll] == op.NONE and emulate_eltwise[ll]:
+                        elif hw_operator[ll] == op.NONE and emulate_eltwise[ll]:
                             in_exp = 0
                         else:
                             in_exp = in_expand[ll] - 1
@@ -1532,7 +1607,7 @@ class Backend(backend.Backend):
                         val = (fls(output_processor_map[ll])
                                - (ffs(output_processor_map[ll]) & ~(tc.dev.P_SHARED-1))) \
                             * quant << tc.dev.XPCH_MAX_OFFS | in_exp
-                        if operator[ll] != op.NONE:
+                        if hw_operator[ll] != op.NONE:
                             wptr_skip = out_expand[ll] * (write_gap[ll] + 1) - 1
                         else:
                             wptr_skip = write_gap[ll]
@@ -1545,7 +1620,7 @@ class Backend(backend.Backend):
                         # Configure mask start and end addresses
                         # Every mask memory starts from the same offset for all processors
                         oned_sad = 0
-                        if operator[ll] != op.NONE:
+                        if hw_operator[ll] != op.NONE:
                             # FIXME: bypass corner cases
                             kc = kern_count[ll] if not bypass[ll] \
                                 else output_chan[ll] // conv_groups[ll]
@@ -1559,7 +1634,7 @@ class Backend(backend.Backend):
                                 if calcx4[ll]:
                                     kl -= quant
                             koffs, oned_sad = divmod(9 * kern_offs[ll],
-                                                     kernel_size[ll][0] * kernel_size[ll][1])
+                                                     hw_kernel_size[ll][0] * hw_kernel_size[ll][1])
                             if calcx4[ll]:
                                 koffs = kernels.calcx4_index(koffs)
                             koffs *= 8
@@ -1567,7 +1642,7 @@ class Backend(backend.Backend):
                             kl = koffs = 0
 
                         if hasattr(tc.dev, 'LREG_MCNT1'):
-                            if operator[ll] != op.NONE:
+                            if hw_operator[ll] != op.NONE:
                                 assert koffs < 2**19
                                 assert kl + koffs < 2**19
                                 apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT1,
@@ -1581,7 +1656,7 @@ class Backend(backend.Backend):
                                 apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT2, val,
                                                comment=' // Mask offset')
                         else:
-                            if operator[ll] != op.NONE:
+                            if hw_operator[ll] != op.NONE:
                                 assert koffs < 2**16
                                 assert kl + koffs < 2**16
                                 # kern_offs is always bytes
@@ -1599,7 +1674,7 @@ class Backend(backend.Backend):
                         if hasattr(tc.dev, 'LREG_OCHAN'):
                             if bypass[ll]:
                                 val = output_chan[ll] - 1
-                            elif operator[ll] != op.NONE and conv_groups[ll] == 1:
+                            elif hw_operator[ll] != op.NONE and conv_groups[ll] == 1:
                                 val = kern_ochan[ll] - 1
                                 if calcx4[ll]:
                                     val //= 4
@@ -1612,11 +1687,12 @@ class Backend(backend.Backend):
 
                         val = tscnt_max
                         assert 0 <= val < 2**4
-                        if operator[ll] == op.CONV1D:
-                            val |= kernel_size[ll][0] << 8 | 1 << 12
-                            assert kernel_size[ll][0] < 2**4
-                        elif (operator[ll] in [op.CONV2D, op.LINEAR] and kernel_size[ll] == [1, 1]
-                              or operator[ll] == op.NONE and operands[ll] == 1):
+                        if hw_operator[ll] == op.CONV1D:
+                            val |= hw_kernel_size[ll][0] << 8 | 1 << 12
+                            assert hw_kernel_size[ll][0] < 2**4
+                        elif (hw_operator[ll] in [op.CONV2D, op.LINEAR]
+                              and hw_kernel_size[ll] == [1, 1]
+                              or hw_operator[ll] == op.NONE and operands[ll] == 1):
                             val |= 1 << 8
                         if operands[ll] > 1:
                             val |= \
@@ -1624,7 +1700,7 @@ class Backend(backend.Backend):
                             if (pool[ll][0] > 1 or pool[ll][1] > 1) \
                                and pool_first[ll]:
                                 val |= 1 << 16
-                            if operator[ll] != op.NONE:  # CONV2D, LINEAR, CONVTRANSPOSE2D
+                            if hw_operator[ll] != op.NONE:  # CONV2D, LINEAR, CONVTRANSPOSE2D
                                 val |= 1 << 17
                         assert 0 <= oned_sad < 2**4
                         val |= oned_sad << 4
@@ -1633,8 +1709,9 @@ class Backend(backend.Backend):
                                        comment=' // 1D')
 
                         # Configure tram pointer max
-                        if operator[ll] == op.CONV1D or \
-                           operator[ll] in [op.CONV2D, op.LINEAR] and kernel_size[ll] == [1, 1] \
+                        if hw_operator[ll] == op.CONV1D or \
+                           hw_operator[ll] in [op.CONV2D, op.LINEAR] \
+                           and hw_kernel_size[ll] == [1, 1] \
                            and (ll == 0 or not streaming[ll]):
                             if flatten_prod >= 2**4:
                                 assert flatten_prod < 2**16
@@ -1665,7 +1742,7 @@ class Backend(backend.Backend):
                             val = 0  # Do not shift
                         # Scale Control - bit 4 determines shift direction (1>>,0<<),
                         # bits[3:0] determine magnitude
-                        assert operator[ll] != op.NONE or output_shift[ll] == 0
+                        assert hw_operator[ll] != op.NONE or output_shift[ll] == 0
                         if output_shift[ll] < 0:
                             val |= (-output_shift[ll] | 2**4) << 13
                         else:
@@ -1691,7 +1768,7 @@ class Backend(backend.Backend):
                             assert offs < 2**12
                             val |= 1 << 12 | offs
 
-                        if operator[ll] == op.NONE:
+                        if hw_operator[ll] == op.NONE:
                             if operands[ll] == 1:
                                 val |= 3 << 24
                             else:
@@ -1703,7 +1780,7 @@ class Backend(backend.Backend):
                         if flatten_prod >= 2**4:
                             val |= 1 << 27 | (flatten_prod >> 4) << 18  # flatten_ena, xpmp_cnt
 
-                        if operator[ll] == op.CONVTRANSPOSE2D:
+                        if hw_operator[ll] == op.CONVTRANSPOSE2D:
                             val |= 1 << 28
 
                         if conv_groups[ll] > 1:
@@ -1721,7 +1798,7 @@ class Backend(backend.Backend):
                         # Configure mask and processor enables
                         # Enable at most 16 processors and masks
                         val = (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO
-                        if operator[ll] != op.NONE and not bypass[ll]:
+                        if hw_operator[ll] != op.NONE and not bypass[ll]:
                             val = val << 16 | val  # Mask enables
                         apb.write_lreg(group, r * layers + ll, tc.dev.LREG_ENA, val,
                                        comment=' // Mask and processor enables')
@@ -1734,10 +1811,10 @@ class Backend(backend.Backend):
                                 if override_start is not None:
                                     stream_start = override_start
                                 elif streaming[ll]:
-                                    stream_start = (pool[ll][0] - 1) * input_dim[ll][1] \
+                                    stream_start = (pool[ll][0] - 1) * hw_input_dim[ll][1] \
                                         + pool[ll][1]
                                 else:
-                                    stream_start = input_dim[ll][0] * input_dim[ll][1]
+                                    stream_start = hw_input_dim[ll][0] * hw_input_dim[ll][1]
                                     if big_data[ll]:
                                         stream_start = (stream_start + 3) // 4
                                 stream_start *= pool[ll][0]
@@ -1751,16 +1828,17 @@ class Backend(backend.Backend):
                                     if override_delta2 is not None:
                                         delta2 = override_delta2
                                     else:
-                                        delta2 = (pool[ll][0] - 1) * input_dim[ll][1] \
+                                        delta2 = (pool[ll][0] - 1) * hw_input_dim[ll][1] \
                                             * operands[ll]
 
                             elif ll > start_layer and streaming[ll]:
                                 # Start: Prior layer's padded pooled row width * prior layer's
                                 # kernel height + prior layer's kernel width + prior layer's pad
-                                stream_start = (pooled_dim[prev_sequence[ll]][1]
-                                                + 2 * effective_pad[prev_sequence[ll]][1]) \
-                                    * (kernel_size[prev_sequence[ll]][0] - 1 + pool[ll][0] - 1) \
-                                    + kernel_size[prev_sequence[ll]][1] - 1 + pool[ll][1] \
+                                stream_start = (hw_pooled_dim[prev_sequence[ll]][1]
+                                                + 2 * hw_padding[prev_sequence[ll]][1]) \
+                                    * (hw_kernel_size[prev_sequence[ll]][0] - 1
+                                       + pool[ll][0] - 1) \
+                                    + hw_kernel_size[prev_sequence[ll]][1] - 1 + pool[ll][1] \
                                     + increase_start
 
                                 # Delta 1: This layer's pooling stride
@@ -1769,13 +1847,13 @@ class Backend(backend.Backend):
                                 # Delta 2: (This layer's pooling - 1) * full prior layer's padded
                                 # rows + prior layer's pad
                                 delta2 = (pool_stride[ll][0] - 1) \
-                                    * (pooled_dim[prev_sequence[ll]][1]
-                                        + 2 * effective_pad[prev_sequence[ll]][1]) \
+                                    * (hw_pooled_dim[prev_sequence[ll]][1]
+                                        + 2 * hw_padding[prev_sequence[ll]][1]) \
                                     + pool[ll][1] * operands[ll] + increase_delta2
                         else:
                             # MAX78002
                             # =IF(Pad=0,Stride,Pad)
-                            row_prim = effective_pad[ll][1] or pool_stride[ll][0]
+                            row_prim = hw_padding[ll][1] or pool_stride[ll][0]
                             # =IF((Row_Pool*Row_Dilation_Stride)>Stride,
                             #     Row_Pool*Row_Dilation_Stride,Stride)
                             row_inc = max(pool[ll][0] * pool_dilation[ll][0], pool_stride[ll][0])
@@ -1789,23 +1867,23 @@ class Backend(backend.Backend):
                                 if debug_new_streaming and ll > 0:
                                     # Cols_Stride=ROUNDDOWN(Cols/Col_Inc,0)
                                     # =IF(Cols_Stride*Stride+Pool>Cols,Cols_Stride-1,Cols_Stride)
-                                    effective_cols = input_dim[ll][1] // col_inc
+                                    effective_cols = hw_input_dim[ll][1] // col_inc
                                     if effective_cols * pool_stride[ll][1] + pool[ll][1] > \
-                                       input_dim[ll][1]:
+                                       hw_input_dim[ll][1]:
                                         effective_cols -= 1
                                     # =IF(Col_Inc=1,0,Cols-(Effective_Cols*Col_Inc))
                                     col_adjust = 0 if col_inc == 1 \
-                                        else input_dim[ll][1] - effective_cols * col_inc
+                                        else hw_input_dim[ll][1] - effective_cols * col_inc
                                 else:
                                     # =IF(((ROUNDDOWN(Cols/Stride,0)*Stride)+(Pool-1))>Cols,
                                     #     (ROUNDDOWN((Cols/Stride),0))-1,
                                     #     (ROUNDDOWN((Cols/Stride),0)))
-                                    effective_cols = input_dim[ll][1] // pool_stride[ll][1]
+                                    effective_cols = hw_input_dim[ll][1] // pool_stride[ll][1]
                                     if effective_cols * pool_stride[ll][1] + pool[ll][1] - 1 > \
-                                       input_dim[ll][1]:
+                                       hw_input_dim[ll][1]:
                                         effective_cols -= 1
                                     # =(Cols-(Effective_Cols*Col_Inc))
-                                    col_adjust = input_dim[ll][1] - effective_cols * col_inc
+                                    col_adjust = hw_input_dim[ll][1] - effective_cols * col_inc
 
                             # Prefill
                             if ll == start_layer and override_start is not None:
@@ -1818,9 +1896,10 @@ class Backend(backend.Backend):
                                         stream_start = col_inc
                                     else:
                                         stream_start = (row_inc - 1) * \
-                                            (input_dim[ll][1] + 2 * effective_pad[ll][1]) + col_inc
+                                            (hw_input_dim[ll][1]
+                                             + 2 * hw_padding[ll][1]) + col_inc
                                 else:  # fifo only
-                                    stream_start = input_dim[ll][0] * input_dim[ll][1]
+                                    stream_start = hw_input_dim[ll][0] * hw_input_dim[ll][1]
                                 stream_start_hwc = stream_start
                                 if big_data[ll]:
                                     stream_start = (stream_start + 3) // 4
@@ -1834,9 +1913,10 @@ class Backend(backend.Backend):
                                     #   += (Col_Adj*Stride)
                                     stream_start = \
                                         row_prim * \
-                                        (input_dim[ll][1] + 2 * effective_pad[ll][1]) \
-                                        + (row_inc * (input_dim[ll][1] + 2 * effective_pad[ll][1])
-                                           + effective_pad[ll][1] + 2 * col_inc) * operands[ll]
+                                        (hw_input_dim[ll][1] + 2 * hw_padding[ll][1]) \
+                                        + (row_inc * (hw_input_dim[ll][1]
+                                                      + 2 * hw_padding[ll][1])
+                                           + hw_padding[ll][1] + 2 * col_inc) * operands[ll]
                                 else:
                                     # =(Pad*(Cols+(Pad*2)))
                                     #   +(((Row_Inc*(Cols+(Pad*2)))
@@ -1845,10 +1925,11 @@ class Backend(backend.Backend):
                                     # if last_layer:
                                     #   += (Col_Adj*Stride)
                                     stream_start = \
-                                        effective_pad[ll][1] * \
-                                        (input_dim[ll][1] + 2 * effective_pad[ll][1]) \
-                                        + (row_inc * (input_dim[ll][1] + 2 * effective_pad[ll][1])
-                                           + effective_pad[ll][1] + 2 * col_inc) * operands[ll]
+                                        hw_padding[ll][1] * \
+                                        (hw_input_dim[ll][1] + 2 * hw_padding[ll][1]) \
+                                        + (row_inc * (hw_input_dim[ll][1]
+                                                      + 2 * hw_padding[ll][1])
+                                           + hw_padding[ll][1] + 2 * col_inc) * operands[ll]
                                 if rd_ahead[ll]:
                                     stream_start += pool_stride[ll][1]
                                 if last_layer and debug_new_streaming:
@@ -1864,7 +1945,7 @@ class Backend(backend.Backend):
                                 #      (Cols-(Effective_Cols*Stride)))
                                 skipped_cols = max(
                                     0,
-                                    (input_dim[ll][1] - (effective_cols * pool_stride[ll][1]))
+                                    (hw_input_dim[ll][1] - (effective_cols * pool_stride[ll][1]))
                                 )
 
                                 if ll == start_layer:
@@ -1889,7 +1970,7 @@ class Backend(backend.Backend):
                                                 delta2 = delta1 + col_adjust
                                             else:
                                                 delta2 = (pool_stride[ll][0] - 1) \
-                                                    * input_dim[ll][1] + col_adjust
+                                                    * hw_input_dim[ll][1] + col_adjust
                                         else:
                                             # =IF(Stride=1,Delta1_0+Skipped_Cols,
                                             #            (((Stride-1)*Cols))+Skipped_Cols
@@ -1898,7 +1979,7 @@ class Backend(backend.Backend):
                                                 delta2 = delta1 + skipped_cols
                                             else:
                                                 delta2 = (pool_stride[ll][0] - 1) \
-                                                    * input_dim[ll][1] \
+                                                    * hw_input_dim[ll][1] \
                                                     + skipped_cols + pool[ll][1] - 1
                                         if big_data[ll]:
                                             # =(ROUNDUP(Delta2_0/4,0))
@@ -1918,7 +1999,8 @@ class Backend(backend.Backend):
                                         if pool_stride[ll][0] == 1:
                                             delta2 = delta1 + col_adjust
                                         else:
-                                            delta2 = (pool_stride[ll][0] - 1) * input_dim[ll][1] \
+                                            delta2 = (pool_stride[ll][0] - 1) \
+                                                * hw_input_dim[ll][1] \
                                                 + col_adjust
                                     else:
                                         # =IF(Stride=1,Delta1+Skipped_Cols,
@@ -1926,7 +2008,8 @@ class Backend(backend.Backend):
                                         if pool_stride[ll][0] == 1:
                                             delta2 = delta1 + skipped_cols
                                         else:
-                                            delta2 = (pool_stride[ll][0] - 1) * input_dim[ll][1] \
+                                            delta2 = (pool_stride[ll][0] - 1) \
+                                                * hw_input_dim[ll][1] \
                                                 + skipped_cols
                                     if big_data[ll]:
                                         # =(ROUNDUP(Delta2/4,0))
@@ -1960,7 +2043,7 @@ class Backend(backend.Backend):
                                     # FIXME: stream_start + max(stride[ll][1], pool_stride[ll][1])
                                     val = 12
                                 else:
-                                    val = stream_start + (pool[ll][0] - 1) * input_dim[ll][1] \
+                                    val = stream_start + (pool[ll][0] - 1) * hw_input_dim[ll][1] \
                                         + max(stride[ll][1], pool_stride[ll][1], pool[ll][1])
                                 # Rollover must be multiple of multi-pass:
                                 rem = val % in_expand[ll]
@@ -1978,8 +2061,8 @@ class Backend(backend.Backend):
                                     # =(MROUND(Prefill+((Passes-1)*((Row_Inc*Cols)+Pad+Col_Inc))
                                     #   +Col_Inc,Passes))
                                     val = stream_start_hwc \
-                                        + (in_expand[ll] - 1) * (row_inc * input_dim[ll][1]
-                                                                 + effective_pad[ll][1]
+                                        + (in_expand[ll] - 1) * (row_inc * hw_input_dim[ll][1]
+                                                                 + hw_padding[ll][1]
                                                                  + col_inc) \
                                         + col_inc
                                     val += (in_expand[ll] - val % in_expand[ll]) % in_expand[ll]
@@ -1990,12 +2073,13 @@ class Backend(backend.Backend):
                             assert val < 2**tc.dev.MAX_FBUF_BITS
 
                             # Check rollover vs available data memory
-                            if in_offset[ll] < out_offset[ll]:
-                                if in_offset[ll] + val * 4 >= out_offset[ll]:
+                            if in_offset[ll] < out_offset[ll] - out_ignore[ll]:
+                                if in_offset[ll] + val * 4 >= out_offset[ll] - out_ignore[ll]:
                                     eprint(f'Layer {ll}: Overlapping input and output: '
                                            f'in_offset 0x{in_offset[ll]:08x} + '
                                            f'rollover 0x{val:08x} * 4 >= '
-                                           f'out_offset 0x{out_offset[ll]:08x}.',
+                                           f'out_offset 0x{out_offset[ll]:08x} - '
+                                           f'out_ignore 0x{out_ignore[ll]:08x}.',
                                            error=not no_error_stop)
                             else:
                                 if out_offset[ll] + val * 4 >= in_offset[ll]:
@@ -2005,7 +2089,7 @@ class Backend(backend.Backend):
                                            f'in_offset 0x{in_offset[ll]:08x}.',
                                            error=not no_error_stop)
                                 if ll == terminating_layer:
-                                    osize = output_dim[ll][0] * output_dim[ll][1]
+                                    osize = output_dim[ll][0] * output_dim[ll][1] + out_pad[ll]
                                     if out_offset[ll] + osize * out_expand[ll] * 4 >= \
                                        in_offset[ll]:
                                         eprint(f'Layer {ll}: Overlapping input and output: '
@@ -2057,7 +2141,8 @@ class Backend(backend.Backend):
                                         continue
                                     if stream_buf[pl][2] & dmap != 0 \
                                        and overlap((out_offset[ll], out_offset[ll]
-                                                   + output_dim[ll][0] * output_dim[ll][1] * 4
+                                                   + (output_dim[ll][0] * output_dim[ll][1]
+                                                      + out_pad[ll]) * 4
                                                    * output_width[ll] // 8), stream_buf[pl]):
                                         eprint(f'Output for layer {ll} '
                                                f'({out_offset[ll]:04x}-{stream_buf[ll][1]:04x}, '
@@ -2077,14 +2162,15 @@ class Backend(backend.Backend):
                             in_instance = (
                                 tc.dev.datainstance_from_offs(in_offset[ll]),
                                 tc.dev.datainstance_from_offs(in_offset[ll] + 4 * operands[ll]
-                                                              * in_expand[ll] * input_dim[ll][0]
-                                                              * input_dim[ll][1])
+                                                              * in_expand[ll] * hw_input_dim[ll][0]
+                                                              * hw_input_dim[ll][1])
                             )
                             out_instance = (
                                 tc.dev.datainstance_from_offs(out_offset[ll]),
                                 tc.dev.datainstance_from_offs(out_offset[ll] + 4 * out_expand[ll]
-                                                              * output_dim[ll][0]
-                                                              * output_dim[ll][1])
+                                                              * (output_dim[ll][0]
+                                                                 * output_dim[ll][1]
+                                                                 + out_pad[ll]))
                             )
                             if in_instance[0] == out_instance[0] \
                                or in_instance[1] == out_instance[1]:
@@ -2095,7 +2181,7 @@ class Backend(backend.Backend):
                                        f'instance(s) {out_instance}.')
 
                         if ll == start_layer and fifo:
-                            val = input_dim[ll][0] * input_dim[ll][1]
+                            val = hw_input_dim[ll][0] * hw_input_dim[ll][1]
                             if big_data[ll]:
                                 val = (val + 3) // 4
                             assert val < 2**tc.dev.MAX_IFRM_BITS
@@ -2198,7 +2284,7 @@ class Backend(backend.Backend):
                         operands[start_layer],
                         in_expand_thresh[start_layer],
                         data,
-                        effective_pad[start_layer],
+                        hw_padding[start_layer],
                         csv_file=csv,
                     )
 
@@ -2330,12 +2416,14 @@ class Backend(backend.Backend):
                         operands[start_layer],
                         in_expand_thresh[start_layer],
                         data,
-                        effective_pad[start_layer],
+                        hw_padding[start_layer],
                         csv_file=csv,
                     )
 
             apb.function_footer()
             # End of input
+
+        # ----------------------------------------------------------------------------------------
 
         in_map = apb.get_mem()
 
@@ -2488,7 +2576,7 @@ class Backend(backend.Backend):
                             output_chan[ll],
                             in_chan // conv_groups[ll],
                             kernel_size[ll][0],
-                            kernel_size[ll][1]
+                            kernel_size[ll][1],
                         )
                 else:
                     k = np.full(

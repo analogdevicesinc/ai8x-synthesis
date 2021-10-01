@@ -7,7 +7,7 @@ ignored-classes = ModelProto
 max-line-length = 99
 [DESIGN]
 max-locals=100
-max-statements=1500
+max-statements=2000
 min-public-methods=1
 max-branches=150
 max-module-lines=5000
