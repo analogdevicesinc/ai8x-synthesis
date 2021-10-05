@@ -374,7 +374,8 @@ class APB():
         Reads from global control register `reg` in group `group`, comparing to value `val`.
         An optional `comment` can be added to the output.
         """
-        self.verify(tc.ctl_addr(group, reg), val, mask=mask, comment=comment)
+        self.verify(tc.ctl_addr(group, reg), val, mask=mask, comment=comment,
+                    api=self.embedded_code)
 
     def write_lreg(
             self,

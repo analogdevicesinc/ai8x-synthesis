@@ -86,7 +86,6 @@ class Backend(backend.Backend):
         log_intermediate = state.log_intermediate
         log_pooling = state.log_pooling
         measure_energy = state.measure_energy
-        mexpress = state.mexpress
         next_sequence = state.next_sequence
         no_error_stop = state.no_error_stop
         oneshot = state.oneshot
@@ -231,6 +230,11 @@ class Backend(backend.Backend):
 
         if result_output:
             state.max_count = None
+
+        if state.mexpress and any(calcx4):
+            wprint('Ignoring --mexpress since calcx4 is used.')  # FIXME
+            state.mexpress = False
+        mexpress = state.mexpress
 
         if mexpress:
             state.compact_weights = True

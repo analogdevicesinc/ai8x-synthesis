@@ -77,6 +77,8 @@ def header(
     main_code = riscv is None or riscv or cmsis_nn
     input_csv = state.input_csv is not None and main_code
 
+    if tc.dev.SUPPORT_PLL:
+        memfile.write('#include <assert.h>\n')
     memfile.write('#include <stdlib.h>\n'
                   '#include <stdint.h>\n')
     if embedded_code or state.verify_kernels:
@@ -528,9 +530,13 @@ def main(
 
             if embedded_code and apifile is not None:
                 if tc.dev.SUPPORT_PLL:
-                    mfile.write('  if (clock_source == MXC_S_GCR_PCLKDIV_CNNCLKSEL_ITO)\n  ')
-                    mfile.write('  while ((MXC_GCR->ito_ctrl & MXC_F_GCR_ITO_CTRL_RDY) != '
-                                'MXC_F_GCR_ITO_CTRL_RDY) ; // Wait for PLL\n')
+                    mfile.write('  if (clock_source == MXC_S_GCR_PCLKDIV_CNNCLKSEL_ITO) {\n'
+                                '    assert(clock_divider == MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1);\n'
+                                '    MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
+                                '~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | MXC_F_GCR_PCLKDIV_CNNCLKSEL))\n'
+                                '                       | MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1 '
+                                '| MXC_S_GCR_PCLKDIV_CNNCLKSEL_PCLK;\n'
+                                '  } else\n  ')
                 mfile.write('  MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
                             '~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | MXC_F_GCR_PCLKDIV_CNNCLKSEL))\n'
                             '                     | clock_divider | clock_source;\n')
@@ -581,8 +587,11 @@ def main(
             memfile.write('\n')
 
         if embedded_code:
-            memfile.write('  printf("\\n*** CNN Inference Test ***\\n");\n\n'
-                          '  cnn_init(); // Bring state machine into consistent state\n')
+            memfile.write('  printf("\\n*** CNN Inference Test ***\\n");\n\n')
+            if not state.zero_sram:
+                memfile.write('  cnn_init(); // Bring state machine into consistent state\n')
+            else:
+                memfile.write('  if (cnn_init() != CNN_OK) fail();\n')
             if measure_energy:
                 if pll:
                     select_clock(memfile, 'ITO', 'DIV1', 'Switch CNN clock to PLL (ITO)')

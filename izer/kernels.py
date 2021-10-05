@@ -108,7 +108,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     if debug:
         print('\nLoading Kernels...')
 
-    assert not ((embedded_code or mexpress) and any(calcx4))  # FIXME Add support later
+    assert not (mexpress and any(calcx4))  # FIXME Add support later
 
     for ll in range(start_layer, layers):
         if operator[ll] == op.NONE or bypass[ll]:
@@ -473,7 +473,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                    // (kernel_size[ll][0] * kernel_size[ll][1] * 8))
         apb.function_footer()  # verify_weights()
 
-    if not (embedded_code or mexpress):
+    if not (embedded_code or mexpress) or any(calcx4):
         apb.function_header(function='load_weights')
         # Write in-line
         for p in range(tc.dev.MAX_PROC):
