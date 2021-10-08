@@ -22,22 +22,5 @@
 		<nature>org.eclipse.cdt.core.cnature</nature>
 		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
 		<nature>org.eclipse.cdt.managedbuilder.core.ScannerConfigNature</nature>
-	</natures>	
-	<linkedResources>
-		<link>
-			<name>PeriphDrivers</name>
-			<type>2</type>
-			<locationURI>PARENT-3-ECLIPSE_HOME/Libraries/PeriphDrivers/Source</locationURI>
-		</link>
-		<link>
-			<name>PeriphDrivers-Includes</name>
-			<type>2</type>
-			<locationURI>PARENT-3-ECLIPSE_HOME/Libraries/PeriphDrivers/Include/MAX78000</locationURI>
-		</link>
-		<link>
-			<name>PeriphDrivers-Registers</name>
-			<type>2</type>
-			<locationURI>PARENT-3-ECLIPSE_HOME/Libraries/CMSIS/Device/Maxim/MAX78000/Include</locationURI>
-		</link>
-	</linkedResources>
+	</natures>
 </projectDescription>

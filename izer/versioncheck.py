@@ -15,7 +15,7 @@ import __main__
 import git
 import github
 
-from .eprint import wprint
+from .eprint import nprint, wprint
 
 VERSION_CHECK_FILE = ".version-check"
 
@@ -58,15 +58,15 @@ def check_repo(
             print('REMOTE', head, date)
 
         retval = True
-        if verbose:
-            if localhead != head:
-                wprint(f'Upstream repository on GitHub has updates on the {active_branch} branch! '
-                       '(Use --no-version-check to disable this check.)')
-            else:
-                print(f'Local repository is up-to-date on the {active_branch} branch.')
+        if localhead != head:
+            nprint(f'Upstream repository on GitHub has updates on the {active_branch} branch! '
+                   '(Use --no-version-check to disable this check.)')
+        elif verbose:
+            print(f'Local repository is up-to-date on the {active_branch} branch.')
 
     except github.GithubException as exc:
-        wprint('Cannot check for updates from GitHub -', exc.data['message'])
+        wprint(f'Cannot check for updates for git branch "{active_branch}" from GitHub -',
+               exc.data['message'])
 
     return retval
 
