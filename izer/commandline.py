@@ -131,6 +131,8 @@ def get_parser() -> argparse.Namespace:
     mgroup = group.add_mutually_exclusive_group()
     mgroup.add_argument('--timer', type=int, metavar='N',
                         help="use timer to time the inference (default: off, supply timer number)")
+    group.add_argument('--no-timer', action='store_true', default=False,
+                       help="ignore --timer argument(s)")
     mgroup.add_argument('--energy', action='store_true', default=False,
                         help="insert instrumentation code for energy measurement")
     group.add_argument('--no-greedy-kernel', action='store_false', dest='greedy_kernel_allocator',
@@ -470,6 +472,9 @@ def get_parser() -> argparse.Namespace:
 
     if args.define_default_riscv != '':
         args.define_default_riscv = "-D" + " -D".join(args.define_default_riscv.split(' '))
+
+    if args.no_timer:
+        args.timer = None
 
     return args
 
