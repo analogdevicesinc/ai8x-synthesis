@@ -36,15 +36,15 @@ layers:
 # Layer 3: enc1
 - out_offset: 0x0000
   processors: 0x00000000ffffffff
-  output_processors: 0x00000000000000ff # 0xff00000000000000
+  output_processors: 0xff00000000000000
   operation: conv2d
   kernel_size: 3x3
   pad: 1
   activate: ReLU
 # Layer 4: enc2
 - out_offset: 0x0000
-  processors: 0x00000000000000ff # 0xff00000000000000
-  output_processors: 0x0000000fffffff00 #0x00fffffff0000000
+  processors: 0xff00000000000000
+  output_processors: 0x00fffffff0000000
   operation: conv2d
   kernel_size: 3x3
   pad: 1
@@ -53,8 +53,8 @@ layers:
   activate: ReLU
 # Layer 5: enc3
 - out_offset: 0x5000
-  processors: 0x0000000fffffff00 #0x00fffffff0000000
-  output_processors: 0xffffffffffffff00 # 0x00ffffffffffffff
+  processors: 0x00fffffff0000000
+  output_processors: 0x00ffffffffffffff
   operation: conv2d
   kernel_size: 3x3
   pad: 1
@@ -63,8 +63,8 @@ layers:
   activate: ReLU
 # Layer 6: bneck
 - out_offset: 0x6000
-  processors: 0xffffffffffffff00 # 0x00ffffffffffffff
-  output_processors: 0xffffffffffffff00 # 0x00ffffffffffffff
+  processors: 0x00ffffffffffffff
+  output_processors: 0x00ffffffffffffff
   operation: conv2d
   kernel_size: 3x3
   pad: 1
@@ -73,9 +73,9 @@ layers:
   activate: ReLU
 # Layer 7: pt
 - in_offset: 0x5000
-  out_offset: 0x4000
-  processors: 0xffffffffffffff00 # 0x00ffffffffffffff
-  output_processors: 0xffffffffffffff00 # 0x00ffffffffffffff
+  out_offset: 0x4004
+  processors: 0x00ffffffffffffff
+  output_processors: 0x00ffffffffffffff
   operation: conv2d
   kernel_size: 1x1
   pad: 0
@@ -83,9 +83,9 @@ layers:
   in_sequences: [5]
 # Layer 8: upconv3
 - in_offset: 0x6000
-  out_offset: 0x4004
-  processors: 0xffffffffffffff00 # 0x00ffffffffffffff
-  output_processors: 0xffffffffffffff00 # 0x00ffffffffffffff
+  out_offset: 0x4000
+  processors: 0x00ffffffffffffff
+  output_processors: 0x00ffffffffffffff
   operation: convtranspose2d
   kernel_size: 3x3
   pad: 1
@@ -95,18 +95,18 @@ layers:
 # Layer 9: dec3
 - out_offset: 0x2000
   in_offset: 0x4000
-  processors: 0xffffffffffffff00 # 0x00ffffffffffffff
-  output_processors: 0xffffffffffffff00 # 0x00ffffffffffffff
+  processors: 0x00ffffffffffffff
+  output_processors: 0x00ffffffffffffff
   operation: conv2d
   kernel_size: 3x3
   pad: 1
   activate: ReLU
-  in_sequences: [7, 8]
+  in_sequences: [8, 7]
 # Layer 10: upconv2
 - out_offset: 0x0000
   in_offset: 0x2000
-  processors: 0xffffffffffffff00 # 0x00ffffffffffffff
-  output_processors: 0xfffffff000000000 #0x000000000fffffff
+  processors: 0x00ffffffffffffff
+  output_processors: 0x000000000fffffff
   operation: convtranspose2d
   kernel_size: 3x3
   pad: 1
@@ -114,17 +114,17 @@ layers:
 # Layer 11: dec2
 - out_offset: 0x2000
   in_offset: 0x0000
-  processors: 0xffffffffffffff00 # 0x00ffffffffffffff
-  output_processors: 0xfffffff000000000 #0x000000000fffffff
+  processors: 0x00ffffffffffffff
+  output_processors: 0x000000000fffffff
   operation: conv2d
   kernel_size: 3x3
   pad: 1
   activate: ReLU
-  in_sequences: [4, 10]
+  in_sequences: [10, 4]
 # Layer 12: upconv1
 - out_offset: 0x0000
-  processors: 0xfffffff000000000 #0x000000000fffffff
-  output_processors: 0x000000000000ff00 #0x00ff000000000000
+  processors: 0x000000000fffffff
+  output_processors: 0x00ff000000000000
   operation: convtranspose2d
   kernel_size: 3x3
   pad: 1
@@ -132,16 +132,16 @@ layers:
 # Layer 13: dec1
 - out_offset: 0x0700
   in_offset: 0x0000
-  processors: 0x000000000000ffff #0xffff000000000000
-  output_processors: 0xffffffffffff0000 #0x0000ffffffffffff
+  processors: 0xffff000000000000
+  output_processors: 0x0000ffffffffffff
   operation: conv2d
   kernel_size: 3x3
   pad: 1
   activate: ReLU
-  in_sequences: [3, 12]
+  in_sequences: [12, 3]
 # Layer 14: dec0
 - out_offset: 0x0550
-  processors: 0xffffffffffff0000 #0x0000ffffffffffff
+  processors: 0x0000ffffffffffff
   output_processors: 0xffffffffffffffff
   operation: conv2d
   kernel_size: 3x3
