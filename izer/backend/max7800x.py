@@ -395,7 +395,7 @@ class Backend(backend.Backend):
             in_size = input_dim[ll][0] * input_dim[ll][1] * in_expand[ll] * operands[ll] \
                 * (1 if big_data[ll] else 4)
             if not streaming[ll] and in_size + in_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
-                eprint(f'Layer {ll}: {1 if big_data[ll] else 4}-channel {input_dim[ll][0]}x'
+                eprint(f'Layer {ll}: {1 if big_data[ll] else 4} channels/word {input_dim[ll][0]}x'
                        f'{input_dim[ll][1]} input (size {in_size}) '
                        f'with input offset 0x{in_offset[ll]:04x} and expansion {in_expand[ll]}x '
                        f'exceeds data memory instance size of {tc.dev.INSTANCE_WIDTH*16}.')
@@ -498,7 +498,8 @@ class Backend(backend.Backend):
                 * 4 * output_width[ll] // 8
             if (not streaming[ll] or ll == terminating_layer) \
                and out_size + out_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
-                eprint(f'Layer {ll}: 4-channel, {output_width[ll]}-bit {output_dim[ll][0]}x'
+                eprint(f'Layer {ll}: HWC (4 channels/word) '
+                       f'{output_width[ll]}-bit {output_dim[ll][0]}x'
                        f'{output_dim[ll][1]} output (size {out_size}) '
                        f'with output offset 0x{out_offset[ll]:04x} and expansion '
                        f'{out_expand[ll]}x '
