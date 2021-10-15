@@ -592,12 +592,12 @@ class Backend(backend.Backend):
                                 else ffs(output_processor_map[lt])
                             last_proc = fls(processor_map[0]) if lt == -1 \
                                 else fls(output_processor_map[lt])
-                            if first_proc <= min_proc:
+                            if first_proc < min_proc:
                                 wprint(f'Layer {ll}: In `in_sequences` {in_sequences[ll]}, '
                                        'an earlier layer in the sequence uses a higher first '
                                        f'processor ({min_proc}) than layer {lt} which uses '
                                        f'processor {first_proc}.')
-                            if last_proc <= max_proc:
+                            if last_proc < max_proc:
                                 wprint(f'Layer {ll}: In `in_sequences` {in_sequences[ll]}, '
                                        'an earlier layer in the sequence uses a higher last '
                                        f'processor ({max_proc}) than layer {lt} which uses '
