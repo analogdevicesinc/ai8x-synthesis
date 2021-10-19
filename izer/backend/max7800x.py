@@ -1799,6 +1799,12 @@ class Backend(backend.Backend):
                         if calcx4[ll]:
                             val |= 1 << 29
 
+                            if not tc.dev.SUPPORT_MULTIPASS_X4_PARTIALQUAD \
+                               and out_expand[ll] > 1 and tc.dev.MAX_PROC != 64:
+                                eprint(f'Layer {ll}: This device does not support `calcx4` with '
+                                       'multi-pass when writing to fewer than 4 quadrants.',
+                                       error=not state.ignore_hw_limits)
+
                         if tcalc[ll]:
                             val |= 1 << 31
 
