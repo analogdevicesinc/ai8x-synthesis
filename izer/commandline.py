@@ -259,6 +259,8 @@ def get_parser() -> argparse.Namespace:
                        help="print format for kernels (default: '{0:4}')")
     group.add_argument('--debug-snoop', action='store_true', default=False,
                        help="insert snoop register debug code (default: False)")
+    group.add_argument('--ignore-hw-limits', action='store_true', default=False,
+                       help="ignore certain hardware limits (default: False)")
 
     # RTL sim
     group = parser.add_argument_group('RTL simulation')
@@ -523,6 +525,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.generate_kat = args.generate_kat
     state.greedy_kernel_allocator = args.greedy_kernel_allocator
     state.ignore_bias_groups = args.ignore_bias_groups
+    state.ignore_hw_limits = args.ignore_hw_limits
     state.increase_delta1 = args.increase_delta1
     state.increase_delta2 = args.increase_delta2
     state.increase_start = args.increase_start

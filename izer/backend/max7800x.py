@@ -426,6 +426,11 @@ class Backend(backend.Backend):
                 if operands[ll] > 1:
                     eprint('Layer {ll}: Element-wise operations cannot be combined with Conv1d.')
 
+                if not tc.dev.SUPPORT_MULTIPASS_PADDED_CONV1D and padding[ll][0] > 0 \
+                   and in_expand[ll] > 1:
+                    eprint(f'Layer {ll}: This device does not support padded Conv1d with input '
+                           'expansion > 1.', error=not state.ignore_hw_limits)
+
             if dilation[ll][0] > 1:
                 if operator[ll] != op.CONV1D:
                     eprint(f'Layer {ll}: `dilation` > 1 is supported for Conv1d only.')
