@@ -13,6 +13,8 @@ from pydoc import locate
 
 import numpy as np
 
+import colorama
+
 from . import checkpoint, commandline, onnxcp, op, rtlsim, sampledata, sampleweight, state
 from . import tornadocnn as tc
 from . import versioncheck, yamlcfg
@@ -24,6 +26,7 @@ def main():
     Command line wrapper
     """
     np.set_printoptions(threshold=np.inf, linewidth=190)
+    colorama.init()
 
     args = commandline.get_parser()
 
