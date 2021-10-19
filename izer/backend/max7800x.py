@@ -884,8 +884,8 @@ class Backend(backend.Backend):
                                f'{"CHW data)" if big_data[ll] else "HWC data)"}, ',
                                embedded_code)
                     if pool[ll][0] > 1 or pool[ll][1] > 1:
-                        apb.output(f'{pool_str[ll]} {"avg" if pool_average[ll] else "max"} '
-                                   f'pool with stride {pool_stride_str[ll]}', embedded_code)
+                        apb.output(f'{"avg" if pool_average[ll] else "max"} pool {pool_str[ll]} '
+                                   f'with stride {pool_stride_str[ll]}', embedded_code)
                         if pool_dilation[ll][0] > 1 or pool_dilation[ll][1] > 1:
                             apb.output(f' and dilation {pool_dilation_str[ll]}', embedded_code)
                     else:

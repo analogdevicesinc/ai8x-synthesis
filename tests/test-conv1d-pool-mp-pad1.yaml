@@ -12,3 +12,6 @@ layers:
   max_pool: 2
   pool_stride: 2
   pad: 1
+- operation: none
+  processors: 0xffffffffffffffff
+  out_offset: 0x4000
