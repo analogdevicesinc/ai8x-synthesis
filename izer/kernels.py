@@ -473,7 +473,9 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                    // (kernel_size[ll][0] * kernel_size[ll][1] * 8))
         apb.function_footer()  # verify_weights()
 
-    if not (embedded_code or mexpress) or any(calcx4):
+    if state.new_kernel_loader or not (embedded_code or mexpress) or any(calcx4):
+        if state.new_kernel_loader:
+            apb.output('static const uint32_t kernels[] = KERNELS;\n\n', api)
         apb.function_header(function='load_weights')
         # Write in-line
         for p in range(tc.dev.MAX_PROC):
@@ -487,6 +489,18 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                        count=in_expand[ll] * output_chan[ll] * 9
                                        * abs(quantization[ll])
                                        // (kernel_size[ll][0] * kernel_size[ll][1] * 8))
+
+        if state.new_kernel_loader:
+            apb.output('  uint32_t len;\n'
+                       '  volatile uint32_t *addr;\n'
+                       '  const uint32_t *ptr = kernels;\n'
+                       '\n'
+                       '  while ((addr = (volatile uint32_t *) *ptr++) != 0) {\n'
+                       '    len = *ptr++;\n'
+                       '    while (len-- > 0)\n'
+                       '      *addr++ = *ptr++;\n'
+                       '  }\n',
+                       api)
         apb.function_footer()  # load_weights()
 
     else:  # embedded_code or mexpress

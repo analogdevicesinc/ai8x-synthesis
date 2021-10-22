@@ -97,6 +97,7 @@ mlator_chunk: int = 0
 mlator_noverify = False
 mlator: bool = False
 narrow_chunk: int = 0
+new_kernel_loader: bool = False
 next_sequence: List[int] = []
 no_error_stop: bool = False
 oneshot: int = 0

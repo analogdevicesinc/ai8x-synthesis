@@ -10,6 +10,8 @@ Routines to read and write the APB peripherals.
 import os
 from typing import Optional, TextIO
 
+import numpy as np
+
 from . import state, toplevel
 from . import tornadocnn as tc
 from . import unload
@@ -85,6 +87,12 @@ class APB():
 
         self.data_mem = self.kernel_mem = self.output_data_mem = None
 
+        if state.rtl_preload or state.new_kernel_loader:
+            if not (state.compact_weights or state.mexpress or state.verify_kernels):
+                self.kernel_mem = [[[[] for mem in range(tc.dev.MASK_INSTANCES)]
+                                    for proc in range(tc.dev.P_NUMPRO)]
+                                   for group in range(tc.dev.P_NUMGROUPS)]
+
         if embedded_arm or embedded_code:
             return
 
@@ -94,10 +102,6 @@ class APB():
                 self.data_mem = [[[[] for mem in range(tc.dev.INSTANCE_COUNT)]
                                   for proc in range(procs)]
                                  for group in range(tc.dev.P_NUMGROUPS)]
-            if not (state.compact_weights or state.mexpress or state.verify_kernels):
-                self.kernel_mem = [[[[] for mem in range(tc.dev.MASK_INSTANCES)]
-                                    for proc in range(tc.dev.P_NUMPRO)]
-                                   for group in range(tc.dev.P_NUMGROUPS)]
         if state.result_output:
             self.output_data_mem = [[[[] for mem in range(tc.dev.INSTANCE_COUNT)]
                                      for proc in range(procs)]
@@ -128,7 +132,62 @@ class APB():
                                 for (addr, val) in self.data_mem[group][proc][mem]:
                                     f.write(f'@{addr:04x} {val}\n')
 
-        if self.kernel_mem is not None:
+        if self.kernel_mem is not None and state.new_kernel_loader:
+            # Build a list of sequential kernel "chunks" so the loader code can use compact
+            # memcpy instructions of streaming copy
+            input_list = []
+            val = []
+            addr = -1
+            offs = -1
+            for group in range(tc.dev.P_NUMGROUPS):
+                for proc in range(tc.dev.P_NUMPRO):
+                    for mem in range(tc.dev.MASK_INSTANCES):
+                        if self.kernel_mem[group][proc][mem]:
+                            self.kernel_mem[group][proc][mem].sort()
+                            for (naddr, nval) in self.kernel_mem[group][proc][mem]:
+                                phys_addr = state.apb_base + tc.dev.C_GROUP_OFFS * group \
+                                    + tc.dev.C_MRAM_BASE + proc * tc.dev.MASK_OFFS * 16 \
+                                    + mem * 16 * tc.dev.MASK_WIDTH_SMALL \
+                                    // tc.dev.MASK_INSTANCES_EACH \
+                                    + naddr * 16
+                                # Flush what we have, if anything
+                                if offs > 0 and phys_addr != addr + offs * 16:
+                                    input_list.append((addr, val))
+                                    addr = -1
+                                # Set new starting point
+                                if addr == -1:
+                                    addr = phys_addr
+                                    offs = 0
+                                    val = []
+                                # Append current value
+                                val.append(nval)
+                                offs += 1
+            # Flush remainder
+            if addr != -1:
+                assert len(val) == offs
+                input_list.append((addr, val))
+
+            # Create a header file of "chunks" (address, length, data)
+            if input_list is not None:
+                kl = []
+                for _, (addr, val) in enumerate(input_list):
+                    assert len(val) > 0
+                    # Address (u32), word length for non-mexpress, byte length (u32) for mexpress
+                    kl.append(addr)
+                    kl.append(len(val) * 4 if not state.mexpress else len(val) * 9)
+                    # Bytes (padded to next u32)
+                    assert not state.mexpress
+                    for k in val:
+                        kl.append(k[0])
+                        kl.append((k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 |
+                                  (k[3] & 0xff) << 8 | k[4] & 0xff)
+                        kl.append((k[5] & 0xff) << 24 | (k[6] & 0xff) << 16 |
+                                  (k[7] & 0xff) << 8 | k[8] & 0xff)
+                        kl.append(0x00000000)
+                kl.append(0)  # EOF
+                self.output_define(kl, 'KERNELS', '0x%08x', 8)
+
+        if self.kernel_mem is not None and not state.new_kernel_loader:
             try:
                 target_dir = target_dir = os.path.join(base_directory, test_name, 'masks')
                 os.makedirs(target_dir, exist_ok=False)
@@ -475,12 +534,21 @@ class APB():
                                        (tc.dev.MASK_WIDTH_LARGE - tc.dev.MASK_WIDTH_SMALL)
                                        // tc.dev.MASK_INSTANCES_EACH)
                     mem += tc.dev.MASK_INSTANCES_EACH
-                if size != 1:
-                    val = f'{k[0] & 0xff:02x}_{k[1] & 0xff:02x}{k[2] & 0xff:02x}' \
-                          f'{k[3] & 0xff:02x}{k[4] & 0xff:02x}_{k[5] & 0xff:02x}' \
-                          f'{k[6] & 0xff:02x}{k[7] & 0xff:02x}{k[8] & 0xff:02x}'
+                if not state.new_kernel_loader:
+                    if size != 1:
+                        val = f'{k[0] & 0xff:02x}_{k[1] & 0xff:02x}{k[2] & 0xff:02x}' \
+                            f'{k[3] & 0xff:02x}{k[4] & 0xff:02x}_{k[5] & 0xff:02x}' \
+                            f'{k[6] & 0xff:02x}{k[7] & 0xff:02x}{k[8] & 0xff:02x}'
+                    else:
+                        val = f'{k[0] & 0xff:02x}_00000000_00000000'
                 else:
-                    val = f'{k[0] & 0xff:02x}_00000000_00000000'
+                    if size != 1:
+                        val = np.empty(9, dtype=np.ubyte)
+                        for i in range(9):
+                            val[i] = k[i] & 0xff
+                    else:
+                        val = np.zeros(9, dtype=np.ubyte)
+                        val[0] = k[0] & 0xff
                 self.kernel_mem[p // tc.dev.P_NUMPRO][p % tc.dev.P_NUMPRO][mem]. \
                     append((offs, val))
             else:

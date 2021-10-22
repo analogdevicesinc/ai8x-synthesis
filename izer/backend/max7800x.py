@@ -2876,12 +2876,12 @@ class Backend(backend.Backend):
             sampledata_header.close()
         if sampleoutput_header is not None:
             sampleoutput_header.close()
-        if weight_header is not None:
-            weight_header.close()
         if apifile is not None:
             apifile.close()
-        if state.rtl_preload or result_output:
+        if state.rtl_preload or result_output or state.new_kernel_loader:
             apb.write_mem(base_directory, test_name)
+        if weight_header is not None:
+            weight_header.close()
 
         # Create run_test.sv
         if not embedded_code and not block_mode:

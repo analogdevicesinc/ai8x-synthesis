@@ -261,6 +261,8 @@ def get_parser() -> argparse.Namespace:
                        help="insert snoop register debug code (default: False)")
     group.add_argument('--ignore-hw-limits', action='store_true', default=False,
                        help="ignore certain hardware limits (default: False)")
+    group.add_argument('--new-kernel-loader', action='store_true', default=False,
+                       help="use new kernel loader (default: False)")
 
     # RTL sim
     group = parser.add_argument_group('RTL simulation')
@@ -478,6 +480,10 @@ def get_parser() -> argparse.Namespace:
     if args.no_timer:
         args.timer = None
 
+    if args.new_kernel_loader:
+        args.compact_weights = False
+        args.mexpress = False
+
     return args
 
 
@@ -553,6 +559,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.mlator_chunk = args.unroll_mlator
     state.mlator_noverify = args.mlator_noverify
     state.narrow_chunk = args.unroll_8bit
+    state.new_kernel_loader = args.new_kernel_loader
     state.no_error_stop = args.no_error_stop
     state.oneshot = args.one_shot
     state.output_filename = args.output_filename
