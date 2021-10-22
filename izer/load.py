@@ -88,7 +88,9 @@ def load(
     c = 0
     data_offs = None
     step = 1 if chw else 4
-    assert operands == data.shape[0] // input_size[0]
+    if operands != data.shape[0] // input_size[0]:
+        eprint(f'Data input/weights mismatch: The sample data input has {data.shape[0]} channels '
+               f'with {operands} operand(s), but there are weights for {input_size[0]} channels.')
 
     buffer_list = [[] for i in range(tc.dev.MAX_PROC)]
 
