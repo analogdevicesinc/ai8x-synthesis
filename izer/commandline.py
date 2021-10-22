@@ -482,7 +482,6 @@ def get_parser() -> argparse.Namespace:
 
     if args.new_kernel_loader:
         args.compact_weights = False
-        args.mexpress = False
 
     return args
 

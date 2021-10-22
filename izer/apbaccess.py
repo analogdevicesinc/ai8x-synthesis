@@ -88,7 +88,8 @@ class APB():
         self.data_mem = self.kernel_mem = self.output_data_mem = None
 
         if state.rtl_preload or state.new_kernel_loader:
-            if not (state.compact_weights or state.mexpress or state.verify_kernels):
+            if not (state.compact_weights or (state.mexpress and not state.new_kernel_loader)
+                    or state.verify_kernels):
                 self.kernel_mem = [[[[] for mem in range(tc.dev.MASK_INSTANCES)]
                                     for proc in range(tc.dev.P_NUMPRO)]
                                    for group in range(tc.dev.P_NUMGROUPS)]
@@ -172,18 +173,35 @@ class APB():
                 kl = []
                 for _, (addr, val) in enumerate(input_list):
                     assert len(val) > 0
-                    # Address (u32), word length for non-mexpress, byte length (u32) for mexpress
-                    kl.append(addr)
-                    kl.append(len(val) * 4 if not state.mexpress else len(val) * 9)
-                    # Bytes (padded to next u32)
-                    assert not state.mexpress
-                    for k in val:
-                        kl.append(k[0])
-                        kl.append((k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 |
-                                  (k[3] & 0xff) << 8 | k[4] & 0xff)
-                        kl.append((k[5] & 0xff) << 24 | (k[6] & 0xff) << 16 |
-                                  (k[7] & 0xff) << 8 | k[8] & 0xff)
-                        kl.append(0x00000000)
+                    # Address (u32), word length
+                    if not state.mexpress:
+                        kl.append(addr)
+                    else:
+                        kl.append(addr & ~(tc.dev.MASK_OFFS * 16 - 1) & 0xffffffff
+                                  | ((addr & (tc.dev.MASK_OFFS * 16 - 1)) >> 2))
+                    kl.append(len(val) * 4 if not state.mexpress else (len(val) * 9 + 3) // 4)
+                    u = 0
+                    count = 0
+                    if not state.mexpress:
+                        for k in val:
+                            kl.append(k[0] & 0xff)
+                            kl.append((k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 |
+                                      (k[3] & 0xff) << 8 | k[4] & 0xff)
+                            kl.append((k[5] & 0xff) << 24 | (k[6] & 0xff) << 16 |
+                                      (k[7] & 0xff) << 8 | k[8] & 0xff)
+                            kl.append(0x00000000)
+                    else:
+                        for k in val:
+                            for i in range(9):
+                                u = (u << 8) & 0xffffffff
+                                u |= k[i] & 0xff
+                                count += 1
+                                if count == 4:
+                                    kl.append(u)
+                                    u = 0
+                                    count = 0
+                        if count > 0:
+                            kl.append(u << (4 - count) * 8)
                 kl.append(0)  # EOF
                 self.output_define(kl, 'KERNELS', '0x%08x', 8)
 

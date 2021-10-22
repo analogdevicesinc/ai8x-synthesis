@@ -108,8 +108,6 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     if debug:
         print('\nLoading Kernels...')
 
-    assert not (mexpress and any(calcx4))  # FIXME Add support later
-
     for ll in range(start_layer, layers):
         if operator[ll] == op.NONE or bypass[ll]:
             assert kern_len[ll] == 0
@@ -495,8 +493,13 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                        '  volatile uint32_t *addr;\n'
                        '  const uint32_t *ptr = kernels;\n'
                        '\n'
-                       '  while ((addr = (volatile uint32_t *) *ptr++) != 0) {\n'
-                       '    len = *ptr++;\n'
+                       '  while ((addr = (volatile uint32_t *) *ptr++) != 0) {\n',
+                       api)
+            if state.mexpress:
+                apb.output('    *((volatile uint8_t *) ((uint32_t) addr | 1)) = 0x01; '
+                           '// Set address\n',
+                           api)
+            apb.output('    len = *ptr++;\n'
                        '    while (len-- > 0)\n'
                        '      *addr++ = *ptr++;\n'
                        '  }\n',

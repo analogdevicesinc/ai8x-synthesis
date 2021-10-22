@@ -231,13 +231,19 @@ class Backend(backend.Backend):
         if result_output:
             state.max_count = None
 
-        if state.mexpress and any(calcx4):
-            wprint('Ignoring --mexpress since calcx4 is used.')  # FIXME
-            state.mexpress = False
-        mexpress = state.mexpress
+        if embedded_code and any(calcx4) and not state.new_kernel_loader:
+            wprint('Enabling --new-kernel-loader since calcx4 is used.')
+            state.new_kernel_loader = True
+            state.compact_weights = False
 
-        if mexpress:
-            state.compact_weights = True
+        if not state.new_kernel_loader and state.mexpress:
+            if any(calcx4):
+                wprint('Ignoring --mexpress since calcx4 is used.')
+                state.mexpress = False
+            else:
+                state.compact_weights = True
+
+        mexpress = state.mexpress
         compact_weights = state.compact_weights
 
         # Check streaming and FIFO constraints
