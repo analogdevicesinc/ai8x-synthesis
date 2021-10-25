@@ -2185,14 +2185,14 @@ class Backend(backend.Backend):
                                 tc.dev.datainstance_from_offs(in_offset[ll]),
                                 tc.dev.datainstance_from_offs(in_offset[ll] + 4 * operands[ll]
                                                               * in_expand[ll] * hw_input_dim[ll][0]
-                                                              * hw_input_dim[ll][1])
+                                                              * hw_input_dim[ll][1] - 1)
                             )
                             out_instance = (
                                 tc.dev.datainstance_from_offs(out_offset[ll]),
                                 tc.dev.datainstance_from_offs(out_offset[ll] + 4 * out_expand[ll]
                                                               * (output_dim[ll][0]
                                                                  * output_dim[ll][1]
-                                                                 + out_pad[ll]))
+                                                                 + out_pad[ll]) - 1)
                             )
                             if in_instance[0] == out_instance[0] \
                                or in_instance[1] == out_instance[1]:
