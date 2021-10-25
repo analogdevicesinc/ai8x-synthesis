@@ -526,7 +526,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.fifo = args.fifo
     state.fifo_go = args.fifo_go
     state.fixed_input = args.fixed_input
-    state.forever = args.forever
+    state.forever = args.forever and args.embedded_code
     state.generate_kat = args.generate_kat
     state.greedy_kernel_allocator = args.greedy_kernel_allocator
     state.ignore_bias_groups = args.ignore_bias_groups
