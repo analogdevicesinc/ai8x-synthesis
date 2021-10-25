@@ -88,8 +88,9 @@ class APB():
         self.data_mem = self.kernel_mem = self.output_data_mem = None
 
         if state.rtl_preload or state.new_kernel_loader:
-            if not (state.compact_weights or (state.mexpress and not state.new_kernel_loader)
-                    or state.verify_kernels):
+            if not (state.compact_weights
+                    or state.mexpress and state.rtl_preload
+                    or state.verify_kernels and state.rtl_preload):
                 self.kernel_mem = [[[[] for mem in range(tc.dev.MASK_INSTANCES)]
                                     for proc in range(tc.dev.P_NUMPRO)]
                                    for group in range(tc.dev.P_NUMGROUPS)]
