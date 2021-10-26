@@ -186,10 +186,10 @@ class APB():
                     if not state.mexpress:
                         for k in val:
                             kl.append(k[0] & 0xff)
-                            kl.append((k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 |
-                                      (k[3] & 0xff) << 8 | k[4] & 0xff)
-                            kl.append((k[5] & 0xff) << 24 | (k[6] & 0xff) << 16 |
-                                      (k[7] & 0xff) << 8 | k[8] & 0xff)
+                            kl.append(((k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 |
+                                       (k[3] & 0xff) << 8 | k[4] & 0xff) & 0xffffffff)
+                            kl.append(((k[5] & 0xff) << 24 | (k[6] & 0xff) << 16 |
+                                       (k[7] & 0xff) << 8 | k[8] & 0xff) & 0xffffffff)
                             kl.append(0x00000000)
                     else:
                         for k in val:
