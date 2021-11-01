@@ -261,8 +261,11 @@ def get_parser() -> argparse.Namespace:
                        help="insert snoop register debug code (default: False)")
     group.add_argument('--ignore-hw-limits', action='store_true', default=False,
                        help="ignore certain hardware limits (default: False)")
-    group.add_argument('--new-kernel-loader', action='store_true', default=False,
-                       help="use new kernel loader (default: False)")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('--new-kernel-loader', action='store_true',
+                        default=None, help="use new kernel loader (default on MAX78002)")
+    mgroup.add_argument('--old-kernel-loader', dest='new_kernel_loader', action='store_false',
+                        default=None, help="use old kernel loader (default on MAX78000)")
 
     # RTL sim
     group = parser.add_argument_group('RTL simulation')
@@ -479,9 +482,6 @@ def get_parser() -> argparse.Namespace:
 
     if args.no_timer:
         args.timer = None
-
-    if args.new_kernel_loader:
-        args.compact_weights = False
 
     return args
 

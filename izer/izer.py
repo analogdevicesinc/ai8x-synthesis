@@ -53,6 +53,10 @@ def main():
         tc.dev.FIFO_READY_SEL = args.ready_sel_fifo
     if args.ready_sel_aon:
         tc.dev.AON_READY_SEL = args.ready_sel_aon
+    if args.new_kernel_loader is None:
+        args.new_kernel_loader = tc.dev.device == 87
+    if args.new_kernel_loader:
+        args.compact_weights = False
 
     # Change global state based on command line
     commandline.set_state(args)
