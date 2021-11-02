@@ -71,6 +71,8 @@ class Dev:
     APB_SPEED = IPO_SPEED // 2
     PLL_SPEED = 0
 
+    DEFAULT_SWITCH_DELAY = 0
+
     def mask_width(self, proc) -> int:
         """
         Returns the number of kernels (x9 bytes) for processor `proc`.

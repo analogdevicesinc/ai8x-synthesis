@@ -557,6 +557,10 @@ def main(
 
             if embedded_code and apifile is not None:
                 function_footer(apifile)  # enable()
+            if embedded_code and state.enable_delay > 0:
+                memfile.write(f'  MXC_Delay(MSEC({state.enable_delay})); '
+                              '// Wait for load switches')
+            if embedded_code and apifile is not None:
                 function_header(apifile, function='boost_enable',
                                 arguments='mxc_gpio_regs_t *port, uint32_t pin')
 

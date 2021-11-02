@@ -57,6 +57,8 @@ def main():
         args.new_kernel_loader = tc.dev.device == 87
     if args.new_kernel_loader:
         args.compact_weights = False
+    if args.enable_delay is None:
+        args.enable_delay = tc.dev.DEFAULT_SWITCH_DELAY if args.embedded_code else 0
 
     # Change global state based on command line
     commandline.set_state(args)

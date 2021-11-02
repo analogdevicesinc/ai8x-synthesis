@@ -47,6 +47,7 @@ eclipse_openocd_args: str = ''
 eclipse_variables: str = ''
 eltwise: List[bool] = []
 embedded_code: bool = False
+enable_delay: int = 0
 ext_rdy: bool = False
 fast_fifo_quad: bool = False
 fast_fifo: bool = False

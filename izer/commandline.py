@@ -135,9 +135,8 @@ def get_parser() -> argparse.Namespace:
                        help="ignore --timer argument(s)")
     mgroup.add_argument('--energy', action='store_true', default=False,
                         help="insert instrumentation code for energy measurement")
-    group.add_argument('--no-greedy-kernel', action='store_false', dest='greedy_kernel_allocator',
-                       default=True,
-                       help="do not use greedy kernel memory allocator (default: use)")
+    group.add_argument('--switch-delay', dest='enable_delay', type=int, metavar='N', default=None,
+                       help="set delay in msec after cnn_enable() for load switches (default: 0)")
 
     # File names
     group = parser.add_argument_group('File names')
@@ -261,6 +260,9 @@ def get_parser() -> argparse.Namespace:
                        help="insert snoop register debug code (default: False)")
     group.add_argument('--ignore-hw-limits', action='store_true', default=False,
                        help="ignore certain hardware limits (default: False)")
+    group.add_argument('--no-greedy-kernel', action='store_false', dest='greedy_kernel_allocator',
+                       default=True,
+                       help="do not use greedy kernel memory allocator (default: use)")
     mgroup = group.add_mutually_exclusive_group()
     mgroup.add_argument('--new-kernel-loader', action='store_true',
                         default=None, help="use new kernel loader (default on MAX78002)")
@@ -520,6 +522,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.eclipse_openocd_args = args.eclipse_openocd_args
     state.eclipse_variables = args.eclipse_variables
     state.embedded_code = args.embedded_code
+    state.enable_delay = args.enable_delay
     state.ext_rdy = args.ext_rdy
     state.fast_fifo = args.fast_fifo
     state.fast_fifo_quad = args.fast_fifo_quad
