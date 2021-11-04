@@ -528,15 +528,16 @@ def main(
             mfile.write(f'  MXC_{bbfc}->reg2 = 0x{unmask:01x}; // Iso\n')
             mfile.write(f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n\n')
 
+            if embedded_code and state.enable_delay > 0:
+                mfile.write(f'  MXC_Delay(MSEC({state.enable_delay})); '
+                            '// Wait for load switches\n\n')
+
+            if tc.dev.SUPPORT_PLL:
+                mfile.write('  if (clock_source == MXC_S_GCR_PCLKDIV_CNNCLKSEL_ITO)\n'
+                            '    while ((MXC_GCR->ito_ctrl & MXC_F_GCR_ITO_CTRL_RDY) '
+                            '!= MXC_F_GCR_ITO_CTRL_RDY) ; // Wait for PLL\n\n')
+
             if embedded_code and apifile is not None:
-                if tc.dev.SUPPORT_PLL:
-                    mfile.write('  if (clock_source == MXC_S_GCR_PCLKDIV_CNNCLKSEL_ITO) {\n'
-                                '    assert(clock_divider == MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1);\n'
-                                '    MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
-                                '~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | MXC_F_GCR_PCLKDIV_CNNCLKSEL))\n'
-                                '                       | MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1 '
-                                '| MXC_S_GCR_PCLKDIV_CNNCLKSEL_PCLK;\n'
-                                '  } else\n  ')
                 mfile.write('  MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
                             '~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | MXC_F_GCR_PCLKDIV_CNNCLKSEL))\n'
                             '                     | clock_divider | clock_source;\n')
@@ -557,9 +558,6 @@ def main(
 
             if embedded_code and apifile is not None:
                 function_footer(apifile)  # enable()
-            if embedded_code and state.enable_delay > 0:
-                memfile.write(f'  MXC_Delay(MSEC({state.enable_delay})); '
-                              '// Wait for load switches')
             if embedded_code and apifile is not None:
                 function_header(apifile, function='boost_enable',
                                 arguments='mxc_gpio_regs_t *port, uint32_t pin')

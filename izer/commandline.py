@@ -136,7 +136,8 @@ def get_parser() -> argparse.Namespace:
     mgroup.add_argument('--energy', action='store_true', default=False,
                         help="insert instrumentation code for energy measurement")
     group.add_argument('--switch-delay', dest='enable_delay', type=int, metavar='N', default=None,
-                       help="set delay in msec after cnn_enable() for load switches (default: 0)")
+                       help="set delay in msec after cnn_enable() for load switches (default: 0"
+                            " on MAX78000, 10 on MAX78002)")
 
     # File names
     group = parser.add_argument_group('File names')

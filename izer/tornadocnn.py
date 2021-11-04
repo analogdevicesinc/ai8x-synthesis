@@ -498,6 +498,8 @@ class DevAI87(Dev):
     # PLL Speed in MHz
     PLL_SPEED = 200
 
+    DEFAULT_SWITCH_DELAY = 10
+
     def __str__(self):
         return self.__class__.__name__
 

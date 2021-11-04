@@ -2399,8 +2399,6 @@ class Backend(backend.Backend):
                 apb.write_fifo_ctl(tc.dev.AON_CTL, val2 | tc.dev.AON_READY_SEL,
                                    comment=' // AON control')
 
-            if state.pll and not measure_energy:
-                apb.select_clock('ITO', 'DIV1', 'Switch CNN clock to PLL (ITO)')
             if embedded_code:
                 apb.output('\n#ifdef CNN_INFERENCE_TIMER\n'
                            '  MXC_TMR_SW_Start(CNN_INFERENCE_TIMER);\n'
