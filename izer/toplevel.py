@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -14,7 +14,7 @@ from . import tornadocnn as tc
 
 COPYRIGHT = \
     '/*******************************************************************************\n' \
-    '* Copyright (C) Maxim Integrated Products, Inc., All rights Reserved.\n' \
+    '* Copyright (C) 2019-2021 Maxim Integrated Products, Inc., All rights Reserved.\n' \
     '*\n' \
     '* This software is protected by copyright laws of the United States and\n' \
     '* of foreign countries. This material may also be protected by patent laws\n' \
@@ -77,6 +77,8 @@ def header(
     main_code = riscv is None or riscv or cmsis_nn
     input_csv = state.input_csv is not None and main_code
 
+    if tc.dev.SUPPORT_PLL:
+        memfile.write('#include <assert.h>\n')
     memfile.write('#include <stdlib.h>\n'
                   '#include <stdint.h>\n')
     if embedded_code or state.verify_kernels:
@@ -526,11 +528,16 @@ def main(
             mfile.write(f'  MXC_{bbfc}->reg2 = 0x{unmask:01x}; // Iso\n')
             mfile.write(f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n\n')
 
+            if embedded_code and state.enable_delay > 0:
+                mfile.write(f'  MXC_Delay(MSEC({state.enable_delay})); '
+                            '// Wait for load switches\n\n')
+
+            if tc.dev.SUPPORT_PLL:
+                mfile.write('  if (clock_source == MXC_S_GCR_PCLKDIV_CNNCLKSEL_ITO)\n'
+                            '    while ((MXC_GCR->ito_ctrl & MXC_F_GCR_ITO_CTRL_RDY) '
+                            '!= MXC_F_GCR_ITO_CTRL_RDY) ; // Wait for PLL\n\n')
+
             if embedded_code and apifile is not None:
-                if tc.dev.SUPPORT_PLL:
-                    mfile.write('  if (clock_source == MXC_S_GCR_PCLKDIV_CNNCLKSEL_ITO)\n  ')
-                    mfile.write('  while ((MXC_GCR->ito_ctrl & MXC_F_GCR_ITO_CTRL_RDY) != '
-                                'MXC_F_GCR_ITO_CTRL_RDY) ; // Wait for PLL\n')
                 mfile.write('  MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
                             '~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | MXC_F_GCR_PCLKDIV_CNNCLKSEL))\n'
                             '                     | clock_divider | clock_source;\n')
@@ -551,6 +558,7 @@ def main(
 
             if embedded_code and apifile is not None:
                 function_footer(apifile)  # enable()
+            if embedded_code and apifile is not None:
                 function_header(apifile, function='boost_enable',
                                 arguments='mxc_gpio_regs_t *port, uint32_t pin')
 
@@ -581,8 +589,11 @@ def main(
             memfile.write('\n')
 
         if embedded_code:
-            memfile.write('  printf("\\n*** CNN Inference Test ***\\n");\n\n'
-                          '  cnn_init(); // Bring state machine into consistent state\n')
+            memfile.write('  printf("\\n*** CNN Inference Test ***\\n");\n\n')
+            if not state.zero_sram:
+                memfile.write('  cnn_init(); // Bring state machine into consistent state\n')
+            else:
+                memfile.write('  if (cnn_init() != CNN_OK) fail();\n')
             if measure_energy:
                 if pll:
                     select_clock(memfile, 'ITO', 'DIV1', 'Switch CNN clock to PLL (ITO)')

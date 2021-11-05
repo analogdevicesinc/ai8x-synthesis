@@ -1,0 +1,17 @@
+#!/bin/bash
+OS=$(uname -s)
+
+if [ -z "${HOSTTYPE}" ]
+then
+    HOSTTYPE=$(uname -m)
+fi
+
+EXEC="bin/${OS}_${HOSTTYPE}/openocd"
+
+if [ ! -x "${EXEC}" ]
+then
+    echo "No pre-built binary for $OS on $HOSTTYPE ($EXEC)!"
+    exit 1
+fi
+
+${EXEC} -f interface/cmsis-dap.cfg -f max78002.cfg -s tcl "$@"

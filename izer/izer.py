@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -13,6 +13,8 @@ from pydoc import locate
 
 import numpy as np
 
+import colorama
+
 from . import checkpoint, commandline, onnxcp, op, rtlsim, sampledata, sampleweight, state
 from . import tornadocnn as tc
 from . import versioncheck, yamlcfg
@@ -24,6 +26,7 @@ def main():
     Command line wrapper
     """
     np.set_printoptions(threshold=np.inf, linewidth=190)
+    colorama.init()
 
     args = commandline.get_parser()
 
@@ -50,6 +53,12 @@ def main():
         tc.dev.FIFO_READY_SEL = args.ready_sel_fifo
     if args.ready_sel_aon:
         tc.dev.AON_READY_SEL = args.ready_sel_aon
+    if args.new_kernel_loader is None:
+        args.new_kernel_loader = args.embedded_code and tc.dev.device == 87
+    if args.new_kernel_loader:
+        args.compact_weights = False
+    if args.enable_delay is None:
+        args.enable_delay = tc.dev.DEFAULT_SWITCH_DELAY if args.embedded_code else 0
 
     # Change global state based on command line
     commandline.set_state(args)

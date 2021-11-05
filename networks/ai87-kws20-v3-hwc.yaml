@@ -1,0 +1,70 @@
+# HWC (big data) configuration for KWS20v3
+
+arch: ai87kws20netv3
+dataset: KWS_20
+
+# Define layer parameters in order of the layer sequence
+layers:
+# Conv 1D - 4 layers
+- pad: 0
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0xffffffffffffffff
+  data_format: HWC
+  operation: Conv1d
+  kernel_size: 1
+- pad: 0
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0x000fffffffffffff
+  operation: Conv1d
+  kernel_size: 3
+- max_pool: 2
+  pool_stride: 2
+  pad: 0
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0x0000ffffffffffff
+  operation: Conv1d
+  kernel_size: 3
+- pad: 0
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0xffffffffffffffff
+  operation: Conv1d
+  kernel_size: 3
+- max_pool: 2
+  pool_stride: 2
+  pad: 0
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0x0000ffffffffffff
+  operation: Conv1d
+  kernel_size: 3
+- pad: 0
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0xffffffffffffffff
+  operation: Conv1d
+  kernel_size: 3
+- avg_pool: 2
+  pool_stride: 2
+  pad: 0
+  activate: ReLU
+  out_offset: 0x2000
+  processors: 0x0000ffffffffffff
+  operation: Conv1d
+  kernel_size: 3
+- max_pool: 2
+  pool_stride: 2
+  pad: 0
+  activate: ReLU
+  out_offset: 0x0000
+  processors: 0x000fffffffffffff
+  operation: Conv1d
+  kernel_size: 3
+- flatten: true
+  out_offset: 0x2000
+  processors: 0xffffffffffffffff
+  operation: MLP
+  output_width: 32

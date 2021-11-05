@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) Maxim Integrated Products Inc. All Rights Reserved.
+# Copyright (C) 2021 Maxim Integrated Products Inc. All Rights Reserved.
 #
 # Maxim Integrated Products Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -38,15 +38,16 @@ debug_new_streaming: bool = False
 debug_snoop: bool = False
 debug_wait: int = 1
 debug: bool = False
-dilation: List[List[int]] = []
-defines: str = ''
 defines_arm: str = ''
 defines_riscv: str = ''
+defines: str = ''
+dilation: List[List[int]] = []
 eclipse_includes: str = ''
 eclipse_openocd_args: str = ''
 eclipse_variables: str = ''
 eltwise: List[bool] = []
 embedded_code: bool = False
+enable_delay: int = 0
 ext_rdy: bool = False
 fast_fifo_quad: bool = False
 fast_fifo: bool = False
@@ -60,6 +61,7 @@ forever: bool = False
 generate_kat: bool = True
 greedy_kernel_allocator: bool = True
 ignore_bias_groups: bool = False
+ignore_hw_limits: bool = False
 in_offset: List[int] = []
 in_sequences: List[Any] = []
 increase_delta1: int = 0
@@ -96,6 +98,7 @@ mlator_chunk: int = 0
 mlator_noverify = False
 mlator: bool = False
 narrow_chunk: int = 0
+new_kernel_loader: bool = False
 next_sequence: List[int] = []
 no_error_stop: bool = False
 oneshot: int = 0

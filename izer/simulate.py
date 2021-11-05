@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -669,8 +669,9 @@ def pooling_layer(
                         dilation_str = ''
                     print_data(
                         verbose_data,
-                        f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
-                        f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]}" + dilation_str +
+                        f"{'AVERAGE' if pool_average else 'MAX'} "
+                        f"POOL {pool[0]}x{pool[1]} WITH STRIDE {pool_stride[0]}/{pool_stride[1]}"
+                        + dilation_str +
                         f" {input_size} -> {pooled_size}"
                         + (f", POOLED DATA {i}" if operands > 1 else ""),
                         pooled[i],
@@ -708,8 +709,8 @@ def pooling_layer(
                 floor=not rounding,
             )
             if state.verbose:
-                print(f"{pool[0]} {'AVERAGE' if pool_average else 'MAX'} "
-                      f"POOLING, STRIDE {pool_stride[0]} ", end='')
+                print(f"{'AVERAGE' if pool_average else 'MAX'} "
+                      f"POOL {pool[0]} WITH STRIDE {pool_stride[0]} ", end='')
                 if dilation[0] > 1:
                     print(f", DILATION {dilation[0]} ", end='')
                 print(f"{input_size} -> {pooled_size}", end='')
@@ -739,9 +740,9 @@ def pooling_layer(
             pooled = data[:, :, ::pool_stride[0], ::pool_stride[1]]
             if pool_stride[0] > 1 or pool_stride[1] > 1:
                 if state.verbose:
-                    print(f"{pool[0]}x{pool[1]} {'AVERAGE' if pool_average else 'MAX'} "
-                          f"POOLING, STRIDE {pool_stride[0]}/{pool_stride[1]} "
-                          f"{input_size} -> {pooled_size}", end='')
+                    print(f"{'AVERAGE' if pool_average else 'MAX'} "
+                          f"POOL {pool[0]}x{pool[1]} WITH STRIDE {pool_stride[0]}/{pool_stride[1]}"
+                          f" {input_size} -> {pooled_size}", end='')
                     if verbose_data:
                         print(':')
                         print(pooled)
@@ -750,8 +751,8 @@ def pooling_layer(
             pooled = data[:, :, ::pool_stride[0]]
             if pool_stride[0] > 1:
                 if state.verbose:
-                    print(f"{pool[0]} {'AVERAGE' if pool_average else 'MAX'} "
-                          f"POOLING, STRIDE {pool_stride[0]} "
+                    print(f"{'AVERAGE' if pool_average else 'MAX'} "
+                          f"POOL {pool[0]} WITH STRIDE {pool_stride[0]} "
                           f"{input_size} -> {pooled_size}", end='')
                     if verbose_data:
                         print(':')
