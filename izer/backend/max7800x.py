@@ -1029,6 +1029,9 @@ class Backend(backend.Backend):
                                comment=' // AON control', force_write=True)
 
             if tc.dev.REQUIRE_REG_CLEAR:
+                for _, group in enumerate(groups_used):
+                    apb.write_ctl(group, tc.dev.REG_SRAM, 0x40e,
+                                  comment=' // SRAM control')
                 bist_clear = tc.dev.BIST_ZERO_BOTH_EX if any(b is not None for b in bias) \
                     else tc.dev.BIST_ZERO_EX
                 for _, group in enumerate(groups_used):
@@ -1071,8 +1074,9 @@ class Backend(backend.Backend):
                 apb.write_ctl(group, tc.dev.REG_CTL, val,
                               comment=' // Stop SM')
                 # SRAM Control - does not need to be changed
-                apb.write_ctl(group, tc.dev.REG_SRAM, 0x40e,
-                              comment=' // SRAM control')
+                if not tc.dev.REQUIRE_REG_CLEAR:
+                    apb.write_ctl(group, tc.dev.REG_SRAM, 0x40e,
+                                  comment=' // SRAM control')
                 # Number of layers and start layer
                 val = (repeat_layers * final_layer) | (start_layer << 8)
                 apb.write_ctl(group, tc.dev.REG_LCNT_MAX, val,
