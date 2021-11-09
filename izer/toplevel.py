@@ -533,8 +533,9 @@ def main(
                             '// Wait for load switches\n\n')
 
             if tc.dev.SUPPORT_PLL:
-                mfile.write('  if (clock_source == MXC_S_GCR_PCLKDIV_CNNCLKSEL_ITO)\n'
-                            '    while ((MXC_GCR->ito_ctrl & MXC_F_GCR_ITO_CTRL_RDY) '
+                if embedded_code:
+                    mfile.write('  if (clock_source == MXC_S_GCR_PCLKDIV_CNNCLKSEL_ITO)\n  ')
+                mfile.write('  while ((MXC_GCR->ito_ctrl & MXC_F_GCR_ITO_CTRL_RDY) '
                             '!= MXC_F_GCR_ITO_CTRL_RDY) ; // Wait for PLL\n\n')
 
             if embedded_code and apifile is not None:
