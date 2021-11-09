@@ -525,12 +525,11 @@ def main(
             mfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
             mfile.write(f'  MXC_{bbfc}->reg1 = 0x{mask:01x}; // Mask memory\n')
             mfile.write(f'  MXC_{bbfc}->reg0 = 0x{mask:01x}; // Power\n')
-            mfile.write(f'  MXC_{bbfc}->reg2 = 0x{unmask:01x}; // Iso\n')
-            mfile.write(f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n\n')
-
             if embedded_code and state.enable_delay > 0:
                 mfile.write(f'  MXC_Delay(MSEC({state.enable_delay})); '
-                            '// Wait for load switches\n\n')
+                            '// Wait for load switches\n')
+            mfile.write(f'  MXC_{bbfc}->reg2 = 0x{unmask:01x}; // Iso\n')
+            mfile.write(f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n\n')
 
             if tc.dev.SUPPORT_PLL:
                 if embedded_code:
