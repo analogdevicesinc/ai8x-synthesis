@@ -73,11 +73,20 @@ class Dev:
 
     DEFAULT_SWITCH_DELAY = 0
 
+    def mask_large(self, proc) -> bool:
+        return proc % self.P_NUMPRO == 0
+
     def mask_width(self, proc) -> int:
         """
         Returns the number of kernels (x9 bytes) for processor `proc`.
         """
-        return self.MASK_WIDTH_LARGE if proc % self.P_NUMPRO == 0 else self.MASK_WIDTH_SMALL
+        return self.MASK_WIDTH_LARGE if self.mask_large(proc) else self.MASK_WIDTH_SMALL
+
+    def mask_count(self, proc) -> int:
+        """
+        Returns the number of kernel memory instances for processor `proc`.
+        """
+        return self.MASK_INSTANCES if self.mask_large(proc) else self.MASK_INSTANCES_EACH
 
     def datainstance_from_offs(self, offs):
         """

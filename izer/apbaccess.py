@@ -143,15 +143,24 @@ class APB():
             offs = -1
             for group in range(tc.dev.P_NUMGROUPS):
                 for proc in range(tc.dev.P_NUMPRO):
-                    for mem in range(tc.dev.MASK_INSTANCES):
+                    for mem in range(tc.dev.mask_count(proc)):
                         if self.kernel_mem[group][proc][mem]:
                             self.kernel_mem[group][proc][mem].sort()
                             for (naddr, nval) in self.kernel_mem[group][proc][mem]:
-                                phys_addr = state.apb_base + tc.dev.C_GROUP_OFFS * group \
-                                    + tc.dev.C_MRAM_BASE + proc * tc.dev.MASK_OFFS * 16 \
-                                    + mem * 16 * tc.dev.MASK_WIDTH_SMALL \
-                                    // tc.dev.MASK_INSTANCES_EACH \
-                                    + naddr * 16
+                                if mem >= tc.dev.MASK_INSTANCES_EACH:
+                                    phys_addr = state.apb_base + tc.dev.C_GROUP_OFFS * group \
+                                        + tc.dev.C_MRAM_BASE + proc * tc.dev.MASK_OFFS * 16 \
+                                        + tc.dev.MASK_WIDTH_SMALL * 16 \
+                                        + (mem - tc.dev.MASK_INSTANCES_EACH) * 16 \
+                                        * (tc.dev.MASK_WIDTH_LARGE - tc.dev.MASK_WIDTH_SMALL) \
+                                        // tc.dev.MASK_INSTANCES_EACH \
+                                        + naddr * 16
+                                else:
+                                    phys_addr = state.apb_base + tc.dev.C_GROUP_OFFS * group \
+                                        + tc.dev.C_MRAM_BASE + proc * tc.dev.MASK_OFFS * 16 \
+                                        + mem * 16 \
+                                        * tc.dev.MASK_WIDTH_SMALL // tc.dev.MASK_INSTANCES_EACH \
+                                        + naddr * 16
                                 # Flush what we have, if anything
                                 if offs > 0 and phys_addr != addr + offs * 16:
                                     input_list.append((addr, val))
