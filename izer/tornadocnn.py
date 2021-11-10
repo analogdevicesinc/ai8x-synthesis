@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -39,6 +39,8 @@ class Dev:
     SUPPORT_SNOOP = False
     SUPPORT_STREAM_NONPAD_FINAL = False
     SUPPORT_ONESHOT = False
+    SUPPORT_MULTIPASS_PADDED_CONV1D = True
+    SUPPORT_MULTIPASS_X4_PARTIALQUAD = False
     REQUIRE_REG_CLEAR = False
     REQUIRE_SEMA_LPWKEN = False
     REQUIRE_ONESHOT_CLEAR = True
@@ -68,6 +70,8 @@ class Dev:
     IPO_SPEED = 100
     APB_SPEED = IPO_SPEED // 2
     PLL_SPEED = 0
+
+    DEFAULT_SWITCH_DELAY = 0
 
     def mask_width(self, proc) -> int:
         """
@@ -468,6 +472,7 @@ class DevAI87(Dev):
     SUPPORT_SNOOP = True
     SUPPORT_STREAM_NONPAD_FINAL = True
     SUPPORT_ONESHOT = True
+    SUPPORT_MULTIPASS_PADDED_CONV1D = False
     SUPPORTED_X2D_PADS = [0, 1, 2]
     SUPPORTED_X2D_OUTPUT_PADS = [1]
     REQUIRE_REG_CLEAR = True
@@ -492,6 +497,8 @@ class DevAI87(Dev):
 
     # PLL Speed in MHz
     PLL_SPEED = 200
+
+    DEFAULT_SWITCH_DELAY = 10
 
     def __str__(self):
         return self.__class__.__name__

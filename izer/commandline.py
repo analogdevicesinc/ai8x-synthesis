@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -131,11 +131,13 @@ def get_parser() -> argparse.Namespace:
     mgroup = group.add_mutually_exclusive_group()
     mgroup.add_argument('--timer', type=int, metavar='N',
                         help="use timer to time the inference (default: off, supply timer number)")
+    group.add_argument('--no-timer', action='store_true', default=False,
+                       help="ignore --timer argument(s)")
     mgroup.add_argument('--energy', action='store_true', default=False,
                         help="insert instrumentation code for energy measurement")
-    group.add_argument('--no-greedy-kernel', action='store_false', dest='greedy_kernel_allocator',
-                       default=True,
-                       help="do not use greedy kernel memory allocator (default: use)")
+    group.add_argument('--switch-delay', dest='enable_delay', type=int, metavar='N', default=None,
+                       help="set delay in msec after cnn_enable() for load switches (default: 0"
+                            " on MAX78000, 10 on MAX78002)")
 
     # File names
     group = parser.add_argument_group('File names')
@@ -257,6 +259,16 @@ def get_parser() -> argparse.Namespace:
                        help="print format for kernels (default: '{0:4}')")
     group.add_argument('--debug-snoop', action='store_true', default=False,
                        help="insert snoop register debug code (default: False)")
+    group.add_argument('--ignore-hw-limits', action='store_true', default=False,
+                       help="ignore certain hardware limits (default: False)")
+    group.add_argument('--no-greedy-kernel', action='store_false', dest='greedy_kernel_allocator',
+                       default=True,
+                       help="do not use greedy kernel memory allocator (default: use)")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('--new-kernel-loader', action='store_true',
+                        default=None, help="use new kernel loader (default on MAX78002)")
+    mgroup.add_argument('--old-kernel-loader', dest='new_kernel_loader', action='store_false',
+                        default=None, help="use old kernel loader (default on MAX78000)")
 
     # RTL sim
     group = parser.add_argument_group('RTL simulation')
@@ -471,6 +483,9 @@ def get_parser() -> argparse.Namespace:
     if args.define_default_riscv != '':
         args.define_default_riscv = "-D" + " -D".join(args.define_default_riscv.split(' '))
 
+    if args.no_timer:
+        args.timer = None
+
     return args
 
 
@@ -508,16 +523,18 @@ def set_state(args: argparse.Namespace) -> None:
     state.eclipse_openocd_args = args.eclipse_openocd_args
     state.eclipse_variables = args.eclipse_variables
     state.embedded_code = args.embedded_code
+    state.enable_delay = args.enable_delay
     state.ext_rdy = args.ext_rdy
     state.fast_fifo = args.fast_fifo
     state.fast_fifo_quad = args.fast_fifo_quad
     state.fifo = args.fifo
     state.fifo_go = args.fifo_go
     state.fixed_input = args.fixed_input
-    state.forever = args.forever
+    state.forever = args.forever and args.embedded_code
     state.generate_kat = args.generate_kat
     state.greedy_kernel_allocator = args.greedy_kernel_allocator
     state.ignore_bias_groups = args.ignore_bias_groups
+    state.ignore_hw_limits = args.ignore_hw_limits
     state.increase_delta1 = args.increase_delta1
     state.increase_delta2 = args.increase_delta2
     state.increase_start = args.increase_start
@@ -545,6 +562,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.mlator_chunk = args.unroll_mlator
     state.mlator_noverify = args.mlator_noverify
     state.narrow_chunk = args.unroll_8bit
+    state.new_kernel_loader = args.new_kernel_loader
     state.no_error_stop = args.no_error_stop
     state.oneshot = args.one_shot
     state.output_filename = args.output_filename

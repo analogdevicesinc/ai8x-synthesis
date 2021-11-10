@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -86,7 +86,6 @@ class Backend(backend.Backend):
         log_intermediate = state.log_intermediate
         log_pooling = state.log_pooling
         measure_energy = state.measure_energy
-        mexpress = state.mexpress
         next_sequence = state.next_sequence
         no_error_stop = state.no_error_stop
         oneshot = state.oneshot
@@ -232,8 +231,19 @@ class Backend(backend.Backend):
         if result_output:
             state.max_count = None
 
-        if mexpress:
-            state.compact_weights = True
+        if embedded_code and any(calcx4) and not state.new_kernel_loader:
+            wprint('Enabling --new-kernel-loader since calcx4 is used.')
+            state.new_kernel_loader = True
+            state.compact_weights = False
+
+        if not state.new_kernel_loader and state.mexpress:
+            if any(calcx4):
+                wprint('Ignoring --mexpress since calcx4 is used.')
+                state.mexpress = False
+            else:
+                state.compact_weights = True
+
+        mexpress = state.mexpress
         compact_weights = state.compact_weights
 
         # Check streaming and FIFO constraints
@@ -391,7 +401,7 @@ class Backend(backend.Backend):
             in_size = input_dim[ll][0] * input_dim[ll][1] * in_expand[ll] * operands[ll] \
                 * (1 if big_data[ll] else 4)
             if not streaming[ll] and in_size + in_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
-                eprint(f'Layer {ll}: {1 if big_data[ll] else 4}-channel {input_dim[ll][0]}x'
+                eprint(f'Layer {ll}: {1 if big_data[ll] else 4} channels/word {input_dim[ll][0]}x'
                        f'{input_dim[ll][1]} input (size {in_size}) '
                        f'with input offset 0x{in_offset[ll]:04x} and expansion {in_expand[ll]}x '
                        f'exceeds data memory instance size of {tc.dev.INSTANCE_WIDTH*16}.')
@@ -421,6 +431,11 @@ class Backend(backend.Backend):
 
                 if operands[ll] > 1:
                     eprint('Layer {ll}: Element-wise operations cannot be combined with Conv1d.')
+
+                if not tc.dev.SUPPORT_MULTIPASS_PADDED_CONV1D and padding[ll][0] > 0 \
+                   and in_expand[ll] > 1:
+                    eprint(f'Layer {ll}: This device does not support padded Conv1d with input '
+                           'expansion > 1.', error=not state.ignore_hw_limits)
 
             if dilation[ll][0] > 1:
                 if operator[ll] != op.CONV1D:
@@ -494,7 +509,8 @@ class Backend(backend.Backend):
                 * 4 * output_width[ll] // 8
             if (not streaming[ll] or ll == terminating_layer) \
                and out_size + out_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
-                eprint(f'Layer {ll}: 4-channel, {output_width[ll]}-bit {output_dim[ll][0]}x'
+                eprint(f'Layer {ll}: HWC (4 channels/word) '
+                       f'{output_width[ll]}-bit {output_dim[ll][0]}x'
                        f'{output_dim[ll][1]} output (size {out_size}) '
                        f'with output offset 0x{out_offset[ll]:04x} and expansion '
                        f'{out_expand[ll]}x '
@@ -874,8 +890,8 @@ class Backend(backend.Backend):
                                f'{"CHW data)" if big_data[ll] else "HWC data)"}, ',
                                embedded_code)
                     if pool[ll][0] > 1 or pool[ll][1] > 1:
-                        apb.output(f'{pool_str[ll]} {"avg" if pool_average[ll] else "max"} '
-                                   f'pool with stride {pool_stride_str[ll]}', embedded_code)
+                        apb.output(f'{"avg" if pool_average[ll] else "max"} pool {pool_str[ll]} '
+                                   f'with stride {pool_stride_str[ll]}', embedded_code)
                         if pool_dilation[ll][0] > 1 or pool_dilation[ll][1] > 1:
                             apb.output(f' and dilation {pool_dilation_str[ll]}', embedded_code)
                     else:
@@ -1789,6 +1805,12 @@ class Backend(backend.Backend):
                         if calcx4[ll]:
                             val |= 1 << 29
 
+                            if not tc.dev.SUPPORT_MULTIPASS_X4_PARTIALQUAD \
+                               and out_expand[ll] > 1 and tc.dev.MAX_PROC != 64:
+                                eprint(f'Layer {ll}: This device does not support `calcx4` with '
+                                       'multi-pass when writing to fewer than 4 quadrants.',
+                                       error=not state.ignore_hw_limits)
+
                         if tcalc[ll]:
                             val |= 1 << 31
 
@@ -2163,14 +2185,14 @@ class Backend(backend.Backend):
                                 tc.dev.datainstance_from_offs(in_offset[ll]),
                                 tc.dev.datainstance_from_offs(in_offset[ll] + 4 * operands[ll]
                                                               * in_expand[ll] * hw_input_dim[ll][0]
-                                                              * hw_input_dim[ll][1])
+                                                              * hw_input_dim[ll][1] - 1)
                             )
                             out_instance = (
                                 tc.dev.datainstance_from_offs(out_offset[ll]),
                                 tc.dev.datainstance_from_offs(out_offset[ll] + 4 * out_expand[ll]
                                                               * (output_dim[ll][0]
                                                                  * output_dim[ll][1]
-                                                                 + out_pad[ll]))
+                                                                 + out_pad[ll]) - 1)
                             )
                             if in_instance[0] == out_instance[0] \
                                or in_instance[1] == out_instance[1]:
@@ -2377,8 +2399,6 @@ class Backend(backend.Backend):
                 apb.write_fifo_ctl(tc.dev.AON_CTL, val2 | tc.dev.AON_READY_SEL,
                                    comment=' // AON control')
 
-            if state.pll and not measure_energy:
-                apb.select_clock('ITO', 'DIV1', 'Switch CNN clock to PLL (ITO)')
             if embedded_code:
                 apb.output('\n#ifdef CNN_INFERENCE_TIMER\n'
                            '  MXC_TMR_SW_Start(CNN_INFERENCE_TIMER);\n'
@@ -2860,12 +2880,12 @@ class Backend(backend.Backend):
             sampledata_header.close()
         if sampleoutput_header is not None:
             sampleoutput_header.close()
-        if weight_header is not None:
-            weight_header.close()
         if apifile is not None:
             apifile.close()
-        if state.rtl_preload or result_output:
+        if state.rtl_preload or result_output or state.new_kernel_loader:
             apb.write_mem(base_directory, test_name)
+        if weight_header is not None:
+            weight_header.close()
 
         # Create run_test.sv
         if not embedded_code and not block_mode:
