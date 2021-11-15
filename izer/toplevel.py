@@ -712,7 +712,7 @@ def main(
             mfile.write('  gpio_out.pad = MXC_GPIO_PAD_NONE;\n')
             mfile.write('  gpio_out.func = MXC_GPIO_FUNC_OUT;\n')
             mfile.write('  MXC_GPIO_Config(&gpio_out);\n')
-            mfile.write('  MXC_GPIO_OutSet(gpio_out.port, gpio_out.mask);\n')
+            mfile.write('  MXC_GPIO_OutClr(gpio_out.port, gpio_out.mask);\n')
             function_footer(apifile)  # boost_disable()
 
         # pylint: disable=unsubscriptable-object
