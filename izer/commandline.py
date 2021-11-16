@@ -605,7 +605,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.unload = args.unload
     state.verbose = args.verbose
     state.verbose_all = args.verbose_all
-    state.verify_kernels = args.verify_kernels
+    state.verify_kernels = args.verify_kernels or args.verify_writes and args.new_kernel_loader
     state.verify_writes = args.verify_writes
     state.weight_filename = args.weight_filename
     state.weight_start = args.weight_start

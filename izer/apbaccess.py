@@ -591,7 +591,7 @@ class APB():
                     self.write(addr+4, 0, no_verify=True)
                     self.write(addr+8, 0, no_verify=True)
                 self.write(addr+12, 0, no_verify=True)  # Execute write
-        if self.verify_writes or verify_only:
+        if not state.new_kernel_loader and (self.verify_writes or verify_only):
             self.verify(addr, k[0] & 0xff, api=True)
             if size != 1:
                 self.verify(addr+4, (k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 |

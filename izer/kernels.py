@@ -593,7 +593,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
 
     if state.new_kernel_loader or not (embedded_code or mexpress) or any(calcx4):
         apb.function_header(function='load_weights')
-        # Write in-line
+        # Write (or store) in-line
         for p in range(tc.dev.MAX_PROC):
             for col in range(0, tc.dev.mask_width(p)):
                 ll = kernel_map[p][col]
