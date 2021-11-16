@@ -515,24 +515,83 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         print('\nKernel map:')
         print_map(layers, kernel_map)
 
+    if state.new_kernel_loader:
+        apb.output('static const uint32_t kernels[] = KERNELS;\n\n', api)
+
     if verify:
+        if state.new_kernel_loader:
+            apb.function_header(prefix='', function='mexpress_byte', return_type='static uint8_t',
+                                arguments='const uint32_t **addr, uint32_t *val, int *avail')
+            apb.output(
+                '  if (*avail == 0) {\n'
+                '    *val = *(*addr)++;\n'
+                '    *avail = 4;\n'
+                '  }\n',
+                api,
+            )
+            apb.function_footer(return_value='(*val >> (--(*avail) * 8)) & 0xff')  # mexpress_byte
         apb.function_header(function='verify_weights')
-        # Write in-line
-        for p in range(tc.dev.MAX_PROC):
-            for col in range(0, tc.dev.mask_width(p)):
-                ll = kernel_map[p][col]
-                if ll != _INVALID_VALUE:
-                    apb.write_kern(ll, p, col, kernel_data[p][col],
-                                   verify_only=verify, calc_x4=calcx4[ll],
-                                   kern_offs=kern_offs,
-                                   count=in_expand[ll] * output_chan[ll] * 9
-                                   * abs(quantization[ll])
-                                   // (kernel_size[ll][0] * kernel_size[ll][1] * 8))
+        if state.new_kernel_loader:
+            apb.output(
+                '  uint32_t len, data, val;\n'
+                '  volatile uint32_t *addr, *ptr;\n'
+                '  const uint32_t *compare = kernels;\n'
+                '  int av;\n\n'
+                '  while ((addr = (volatile uint32_t *) *compare++) != 0) {\n'
+                '    len = (*compare++ * 4) / 9;\n'
+                '    ptr = (volatile uint32_t *)(((uint32_t)addr & 0xffff0000) | '
+                '(((uint32_t)addr & 0xffff) << 2));\n'
+                '    av = 0;\n'
+                '    val = 0;\n\n'
+                '    while (len-- > 0) {\n'
+                '      data = mexpress_byte(&compare, &val, &av);\n'
+                '      if (*ptr++ != data) {\n'
+                '        printf("Addr[0]: %08x, read: %08x, expected: %08x\\n", ptr-1, '
+                '*(ptr-1), data);\n'
+                '        return CNN_FAIL;\n'
+                '      }\n'
+                '      data = mexpress_byte(&compare, &val, &av) << 24 | '
+                'mexpress_byte(&compare, &val, &av) << 16\n'
+                '           | mexpress_byte(&compare, &val, &av) << 8 | '
+                'mexpress_byte(&compare, &val, &av);\n'
+                '      if (*ptr++ != data) {\n'
+                '        printf("Addr[1]: %08x, read: %08x, expected: %08x\\n", ptr-1, '
+                '*(ptr-1), data);\n'
+                '        return CNN_FAIL;\n'
+                '      }\n'
+                '      data = mexpress_byte(&compare, &val, &av) << 24 | '
+                'mexpress_byte(&compare, &val, &av) << 16\n'
+                '           | mexpress_byte(&compare, &val, &av) << 8 | '
+                'mexpress_byte(&compare, &val, &av);\n'
+                '      if (*ptr++ != data) {\n'
+                '        printf("Addr[2]: %08x, read: %08x, expected: %08x\\n", ptr-1, '
+                '*(ptr-1), data);\n'
+                '        return CNN_FAIL;\n'
+                '      }\n'
+                '      if (*ptr++ != 0) {\n'
+                '        printf("Addr[3]: %08x, read: %08x, expected: 00000000\\n", ptr-1, '
+                '*(ptr-1));\n'
+                '        return CNN_FAIL;\n'
+                '      }\n'
+                '    }\n'
+                '  }\n',
+                api,
+            )
+        else:
+            # Write in-line
+            for p in range(tc.dev.MAX_PROC):
+                for col in range(0, tc.dev.mask_width(p)):
+                    ll = kernel_map[p][col]
+                    if ll != _INVALID_VALUE:
+                        apb.write_kern(ll, p, col, kernel_data[p][col],
+                                       verify_only=verify, calc_x4=calcx4[ll],
+                                       kern_offs=kern_offs,
+                                       count=in_expand[ll] * output_chan[ll] * 9
+                                       * abs(quantization[ll])
+                                       // (kernel_size[ll][0] * kernel_size[ll][1] * 8))
         apb.function_footer()  # verify_weights()
 
     if state.new_kernel_loader or not (embedded_code or mexpress) or any(calcx4):
-        if state.new_kernel_loader:
-            apb.output('static const uint32_t kernels[] = KERNELS;\n\n', api)
         apb.function_header(function='load_weights')
         # Write in-line
         for p in range(tc.dev.MAX_PROC):
