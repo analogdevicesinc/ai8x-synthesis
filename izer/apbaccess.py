@@ -878,7 +878,13 @@ class APB():
                                '    mask = *ptr++;\n'
                                '    len = *ptr++;\n'
                                '    for (i = 0; i < len; i++)\n'
-                               f'      if ((*addr++ & mask) != *ptr++) {action}\n'
+                               '      if ((*addr++ & mask) != *ptr++) {\n'
+                               '        printf("Data mismatch (%d/%d) at address 0x%08x: '
+                               'Expected 0x%08x, read 0x%08x.\\n",\n'
+                               '               i + 1, len, addr - 1, *(ptr - 1), '
+                               '*(addr - 1) & mask);\n'
+                               f'        {action}\n'
+                               '      }\n'
                                '  }\n')
 
         self.verify_listdata = []
