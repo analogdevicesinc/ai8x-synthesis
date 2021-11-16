@@ -24,10 +24,11 @@ typedef int16_t q15_t;
 ##__FILE_INSERT__##
 
 /* Port pin actions used to signal that processing is active */
-#define CNN_START LED_On(1)
-#define CNN_COMPLETE LED_Off(1)
-#define SYS_START LED_On(0)
-#define SYS_COMPLETE LED_Off(0)
+##__PMON_GPIO_PINS__##
+#define CNN_START ##__CNN_START__##
+#define CNN_COMPLETE ##__CNN_COMPLETE__##
+#define SYS_START ##__SYS_START__##
+#define SYS_COMPLETE ##__SYS_COMPLETE__##
 
 /* Run software SoftMax on unloaded data */
 void softmax_q17p14_q15(const q31_t * vec_in, const uint16_t dim_vec, q15_t * p_out);
