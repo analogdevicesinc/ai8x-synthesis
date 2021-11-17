@@ -2388,9 +2388,13 @@ class Backend(backend.Backend):
                     fval = 1 << 15
                 else:
                     fval = 0
-                if group != groups_used[0]:
-                    fval |= 0x01
-                apb.write_ctl(group, tc.dev.REG_CTL, val | 0x800 | rdy_sel << 1
+                if state.snoop_loop:
+                    fval |= 1 << 7  # apbclkena
+                else:
+                    if group != groups_used[0]:
+                        fval |= 0x01
+                    fval |= 1 << 11  # ext_sync
+                apb.write_ctl(group, tc.dev.REG_CTL, val | rdy_sel << 1
                               | fval | groups_used[0] << 9,
                               comment=f' // Enable group {group}')
 
@@ -2402,6 +2406,48 @@ class Backend(backend.Backend):
                     val2 |= 1 << 12 + group
                 apb.write_fifo_ctl(tc.dev.AON_CTL, val2 | tc.dev.AON_READY_SEL,
                                    comment=' // AON control')
+
+            if state.snoop_loop:
+                for _, group in enumerate(groups_used):
+                    apb.output('\n', embedded_code)
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_NXTLYR, 0x80,
+                                   force_write=True, comment=' // Link Layer')
+                    apb.write_ctl(group, tc.dev.REG_SNP1_HIT, 0, force_write=True,
+                                  comment=' // Clear match hit accumulator')
+                    apb.write_ctl(group, tc.dev.REG_SNP1_A1, 0x00200000 | (out_offset[ll] >> 2),
+                                  force_write=True,
+                                  comment=' // Address snoop 1 register 1')
+                    apb.write_ctl(group, tc.dev.REG_SNP1_X1,
+                                  0x000084d0 if pipeline else 0x00002134, force_write=True,
+                                  comment=' // Snoop 1 match hit accumulator')
+                    apb.write_ctl(group, tc.dev.REG_SNP1_C2, 0x00004000, force_write=True,
+                                  comment=' // Snoop 1 control register 2')
+                    apb.write_ctl(group, tc.dev.REG_SNP1_C1, 0x8a412014, force_write=True,
+                                  comment=' // Snoop 1 control register 1')
+                    apb.write_ctl(group, tc.dev.REG_SNP1_C1, 0x8a412015, force_write=True,
+                                  comment=' // Snoop 1 control register 1')
+
+                apb.output('\n', embedded_code)
+                for _, group in enumerate(groups_used):
+                    # Turn on the FIFO for this group if it's being loaded
+                    if fifo and processor_map_0 & 0x0f << group * 16 != 0:
+                        fval = 1 << 15
+                        if fast_fifo:
+                            fval |= 1 << 22
+                        if fifo_group:
+                            fval |= 1 << 23
+                    elif fifo:
+                        fval = 1 << 15
+                    else:
+                        fval = 0
+                    fval |= (1 << 11) | (1 << 7)
+                    if group != groups_used[0]:
+                        fval |= 0x01
+
+                    apb.write_ctl(group, tc.dev.REG_CTL, val | rdy_sel << 1
+                                  | fval | groups_used[0] << 9,
+                                  comment=f' // Enable group {group}')
+                apb.output('\n', embedded_code)
 
             if embedded_code:
                 apb.output('\n#ifdef CNN_INFERENCE_TIMER\n'
@@ -2417,6 +2463,8 @@ class Backend(backend.Backend):
                     val |= 1 << 22
                 if fifo_group:
                     val |= 1 << 23
+            if state.snoop_loop:
+                val |= 1 << 7
             apb.write_ctl(groups_used[0], tc.dev.REG_CTL, val | rdy_sel << 1 | 0x01,
                           comment=f' // Master enable group {groups_used[0]}')
 

@@ -259,6 +259,8 @@ def get_parser() -> argparse.Namespace:
                        help="print format for kernels (default: '{0:4}')")
     group.add_argument('--debug-snoop', action='store_true', default=False,
                        help="insert snoop register debug code (default: False)")
+    group.add_argument('--snoop-loop', action='store_true', default=False,
+                       help="insert snoop loop (default: False)")
     group.add_argument('--ignore-hw-limits', action='store_true', default=False,
                        help="ignore certain hardware limits (default: False)")
     group.add_argument('--no-greedy-kernel', action='store_false', dest='greedy_kernel_allocator',
@@ -593,6 +595,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.simple1b = args.simple1b
     state.sleep = args.deepsleep
     state.slow_load = args.slow_load
+    state.snoop_loop = args.snoop_loop
     state.softmax = args.softmax
     state.split = args.input_split
     state.start_layer = args.start_layer
