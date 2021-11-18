@@ -75,6 +75,9 @@ class Dev:
     DEFAULT_SWITCH_DELAY = 0
 
     def mask_large(self, proc) -> bool:
+        """
+        Returns whether a given processor `proc` has large kernel memory (`True`/`False`).
+        """
         return proc % self.P_NUMPRO == 0
 
     def mask_width(self, proc) -> int:
