@@ -1,3 +1,4 @@
+---
 # Max kernels for AI87
 
 arch: test
@@ -6,6 +7,7 @@ dataset: test_maxkern-maxproc
 layers:
 - pad: 1
   activate: None
+  in_offset: 0x8000
   out_offset: 0x4000
   processors: 0x0001000100010001
   data_format: HWC
