@@ -1021,8 +1021,9 @@ class Backend(backend.Backend):
                 print('-----------------')
 
             if tc.dev.REQUIRE_REG_CLEAR:
+                val = 0 if not tc.dev.SUPPORT_PIPELINE or pipeline else 1 << 5
                 for _, group in enumerate(groups_used):
-                    apb.write_ctl(group, tc.dev.REG_CTL, 1 << 3 | tc.dev.READY_SEL << 1,
+                    apb.write_ctl(group, tc.dev.REG_CTL, val | 1 << 3 | tc.dev.READY_SEL << 1,
                                   comment=' // Enable clocks', no_verify=True)
             # Reset
             apb.write_fifo_ctl(tc.dev.AON_CTL, tc.dev.AON_READY_SEL,
@@ -1071,6 +1072,8 @@ class Backend(backend.Backend):
                 val |= 1 << 3  # Enable clocks
                 if mexpress:
                     val |= 1 << 20
+                if tc.dev.SUPPORT_PIPELINE and not pipeline:
+                    val |= 1 << 5
                 apb.write_ctl(group, tc.dev.REG_CTL, val,
                               comment=' // Stop SM')
                 # SRAM Control - does not need to be changed
@@ -2366,6 +2369,8 @@ class Backend(backend.Backend):
                     val |= 1 << 6
             if snoop is not None:
                 val |= 1 << 7
+            if tc.dev.SUPPORT_PIPELINE and not pipeline:
+                val |= 1 << 5
 
             if embedded_code:
                 apb.function_footer()
