@@ -1624,7 +1624,9 @@ class Backend(backend.Backend):
                         else:
                             in_exp = in_expand[ll] - 1
 
-                        assert in_exp < 2**4  # Cannot have more than 4 bits
+                        if in_exp >= 2**4:
+                            eprint(f'Layer {ll}: Input expansion of {in_exp+1} exceeds device '
+                                   f'limit of {2**4}.')
 
                         quant = abs(quantization[ll]) if not bypass[ll] else 8
                         val = (fls(output_processor_map[ll])
