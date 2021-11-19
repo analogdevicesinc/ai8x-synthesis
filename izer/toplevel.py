@@ -141,7 +141,7 @@ def header(
         if embedded_code:
             function_header(memfile, prefix='', function='fail', return_type='void')
 
-            if state.forever:
+            if state.forever or state.snoop_loop:
                 memfile.write('  mxc_gpio_cfg_t gpio_out;\n')
                 memfile.write('  gpio_out.port = MXC_GPIO2;\n')
                 memfile.write('  gpio_out.mask = MXC_GPIO_PIN_4;\n')
@@ -162,7 +162,7 @@ def header(
             else:
                 function_header(memfile, prefix='', function='CNN_IRQHandler',
                                 return_type='void __attribute__((interrupt("machine")))')
-            memfile.write('  // Acknowledge interrupt to all groups\n')
+            memfile.write('  // Acknowledge interrupt to all quadrants\n')
             for _, group in enumerate(groups):
                 addr = tc.dev.APB_BASE + tc.ctl_addr(group, tc.dev.REG_CTL)
                 if oneshot > 0 and not tc.dev.REQUIRE_ONESHOT_CLEAR:
@@ -193,12 +193,12 @@ def header(
         function_header(memfile, function='continue')
         memfile.write('  cnn_time = 0;\n\n'
                       f'  *((volatile uint32_t *) 0x{addr:08x}) |= 1; '
-                      f'// Re-enable group {master}\n')
+                      f'// Re-enable quadrant {master}\n')
         function_footer(memfile)  # continue()
 
         function_header(memfile, function='stop')
         memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ~1; '
-                      f'// Disable group {master}\n')
+                      f'// Disable quadrant {master}\n')
         function_footer(memfile)  # stop()
 
 

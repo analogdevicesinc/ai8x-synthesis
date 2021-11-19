@@ -802,13 +802,13 @@ class Backend(backend.Backend):
                 groups_used.append(group)
 
         if 0 not in groups_used:
-            eprint('Group 0 is not used, this is currently unsupported.')
+            eprint('Quadrant 0 is not used, this is currently unsupported.')
 
         for ll in range(first_layer_used, layers):
             if bias_group_map[ll] is not None:
                 for _, e in enumerate(bias_group_map[ll]):
                     if e not in groups_used:
-                        eprint(f'Layer {ll}: `bias_group` references the unused group {e}. '
+                        eprint(f'Layer {ll}: `bias_quadrant` references the unused quadrant {e}. '
                                f'Used x16 groups for this network are: {groups_used}.',
                                error=not ignore_bias_groups)
 
@@ -1188,7 +1188,7 @@ class Backend(backend.Backend):
                 print('\nGlobal configuration:')
                 print('---------------------')
                 print(f'Used processors     = 0x{processors_used:016x}')
-                print(f'Used groups         = {groups_used}')
+                print(f'Used quadrants      = {groups_used}')
                 if start_layer > 0:
                     print(f'Starting layer      = {start_layer}')
                 if any(s != i+1 and (s != -1 or i != final_layer)
@@ -1197,15 +1197,15 @@ class Backend(backend.Backend):
                           ', '.join(str(k) if k != -1 else 'stop' for k in next_sequence), ']',
                           sep='',)
 
-                print('\nPer-group configuration:')
-                print('-----------------------')
+                print('\nPer-quadrant configuration:')
+                print('---------------------------')
                 print(f'Used bias memory    = {group_bias_max}')
 
                 print('\nPer-layer configuration:')
                 print('------------------------')
                 if repeat_layers > 1:
                     print(f'Layer repeat count  = {repeat_layers}')
-                print(f'Group map           = {group_map}')
+                print(f'Quadrant map        = {group_map}')
 
                 print('Input offset        = [',
                       ', '.join('0x{:04x}'.format(k) if k is not None
@@ -1244,7 +1244,7 @@ class Backend(backend.Backend):
                                 else 'N/A' for k in output_processor_map), ']', sep='',)
                 print(f'Output data bits    = {output_width}')
 
-                print(f'Group with bias     = {bias_group}')
+                print(f'Quadrant with bias  = {bias_group}')
                 print(f'Bias offset         = {bias_offs}')
 
                 print('Output offset       = [',
@@ -1340,7 +1340,8 @@ class Backend(backend.Backend):
                                 )
 
                     for _, group in enumerate(groups_used):
-                        apb.output(f'  // Layer {r * layers + ll} group {group}\n', embedded_code)
+                        apb.output(f'  // Layer {r * layers + ll} quadrant {group}\n',
+                                   embedded_code)
 
                         val = 0
                         if link_layer:
@@ -2403,7 +2404,7 @@ class Backend(backend.Backend):
                     fval |= 1 << 11  # ext_sync
                 apb.write_ctl(group, tc.dev.REG_CTL, val | rdy_sel << 1
                               | fval | groups_used[0] << 9,
-                              comment=f' // Enable group {group}')
+                              comment=f' // Enable quadrant {group}')
 
             if powerdown:
                 unused_groups = [group for group in list(range(tc.dev.P_NUMGROUPS))
@@ -2453,7 +2454,7 @@ class Backend(backend.Backend):
 
                     apb.write_ctl(group, tc.dev.REG_CTL, val | rdy_sel << 1
                                   | fval | groups_used[0] << 9,
-                                  comment=f' // Enable group {group}')
+                                  comment=f' // Enable quadrant {group}')
                 apb.output('\n', embedded_code)
 
             if embedded_code:
@@ -2473,7 +2474,7 @@ class Backend(backend.Backend):
             if state.snoop_loop:
                 val |= 1 << 7
             apb.write_ctl(groups_used[0], tc.dev.REG_CTL, val | rdy_sel << 1 | 0x01,
-                          comment=f' // Master enable group {groups_used[0]}')
+                          comment=f' // Master enable quadrant {groups_used[0]}')
 
             if fifo:
                 # Load data memory
