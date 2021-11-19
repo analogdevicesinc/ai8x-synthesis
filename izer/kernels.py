@@ -242,12 +242,13 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 offs: int,
                 length: int = None,
                 error: bool = True,
+                reverse: bool = False,
         ) -> bool:
             """Check that there is enough space at index `offs` for processor `p`"""
             assert tc.dev is not None
             if length is None:
                 length = kern_len[ll]
-            if offs < 0 or offs + length > tc.dev.mask_width(p):
+            if reverse and offs < 0 or not reverse and offs + length > tc.dev.mask_width(p):
                 if error:
                     eprint(f'\nKernel memory exhausted at layer {ll}, processor {p}; '
                            f'offset: {offs} (0x{offs:04x}), needed: {length}.\n\n'
@@ -282,7 +283,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                         offs += tc.dev.P_SHARED
                     else:
                         offs -= tc.dev.P_SHARED
-                    if not check_kernel_mem(ll, p, offs, error=error):
+                    if not check_kernel_mem(ll, p, offs, error=error, reverse=reverse):
                         return -1
 
                 # For this processor, is there space for all kernels starting at
