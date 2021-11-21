@@ -172,7 +172,7 @@ layers:
 # Layer 18: conv
 - out_offset: 0x0000
   processors: 0xffffffffffffffff
-  output_processors: 0xffffffffffffffff
+  output_processors: 0x00000000ffffffff
   operation: conv2d
   kernel_size: 1x1
   pad: 0
