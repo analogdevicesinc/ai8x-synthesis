@@ -152,6 +152,7 @@ simple1b: bool = False
 simulated_sequence: List[Any] = []
 sleep: bool = False
 slow_load: bool = False
+snoop_loop: bool = False
 snoop_sequence: List[Any] = []
 snoop: List[int] = []
 softmax: bool = False

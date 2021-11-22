@@ -153,8 +153,8 @@ def parse(
                                  'output_shift', 'pool_first', 'processors', 'pad', 'quantization',
                                  'next_sequence', 'snoop_sequence', 'simulated_sequence',
                                  'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
-                                 'bias_group', 'calcx4', 'readahead', 'pool_dilation',
-                                 'output_pad', 'tcalc'])
+                                 'bias_group', 'bias_quadrant', 'calcx4', 'readahead',
+                                 'pool_dilation', 'output_pad', 'tcalc'])
         if bool(cfg_set):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`: '
                    f'{cfg_set}.')
@@ -465,8 +465,9 @@ def parse(
             except ValueError:
                 error_exit(f'Unsupported value `{val}` for `bypass`', sequence)
 
-        if 'bias_group' in ll:
-            val = ll['bias_group']
+        if 'bias_group' in ll or 'bias_quadrant' in ll:
+            key = 'bias_quadrant' if 'bias_quadrant' in ll else 'bias_group'
+            val = ll[key]
             if isinstance(val, int):
                 bias_group_map[sequence] = [val]
             else:

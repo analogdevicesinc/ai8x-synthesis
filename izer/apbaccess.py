@@ -143,15 +143,24 @@ class APB():
             offs = -1
             for group in range(tc.dev.P_NUMGROUPS):
                 for proc in range(tc.dev.P_NUMPRO):
-                    for mem in range(tc.dev.MASK_INSTANCES):
+                    for mem in range(tc.dev.mask_count(proc)):
                         if self.kernel_mem[group][proc][mem]:
                             self.kernel_mem[group][proc][mem].sort()
                             for (naddr, nval) in self.kernel_mem[group][proc][mem]:
-                                phys_addr = state.apb_base + tc.dev.C_GROUP_OFFS * group \
-                                    + tc.dev.C_MRAM_BASE + proc * tc.dev.MASK_OFFS * 16 \
-                                    + mem * 16 * tc.dev.MASK_WIDTH_SMALL \
-                                    // tc.dev.MASK_INSTANCES_EACH \
-                                    + naddr * 16
+                                if mem >= tc.dev.MASK_INSTANCES_EACH:
+                                    phys_addr = state.apb_base + tc.dev.C_GROUP_OFFS * group \
+                                        + tc.dev.C_MRAM_BASE + proc * tc.dev.MASK_OFFS * 16 \
+                                        + tc.dev.MASK_WIDTH_SMALL * 16 \
+                                        + (mem - tc.dev.MASK_INSTANCES_EACH) * 16 \
+                                        * (tc.dev.MASK_WIDTH_LARGE - tc.dev.MASK_WIDTH_SMALL) \
+                                        // tc.dev.MASK_INSTANCES_EACH \
+                                        + naddr * 16
+                                else:
+                                    phys_addr = state.apb_base + tc.dev.C_GROUP_OFFS * group \
+                                        + tc.dev.C_MRAM_BASE + proc * tc.dev.MASK_OFFS * 16 \
+                                        + mem * 16 \
+                                        * tc.dev.MASK_WIDTH_SMALL // tc.dev.MASK_INSTANCES_EACH \
+                                        + naddr * 16
                                 # Flush what we have, if anything
                                 if offs > 0 and phys_addr != addr + offs * 16:
                                     input_list.append((addr, val))
@@ -582,7 +591,7 @@ class APB():
                     self.write(addr+4, 0, no_verify=True)
                     self.write(addr+8, 0, no_verify=True)
                 self.write(addr+12, 0, no_verify=True)  # Execute write
-        if self.verify_writes or verify_only:
+        if not state.new_kernel_loader and (self.verify_writes or verify_only):
             self.verify(addr, k[0] & 0xff, api=True)
             if size != 1:
                 self.verify(addr+4, (k[1] & 0xff) << 24 | (k[2] & 0xff) << 16 |
@@ -869,7 +878,13 @@ class APB():
                                '    mask = *ptr++;\n'
                                '    len = *ptr++;\n'
                                '    for (i = 0; i < len; i++)\n'
-                               f'      if ((*addr++ & mask) != *ptr++) {action}\n'
+                               '      if ((*addr++ & mask) != *ptr++) {\n'
+                               '        printf("Data mismatch (%d/%d) at address 0x%08x: '
+                               'Expected 0x%08x, read 0x%08x.\\n",\n'
+                               '               i + 1, len, addr - 1, *(ptr - 1), '
+                               '*(addr - 1) & mask);\n'
+                               f'        {action}\n'
+                               '      }\n'
                                '  }\n')
 
         self.verify_listdata = []

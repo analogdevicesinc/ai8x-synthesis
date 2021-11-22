@@ -1,0 +1,15 @@
+# HWC (little data) configuration for CIFAR-10
+# Allow for readahead memory organization
+
+arch: test
+dataset: test_burnin-rand_64x64x64
+weights: weights_test_burnin-rand_64-64
+
+# Define layer parameters in order of the layer sequence
+layers:
+- pad: 1
+  activate: ReLU
+  out_offset: 0x4000
+  processors: 0xffffffffffffffff
+  data_format: HWC
+  op: Conv2d

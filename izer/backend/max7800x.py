@@ -802,13 +802,13 @@ class Backend(backend.Backend):
                 groups_used.append(group)
 
         if 0 not in groups_used:
-            eprint('Group 0 is not used, this is currently unsupported.')
+            eprint('Quadrant 0 is not used, this is currently unsupported.')
 
         for ll in range(first_layer_used, layers):
             if bias_group_map[ll] is not None:
                 for _, e in enumerate(bias_group_map[ll]):
                     if e not in groups_used:
-                        eprint(f'Layer {ll}: `bias_group` references the unused group {e}. '
+                        eprint(f'Layer {ll}: `bias_quadrant` references the unused quadrant {e}. '
                                f'Used x16 groups for this network are: {groups_used}.',
                                error=not ignore_bias_groups)
 
@@ -1021,14 +1021,18 @@ class Backend(backend.Backend):
                 print('-----------------')
 
             if tc.dev.REQUIRE_REG_CLEAR:
+                val = 0 if not tc.dev.SUPPORT_PIPELINE or pipeline else 1 << 5
                 for _, group in enumerate(groups_used):
-                    apb.write_ctl(group, tc.dev.REG_CTL, 1 << 3 | tc.dev.READY_SEL << 1,
+                    apb.write_ctl(group, tc.dev.REG_CTL, val | 1 << 3 | tc.dev.READY_SEL << 1,
                                   comment=' // Enable clocks', no_verify=True)
             # Reset
             apb.write_fifo_ctl(tc.dev.AON_CTL, tc.dev.AON_READY_SEL,
                                comment=' // AON control', force_write=True)
 
             if tc.dev.REQUIRE_REG_CLEAR:
+                for _, group in enumerate(groups_used):
+                    apb.write_ctl(group, tc.dev.REG_SRAM, 0x40e,
+                                  comment=' // SRAM control')
                 bist_clear = tc.dev.BIST_ZERO_BOTH_EX if any(b is not None for b in bias) \
                     else tc.dev.BIST_ZERO_EX
                 for _, group in enumerate(groups_used):
@@ -1068,11 +1072,14 @@ class Backend(backend.Backend):
                 val |= 1 << 3  # Enable clocks
                 if mexpress:
                     val |= 1 << 20
+                if tc.dev.SUPPORT_PIPELINE and not pipeline:
+                    val |= 1 << 5
                 apb.write_ctl(group, tc.dev.REG_CTL, val,
                               comment=' // Stop SM')
                 # SRAM Control - does not need to be changed
-                apb.write_ctl(group, tc.dev.REG_SRAM, 0x40e,
-                              comment=' // SRAM control')
+                if not tc.dev.REQUIRE_REG_CLEAR:
+                    apb.write_ctl(group, tc.dev.REG_SRAM, 0x40e,
+                                  comment=' // SRAM control')
                 # Number of layers and start layer
                 val = (repeat_layers * final_layer) | (start_layer << 8)
                 apb.write_ctl(group, tc.dev.REG_LCNT_MAX, val,
@@ -1181,7 +1188,7 @@ class Backend(backend.Backend):
                 print('\nGlobal configuration:')
                 print('---------------------')
                 print(f'Used processors     = 0x{processors_used:016x}')
-                print(f'Used groups         = {groups_used}')
+                print(f'Used quadrants      = {groups_used}')
                 if start_layer > 0:
                     print(f'Starting layer      = {start_layer}')
                 if any(s != i+1 and (s != -1 or i != final_layer)
@@ -1190,15 +1197,15 @@ class Backend(backend.Backend):
                           ', '.join(str(k) if k != -1 else 'stop' for k in next_sequence), ']',
                           sep='',)
 
-                print('\nPer-group configuration:')
-                print('-----------------------')
+                print('\nPer-quadrant configuration:')
+                print('---------------------------')
                 print(f'Used bias memory    = {group_bias_max}')
 
                 print('\nPer-layer configuration:')
                 print('------------------------')
                 if repeat_layers > 1:
                     print(f'Layer repeat count  = {repeat_layers}')
-                print(f'Group map           = {group_map}')
+                print(f'Quadrant map        = {group_map}')
 
                 print('Input offset        = [',
                       ', '.join('0x{:04x}'.format(k) if k is not None
@@ -1237,7 +1244,7 @@ class Backend(backend.Backend):
                                 else 'N/A' for k in output_processor_map), ']', sep='',)
                 print(f'Output data bits    = {output_width}')
 
-                print(f'Group with bias     = {bias_group}')
+                print(f'Quadrant with bias  = {bias_group}')
                 print(f'Bias offset         = {bias_offs}')
 
                 print('Output offset       = [',
@@ -1333,7 +1340,8 @@ class Backend(backend.Backend):
                                 )
 
                     for _, group in enumerate(groups_used):
-                        apb.output(f'  // Layer {r * layers + ll} group {group}\n', embedded_code)
+                        apb.output(f'  // Layer {r * layers + ll} quadrant {group}\n',
+                                   embedded_code)
 
                         val = 0
                         if link_layer:
@@ -1617,7 +1625,9 @@ class Backend(backend.Backend):
                         else:
                             in_exp = in_expand[ll] - 1
 
-                        assert in_exp < 2**4  # Cannot have more than 4 bits
+                        if in_exp >= 2**4:
+                            eprint(f'Layer {ll}: Input expansion of {in_exp+1} exceeds device '
+                                   f'limit of {2**4}.')
 
                         quant = abs(quantization[ll]) if not bypass[ll] else 8
                         val = (fls(output_processor_map[ll])
@@ -2362,6 +2372,8 @@ class Backend(backend.Backend):
                     val |= 1 << 6
             if snoop is not None:
                 val |= 1 << 7
+            if tc.dev.SUPPORT_PIPELINE and not pipeline:
+                val |= 1 << 5
 
             if embedded_code:
                 apb.function_footer()
@@ -2384,11 +2396,15 @@ class Backend(backend.Backend):
                     fval = 1 << 15
                 else:
                     fval = 0
-                if group != groups_used[0]:
-                    fval |= 0x01
-                apb.write_ctl(group, tc.dev.REG_CTL, val | 0x800 | rdy_sel << 1
+                if state.snoop_loop:
+                    fval |= 1 << 7  # apbclkena
+                else:
+                    if group != groups_used[0]:
+                        fval |= 0x01
+                    fval |= 1 << 11  # ext_sync
+                apb.write_ctl(group, tc.dev.REG_CTL, val | rdy_sel << 1
                               | fval | groups_used[0] << 9,
-                              comment=f' // Enable group {group}')
+                              comment=f' // Enable quadrant {group}')
 
             if powerdown:
                 unused_groups = [group for group in list(range(tc.dev.P_NUMGROUPS))
@@ -2398,6 +2414,48 @@ class Backend(backend.Backend):
                     val2 |= 1 << 12 + group
                 apb.write_fifo_ctl(tc.dev.AON_CTL, val2 | tc.dev.AON_READY_SEL,
                                    comment=' // AON control')
+
+            if state.snoop_loop:
+                for _, group in enumerate(groups_used):
+                    apb.output('\n', embedded_code)
+                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_NXTLYR, 0x80,
+                                   force_write=True, comment=' // Link Layer')
+                    apb.write_ctl(group, tc.dev.REG_SNP1_HIT, 0, force_write=True,
+                                  comment=' // Clear match hit accumulator')
+                    apb.write_ctl(group, tc.dev.REG_SNP1_A1, 0x00200000 | (out_offset[ll] >> 2),
+                                  force_write=True,
+                                  comment=' // Address snoop 1 register 1')
+                    apb.write_ctl(group, tc.dev.REG_SNP1_X1,
+                                  0x000084d0 if pipeline else 0x00002134, force_write=True,
+                                  comment=' // Snoop 1 match hit accumulator')
+                    apb.write_ctl(group, tc.dev.REG_SNP1_C2, 0x00004000, force_write=True,
+                                  comment=' // Snoop 1 control register 2')
+                    apb.write_ctl(group, tc.dev.REG_SNP1_C1, 0x8a412014, force_write=True,
+                                  comment=' // Snoop 1 control register 1')
+                    apb.write_ctl(group, tc.dev.REG_SNP1_C1, 0x8a412015, force_write=True,
+                                  comment=' // Snoop 1 control register 1')
+
+                apb.output('\n', embedded_code)
+                for _, group in enumerate(groups_used):
+                    # Turn on the FIFO for this group if it's being loaded
+                    if fifo and processor_map_0 & 0x0f << group * 16 != 0:
+                        fval = 1 << 15
+                        if fast_fifo:
+                            fval |= 1 << 22
+                        if fifo_group:
+                            fval |= 1 << 23
+                    elif fifo:
+                        fval = 1 << 15
+                    else:
+                        fval = 0
+                    fval |= (1 << 11) | (1 << 7)
+                    if group != groups_used[0]:
+                        fval |= 0x01
+
+                    apb.write_ctl(group, tc.dev.REG_CTL, val | rdy_sel << 1
+                                  | fval | groups_used[0] << 9,
+                                  comment=f' // Enable quadrant {group}')
+                apb.output('\n', embedded_code)
 
             if embedded_code:
                 apb.output('\n#ifdef CNN_INFERENCE_TIMER\n'
@@ -2413,8 +2471,10 @@ class Backend(backend.Backend):
                     val |= 1 << 22
                 if fifo_group:
                     val |= 1 << 23
+            if state.snoop_loop:
+                val |= 1 << 7
             apb.write_ctl(groups_used[0], tc.dev.REG_CTL, val | rdy_sel << 1 | 0x01,
-                          comment=f' // Master enable group {groups_used[0]}')
+                          comment=f' // Master enable quadrant {groups_used[0]}')
 
             if fifo:
                 # Load data memory

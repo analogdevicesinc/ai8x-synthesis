@@ -134,12 +134,14 @@ def header(
 
     if not lib and not cmsis_nn and main_code:
         if embedded_code or tc.dev.MODERN_SIM:
+            if state.measure_energy and tc.dev.REQUIRE_PMON_GPIO:
+                memfile.write('mxc_gpio_cfg_t gpio_trig1, gpio_trig2; // Port pins for PMON\n')
             memfile.write('volatile uint32_t cnn_time; // Stopwatch\n\n')
 
         if embedded_code:
             function_header(memfile, prefix='', function='fail', return_type='void')
 
-            if state.forever:
+            if state.forever or state.snoop_loop:
                 memfile.write('  mxc_gpio_cfg_t gpio_out;\n')
                 memfile.write('  gpio_out.port = MXC_GPIO2;\n')
                 memfile.write('  gpio_out.mask = MXC_GPIO_PIN_4;\n')
@@ -160,7 +162,7 @@ def header(
             else:
                 function_header(memfile, prefix='', function='CNN_IRQHandler',
                                 return_type='void __attribute__((interrupt("machine")))')
-            memfile.write('  // Acknowledge interrupt to all groups\n')
+            memfile.write('  // Acknowledge interrupt to all quadrants\n')
             for _, group in enumerate(groups):
                 addr = tc.dev.APB_BASE + tc.ctl_addr(group, tc.dev.REG_CTL)
                 if oneshot > 0 and not tc.dev.REQUIRE_ONESHOT_CLEAR:
@@ -191,12 +193,12 @@ def header(
         function_header(memfile, function='continue')
         memfile.write('  cnn_time = 0;\n\n'
                       f'  *((volatile uint32_t *) 0x{addr:08x}) |= 1; '
-                      f'// Re-enable group {master}\n')
+                      f'// Re-enable quadrant {master}\n')
         function_footer(memfile)  # continue()
 
         function_header(memfile, function='stop')
         memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ~1; '
-                      f'// Disable group {master}\n')
+                      f'// Disable quadrant {master}\n')
         function_footer(memfile)  # stop()
 
 
@@ -317,7 +319,7 @@ def main(
     function_header(memfile, prefix='', function='main')
     if clock_trim is not None and not riscv:
         memfile.write('  uint32_t trim;\n')
-    if embedded_code and softmax or oneshot > 0 or measure_energy:
+    if embedded_code and softmax or oneshot > 0 or measure_energy and not arm_code_wrapper:
         memfile.write('  int i;\n')
     if embedded_code and not forever and softmax:
         memfile.write('  int digs, tens;\n')
@@ -467,6 +469,19 @@ def main(
             else:
                 memfile.write('  MXC_ICC_Enable(MXC_ICC1); // Enable cache\n\n')
 
+    if main_code and measure_energy and tc.dev.REQUIRE_PMON_GPIO:
+        memfile.write('  // Configure port pins for PMON\n'
+                      '  gpio_trig1.port = MXC_GPIO1;\n'
+                      '  gpio_trig1.mask = MXC_GPIO_PIN_6;\n'
+                      '  gpio_trig1.pad = MXC_GPIO_PAD_NONE;\n'
+                      '  gpio_trig1.func = MXC_GPIO_FUNC_OUT;\n'
+                      '  MXC_GPIO_Config(&gpio_trig1);\n\n'
+                      '  gpio_trig2.port = MXC_GPIO1;\n'
+                      '  gpio_trig2.mask = MXC_GPIO_PIN_7;\n'
+                      '  gpio_trig2.pad = MXC_GPIO_PAD_NONE;\n'
+                      '  gpio_trig2.func = MXC_GPIO_FUNC_OUT;\n'
+                      '  MXC_GPIO_Config(&gpio_trig2);\n\n')
+
     if input_csv:
         memfile.write('  enable_pcif_clock(); // Enable camera clock\n')
         memfile.write('  set_pcif_gpio_altf();\n\n')
@@ -525,17 +540,18 @@ def main(
             mfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
             mfile.write(f'  MXC_{bbfc}->reg1 = 0x{mask:01x}; // Mask memory\n')
             mfile.write(f'  MXC_{bbfc}->reg0 = 0x{mask:01x}; // Power\n')
+            if embedded_code and state.enable_delay > 0:
+                mfile.write(f'  MXC_Delay(MSEC({state.enable_delay})); '
+                            '// Wait for load switches\n')
             mfile.write(f'  MXC_{bbfc}->reg2 = 0x{unmask:01x}; // Iso\n')
             mfile.write(f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n\n')
 
-            if embedded_code and state.enable_delay > 0:
-                mfile.write(f'  MXC_Delay(MSEC({state.enable_delay})); '
-                            '// Wait for load switches\n\n')
-
             if tc.dev.SUPPORT_PLL:
-                mfile.write('  if (clock_source == MXC_S_GCR_PCLKDIV_CNNCLKSEL_ITO)\n'
-                            '    while ((MXC_GCR->ito_ctrl & MXC_F_GCR_ITO_CTRL_RDY) '
-                            '!= MXC_F_GCR_ITO_CTRL_RDY) ; // Wait for PLL\n\n')
+                if embedded_code:
+                    mfile.write('  if (clock_source == MXC_S_GCR_PCLKDIV_CNNCLKSEL_ITO)\n  ')
+                if embedded_code or pll:
+                    mfile.write('  while ((MXC_GCR->ito_ctrl & MXC_F_GCR_ITO_CTRL_RDY) '
+                                '!= MXC_F_GCR_ITO_CTRL_RDY) ; // Wait for PLL\n\n')
 
             if embedded_code and apifile is not None:
                 mfile.write('  MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
@@ -612,7 +628,8 @@ def main(
             else:
                 memfile.write('  cnn_load_weights(); // Load kernels\n')
             if state.verify_kernels:
-                memfile.write('  if (cnn_verify_weights() != CNN_OK) fail();\n')
+                memfile.write('  if (cnn_verify_weights() != CNN_OK) fail();\n'
+                              '  printf("Weights verified successfully.\\n");\n')
             if bias:
                 memfile.write('  cnn_load_bias();\n')
             else:
@@ -712,7 +729,7 @@ def main(
             mfile.write('  gpio_out.pad = MXC_GPIO_PAD_NONE;\n')
             mfile.write('  gpio_out.func = MXC_GPIO_FUNC_OUT;\n')
             mfile.write('  MXC_GPIO_Config(&gpio_out);\n')
-            mfile.write('  MXC_GPIO_OutSet(gpio_out.port, gpio_out.mask);\n')
+            mfile.write('  MXC_GPIO_OutClr(gpio_out.port, gpio_out.mask);\n')
             function_footer(apifile)  # boost_disable()
 
         # pylint: disable=unsubscriptable-object

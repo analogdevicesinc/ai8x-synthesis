@@ -51,6 +51,7 @@ class Dev:
     EMULATE_1X1_STREAMING = True
     USE_PROCESSORS = True
     MODERN_SIM = False
+    REQUIRE_PMON_GPIO = False
 
     MAX_DILATION = 1
     MAX_DILATION_1D = 1
@@ -73,11 +74,23 @@ class Dev:
 
     DEFAULT_SWITCH_DELAY = 0
 
+    def mask_large(self, proc) -> bool:
+        """
+        Returns whether a given processor `proc` has large kernel memory (`True`/`False`).
+        """
+        return proc % self.P_NUMPRO == 0
+
     def mask_width(self, proc) -> int:
         """
         Returns the number of kernels (x9 bytes) for processor `proc`.
         """
-        return self.MASK_WIDTH_LARGE if proc % self.P_NUMPRO == 0 else self.MASK_WIDTH_SMALL
+        return self.MASK_WIDTH_LARGE if self.mask_large(proc) else self.MASK_WIDTH_SMALL
+
+    def mask_count(self, proc) -> int:
+        """
+        Returns the number of kernel memory instances for processor `proc`.
+        """
+        return self.MASK_INSTANCES if self.mask_large(proc) else self.MASK_INSTANCES_EACH
 
     def datainstance_from_offs(self, offs):
         """
@@ -480,6 +493,7 @@ class DevAI87(Dev):
     REQUIRE_ONESHOT_CLEAR = False
     REQUIRE_NEW_STREAMING = True
     REQUIRE_FIFO_CPL = False
+    REQUIRE_PMON_GPIO = True
 
     MAX_DILATION_1D = MAX_ROW_COL - 1
     MAX_POOL_DILATION = 2**4
