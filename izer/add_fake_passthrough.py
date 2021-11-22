@@ -9,6 +9,7 @@ Command line tool to add passthrough layer to a quantized model as identity Conv
 """
 import argparse
 import copy
+from collections import OrderedDict
 
 import torch
 import torch.nn as nn
@@ -50,20 +51,25 @@ def main():
     passthrough_kernel = passthrough_faker(args.layer_depth)
 
     new_checkpoint = copy.deepcopy(checkpoint)
-    new_checkpoint['state_dict'][f'{args.layer_name}.output_shift'] = torch.Tensor([1.]).to(device)
-    new_checkpoint['state_dict'][f'{args.layer_name}.weight_bits'] = torch.Tensor([8.]).to(device)
-    new_checkpoint['state_dict'][f'{args.layer_name}.bias_bits'] = torch.Tensor([8.]).to(device)
-    new_checkpoint['state_dict'][f'{args.layer_name}.quantize_activation'] = \
-        torch.Tensor([1.]).to(device)
-    new_checkpoint['state_dict'][f'{args.layer_name}.adjust_output_shift'] = \
-        torch.Tensor([0.]).to(device)
-    new_checkpoint['state_dict'][f'{args.layer_name}.shift_quantile'] = \
-        torch.Tensor([1.]).to(device)
-    new_checkpoint['state_dict'][f'{args.layer_name}.op.weight'] = \
-        passthrough_kernel.weight.data.to(device)
+
+    # remove `module.` prefix from the state dictionary keys if model is trained with GPU
+    # (see:https://discuss.pytorch.org/t/prefix-parameter-names-in-saved-model-if-trained-by-multi-
+    # gpu/494)
+    new_state_dict = OrderedDict()
+    for k, v in new_checkpoint['state_dict'].items():
+        name = k.replace("module.", '')
+        new_state_dict[name] = v
+
+    new_state_dict[f'{args.layer_name}.output_shift'] = torch.Tensor([1.]).to(device)
+    new_state_dict[f'{args.layer_name}.weight_bits'] = torch.Tensor([8.]).to(device)
+    new_state_dict[f'{args.layer_name}.bias_bits'] = torch.Tensor([8.]).to(device)
+    new_state_dict[f'{args.layer_name}.quantize_activation'] = torch.Tensor([1.]).to(device)
+    new_state_dict[f'{args.layer_name}.adjust_output_shift'] = torch.Tensor([0.]).to(device)
+    new_state_dict[f'{args.layer_name}.shift_quantile'] = torch.Tensor([1.]).to(device)
+    new_state_dict[f'{args.layer_name}.op.weight'] = passthrough_kernel.weight.data.to(device)
 
     move_layer = False
-    for key in list(new_checkpoint['state_dict'].keys()):
+    for key in list(new_state_dict.keys()):
         if not move_layer and key.startswith(args.layer_name_after_pt):
             move_layer = True
 
@@ -71,8 +77,9 @@ def main():
             move_layer = False
 
         if move_layer:
-            new_checkpoint['state_dict'].move_to_end(key)
+            new_state_dict.move_to_end(key)
 
+    new_checkpoint['state_dict'] = new_state_dict
     torch.save(new_checkpoint, args.output_checkpoint_path)
 
 
