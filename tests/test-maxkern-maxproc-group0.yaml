@@ -1,0 +1,67 @@
+---
+# Max kernels for AI87
+
+arch: test
+dataset: test_maxkern-maxproc-group0
+
+layers:
+- pad: 1
+  activate: None
+  out_offset: 0x2000
+  in_offset: 0x8000
+  processors: 0x0000000000000001
+  output_processors: 0x000000000000ffff
+  data_format: HWC
+  op: conv2d
+  write_gap: 3
+- pad: 1
+  activate: None
+  out_offset: 0x2004
+  in_offset: 0x8000
+  processors: 0x0000000000000001
+  output_processors: 0x000000000000ffff
+  data_format: HWC
+  op: conv2d
+  in_sequences: [-1]
+  write_gap: 3
+- pad: 1
+  activate: None
+  out_offset: 0x2008
+  in_offset: 0x8000
+  processors: 0x0000000000000001
+  output_processors: 0x000000000000ffff
+  data_format: HWC
+  op: conv2d
+  in_sequences: [-1]
+  write_gap: 3
+- pad: 1
+  activate: None
+  out_offset: 0x200C
+  in_offset: 0x8000
+  processors: 0x0000000000000001
+  data_format: HWC
+  op: conv2d
+  in_sequences: [-1]
+  write_gap: 3
+- pad: 1
+  activate: None
+  in_offset: 0x2000
+  out_offset: 0x0
+  processors: 0x000000000000ffff
+  op: conv2d
+  output_shift: -6
+  in_sequences: [0, 1, 2, 3]
+  operands: 4
+  eltwise: add
+- pad: 1
+  activate: None
+  out_offset: 0x4000
+  processors: 0x000000000000ffff
+  output_shift: -4
+  op: conv2d
+- pad: 1
+  activate: None
+  out_offset: 0x0
+  processors: 0x000000000000ffff
+  output_shift: -4
+  op: conv2d

@@ -49,6 +49,18 @@ def from_template(
     openocd = state.eclipse_openocd_args.replace('##__TARGET_LC__##', part)
     prefix = 'riscv-none-embed-' if state.riscv else 'arm-none-eabi-'
     elf_file = f'{test_name}-combined.elf' if state.riscv else f'{test_name}.elf'
+    if state.measure_energy and tc.dev.REQUIRE_PMON_GPIO:
+        pmon_gpio = 'extern mxc_gpio_cfg_t gpio_trig1, gpio_trig2;'
+        cnn_start = 'MXC_GPIO_OutSet(gpio_trig2.port, gpio_trig2.mask)'
+        cnn_complete = 'MXC_GPIO_OutClr(gpio_trig2.port, gpio_trig2.mask)'
+        sys_start = 'MXC_GPIO_OutSet(gpio_trig1.port, gpio_trig1.mask)'
+        sys_complete = 'MXC_GPIO_OutClr(gpio_trig1.port, gpio_trig1.mask)'
+    else:
+        pmon_gpio = ''
+        cnn_start = 'LED_On(1)'
+        cnn_complete = 'LED_Off(1)'
+        sys_start = 'LED_On(0)'
+        sys_complete = 'LED_Off(0)'
 
     basepath = os.path.join(base, source)
     for folderpath, _, files in sorted(os.walk(basepath)):
@@ -90,7 +102,12 @@ def from_template(
                             replace('##__ARM_DEFINES__##', state.defines_arm).
                             replace('##__DEFINES_RISCV__##', state.defines_riscv).
                             replace('##__RISC_DEFINES__##', state.defines_riscv).
-                            replace('##__ADDITIONAL_VARS__##', state.eclipse_variables)
+                            replace('##__ADDITIONAL_VARS__##', state.eclipse_variables).
+                            replace('##__PMON_GPIO_PINS__##', pmon_gpio).
+                            replace('##__CNN_START__##', cnn_start).
+                            replace('##__CNN_COMPLETE__##', cnn_complete).
+                            replace('##__SYS_START__##', sys_start).
+                            replace('##__SYS_COMPLETE__##', sys_complete)
                         )
             else:
                 shutil.copy(os.path.join(base, source, source_path),

@@ -236,16 +236,77 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             kern_count[0] = (kern_count[0] + 3) // 4
             kern_ochan[0] = (kern_ochan[0] + 3) // 4
 
-        def check_kernel_mem(ll: int, p: int, offs: int, length: int = None) -> None:
+        def check_kernel_mem(
+                ll: int,
+                p: int,
+                offs: int,
+                length: int = None,
+                error: bool = True,
+                reverse: bool = False,
+        ) -> bool:
             """Check that there is enough space at index `offs` for processor `p`"""
             assert tc.dev is not None
             if length is None:
                 length = kern_len[ll]
-            if offs + length > tc.dev.mask_width(p):
-                eprint(f'\nKernel memory exhausted at layer {ll}; offset: {offs}, '
-                       f'needed: {length}.\n\nKernel map so far:', exit_code=None)
-                print_map(layers, kernel_map, print_fn=eprint_noprefix)
-                sys.exit(1)
+            if reverse and offs < 0 or not reverse and offs + length > tc.dev.mask_width(p):
+                if error:
+                    eprint(f'\nKernel memory exhausted at layer {ll}, processor {p}; '
+                           f'offset: {offs} (0x{offs:04x}), needed: {length}.\n\n'
+                           'Kernel map so far:', exit_code=None)
+                    print_map(layers, kernel_map, print_fn=eprint_noprefix)
+                    sys.exit(1)
+                return False
+            return True
+
+        def search_kernel_mem(
+                ll: int,
+                offs: int,
+                first_proc: int,
+                last_proc: int,
+                proc_map: int,
+                reverse: bool = False,
+                error: bool = True,
+        ) -> int:
+            """Search kernel memory for free space"""
+            assert tc.dev is not None
+            p = first_proc
+            while p < last_proc+1:
+                if (proc_map >> p) & 1 == 0:
+                    # Skip unused processors
+                    p += 1
+                    continue
+
+                # Find the first free column for this processor
+                while kernel_map[p][offs] != _INVALID_VALUE:
+                    # Start at a multiple of 4 - round up to next multiple
+                    if not reverse:
+                        offs += tc.dev.P_SHARED
+                    else:
+                        offs -= tc.dev.P_SHARED
+                    if not check_kernel_mem(ll, p, offs, error=error, reverse=reverse):
+                        return -1
+
+                # For this processor, is there space for all kernels starting at
+                # column 'offs'?
+                start_range = offs - 1 if reverse else offs + 1
+                end_range = offs - kern_len[ll] if reverse else offs + kern_len[ll]
+                step_range = -1 if reverse else 1
+                for i in range(start_range, end_range, step_range):
+                    if kernel_map[p][i] != _INVALID_VALUE:
+                        # No, go to the next candidate
+                        # (at least one more than what we're looking at, rounded)
+                        if not reverse:
+                            offs = (i + 1 + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
+                        else:
+                            offs = (i - 1) & ~(tc.dev.P_SHARED-1)
+                        if not check_kernel_mem(ll, p, offs, error=error):
+                            return -1
+                        # Reset to start at first processor again
+                        p = first_proc - 1  # Subtract 1 since it's increased again below
+                        break
+                # Check next processor
+                p += 1
+            return offs
 
         # Find space for kernels
         if not state.greedy_kernel_allocator:
@@ -260,51 +321,50 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             # Initially, start looking at 0 and subsequently at the first available for the
             # previously examined processors. Stop looking at the highest used offset for all
             # processors.
-            search_col = (start_offs + tc.dev.P_SHARED - 1) & ~(tc.dev.P_SHARED - 1)
-            p = first_proc
-            while p < last_proc+1:
-                if (proc_map >> p) & 1 == 0:
-                    # Skip unused processors
-                    p += 1
-                    continue
 
-                # Find the first free column for this processor
-                while kernel_map[p][search_col] != _INVALID_VALUE:
-                    # Start at a multiple of 4 - round up to next multiple
-                    search_col += tc.dev.P_SHARED
-                    check_kernel_mem(ll, p, search_col)
+            search_col = -1  # Nothing found
+            if state.new_kernel_loader and not (ll > 0 and calcx4[ll] and not calcx4[ll-1]):
+                # Check whether all processors used have extended mask space
+                extended_masks = tc.dev.MASK_WIDTH_LARGE > tc.dev.MASK_WIDTH_SMALL  # Two sizes?
+                if extended_masks:
+                    for p in range(first_proc, last_proc+1):
+                        # Any used processors does not have the extended space
+                        if (proc_map >> p) & 1 == 1 and not tc.dev.mask_large(p):
+                            extended_masks = False
+                            break
 
-                # For this processor, is there space for all kernels starting at
-                # column 'search_col'?
-                for i in range(search_col + 1, search_col + kern_len[ll]):
-                    if kernel_map[p][i] != _INVALID_VALUE:
-                        # No, go to the next candidate
-                        # (at least one more than what we're looking at, rounded up)
-                        search_col = (i + 1 + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
-                        check_kernel_mem(ll, p, search_col)
-                        # Reset to start at first processor again
-                        p = first_proc - 1  # Subtract 1 since it's increased again below
-                        break
-                # Check next processor
-                p += 1
+                # Try the end of kernel memory first for processors with extended memory
+                if extended_masks:
+                    search_col = search_kernel_mem(ll, tc.dev.MASK_WIDTH_LARGE - 1,
+                                                   first_proc, last_proc, proc_map,
+                                                   reverse=True, error=False)
 
-            # All used processors have kernel_len space starting at this column
-            kern_offs[ll] = search_col
+            # If nothing found at the end of kernel memory, start search at the beginning
+            if search_col == -1:
+                search_col = (start_offs + tc.dev.P_SHARED - 1) & ~(tc.dev.P_SHARED - 1)
+                search_col = search_kernel_mem(ll, search_col, first_proc, last_proc, proc_map)
 
-        if ll > 0 and calcx4[ll] and not calcx4[ll-1]:
-            # FIXME: This is a quick workaround that should be properly addressed for mixed
-            # non-x4/x4 situations (most common: quad-fast-fifo input and calcx4 in the rest
-            # of the network)
-            kern_offs[ll] *= 4
+                # All used processors have kernel_len space starting at this column
+                kern_offs[ll] = search_col
 
-        # We don't have to use dummy columns if there's space available on the left
-        kern_offs[ll] = \
-            max(0, kern_offs[ll] - (((ffs(next_layer_map) % tc.dev.P_SHARED)
-                                     + qfactor - 1) // qfactor))
+                if ll > 0 and calcx4[ll] and not calcx4[ll-1]:
+                    # FIXME: This is a quick workaround that should be properly addressed for
+                    # mixed non-x4/x4 situations (most common: quad-fast-fifo input and calcx4
+                    # in the rest of the network)
+                    kern_offs[ll] *= 4
 
-        # The kernel offset needs to start at a multiple of 4 since we use start_col to
-        # adjust within the group of 4 processors.
-        kern_offs[ll] = (kern_offs[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
+                # We don't have to use dummy columns if there's space available on the left
+                if not state.new_kernel_loader:
+                    kern_offs[ll] = \
+                        max(0, kern_offs[ll] - (((ffs(next_layer_map) % tc.dev.P_SHARED)
+                                                + qfactor - 1) // qfactor))
+
+                kern_offs[ll] = (kern_offs[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1)
+            else:
+                search_col -= kern_len[ll] - 1
+                # All used processors have kernel_len space starting at this column
+                kern_offs[ll] = search_col
+                kern_offs[ll] = kern_offs[ll] & ~(tc.dev.P_SHARED-1)
 
         # Check for overflow
         check_kernel_mem(ll, last_proc, kern_offs[ll])
@@ -442,7 +502,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 col_target = add_kernel_data(ll, p, col_target, 0)
             if flatten[ll]:
                 kern_len[ll] = col_target
-            else:
+            elif not state.new_kernel_loader:
                 kern_len[ll] = col_target - start_col
             proc_kern_max[p] = kern_offs[ll] + kern_len[ll]
             if ll == 0 and quad:
@@ -456,26 +516,85 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         print('\nKernel map:')
         print_map(layers, kernel_map)
 
+    if state.new_kernel_loader:
+        apb.output('static const uint32_t kernels[] = KERNELS;\n\n', api)
+
     if verify:
+        if state.new_kernel_loader:
+            apb.function_header(prefix='', function='mexpress_byte', return_type='static uint8_t',
+                                arguments='const uint32_t **addr, uint32_t *val, int *avail')
+            apb.output(
+                '  if (*avail == 0) {\n'
+                '    *val = *(*addr)++;\n'
+                '    *avail = 4;\n'
+                '  }\n',
+                api,
+            )
+            apb.function_footer(return_value='(*val >> (--(*avail) * 8)) & 0xff')  # mexpress_byte
         apb.function_header(function='verify_weights')
-        # Write in-line
-        for p in range(tc.dev.MAX_PROC):
-            for col in range(0, tc.dev.mask_width(p)):
-                ll = kernel_map[p][col]
-                if ll != _INVALID_VALUE:
-                    apb.write_kern(ll, p, col, kernel_data[p][col],
-                                   verify_only=verify, calc_x4=calcx4[ll],
-                                   kern_offs=kern_offs,
-                                   count=in_expand[ll] * output_chan[ll] * 9
-                                   * abs(quantization[ll])
-                                   // (kernel_size[ll][0] * kernel_size[ll][1] * 8))
+        if state.new_kernel_loader:
+            apb.output(
+                '  uint32_t len, data, val;\n'
+                '  volatile uint32_t *addr, *ptr;\n'
+                '  const uint32_t *compare = kernels;\n'
+                '  int av;\n\n'
+                '  while ((addr = (volatile uint32_t *) *compare++) != 0) {\n'
+                '    len = (*compare++ * 4) / 9;\n'
+                '    ptr = (volatile uint32_t *)(((uint32_t)addr & 0xffff0000) | '
+                '(((uint32_t)addr & 0xffff) << 2));\n'
+                '    av = 0;\n'
+                '    val = 0;\n\n'
+                '    while (len-- > 0) {\n'
+                '      data = mexpress_byte(&compare, &val, &av);\n'
+                '      if (*ptr++ != data) {\n'
+                '        printf("Addr[0]: %08x, read: %08x, expected: %08x\\n", ptr-1, '
+                '*(ptr-1), data);\n'
+                '        return CNN_FAIL;\n'
+                '      }\n'
+                '      data = mexpress_byte(&compare, &val, &av) << 24 | '
+                'mexpress_byte(&compare, &val, &av) << 16\n'
+                '           | mexpress_byte(&compare, &val, &av) << 8 | '
+                'mexpress_byte(&compare, &val, &av);\n'
+                '      if (*ptr++ != data) {\n'
+                '        printf("Addr[1]: %08x, read: %08x, expected: %08x\\n", ptr-1, '
+                '*(ptr-1), data);\n'
+                '        return CNN_FAIL;\n'
+                '      }\n'
+                '      data = mexpress_byte(&compare, &val, &av) << 24 | '
+                'mexpress_byte(&compare, &val, &av) << 16\n'
+                '           | mexpress_byte(&compare, &val, &av) << 8 | '
+                'mexpress_byte(&compare, &val, &av);\n'
+                '      if (*ptr++ != data) {\n'
+                '        printf("Addr[2]: %08x, read: %08x, expected: %08x\\n", ptr-1, '
+                '*(ptr-1), data);\n'
+                '        return CNN_FAIL;\n'
+                '      }\n'
+                '      if (*ptr++ != 0) {\n'
+                '        printf("Addr[3]: %08x, read: %08x, expected: 00000000\\n", ptr-1, '
+                '*(ptr-1));\n'
+                '        return CNN_FAIL;\n'
+                '      }\n'
+                '    }\n'
+                '  }\n',
+                api,
+            )
+        else:
+            # Write in-line
+            for p in range(tc.dev.MAX_PROC):
+                for col in range(0, tc.dev.mask_width(p)):
+                    ll = kernel_map[p][col]
+                    if ll != _INVALID_VALUE:
+                        apb.write_kern(ll, p, col, kernel_data[p][col],
+                                       verify_only=verify, calc_x4=calcx4[ll],
+                                       kern_offs=kern_offs,
+                                       count=in_expand[ll] * output_chan[ll] * 9
+                                       * abs(quantization[ll])
+                                       // (kernel_size[ll][0] * kernel_size[ll][1] * 8))
         apb.function_footer()  # verify_weights()
 
     if state.new_kernel_loader or not (embedded_code or mexpress) or any(calcx4):
-        if state.new_kernel_loader:
-            apb.output('static const uint32_t kernels[] = KERNELS;\n\n', api)
         apb.function_header(function='load_weights')
-        # Write in-line
+        # Write (or store) in-line
         for p in range(tc.dev.MAX_PROC):
             for col in range(0, tc.dev.mask_width(p)):
                 ll = kernel_map[p][col]
