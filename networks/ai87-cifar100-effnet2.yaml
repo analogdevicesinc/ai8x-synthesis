@@ -1,7 +1,7 @@
 # HWC (little data) configuration for CIFAR-100
 # EfficientNet v.2 Model
 
-arch: ai85effnetv2_n
+arch: ai87effnetv2
 dataset: CIFAR100
 
 layers:
