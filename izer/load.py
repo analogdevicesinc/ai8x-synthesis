@@ -287,7 +287,7 @@ def load(
             c += num_ch
 
         apb.write_byte_flush(0)
-        if c >= chan:
+        if c >= in_expand_thresh * in_expand:
             # Consumed all available channels
             break
 
