@@ -113,9 +113,8 @@ def load(
                            'Ensure the BatchNorm layers have been folded.',
                            error=not state.ignore_bn)
                     continue
-                else:
-                    eprint('The checkpoint file contains 1-dimensional weights for '
-                           f'`{layer}.{this_op}.{parameter}` with dimensions {w.shape}.')
+                eprint('The checkpoint file contains 1-dimensional weights for '
+                        f'`{layer}.{this_op}.{parameter}` with dimensions {w.shape}.')
 
             # Determine quantization or make sure that what was given fits
             if quantization[seq] is not None:
