@@ -263,6 +263,8 @@ def get_parser() -> argparse.Namespace:
                        help="insert snoop loop (default: False)")
     group.add_argument('--ignore-hw-limits', action='store_true', default=False,
                        help="ignore certain hardware limits (default: False)")
+    group.add_argument('--ignore-bn', action='store_true', default=False,
+                       help="ignore BatchNorm weights in checkpoint file (default: False)")
     group.add_argument('--no-greedy-kernel', action='store_false', dest='greedy_kernel_allocator',
                        default=True,
                        help="do not use greedy kernel memory allocator (default: use)")
@@ -536,6 +538,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.generate_kat = args.generate_kat
     state.greedy_kernel_allocator = args.greedy_kernel_allocator
     state.ignore_bias_groups = args.ignore_bias_groups
+    state.ignore_bn = args.ignore_bn
     state.ignore_hw_limits = args.ignore_hw_limits
     state.increase_delta1 = args.increase_delta1
     state.increase_delta2 = args.increase_delta2
