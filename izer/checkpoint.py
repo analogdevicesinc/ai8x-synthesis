@@ -114,7 +114,7 @@ def load(
                            error=not state.ignore_bn)
                     continue
                 eprint('The checkpoint file contains 1-dimensional weights for '
-                        f'`{layer}.{this_op}.{parameter}` with dimensions {w.shape}.')
+                       f'`{layer}.{this_op}.{parameter}` with dimensions {w.shape}.')
 
             # Determine quantization or make sure that what was given fits
             if quantization[seq] is not None:
