@@ -12,8 +12,7 @@ import sys
 import numpy as np
 import torch
 
-# Do not import state - it is not set yet
-from . import op
+from . import op, state
 from . import tornadocnn as tc
 from .eprint import eprint, wprint
 from .utils import fls
@@ -107,6 +106,16 @@ def load(
             if np.all(w == 0):
                 wprint(f'All weights for `{k}` are zero.')
 
+            if len(w.shape) == 1:
+                if this_op == 'bn':
+                    eprint('The checkpoint file contains 1-dimensional weights for '
+                           f'`{layer}.{this_op}.{parameter}` with dimensions {w.shape}. '
+                           'Ensure the BatchNorm layers have been folded.',
+                           error=not state.ignore_bn)
+                    continue
+                eprint('The checkpoint file contains 1-dimensional weights for '
+                       f'`{layer}.{this_op}.{parameter}` with dimensions {w.shape}.')
+
             # Determine quantization or make sure that what was given fits
             if quantization[seq] is not None:
                 if quantization[seq] == -1:
@@ -188,6 +197,10 @@ def load(
             if bias_name in checkpoint_state and seq not in no_bias:
                 wb = checkpoint_state[wb_name].numpy().astype(np.int64) \
                      if wb_name in checkpoint_state else 8
+
+                if wb == 0:  # In case the weights are all zero
+                    wb = 8
+
                 # Use floating point division and rounding to integer to deal with checkpoint
                 # files that are not properly quantized. The bias values in quantized checkpoints
                 # are multiples of 128, so there will be no rounding for those checkpoints.
@@ -244,7 +257,7 @@ def load(
         print(f'Checkpoint for epoch {checkpoint["epoch"]}, model {checkpoint_arch} - '
               'weight and bias data:')
         print(' InCh OutCh  Weights         Quant Shift  Min  Max   Size '
-              'Key                                 Bias       Quant  Min  Max Size Key')
+              'Key                                       Bias       Quant  Min  Max Size Key')
         for ll in range(layers):
             if ll < len(weights) and weights[ll] is not None:
                 weight_shape = str(weights[ll].shape)
@@ -260,7 +273,7 @@ def load(
                       f'{weight_shape:15} '
                       f'{quant[ll]:5} {output_shift_shape:5} '
                       f'{weight_min[ll]:4} {weight_max[ll]:4} {weight_size[ll]:6} '
-                      f'{weight_keys[ll]:35} '
+                      f'{weight_keys[ll]:41} '
                       f'{bias_shape:10} '
                       f'{bias_quant[ll]:5} {bias_min[ll]:4} {bias_max[ll]:4} {bias_size[ll]:4} '
                       f'{bias_keys[ll]:25}')

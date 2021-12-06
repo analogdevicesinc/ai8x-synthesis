@@ -61,6 +61,7 @@ forever: bool = False
 generate_kat: bool = True
 greedy_kernel_allocator: bool = True
 ignore_bias_groups: bool = False
+ignore_bn: bool = False
 ignore_hw_limits: bool = False
 in_offset: List[int] = []
 in_sequences: List[Any] = []
