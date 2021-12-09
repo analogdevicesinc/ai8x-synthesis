@@ -1,6 +1,6 @@
 # Windows Subsystem for Linux (WSL2)
 
-*December 8, 2021*
+*December 9, 2021*
 
 Windows Subsystem for Linux 2 allows model training under Ubuntu Linux with CUDA hardware acceleration, with full compatibility to the vast number of machine learning tools that are primarily developed on Linux.
 
@@ -83,9 +83,7 @@ The WSL2 file system should be used for all actions such as creating git reposit
 * While WSL2 is running, the WSL2 file system can be accessed *from Windows* using the network path `\\wsl$\Ubuntu`, for example using Windows Explorer. This path can also be mapped as a network drive.
   *Note: If Ubuntu 20.04 was installed from the Windows store, the network path might instead be* `\\wsl$\Ubuntu-20.04`.
 
-  
-
-![explorer](explorer.png)
+<img src="explorer.png" alt="explorer" style="zoom:50%;" />
 
 The user home is typically at `\\wsl$\Ubuntu\home\<name>\`.
 

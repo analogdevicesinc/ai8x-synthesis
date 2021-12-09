@@ -20,7 +20,7 @@ def eprint(*args, error=True, notice=False, prefix=True, exit_code=1, **kwargs):
     if prefix:
         pfx = 'ERROR:' if error else 'WARNING:' if not notice else 'NOTICE:'
 
-        if sys.stdout != sys.__stdout__:
+        if sys.stdout != sys.__stdout__ and os.name != 'nt':
             print(pfx, *args, **kwargs)
 
         ansi_on = colorama.Fore.RED if error else colorama.Fore.YELLOW \
@@ -29,7 +29,7 @@ def eprint(*args, error=True, notice=False, prefix=True, exit_code=1, **kwargs):
 
         print(pfx, *args, file=sys.stderr, **kwargs)
     else:
-        if sys.stdout != sys.__stdout__:
+        if sys.stdout != sys.__stdout__ and os.name != 'nt':
             print(*args, **kwargs)
 
         print(*args, file=sys.stderr, **kwargs)
