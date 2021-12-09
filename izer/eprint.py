@@ -7,6 +7,7 @@
 """
 Print error message to stderr, and stdout as well if needed
 """
+import os
 import sys
 
 import colorama
