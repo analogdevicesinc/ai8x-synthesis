@@ -7,10 +7,11 @@
 """
 Print error message to stderr, and stdout as well if needed
 """
-import os
 import sys
 
 import colorama
+
+from . import state
 
 
 def eprint(*args, error=True, notice=False, prefix=True, exit_code=1, **kwargs):
@@ -21,7 +22,7 @@ def eprint(*args, error=True, notice=False, prefix=True, exit_code=1, **kwargs):
     if prefix:
         pfx = 'ERROR:' if error else 'WARNING:' if not notice else 'NOTICE:'
 
-        if sys.stdout != sys.__stdout__ and os.name != 'nt':
+        if not state.output_is_console:
             print(pfx, *args, **kwargs)
 
         ansi_on = colorama.Fore.RED if error else colorama.Fore.YELLOW \
@@ -30,7 +31,7 @@ def eprint(*args, error=True, notice=False, prefix=True, exit_code=1, **kwargs):
 
         print(pfx, *args, file=sys.stderr, **kwargs)
     else:
-        if sys.stdout != sys.__stdout__ and os.name != 'nt':
+        if not state.output_is_console:
             print(*args, **kwargs)
 
         print(*args, file=sys.stderr, **kwargs)
