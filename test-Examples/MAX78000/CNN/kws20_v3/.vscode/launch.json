@@ -1,0 +1,36 @@
+{
+    "configurations": [
+        {
+            "name": "GDB",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/${config:prog_file}",
+            "args": [],
+            "stopAtEntry": true,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "linux": {
+                "miDebuggerPath": "${config:MAXIM_PATH}/Tools/GNUTools/bin/arm-none-eabi-gdb"
+            },
+            "windows": {
+                "miDebuggerPath": "${config:MAXIM_PATH}/Tools/GNUTools/bin/arm-none-eabi-gdb.exe"
+            },
+            "miDebuggerArgs": "./build/${config:prog_file}",
+            "preLaunchTask": "flash",
+            "setupCommands": [
+                {
+                    "description": "Launch OpenOCD from within GDB via pipe connection",
+                    "text": "target remote | openocd -c \"gdb_port pipe;log_output openocd.log\" -s ${config:MAXIM_PATH}/Tools/OpenOCD/scripts -f interface/${config:OCD_interface_file} -f target/${config:OCD_target_file}",
+                    "ignoreFailures": false
+                },
+                {
+                    "description": "Reset",
+                    "text": "monitor reset halt",
+                    "ignoreFailures": false
+                }
+            ]
+        }
+    ]
+}
