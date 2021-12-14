@@ -84,8 +84,10 @@ def from_template(
                     name[len(template):].replace('##__PROJ_NAME__##', test_name),
                 )
                 with open(
-                    os.path.join(base, source, source_path)
-                ) as infile, open(dst, 'w+') as outfile:
+                    os.path.join(base, source, source_path),
+                    mode='r',
+                    encoding='utf-8',
+                ) as infile, open(dst, mode='w+', encoding='utf-8') as outfile:
                     for line in infile:
                         outfile.write(
                             line.replace('##__PROJ_NAME__##', test_name).

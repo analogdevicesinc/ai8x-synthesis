@@ -29,7 +29,7 @@ class UniqueKeyLoader(yaml.Loader):
         if not isinstance(node, yaml.MappingNode):
             raise yaml.constructor.ConstructorError(
                 None, None,
-                "Expected a mapping node, but found %s" % node.id,
+                f"Expected a mapping node, but found {node.id}",
                 node.start_mark
             )
 
@@ -73,13 +73,13 @@ def parse(
 
     # Run yamllint first
     yaml_config = yamllint.config.YamlLintConfig('extends: relaxed')
-    with open(config_file) as cfg_file:
+    with open(config_file, mode='r', encoding='utf-8') as cfg_file:
         for p in yamllint.linter.run(cfg_file, yaml_config):
             eprint(f'{config_file} line {p.line}, col {p.column}: {p.desc}',
                    error=p.level == 'error')
 
     # Load configuration file
-    with open(config_file) as cfg_file:
+    with open(config_file, mode='r', encoding='utf-8') as cfg_file:
         cfg = yaml.load(cfg_file, Loader=UniqueKeyLoader)
 
     cfg_set = set(cfg) - set(['bias', 'dataset', 'layers',

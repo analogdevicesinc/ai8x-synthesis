@@ -129,7 +129,8 @@ class APB():
                             with open(
                                 os.path.join(target_dir,
                                              f'DRAM_x16_{group}_proc_{proc*4}_ram_{mem}.dat'),
-                                mode='w'
+                                mode='w',
+                                encoding='utf-8',
                             ) as f:
                                 for (addr, val) in self.data_mem[group][proc][mem]:
                                     f.write(f'@{addr:04x} {val}\n')
@@ -229,7 +230,8 @@ class APB():
                             with open(
                                 os.path.join(target_dir,
                                              f'MRAM_x16_{group}_proc_{proc}_ram_{mem}.dat'),
-                                mode='w'
+                                mode='w',
+                                encoding='utf-8',
                             ) as f:
                                 for (addr, val) in self.kernel_mem[group][proc][mem]:
                                     f.write(f'@{addr:04x} {val}\n')
@@ -250,7 +252,8 @@ class APB():
                             with open(
                                 os.path.join(target_dir,
                                              f'DRAM_x16_{group}_proc_{proc*4}_ram_{mem}.dat'),
-                                mode='w'
+                                mode='w',
+                                encoding='utf-8',
                             ) as f:
                                 for (addr, val) in self.output_data_mem[group][proc][mem]:
                                     f.write(f'@{addr:04x} {val}\n')
