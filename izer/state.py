@@ -7,7 +7,7 @@
 """
 Configuration state for backends.
 """
-from typing import Any, List, TextIO, Optional
+from typing import Any, List, Optional, TextIO
 
 # These are the raw global state variables, initialized to None, False, 0, [], or their defaults.
 # Defaults must not depend on any other module such as tc.
