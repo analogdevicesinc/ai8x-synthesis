@@ -125,7 +125,7 @@ def vscode(
     v_paths: str = "",
 ):
     """
-    Generate vscode project files from a template, and places
+    Generates vscode project files from a template, and places
     the contents of the template folder `assets/vscode` in `out_stem/out_branch`.
     Optional arguments will load from the global state unless overridden.
 
@@ -180,13 +180,11 @@ def vscode(
 
     if state.defines_arm != "":
         # Split & append Arm defines
-        for d in state.defines_arm.split(" "):
-            tmp.append(d)
+        tmp += state.defines_arm.split(" ")
 
     if state.riscv and state.defines_riscv != "":
         # Split & append risc-v defines
-        for d in state.defines_arm.split(" "):
-            tmp.append(d)
+        tmp += state.defines_arm.split(" ")
 
     tmp = list(map(lambda s: s.strip("-D"), tmp))  # VS Code doesn't want -D
     tmp = list(map("\"{0}\"".format, tmp))  # Surround with quotes
@@ -229,8 +227,8 @@ def vscode(
 
                 # There is a template file to copy.  Perform string substitution in output file.
                 out_loc = os.path.join(out_path, file[len(template_prefix):])
-                with open(os.path.join(directory, file)) as in_file, \
-                        open(out_loc, "w+") as out_file:
+                with open(os.path.join(directory, file), mode='r', encoding='utf-8') as in_file, \
+                        open(out_loc, 'w+', encoding='utf-8') as out_file:
                     for line in in_file.readlines():
                         out_file.write(
                             line.replace("##__TARGET_UC__##", part_num.upper()).
