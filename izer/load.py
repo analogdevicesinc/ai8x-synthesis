@@ -601,7 +601,7 @@ def loadcsv(
 
         apb.output('}\n\n')
 
-        with open(csv_file, mode='w') as f:
+        with open(csv_file, mode='w', encoding='utf-8') as f:
             camera.header(f)
 
             if camera_format == 888:

@@ -7,7 +7,7 @@
 """
 Configuration state for backends.
 """
-from typing import Any, List, Optional
+from typing import Any, List, Optional, TextIO
 
 # These are the raw global state variables, initialized to None, False, 0, [], or their defaults.
 # Defaults must not depend on any other module such as tc.
@@ -34,6 +34,7 @@ conv_groups: List[int] = []
 data: Any = None
 debug_computation: bool = False
 debug_latency: bool = False
+debug_log: Optional[TextIO] = None
 debug_new_streaming: bool = False
 debug_snoop: bool = False
 debug_wait: int = 1
