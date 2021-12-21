@@ -52,7 +52,7 @@ def convert_checkpoint(input_file, output_file, arguments):
         if 'compression_sched' in checkpoint else None
 
     if arguments.verbose:
-        print("\nModel keys (state_dict):\n{}".format(", ".join(list(checkpoint_state.keys()))))
+        print(f"\nModel keys (state_dict):\n{', '.join(list(checkpoint_state.keys()))}")
 
     new_checkpoint_state = checkpoint_state.copy()
     new_compression_sched = compression_sched.copy() if compression_sched is not None else {}

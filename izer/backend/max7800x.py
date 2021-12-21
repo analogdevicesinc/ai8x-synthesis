@@ -679,7 +679,12 @@ class Backend(backend.Backend):
 
         # Redirect stdout?
         if log:
-            sys.stdout = open(os.path.join(base_directory, test_name, log_filename), 'w')
+            state.output_is_console = False
+            sys.stdout = open(
+                os.path.join(base_directory, test_name, log_filename),
+                mode='w',
+                encoding='utf-8',
+            )
             print(f'{" ".join(str(x) for x in sys.argv)}')
             print(f'{tc.dev.partnum}\n')
             print(f'{test_name}')
@@ -690,17 +695,29 @@ class Backend(backend.Backend):
             filename = c_filename + ('_riscv' if riscv else '') + '.c'
         if not block_mode and (embedded_code or compact_data):
             sampledata_header = \
-                open(os.path.join(base_directory, test_name, state.sample_filename), mode='w')
+                open(
+                    os.path.join(base_directory, test_name, state.sample_filename),
+                    mode='w',
+                    encoding='utf-8',
+                )
             if state.generate_kat and state.result_filename is not None:
                 sampleoutput_header = \
-                    open(os.path.join(base_directory, test_name, state.result_filename), mode='w')
+                    open(
+                        os.path.join(base_directory, test_name, state.result_filename),
+                        mode='w',
+                        encoding='utf-8',
+                    )
             else:
                 sampleoutput_header = None
         else:
             sampledata_header = sampleoutput_header = None
         if not block_mode and (embedded_code or compact_weights):
             weight_header = \
-                open(os.path.join(base_directory, test_name, weight_filename), mode='w')
+                open(
+                    os.path.join(base_directory, test_name, weight_filename),
+                    mode='w',
+                    encoding='utf-8',
+                )
         else:
             weight_header = None
 
@@ -814,7 +831,11 @@ class Backend(backend.Backend):
 
         # Create ARM code wrapper if needed
         if riscv and not block_mode:
-            with open(os.path.join(base_directory, test_name, c_filename + '.c'), mode='w') as f:
+            with open(
+                os.path.join(base_directory, test_name, c_filename + '.c'),
+                mode='w',
+                encoding='utf-8',
+            ) as f:
                 apb = apbaccess.apbwriter(
                     f,
                     master=False,
@@ -837,11 +858,16 @@ class Backend(backend.Backend):
             csv = None
 
         if embedded_code and api_filename.lower() != 'none':
-            apifile = open(os.path.join(base_directory, test_name, api_filename), mode='w')
+            apifile = open(
+                os.path.join(base_directory, test_name, api_filename),
+                mode='w',
+                encoding='utf-8',
+            )
         else:
             apifile = None
 
-        with open(os.path.join(base_directory, test_name, filename), mode='w') as memfile:
+        with open(os.path.join(base_directory, test_name, filename), mode='w',
+                  encoding='utf-8') as memfile:
             apb = apbaccess.apbwriter(
                 memfile,
                 verify_writes=verify_writes,
@@ -1208,7 +1234,7 @@ class Backend(backend.Backend):
                 print(f'Quadrant map        = {group_map}')
 
                 print('Input offset        = [',
-                      ', '.join('0x{:04x}'.format(k) if k is not None
+                      ', '.join(f'0x{k:04x}' if k is not None
                                 else 'N/A' for k in in_offset), ']', sep='',)
                 print(f'Streaming           = {streaming}')
                 print(f'Input channels      = {input_chan}')
@@ -1228,7 +1254,7 @@ class Backend(backend.Backend):
                 print(f'Pooled dimensions   = {pooled_dim}')
 
                 print('Processor map       = [',
-                      ', '.join('0x{:016x}'.format(k) for k in processor_map), ']', sep='',)
+                      ', '.join(f'0x{k:016x}' for k in processor_map), ']', sep='',)
 
                 print('Element-wise op     = [',
                       ', '.join(op.string(k, elt=True) for k in eltwise), ']', sep='',)
@@ -1240,7 +1266,7 @@ class Backend(backend.Backend):
                 print(f'Expansion threshold = {out_expand_thresh}')
                 print(f'Output shift        = {output_shift}')
                 print('Output processors   = [',
-                      ', '.join('0x{:016x}'.format(k) if k is not None
+                      ', '.join(f'0x{k:016x}' if k is not None
                                 else 'N/A' for k in output_processor_map), ']', sep='',)
                 print(f'Output data bits    = {output_width}')
 
@@ -1248,7 +1274,7 @@ class Backend(backend.Backend):
                 print(f'Bias offset         = {bias_offs}')
 
                 print('Output offset       = [',
-                      ', '.join('0x{:04x}'.format(k) for k in out_offset), ']', sep='',)
+                      ', '.join(f'0x{k:04x}' for k in out_offset), ']', sep='',)
 
                 print('Operator            = [',
                       ', '.join(op.string(k) for k in operator), ']', sep='',)
@@ -2777,7 +2803,7 @@ class Backend(backend.Backend):
             try:
                 if filename:
                     memfile = open(os.path.join(base_directory, test_name, filename),
-                                   mode=filemode)
+                                   mode=filemode, encoding='utf-8')
                 else:
                     memfile = None
                 apb.set_memfile(memfile)
@@ -2810,7 +2836,7 @@ class Backend(backend.Backend):
                     if log_intermediate:
                         filename2 = f'{output_filename}-{ll}.mem'  # Intermediate output
                         memfile2 = open(os.path.join(base_directory, test_name, filename2),
-                                        mode='w')
+                                        mode='w', encoding='utf-8')
                         apb2 = apbaccess.apbwriter(
                             memfile2,
                             verify_writes=False,
@@ -2907,7 +2933,8 @@ class Backend(backend.Backend):
         data = data_buf[-1]
 
         if not block_mode:
-            with open(os.path.join(base_directory, test_name, filename), mode=filemode) as memfile:
+            with open(os.path.join(base_directory, test_name, filename), mode=filemode,
+                      encoding='utf-8') as memfile:
                 apb.set_memfile(memfile)
 
                 if state.softmax or embedded_code and state.unload:

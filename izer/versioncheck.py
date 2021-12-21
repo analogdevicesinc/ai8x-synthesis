@@ -88,7 +88,7 @@ def get_last_check(
             print('No prior version checks (file does not exist)')
         return 0
 
-    with open(version_file, mode="r") as f:
+    with open(version_file, mode='r', encoding='utf-8') as f:
         s = f.readline()
 
     try:
@@ -111,5 +111,5 @@ def set_last_check(
 
     version_file = os.path.join(folder, VERSION_CHECK_FILE)
 
-    with open(version_file, mode="w") as f:
+    with open(version_file, mode='w', encoding='utf-8') as f:
         f.write(str(time))

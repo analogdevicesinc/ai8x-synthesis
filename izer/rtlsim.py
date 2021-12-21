@@ -32,8 +32,11 @@ def create_runtest_sv(
     # Cache for faster access
     result_output = state.result_output
 
-    with open(os.path.join(state.base_directory, test_name,
-                           state.runtest_filename), mode='w') as runfile:
+    with open(
+        os.path.join(state.base_directory, test_name, state.runtest_filename),
+        mode='w',
+        encoding='utf-8',
+    ) as runfile:
         if state.block_mode:
             runfile.write('// Check default register values.\n')
             runfile.write('// Write all registers.\n')
@@ -297,7 +300,7 @@ def append_regression(
         testname = f'tests/{top_level}/{test_name}/run_test:{queue_name}'
     found = False
     try:
-        with open(os.path.join(autogen_dir, autogen_list), mode='r') as listfile:
+        with open(os.path.join(autogen_dir, autogen_list), mode='r', encoding='utf-8') as listfile:
             for line in listfile:
                 if testname in line:
                     found = True
@@ -305,5 +308,5 @@ def append_regression(
     except FileNotFoundError:
         pass
     if not found:
-        with open(os.path.join(autogen_dir, autogen_list), mode='a') as listfile:
+        with open(os.path.join(autogen_dir, autogen_list), mode='a', encoding='utf-8') as listfile:
             listfile.write(f'{testname}\n')
