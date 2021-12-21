@@ -10,7 +10,7 @@
                 "${config:MAXIM_PATH}/Libraries/CMSIS/Device/Maxim/${config:target}/Include",
                 "${config:MAXIM_PATH}/Libraries/CMSIS/Include",
                 "${config:MAXIM_PATH}/Tools/GNUTools/arm-none-eabi/include",
-                "${config:MAXIM_PATH}/Tools/GNUTools/lib/gcc/arm-none-eabi/9.2.1/include",
+                "${config:MAXIM_PATH}/Tools/GNUTools/lib/gcc/arm-none-eabi/${config:v_libgcc}/include",
                 "##__ADDITIONAL_INCLUDES__##"
             ],
             "defines": [
@@ -38,7 +38,7 @@
                 "${config:MAXIM_PATH}/Libraries/CMSIS/Device/Maxim/${config:target}/Include",
                 "${config:MAXIM_PATH}/Libraries/CMSIS/Include",
                 "${config:MAXIM_PATH}/Tools/GNUTools/arm-none-eabi/include",
-                "${config:MAXIM_PATH}/Tools/GNUTools/lib/gcc/arm-none-eabi/9.2.1/include",
+                "${config:MAXIM_PATH}/Tools/GNUTools/lib/gcc/arm-none-eabi/${config:v_libgcc}/include",
                 "##__ADDITIONAL_INCLUDES__##"
             ],
             "defines": [

@@ -19,5 +19,7 @@
 
     "OCD_interface_file":"##__OCD_INTERFACE__##",
 
-    "OCD_target_file":"##__TARGET_LC__##"
+    "OCD_target_file":"##__TARGET_LC__##",
+
+    "v_libgcc": "9.2.1"
 }
