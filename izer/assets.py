@@ -191,18 +191,18 @@ def vscode(
         tmp += state.defines_arm.split(" ")
 
     tmp = list(map(lambda s: s.strip("-D"), tmp))  # VS Code doesn't want -D
-    tmp = list(map("\"{0}\"".format, tmp))  # Surround with quotes
+    tmp = list(map(lambda s: f"\"{s}\"", tmp))  # Surround with quotes
     defines_parsed = ",\n\t\t\t\t".join(tmp)  # csv, newline, and tab alignment
     # ---
 
     # Parse include paths...
     tmp = i_paths.split(" ")  # Space-separated
-    tmp = list(map("\"{0}\"".format, tmp))  # Surround with quotes
+    tmp = list(map(lambda s: f"\"{s}\"", tmp))  # Surround with quotes
     i_paths_parsed = ",\n\t\t\t\t".join(tmp)  # csv, newline, and tab alignment
 
     # Parse browse paths...
     tmp = v_paths.split(" ")  # Space-separated
-    tmp = list(map("\"{0}\"".format, tmp))  # Surround with quotes
+    tmp = list(map(lambda s: f"\"{s}\"", tmp))  # Surround with quotes
     v_paths_parsed = ",\n\t\t\t\t\t".join(tmp)  # csv, newline, and tab alignment
 
     # Create template...
