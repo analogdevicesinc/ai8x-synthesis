@@ -130,7 +130,7 @@ def load(
     initializers = {t.name for t in model.graph.initializer}
     for _, node in enumerate(model.graph.node):
 
-        if node.op_type == 'Conv' or node.op_type == 'Gemm':
+        if node.op_type in ('Conv', 'Gemm'):
             _inputs, _outputs = get_inouts(node)
             for _input in _inputs:
                 w = process_channels(model, _input, initializers)

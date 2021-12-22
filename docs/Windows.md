@@ -63,6 +63,16 @@ Next, add a new environment variable that points to the location of git.exe. In 
 
 <img src="new-variable.png" alt="new-variable" style="zoom:67%;" />
 
+It is also possible that if git was installed for just the local user (usually when installed without admin rights), git may be in the user’s `AppData` folder instead of `Program Files`:
+
+    C:\Users\<username>\AppData\Local\Programs\Git\cmd
+
+By default, Windows hides folders such as the user’s AppData folder as “hidden items”. In order to view these files, hidden items need to be [enabled in the File Explorer](https://support.microsoft.com/en-us/windows/view-hidden-files-and-folders-in-windows-97fbc472-c603-9d90-91d0-1166d1d9f4b5).
+
+If git was installed in the `AppData` folder, the environment variable should look as follows:
+
+<img src="appdata_var.png" alt="new-variable"/>
+
 
 
 ## MAX78000 Training and Synthesis Repositories
