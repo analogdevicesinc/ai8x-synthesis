@@ -31,6 +31,7 @@ def load(
         processor_map,
         output_processor_map,
         out_expand,
+        out_expand_thresh,
         groups_used,
         flatten,
 ):
@@ -45,8 +46,8 @@ def load(
     calcx4 = state.calcx4
     start_layer = state.first_layer_used
 
-    if embedded_code:
-        bias_values = np.zeros((tc.dev.P_NUMGROUPS, tc.dev.BIAS_SIZE), dtype=np.int64)
+    # Initialize with known value
+    bias_values = np.full((tc.dev.P_NUMGROUPS, tc.dev.BIAS_SIZE), _INVALID_VALUE, dtype=np.int64)
 
     if not embedded_code:
         apb.function_header(function='load_bias')
@@ -95,11 +96,8 @@ def load(
                        f'used so far: {group_bias_max[group]}.')
 
             if val is not None and val != _INVALID_VALUE:  # else just consume the space
-                if not embedded_code:
-                    apb.write_bias(group, group_bias_max[group], val & 0xff)
-                else:
-                    # Store for later
-                    bias_values[group][group_bias_max[group]] = val & 0xff
+                # Store for later
+                bias_values[group][group_bias_max[group]] = val & 0xff
             group_bias_max[group] += 1
 
         used_groups = 0
@@ -134,14 +132,16 @@ def load(
             return (p & ~0x0f) + (p % 4) * 4 + (p % 16) // 4 if bc_mode else p
 
         start_proc = ffs(map_used)
-        last_proc = max(rearrange_processor(fls(map_used), broadcast_mode[ll]), fls(map_used))
+        last_proc = fls(map_used)
+        if broadcast_mode[ll]:
+            last_proc = ((last_proc + 16) & ~0x0f) - 1
         if broadcast_mode[ll] or used_groups > 1:
             # Pad out to allow for parallel read from the 8-bit memories
             start_proc &= ~(2**tc.dev.P_NUMPRO - 1)
 
         # Break bias into multiple passes
         bias_pad = bias[ll].copy()
-        leftover = (out_expand[ll] - len(bias_pad) % out_expand[ll]) % out_expand[ll]
+        leftover = out_expand[ll] * out_expand_thresh[ll] - len(bias_pad)
         if leftover != 0:
             # Odd length with leftover unused values
             bias_pad = np.append(bias_pad, np.array([_INVALID_VALUE] * leftover))
@@ -156,7 +156,7 @@ def load(
         # Start inserting from the left so the `proc` index will match the bias array
         # Skip last_proc since we already know it is used (do not skip start since it could be
         # unused)
-        for proc in range(start_proc, last_proc):
+        for proc in range(start_proc, last_proc + 1):
             if map_used >> proc & 1 == 0:
                 bias_pad = np.insert(bias_pad, proc,
                                      np.array([_INVALID_VALUE] * out_expand[ll]), axis=1)
@@ -167,9 +167,11 @@ def load(
                 src = rearrange_processor(p, broadcast_mode[ll])
                 val = bias_pad[expand][src - start_proc] \
                     if src - start_proc < bias_pad.shape[1] else None
-                # Add value, even if it's None (except the very tail end)
-                if expand < out_expand[ll] - 1 or p <= last_proc - leftover:
-                    bias_add_byte(ll, group, val)
+                # Add value, even if it's None
+                bias_add_byte(ll, group, val)
+        while (group_bias_max[group] > 0
+               and bias_values[group][group_bias_max[group] - 1] == _INVALID_VALUE):
+            group_bias_max[group] -= 1
 
     # For regular convolutions, bias allocation is a version of the off-line bin packing problem
 
@@ -226,20 +228,20 @@ def load(
         i = 0
         if ll == 0 and streaming[ll] and not tc.dev.SUPPORT_STREAM_BIAS:
             # Work around a problem on AI85
-            if not embedded_code:
-                apb.write_bias(group, bias_offs[ll][group], 0)
-            else:
-                # Store for later
-                bias_values[group][bias_offs[ll][group]] = 0
+            # Store for later
+            bias_values[group][bias_offs[ll][group]] = 0
             target_offs += 1
         while i < output_chan[ll]:
-            if not embedded_code:
-                apb.write_bias(group, bias_offs[ll][group] + target_offs, bias[ll][i] & 0xff)
-            else:
-                # Store for later
-                bias_values[group][bias_offs[ll][group] + target_offs] = bias[ll][i] & 0xff
+            # Store for later
+            bias_values[group][bias_offs[ll][group] + target_offs] = bias[ll][i] & 0xff
             i += 1
             target_offs += 1
+
+    # Replace placeholders with zero
+    for group in range(tc.dev.P_NUMGROUPS):
+        for i in range(group_bias_max[group]):
+            if bias_values[group][i] == _INVALID_VALUE:
+                bias_values[group][i] = 0
 
     if embedded_code:
         if max(group_bias_max) > 0:
@@ -272,6 +274,12 @@ def load(
         else:
             apb.function_header(function='load_bias')
             apb.output('  // Not used in this network', embedded_code)
+    else:
+        for group in range(tc.dev.P_NUMGROUPS):
+            if group_bias_max[group] == 0:
+                continue  # Nothing in this group
+            for i in range(group_bias_max[group]):
+                apb.write_bias(group, i, bias_values[group][i])
 
     apb.function_footer()  # load_bias()
 

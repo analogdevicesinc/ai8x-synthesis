@@ -1,0 +1,17 @@
+---
+# Test depthwise convolution
+
+arch: test
+dataset: test_depthwise-pool
+bias: depthwise-pool
+
+layers:
+- out_offset: 0x4000
+  processors: 0xffff.ffff.ffff.ff00
+  output_processors: 0x00ff.ffff.ffff.ffff
+  operation: conv2d
+  kernel_size: 1x1
+  pad: 0
+  groups: 111
+  max_pool: 3
+  pool_stride: 2

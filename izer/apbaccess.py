@@ -294,7 +294,7 @@ class APB():
             no_verify=False,
             fifo=None,
             base=None,
-    ):  # pylint: disable=unused-argument
+    ):
         """
         Write address `addr` and data `val` to the output file.
         if `no_verify` is `True`, do not check the result of the write operation, even if
@@ -332,7 +332,7 @@ class APB():
             rv=False,
             api=False,
             data=False,
-    ):  # pylint: disable=unused-argument
+    ):
         """
         Verify that memory at address `addr` contains data `val`.
         """
@@ -735,9 +735,9 @@ class APB():
 
     def softmax_layer(  # pylint: disable=no-self-use
             self,
-            *args,
-            **kwargs,
-    ):  # pylint: disable=unused-argument
+            *args,  # pylint: disable=unused-argument
+            **kwargs,  # pylint: disable=unused-argument
+    ):
         """
         Write the call to the fully connected layer for the given `weights` and
         `bias`. The `bias` argument can be `None`.
