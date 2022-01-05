@@ -3019,7 +3019,7 @@ class Backend(backend.Backend):
             assets.from_template('assets', 'eclipse', base_directory, test_name, board_name)
 
             if not riscv:
-                # As of 12-8-2021 the combined elf format used in the RISC-V projects
+                # FIXME: As of 12-8-2021 the combined elf format used in the RISC-V projects
                 # is not compatible with OpenOCD flashing.
                 # Skip VSCode generation for RISC-V projects until this is resolved.
                 assets.vscode(
