@@ -724,7 +724,7 @@ class Backend(backend.Backend):
         # Calculate the groups needed, and groups and processors used overall
         processors_used = 0
         group_map = [None] * layers
-        broadcast_mode = [None] * layers
+        broadcast_mode = [False] * layers
         emulate_eltwise = [False] * layers
         for ll in range(first_layer_used, layers):
             bits = processor_map[ll]
@@ -790,13 +790,12 @@ class Backend(backend.Backend):
                     eprint(f'Layer {ll} is a depth-wise convolution. When spanning groups, '
                            'processors must be aligned to a multiple of 4. Configured for this '
                            f'layer: {processor_map[ll]:016x}.')
-                if processor_map[ll] != output_processor_map[ll]:
+                if processor_map[ll] == output_processor_map[ll]:
+                    broadcast_mode[ll] = True
+                else:
                     wprint(f'Layer {ll}: depth-wise convolution moves data across processors. '
                            f'This has a performance impact. Input {processor_map[ll]:016x}, '
                            f'output {output_processor_map[ll]:016x}.')
-                    broadcast_mode[ll] = False
-                else:
-                    broadcast_mode[ll] = True
 
             # Block certain element-wise operations when not using passthrough mode
             if tc.dev.EMULATE_ELTWISE_MP and operands[ll] > 1 and in_expand[ll] > 1 \
@@ -1004,6 +1003,7 @@ class Backend(backend.Backend):
                     processor_map,
                     output_processor_map,
                     out_expand,
+                    out_expand_thresh,
                     list(set().union(groups_used)),
                     flatten,
                 )
@@ -1206,6 +1206,7 @@ class Backend(backend.Backend):
                     processor_map,
                     output_processor_map,
                     out_expand,
+                    out_expand_thresh,
                     list(set().union(groups_used)),
                     flatten,
                 )
