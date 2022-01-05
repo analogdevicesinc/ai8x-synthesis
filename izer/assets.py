@@ -116,3 +116,160 @@ def from_template(
             else:
                 shutil.copy(os.path.join(base, source, source_path),
                             os.path.join(target, test_path))
+
+
+def vscode(
+    out_stem: str,
+    out_branch: str,
+    part_num: str = "",
+    board: str = "",
+    elf_file: str = "",
+    defines: str = "",
+    i_paths: str = "",
+    v_paths: str = "",
+):
+    """
+    Generates vscode project files from a template, and places
+    the contents of the template folder `assets/vscode` in `out_stem/out_branch`.
+    Optional arguments will load from the global state unless overridden.
+
+    Parameters:
+        out_stem:  Output root directory.
+        out_branch:  Output sub-directory.
+        (optional) part_num:  Target part number.  Ex: MAX78000
+        (optional) board:  Target board, case sensitive.  Ex:  EvKit_V1, FTHR_RevA, etc.
+        (optional) elf_file:  Sets the name of the output file.  Ex:  hello_world.elf
+        (optional) i_paths:  Space-separated include paths the C/C++ parser should use.
+        (optional) defines:  Space-separated compiler definitions the C/C++ parser should use.
+        (optional) v_paths:  Space-separated additional browse paths the C/C++ parser should use.
+
+    Returns:
+        Nothing
+    """
+
+    template_dir = os.path.join("assets", "vscode")  # Where to find the VS Code template directory
+    template_prefix = "template"  # Filenames beginning with this will have substitution
+
+    # Load defaults from global state...
+    # ---
+    if part_num == "":
+        assert tc.dev is not None
+        part_num = tc.dev.partnum
+
+    if board == "":
+        board = state.board_name
+
+    if elf_file == "":
+        if state.riscv:
+            # RISC-V projects will look for ...-combined.elf
+            elf_file = "${config:proj_name}-combined.elf"
+        else:
+            # Default is project name (which defaults to folder name in template)
+            elf_file = "${config:proj_name}.elf"
+
+    if defines == "":
+        defines = state.defines
+
+    if i_paths == "":
+        i_paths = state.eclipse_includes  # TODO: rename state var to 'includes'?
+
+    if v_paths == "":
+        pass  # TODO: Support adding browse paths on command line
+    # ---
+
+    tmp = []  # Work-horse list, linter be nice
+    # Parse defines...
+    # ---
+    tmp = defines.split(" ")
+
+    if state.defines_arm != "":
+        # Split & append Arm defines
+        tmp += state.defines_arm.split(" ")
+
+    if state.riscv and state.defines_riscv != "":
+        # Split & append risc-v defines
+        tmp += state.defines_arm.split(" ")
+
+    tmp = list(map(lambda s: s.strip("-D"), tmp))  # VS Code doesn't want -D
+    tmp = list(map(lambda s: f"\"{s}\"", tmp))  # Surround with quotes
+    defines_parsed = ",\n\t\t\t\t".join(tmp)  # csv, newline, and tab alignment
+    # ---
+
+    # Parse include paths...
+    tmp = i_paths.split(" ")  # Space-separated
+    tmp = list(map(lambda s: f"\"{s}\"", tmp))  # Surround with quotes
+    i_paths_parsed = ",\n\t\t\t\t".join(tmp)  # csv, newline, and tab alignment
+
+    # Parse browse paths...
+    tmp = v_paths.split(" ")  # Space-separated
+    tmp = list(map(lambda s: f"\"{s}\"", tmp))  # Surround with quotes
+    v_paths_parsed = ",\n\t\t\t\t\t".join(tmp)  # csv, newline, and tab alignment
+
+    # Create template...
+    for directory, _, files in sorted(os.walk(template_dir)):
+        # ^ For each directory in the directory tree rooted at top (including top itself,
+        # but excluding '.' and '..'), yields a 3-tuple (dirpath, dirnames, filenames)
+
+        # Get current directory relative to root
+        rel_dir = os.path.relpath(directory, template_dir)
+
+        # Figure out whether we're in a subfolder of the template directory,
+        # and form output path accordingly.
+        out_path = ""
+        if rel_dir != '.':
+            # We're in a sub-folder.  Replicate this folder in the output directory
+            out_path = os.path.join(os.path.join(out_stem, out_branch), rel_dir)
+            os.makedirs(out_path, exist_ok=True)
+        else:
+            # We're in the root template folder.
+            out_path = os.path.join(out_stem, out_branch)
+
+        # Any files to copy?
+        for file in sorted(files):
+
+            if file.startswith(template_prefix):
+
+                # There is a template file to copy.  Perform string substitution in output file.
+                out_loc = os.path.join(out_path, file[len(template_prefix):])
+                with open(os.path.join(directory, file), mode='r', encoding='utf-8') as in_file, \
+                        open(out_loc, 'w+', encoding='utf-8') as out_file:
+                    for line in in_file.readlines():
+                        out_file.write(
+                            line.replace("##__TARGET_UC__##", part_num.upper()).
+                            replace("##__TARGET_LC__##", f"{part_num.lower()}.cfg").
+                            replace("##__BOARD__##", board).
+                            replace("##__ELF_FILE__##", elf_file).
+                            replace("##__OCD_INTERFACE__##", "cmsis-dap.cfg").
+                            replace("\"##__ADDITIONAL_INCLUDES__##\"", i_paths_parsed).
+                            replace("\"##__DEFINES__##\"", defines_parsed).
+                            replace("\"##__ADDITIONAL_SOURCES__##\"", v_paths_parsed)
+                        )
+
+                        # Template notes:
+                        # The template replacements should only have to touch
+                        # 'settings.json'.  The other .vscode files should load from
+                        # settings.json unless there's an extreme circumstance requiring a
+                        # hard over-write.
+
+                        # - ##__TARGET_UC__## Sets the target micro.  This needs to be uppercase,
+                        # since the SDK file-paths use uppercase
+                        # - ##__TARGET_LC__## Sets the target OCD config file.  This needs to be
+                        # lowercase, since the .cfg files are lowercase in the SDK
+                        # - ##__BOARD__## Sets the target board.  This needs to exist in the BSP
+                        # directory of the SDK and is case-sensitive.
+                        # Ex:  EvKit_V1, FTHR_RevA, etc.
+                        # - ##__ELF_FILE__## sets the output filename.  Include the .elf extension.
+                        # - ##__OCD_INTERFACE__## Sets the OCD interface file to use.
+                        # Defaults to cmsis-dap.cfg
+                        # - ##__ADDITIONAL_INCLUDES__## sets additional include paths for C/C++
+                        # parser.  This should be comma + new-line separated.
+                        # - ##__DEFINES__## sets compiler definitions used by the C/C++ parser.
+                        # This should be comma + new-line separated.  This has no effect on the
+                        # build system, it's just for intellisense.
+                        # - ##__ADDITIONAL_SOURCES__## sets additional browse paths for C/C++
+                        # parser (ie. where to find .c files).  Again, no effect on build system,
+                        # just for intellisense.  This should be comma + new-line separated.
+
+            else:
+                # There is a non-template file to copy
+                shutil.copy(os.path.join(directory, file), out_path)

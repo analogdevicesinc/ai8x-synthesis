@@ -3018,7 +3018,17 @@ class Backend(backend.Backend):
                 assets.from_template('assets', 'embedded-ai' + str(device), base_directory,
                                      test_name, board_name)
             assets.from_template('assets', 'eclipse', base_directory, test_name, board_name)
-            assets.from_template('assets', 'vscode', base_directory, test_name, board_name)
+
+            if not riscv:
+                # FIXME: As of 12-8-2021 the combined elf format used in the RISC-V projects
+                # is not compatible with OpenOCD flashing.
+                # Skip VSCode generation for RISC-V projects until this is resolved.
+                assets.vscode(
+                    base_directory,
+                    test_name,
+                    board=board_name
+                )  # Create VS Code project template
+
             assets.from_template('assets', 'device-all', base_directory,
                                  test_name, board_name, insert=insert)
             assets.from_template('assets', 'device-ai' + str(device), base_directory,
