@@ -914,6 +914,9 @@ class Backend(backend.Backend):
                                f'{"streaming " if streaming[ll] else ""}{flatten_str}'
                                f'{"CHW data)" if big_data[ll] else "HWC data)"}, ',
                                embedded_code)
+                    if not pool_first[ll] and operands[ll] > 1:
+                        apb.output(f'{operands[ll]}-element {op.string(eltwise[ll], elt=True)}, ',
+                                   embedded_code)
                     if pool[ll][0] > 1 or pool[ll][1] > 1:
                         apb.output(f'{"avg" if pool_average[ll] else "max"} pool {pool_str[ll]} '
                                    f'with stride {pool_stride_str[ll]}', embedded_code)
@@ -921,6 +924,9 @@ class Backend(backend.Backend):
                             apb.output(f' and dilation {pool_dilation_str[ll]}', embedded_code)
                     else:
                         apb.output('no pooling', embedded_code)
+                    if pool_first[ll] and operands[ll] > 1:
+                        apb.output(f', {operands[ll]}-element {op.string(eltwise[ll], elt=True)}',
+                                   embedded_code)
                     if hw_operator[ll] != op.NONE:
                         conv_str = f', {op.string(operator[ll])} with kernel size ' \
                                    f'{kernel_size_str[ll]}, ' \
