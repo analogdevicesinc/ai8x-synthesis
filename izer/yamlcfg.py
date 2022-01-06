@@ -154,7 +154,7 @@ def parse(
                                  'next_sequence', 'snoop_sequence', 'simulated_sequence',
                                  'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
                                  'bias_group', 'bias_quadrant', 'calcx4', 'readahead',
-                                 'pool_dilation', 'output_pad', 'tcalc'])
+                                 'pool_dilation', 'output_pad', 'tcalc', 'read_gap'])
         if bool(cfg_set):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`: '
                    f'{cfg_set}.')
@@ -240,8 +240,9 @@ def parse(
             if isinstance(ll['in_dim'], list) and len(ll['in_dim']) > 2:
                 error_exit('`in_dim` must not exceed two dimensions', sequence)
             input_dim[sequence] = ll['in_dim']
-        if 'in_skip' in ll:
-            input_skip[sequence] = ll['in_skip']
+        if 'in_skip' in ll or 'read_gap' in ll:
+            key = 'in_skip' if 'in_skip' in ll else 'read_gap'
+            input_skip[sequence] = ll[key]
         if 'in_channel_skip' in ll:
             input_chan_skip[sequence] = ll['in_channel_skip']
         if 'in_offset' in ll:
