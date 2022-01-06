@@ -12,7 +12,7 @@ import yamllint
 import yamllint.config
 import yamllint.linter
 
-from . import devices, op
+from . import devices, op, state
 from . import tornadocnn as tc
 from .eprint import eprint, wprint
 
@@ -264,6 +264,8 @@ def parse(
                 activation[sequence] = None
             else:
                 error_exit(f'Unknown value "{ll[key]}" for `{key}`', sequence)
+            if state.ignore_activation:
+                activation[sequence] = None
 
         if 'convolution' in ll or 'operation' in ll or 'op' in ll or 'operator' in ll:
             key = 'convolution' if 'convolution' in ll else \
