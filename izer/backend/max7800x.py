@@ -902,7 +902,9 @@ class Backend(backend.Backend):
 
             # Human readable description of test
             apb.output(f'// Configuring {repeat_layers * layers} '
-                       f'layer{"s" if repeat_layers * layers > 1 else ""}:\n', embedded_code)
+                       f'layer{"s" if repeat_layers * layers > 1 else ""}\n'
+                       f'// Input data: {"CHW" if big_data[first_layer_used] else "HWC"}\n',
+                       embedded_code)
 
             for r in range(repeat_layers):
                 for ll in range(first_layer_used, layers):
@@ -910,9 +912,8 @@ class Backend(backend.Backend):
                         f"flattened to {input_chan[ll]*input_dim[ll][0]*input_dim[ll][1]}x1x1, "
                     apb.output(f'// Layer {r * layers + ll}: '
                                f'{str(operands[ll])+"x" if operands[ll] > 1 else ""}'
-                               f'{input_chan[ll]}x{input_dim_str[ll]} ('
-                               f'{"streaming " if streaming[ll] else ""}{flatten_str}'
-                               f'{"CHW data)" if big_data[ll] else "HWC data)"}, ',
+                               f'{input_chan[ll]}x{input_dim_str[ll]}'
+                               f'{"streaming " if streaming[ll] else ""}{flatten_str}, ',
                                embedded_code)
                     if not pool_first[ll] and operands[ll] > 1:
                         apb.output(f'{operands[ll]}-element {op.string(eltwise[ll], elt=True)}, ',
