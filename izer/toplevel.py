@@ -115,7 +115,7 @@ def header(
                       '#include "pcif.c"\n')
     if embedded_code:
         memfile.write('#include "cnn.h"\n')
-    elif tc.dev.SUPPORT_PLL:
+    elif not embedded_arm and tc.dev.SUPPORT_PLL:
         memfile.write('#define ipll_ctrl ito_ctrl\n'
                       '#define MXC_F_GCR_IPLL_CTRL_EN MXC_F_GCR_ITO_CTRL_EN\n'
                       '#define MXC_F_GCR_IPLL_CTRL_RDY MXC_F_GCR_ITO_CTRL_RDY\n'
