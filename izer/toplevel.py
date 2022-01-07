@@ -563,6 +563,8 @@ def main(
                 mfile.write('  MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
                             '~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | MXC_F_GCR_PCLKDIV_CNNCLKSEL))\n'
                             '                     | clock_divider | clock_source;\n')
+            elif pll:
+                select_clock(mfile, 'IPLL', 'DIV1', 'CNN clock: PLL div 1')
             else:
                 select_clock(mfile, 'PCLK', 'DIV1', 'CNN clock: APB div 1')
 
