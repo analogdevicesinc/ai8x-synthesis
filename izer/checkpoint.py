@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -257,7 +257,7 @@ def load(
         print(f'Checkpoint for epoch {checkpoint["epoch"]}, model {checkpoint_arch} - '
               'weight and bias data:')
         print(' InCh OutCh  Weights         Quant Shift  Min  Max   Size '
-              'Key                                       Bias       Quant  Min  Max Size Key')
+              'Key                                       Bias       Quant  Min  Max  Size Key')
         for ll in range(layers):
             if ll < len(weights) and weights[ll] is not None:
                 weight_shape = str(weights[ll].shape)
@@ -272,7 +272,7 @@ def load(
                 print(f'{input_channels[ll]:5} {output_channels[ll]:5}  '
                       f'{weight_shape:15} '
                       f'{quant[ll]:5} {output_shift_shape:5} '
-                      f'{weight_min[ll]:4} {weight_max[ll]:4} {weight_size[ll]:6} '
+                      f'{weight_min[ll]:4} {weight_max[ll]:4} {weight_size[ll]:7} '
                       f'{weight_keys[ll]:41} '
                       f'{bias_shape:10} '
                       f'{bias_quant[ll]:5} {bias_min[ll]:4} {bias_max[ll]:4} {bias_size[ll]:4} '

@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -902,7 +902,9 @@ class Backend(backend.Backend):
 
             # Human readable description of test
             apb.output(f'// Configuring {repeat_layers * layers} '
-                       f'layer{"s" if repeat_layers * layers > 1 else ""}:\n', embedded_code)
+                       f'layer{"s" if repeat_layers * layers > 1 else ""}\n'
+                       f'// Input data: {"CHW" if big_data[first_layer_used] else "HWC"}\n',
+                       embedded_code)
 
             for r in range(repeat_layers):
                 for ll in range(first_layer_used, layers):
@@ -910,10 +912,12 @@ class Backend(backend.Backend):
                         f"flattened to {input_chan[ll]*input_dim[ll][0]*input_dim[ll][1]}x1x1, "
                     apb.output(f'// Layer {r * layers + ll}: '
                                f'{str(operands[ll])+"x" if operands[ll] > 1 else ""}'
-                               f'{input_chan[ll]}x{input_dim_str[ll]} ('
-                               f'{"streaming " if streaming[ll] else ""}{flatten_str}'
-                               f'{"CHW data)" if big_data[ll] else "HWC data)"}, ',
+                               f'{input_chan[ll]}x{input_dim_str[ll]}'
+                               f'{"streaming " if streaming[ll] else ""}{flatten_str}, ',
                                embedded_code)
+                    if not pool_first[ll] and operands[ll] > 1:
+                        apb.output(f'{operands[ll]}-element {op.string(eltwise[ll], elt=True)}, ',
+                                   embedded_code)
                     if pool[ll][0] > 1 or pool[ll][1] > 1:
                         apb.output(f'{"avg" if pool_average[ll] else "max"} pool {pool_str[ll]} '
                                    f'with stride {pool_stride_str[ll]}', embedded_code)
@@ -921,6 +925,9 @@ class Backend(backend.Backend):
                             apb.output(f' and dilation {pool_dilation_str[ll]}', embedded_code)
                     else:
                         apb.output('no pooling', embedded_code)
+                    if pool_first[ll] and operands[ll] > 1:
+                        apb.output(f', {operands[ll]}-element {op.string(eltwise[ll], elt=True)}',
+                                   embedded_code)
                     if hw_operator[ll] != op.NONE:
                         conv_str = f', {op.string(operator[ll])} with kernel size ' \
                                    f'{kernel_size_str[ll]}, ' \
