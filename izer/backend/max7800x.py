@@ -690,7 +690,7 @@ class Backend(backend.Backend):
             if not overwrite:
                 eprint('The target folder', target_dir, 'exists. Use --overwrite to proceed.')
             else:
-                wprint('--overwrite specified, writing to', target_dir, 'even though it exists.')
+                nprint('--overwrite specified, writing to', target_dir, 'even though it exists.')
 
         # Redirect stdout?
         if log:
