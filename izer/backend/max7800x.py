@@ -452,6 +452,16 @@ class Backend(backend.Backend):
                     eprint(f'Layer {ll}: This device does not support padded Conv1d with input '
                            'expansion > 1.', error=not state.ignore_hw_limits)
 
+            if operator[ll] == op.NONE and next_sequence[ll] != -1 \
+               and operator[next_sequence[ll]] == op.NONE:
+                nprint(f'Layer {ll}: Passthrough layer {next_sequence[ll]} follows passthrough '
+                       f'layer {ll}. These layers could potentially be combined.')
+                if operands[ll] > 0 and pool[ll][0] == 1 and pool[ll][1] == 1 \
+                   and (pool[next_sequence[ll]][0] > 1 or pool[next_sequence[ll]][1] > 1) \
+                   and operands[next_sequence[ll]] == 1:
+                    nprint('Use `pool_first: False` to combine element-wise and pooling layers '
+                           'where pooling is executed after the element-wise operation.')
+
             if dilation[ll][0] > 1:
                 if operator[ll] != op.CONV1D:
                     eprint(f'Layer {ll}: `dilation` > 1 is supported for Conv1d only.')
