@@ -934,7 +934,7 @@ class Backend(backend.Backend):
             for r in range(repeat_layers):
                 for ll in range(first_layer_used, layers):
                     flatten_str = "" if not flatten[ll] else \
-                        f"flattened to {input_chan[ll]*input_dim[ll][0]*input_dim[ll][1]}x1x1, "
+                        f" flattened to {input_chan[ll]*input_dim[ll][0]*input_dim[ll][1]}x1x1"
                     apb.output(f'// Layer {r * layers + ll}: '
                                f'{str(operands[ll])+"x" if operands[ll] > 1 else ""}'
                                f'{input_chan[ll]}x{input_dim_str[ll]}'
