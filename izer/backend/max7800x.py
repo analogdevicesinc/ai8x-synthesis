@@ -818,7 +818,7 @@ class Backend(backend.Backend):
                 if processor_map[ll] == output_processor_map[ll]:
                     broadcast_mode[ll] = True
                 else:
-                    wprint(f'Layer {ll}: depth-wise convolution moves data across processors. '
+                    nprint(f'Layer {ll}: depth-wise convolution moves data across processors. '
                            f'This has a performance impact. Input {processor_map[ll]:016x}, '
                            f'output {output_processor_map[ll]:016x}.')
 
