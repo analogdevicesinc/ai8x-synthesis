@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -330,6 +330,8 @@ def main():
     pooled_dim = [None] * layers
     output_dim = [None] * layers
 
+    avgpool_reset_layer = [False] * layers
+
     ll = args.start_layer
     auto_input_dim[ll] = [input_size[1], input_size[2]]
     if conf_input_dim[ll] is None:
@@ -494,6 +496,13 @@ def main():
             eprint(f'Layer {ll} specifies activation {op.act_string(activation[ll])} for a '
                    'passthrough layer.')
 
+        # On MAX78002, if an average pool directly follows an element-wise operation, we need
+        # to insert a small layer to reset the average pool logic
+        if tc.dev.REQUIRE_PASSTHROUGH_AVGPOOL_AFTER_ELTWISE and ll > 0 \
+           and operands[prev_sequence[ll]] > 1 \
+           and pool_average[ll]:
+            avgpool_reset_layer[ll] = True
+
         ll = next_sequence[ll]
         if ll == -1:
             break
@@ -512,6 +521,7 @@ def main():
     state.conv_groups = conv_groups
     state.data = data
     state.dilation = dilation
+    state.avgpool_reset_layer = avgpool_reset_layer
     state.eltwise = eltwise
     state.final_layer = final_layer
     state.first_layer_used = min_layer
