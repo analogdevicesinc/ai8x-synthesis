@@ -256,8 +256,8 @@ def load(
     if verbose:
         print(f'Checkpoint for epoch {checkpoint["epoch"]}, model {checkpoint_arch} - '
               'weight and bias data:')
-        print(' InCh OutCh  Weights         Quant Shift  Min  Max   Size '
-              'Key                                       Bias       Quant  Min  Max  Size Key')
+        print(' InCh OutCh  Weights         Quant Shift  Min  Max    Size '
+              'Key                                       Bias       Quant  Min  Max Size Key')
         for ll in range(layers):
             if ll < len(weights) and weights[ll] is not None:
                 weight_shape = str(weights[ll].shape)
