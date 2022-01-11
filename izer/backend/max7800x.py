@@ -453,7 +453,8 @@ class Backend(backend.Backend):
                            'expansion > 1.', error=not state.ignore_hw_limits)
 
             if operator[ll] == op.NONE and next_sequence[ll] != -1 \
-               and operator[next_sequence[ll]] == op.NONE:
+               and operator[next_sequence[ll]] == op.NONE \
+               and not any(ll in c if c is not None else False for c in in_sequences):
                 nprint(f'Layer {ll}: Passthrough layer {next_sequence[ll]} follows passthrough '
                        f'layer {ll}. These layers could potentially be combined.')
                 if operands[ll] > 0 and pool[ll][0] == 1 and pool[ll][1] == 1 \
