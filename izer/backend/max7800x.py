@@ -965,11 +965,12 @@ class Backend(backend.Backend):
                         apb.output(f', {operands[ll]}-element {op.string(eltwise[ll], elt=True)}',
                                    embedded_code)
                     if hw_operator[ll] != op.NONE:
-                        conv_str = f', {op.string(operator[ll])} with kernel size ' \
-                                   f'{kernel_size_str[ll]}, ' \
-                                   f'stride {stride_str[ll]}, ' \
-                                   f'pad {padding_str[ll]}, ' \
-                                   f'{op.act_string(activation[ll])}, '
+                        conv_str = f', {op.string(operator[ll])}'
+                        if operator[ll] != op.LINEAR:
+                            conv_str += f' with kernel size {kernel_size_str[ll]}, ' \
+                                        f'stride {stride_str[ll]}, ' \
+                                        f'pad {padding_str[ll]}'
+                        conv_str += f', {op.act_string(activation[ll])}, '
                         if dilation[ll][0] > 1 or dilation[ll][1] > 1:
                             conv_str += f'dilation {dilation_str[ll]}, '
                     else:
