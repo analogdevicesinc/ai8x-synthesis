@@ -57,6 +57,7 @@ class Backend(backend.Backend):
         eltwise = state.eltwise
         embedded_code = state.embedded_code
         ext_rdy = state.ext_rdy
+        avgpool_reset_layer = state.avgpool_reset_layer
         fast_fifo = state.fast_fifo
         fast_fifo_quad = state.fast_fifo_quad
         fifo = state.fifo
@@ -171,6 +172,9 @@ class Backend(backend.Backend):
 
         out_ignore = [0] * layers
         out_pad = [0] * layers
+
+        hw_add_layers = [0] * layers
+        sum_hw_layers = 0
 
         terminating_layer = final_layer
         for i, s in enumerate(simulated_sequence):
@@ -346,6 +350,17 @@ class Backend(backend.Backend):
         if binary_quantization and not tc.dev.SUPPORT_BINARY_WEIGHTS:
             eprint("Binary weights (-1/+1) are not supported on this device.")
 
+        # Account for extra transparently inserted hardware layers
+        for ll in range(0, layers):
+            if avgpool_reset_layer[ll]:
+                sum_hw_layers += 1
+            hw_add_layers[ll] = sum_hw_layers
+
+        if repeat_layers * (final_layer + sum_hw_layers) > tc.dev.MAX_LAYERS:
+            rep = '' if repeat_layers == 1 else f'When repeating {repeat_layers} times, '
+            eprint(f'{rep}The adjusted layer count ({final_layer + sum_hw_layers}) '
+                   f'exceeds the device maximum ({tc.dev.MAX_LAYERS}).')
+
         hw_operator = operator.copy()
         hw_input_dim = copy.deepcopy(input_dim)
         hw_pooled_dim = copy.deepcopy(pooled_dim)
@@ -436,6 +451,17 @@ class Backend(backend.Backend):
                    and in_expand[ll] > 1:
                     eprint(f'Layer {ll}: This device does not support padded Conv1d with input '
                            'expansion > 1.', error=not state.ignore_hw_limits)
+
+            if operator[ll] == op.NONE and next_sequence[ll] != -1 \
+               and operator[next_sequence[ll]] == op.NONE \
+               and not any(ll in c if c is not None else False for c in in_sequences):
+                nprint(f'Layer {ll}: Passthrough layer {next_sequence[ll]} follows passthrough '
+                       f'layer {ll}. These layers could potentially be combined.')
+                if operands[ll] > 0 and pool[ll][0] == 1 and pool[ll][1] == 1 \
+                   and (pool[next_sequence[ll]][0] > 1 or pool[next_sequence[ll]][1] > 1) \
+                   and operands[next_sequence[ll]] == 1:
+                    nprint('Use `pool_first: False` to combine element-wise and pooling layers '
+                           'where pooling is executed after the element-wise operation.')
 
             if dilation[ll][0] > 1:
                 if operator[ll] != op.CONV1D:
@@ -675,7 +701,7 @@ class Backend(backend.Backend):
             if not overwrite:
                 eprint('The target folder', target_dir, 'exists. Use --overwrite to proceed.')
             else:
-                wprint('--overwrite specified, writing to', target_dir, 'even though it exists.')
+                nprint('--overwrite specified, writing to', target_dir, 'even though it exists.')
 
         # Redirect stdout?
         if log:
@@ -793,7 +819,7 @@ class Backend(backend.Backend):
                 if processor_map[ll] == output_processor_map[ll]:
                     broadcast_mode[ll] = True
                 else:
-                    wprint(f'Layer {ll}: depth-wise convolution moves data across processors. '
+                    nprint(f'Layer {ll}: depth-wise convolution moves data across processors. '
                            f'This has a performance impact. Input {processor_map[ll]:016x}, '
                            f'output {output_processor_map[ll]:016x}.')
 
@@ -909,7 +935,7 @@ class Backend(backend.Backend):
             for r in range(repeat_layers):
                 for ll in range(first_layer_used, layers):
                     flatten_str = "" if not flatten[ll] else \
-                        f"flattened to {input_chan[ll]*input_dim[ll][0]*input_dim[ll][1]}x1x1, "
+                        f" flattened to {input_chan[ll]*input_dim[ll][0]*input_dim[ll][1]}x1x1"
                     apb.output(f'// Layer {r * layers + ll}: '
                                f'{str(operands[ll])+"x" if operands[ll] > 1 else ""}'
                                f'{input_chan[ll]}x{input_dim_str[ll]}'
@@ -1114,7 +1140,8 @@ class Backend(backend.Backend):
                     apb.write_ctl(group, tc.dev.REG_SRAM, 0x40e,
                                   comment=' // SRAM control')
                 # Number of layers and start layer
-                val = (repeat_layers * final_layer) | (start_layer << 8)
+                val = (repeat_layers * (final_layer + sum_hw_layers)) \
+                    | ((start_layer + hw_add_layers[start_layer]) << 8)
                 apb.write_ctl(group, tc.dev.REG_LCNT_MAX, val,
                               comment=' // Layer count')
 
@@ -1314,6 +1341,7 @@ class Backend(backend.Backend):
             # Configure per-layer control registers
             for r in range(repeat_layers):
                 for ll in range(first_layer_used, layers):
+                    hw_layer = r * (layers + sum_hw_layers) + ll + hw_add_layers[ll]
 
                     local_source = False
                     for _, group in enumerate(groups_used):
@@ -1374,6 +1402,10 @@ class Backend(backend.Backend):
                                 )
 
                     for _, group in enumerate(groups_used):
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            # Insert small single-quadrant passthrough layer
+                            apb.output('  // Average pool accumulator reset layer and\n',
+                                       embedded_code)
                         apb.output(f'  // Layer {r * layers + ll} quadrant {group}\n',
                                    embedded_code)
 
@@ -1389,11 +1421,11 @@ class Backend(backend.Backend):
                                 if ll != layers - 1:  # Don't set stop bit unless required
                                     val = 1 << 8
                             elif lt != ll + 1:
-                                val = 1 << 7 | lt
+                                val = 1 << 7 | lt + hw_add_layers[lt]
                             elif snoop_sequence[ll] is not None:
                                 lt = snoop_sequence[ll]
                                 assert lt >= 0
-                                val = 1 << 7 | lt
+                                val = 1 << 7 | lt + hw_add_layers[lt]
                             if lt != -1:
                                 if in_sequences[lt] is not None and ll in in_sequences[lt] \
                                    and operands[lt] == 1:
@@ -1418,7 +1450,7 @@ class Backend(backend.Backend):
                                                f'({output_chan[ll]}x{output_dim_str[ll]}).')
 
                         if hasattr(tc.dev, 'LREG_NXTLYR'):
-                            apb.write_lreg(group, r * layers + ll, tc.dev.LREG_NXTLYR, val,
+                            apb.write_lreg(group, hw_layer, tc.dev.LREG_NXTLYR, val,
                                            comment=' // Next Layer')
 
                         # Configure row count
@@ -1462,7 +1494,9 @@ class Backend(backend.Backend):
                             assert val + 2*hw_padding[ll][0] < 2**tc.dev.MAX_CNT_BITS
                             val |= hw_padding[ll][0] << tc.dev.PAD_CNT_OFFS
                             val += 2*hw_padding[ll][0]
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_RCNT, val,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_RCNT, 1 << 16)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_RCNT, val,
                                        comment=' // Rows')
 
                         # Configure column count (evaluates to 0 for 1D convolutions)
@@ -1483,7 +1517,9 @@ class Backend(backend.Backend):
                             assert val + 2 * hw_padding[ll][1] < 2**tc.dev.MAX_CNT_BITS
                             val |= hw_padding[ll][1] << tc.dev.PAD_CNT_OFFS
                             val += 2 * hw_padding[ll][1]
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_CCNT, val,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_CCNT, 1 << 16)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_CCNT, val,
                                        comment=' // Columns')
 
                         # Configure pooling row count
@@ -1491,7 +1527,7 @@ class Backend(backend.Backend):
                         assert val < 2**4
                         if hasattr(tc.dev, 'CNT_INC_OFFS'):
                             val |= pool_dilation[ll][0] - 1 << tc.dev.CNT_INC_OFFS
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PRCNT, val,
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_PRCNT, val,
                                        comment=' // Pooling rows')
 
                         # Configure pooling column count
@@ -1499,7 +1535,7 @@ class Backend(backend.Backend):
                         assert val < 2**4
                         if hasattr(tc.dev, 'CNT_INC_OFFS'):
                             val |= pool_dilation[ll][1] - 1 << tc.dev.CNT_INC_OFFS
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PCCNT, val,
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_PCCNT, val,
                                        comment=' // Pooling columns')
 
                         # Configure pooling stride count
@@ -1513,7 +1549,9 @@ class Backend(backend.Backend):
                         if hasattr(tc.dev, 'MP_STRIDE_OFFS'):  # Multipass stride
                             val |= pool_stride[ll][0] * operands[ll] * in_expand[ll] \
                                 * (input_skip[ll] + 1) << tc.dev.MP_STRIDE_OFFS
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STRIDE, val,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_STRIDE, 0x10)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_STRIDE, val,
                                        comment=' // Stride')
 
                         val = (out_offset[ll] - out_ignore[ll]) // 4
@@ -1557,7 +1595,9 @@ class Backend(backend.Backend):
                                    & ~(tc.dev.P_SHARED-1)
                             val |= (instance + group * tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE
                         assert val < 2**tc.dev.MAX_PTR_BITS
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_BASE, val,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_WPTR_BASE, val)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_WPTR_BASE, val,
                                        comment=' // SRAM write ptr')
 
                         # Write Pointer Timeslot Offset Register
@@ -1575,26 +1615,31 @@ class Backend(backend.Backend):
                             else:
                                 val = tc.dev.INSTANCE_SIZE
                         assert val < 2**tc.dev.MAX_PTR_BITS
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_TOFFS, val,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_WPTR_TOFFS, val)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_WPTR_TOFFS, val,
                                        comment=' // Write ptr time slot offs')
 
                         if hw_operator[ll] != op.NONE:
                             # [15:0] Write Pointer Mask Offset Register
                             val = 1 << tc.dev.WRITE_PTR_SHIFT
-                            apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_MOFFS, val,
+                            apb.write_lreg(group, hw_layer, tc.dev.LREG_WPTR_MOFFS, val,
                                            comment=' // Write ptr mask offs')
 
                         # [15:0] Write Pointer Multi-Pass Channel Offset Register
                         val = 0
                         if out_expand[ll] > 1:
                             val = (output_width[ll] // 8) * (write_gap[ll] + 1)
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_CHOFFS, val,
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_WPTR_CHOFFS, val,
                                        comment=' // Write ptr multi-pass channel offs')
 
                         # Configure sram read ptr count -- read ptr is local
                         # Source address must match write pointer of previous layer (minus global
                         # offset)
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_RPTR_BASE,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_RPTR_BASE,
+                                           in_offset[ll] // 4)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_RPTR_BASE,
                                        in_offset[ll] // 4,
                                        comment=' // SRAM read ptr')
 
@@ -1645,7 +1690,9 @@ class Backend(backend.Backend):
                         if bypass[ll]:
                             val |= 1 << 30
 
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_LCTL, val,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_LCTL, 0x920)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_LCTL, val,
                                        comment=' // Layer control')
 
                         flatten_prod = 0
@@ -1674,7 +1721,7 @@ class Backend(backend.Backend):
                         assert wptr_skip < 2**tc.dev.MAX_WPTRINC_BITS
                         val |= wptr_skip << 4
 
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_LCTL2, val,
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_LCTL2, val,
                                        comment=' // Layer control 2')
 
                         # Configure mask start and end addresses
@@ -1705,15 +1752,15 @@ class Backend(backend.Backend):
                             if hw_operator[ll] != op.NONE:
                                 assert koffs < 2**19
                                 assert kl + koffs < 2**19
-                                apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT1,
+                                apb.write_lreg(group, hw_layer, tc.dev.LREG_MCNT1,
                                                kl + koffs,
                                                comment=' // Mask count')
-                                apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT2, koffs,
+                                apb.write_lreg(group, hw_layer, tc.dev.LREG_MCNT2, koffs,
                                                comment=' // Mask offset')
                             else:
                                 val = (out_expand[ll] - 1) * 8
                                 assert val < 2**19
-                                apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT2, val,
+                                apb.write_lreg(group, hw_layer, tc.dev.LREG_MCNT2, val,
                                                comment=' // Mask offset')
                         else:
                             if hw_operator[ll] != op.NONE:
@@ -1728,7 +1775,7 @@ class Backend(backend.Backend):
                             else:
                                 val = (out_expand[ll] - 1) * 8
                                 assert val < 2**16
-                            apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT, val,
+                            apb.write_lreg(group, hw_layer, tc.dev.LREG_MCNT, val,
                                            comment=' // Mask offset and count')
 
                         if hasattr(tc.dev, 'LREG_OCHAN'):
@@ -1742,7 +1789,7 @@ class Backend(backend.Backend):
                                 val = (tscnt_max + 1) * in_expand[ll] - 1
                             else:
                                 val = tscnt_max
-                            apb.write_lreg(group, r * layers + ll, tc.dev.LREG_OCHAN, val,
+                            apb.write_lreg(group, hw_layer, tc.dev.LREG_OCHAN, val,
                                            comment=' // Output channel count')
 
                         val = tscnt_max
@@ -1765,7 +1812,9 @@ class Backend(backend.Backend):
                         assert 0 <= oned_sad < 2**4
                         val |= oned_sad << 4
 
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_ONED, val,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_ONED, 0x100)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_ONED, val,
                                        comment=' // 1D')
 
                         # Configure tram pointer max
@@ -1787,7 +1836,7 @@ class Backend(backend.Backend):
                                 val += prev_max
                                 assert val < 2**16
                                 val |= prev_max << 16
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_TPTR, val,
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_TPTR, val,
                                        comment=' // TRAM ptr max')
 
                         # Compensate for the smaller weights by adjusting the output shift
@@ -1857,8 +1906,9 @@ class Backend(backend.Backend):
 
                         if tcalc[ll]:
                             val |= 1 << 31
-
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_POST, val,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_POST, 0x03000000)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_POST, val,
                                        comment=' // Post processing register')
 
                         # Configure mask and processor enables
@@ -1866,7 +1916,9 @@ class Backend(backend.Backend):
                         val = (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO
                         if hw_operator[ll] != op.NONE and not bypass[ll]:
                             val = val << 16 | val  # Mask enables
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_ENA, val,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_ENA, 1)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_ENA, val,
                                        comment=' // Mask and processor enables')
 
                         delta1 = delta2 = stream_start = invol = 0
@@ -2090,7 +2142,7 @@ class Backend(backend.Backend):
                         val = stream_start
                         if state.fifo_go and ll == start_layer:
                             val |= 1 << 25
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM1, val,
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_STREAM1, val,
                                        comment=' // Stream processing start')
 
                         assert invol < 2**4, \
@@ -2098,7 +2150,7 @@ class Backend(backend.Backend):
                         assert delta1 < 2**5
                         assert delta2 < 2**tc.dev.MAX_DSVAL2_BITS
                         val = delta2 << 16 | delta1 << 4 | invol
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM2, val,
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_STREAM2, val,
                                        comment=' // Stream processing delta')
 
                         if fifo and streaming[ll]:
@@ -2219,7 +2271,7 @@ class Backend(backend.Backend):
                                                f', processors {processor_map[pl]:016x}).',
                                                error=not overwrite_ok)
 
-                            apb.write_lreg(group, r * layers + ll, tc.dev.LREG_FMAX, val,
+                            apb.write_lreg(group, hw_layer, tc.dev.LREG_FMAX, val,
                                            comment=' // Rollover')
 
                         # In read-ahead mode, ensure that input and output use separate
@@ -2263,7 +2315,7 @@ class Backend(backend.Backend):
                             for reg in range(tc.dev.MAX_LREG+1):
                                 if reg == tc.dev.LREG_RFU:  # Register 2 not implemented
                                     continue
-                                apb.write_lreg(group, r * layers + ll, reg, 0,
+                                apb.write_lreg(group, hw_layer, reg, 0,
                                                force_write=True,
                                                comment=f' // Zero unused layer {ll} registers')
                     if hasattr(tc.dev, 'MIN_STREAM_LREG'):
@@ -2271,7 +2323,7 @@ class Backend(backend.Backend):
                             for _, group in enumerate(groups_used):
                                 for reg in range(tc.dev.MIN_STREAM_LREG, tc.dev.MAX_STREAM_LREG+1,
                                                  tc.dev.MAX_STREAM_LAYERS):
-                                    apb.write_lreg(group, r * layers + ll, reg, 0,
+                                    apb.write_lreg(group, hw_layer, reg, 0,
                                                    force_write=True,
                                                    comment=f' // Zero unused layer {ll} registers')
 
@@ -2452,7 +2504,7 @@ class Backend(backend.Backend):
             if state.snoop_loop:
                 for _, group in enumerate(groups_used):
                     apb.output('\n', embedded_code)
-                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_NXTLYR, 0x80,
+                    apb.write_lreg(group, hw_layer, tc.dev.LREG_NXTLYR, 0x80,
                                    force_write=True, comment=' // Link Layer')
                     apb.write_ctl(group, tc.dev.REG_SNP1_HIT, 0, force_write=True,
                                   comment=' // Clear match hit accumulator')

@@ -17,6 +17,7 @@ apb_base: int = 0
 api_filename: str = ''
 auto_input_dim: List[List[int]] = []
 avg_pool_rounding: bool = False
+avgpool_reset_layer: List[bool] = []
 base_directory: str = ''
 bias_group_map: List[Any] = []
 bias: List[Any] = []

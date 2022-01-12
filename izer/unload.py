@@ -14,7 +14,7 @@ import numpy as np
 
 from . import state, toplevel
 from . import tornadocnn as tc
-from .eprint import eprint, wprint
+from .eprint import eprint, nprint, wprint
 from .utils import ffs, popcount
 
 
@@ -49,7 +49,7 @@ def unload(
 
     if not mlator and output_width == 8 and state.embedded_code \
        and input_shape[1] * input_shape[2] % 4 == 0:
-        wprint('Use --mlator to optimize cnn_unload() for 8-bit output values.')
+        nprint('Use --mlator to optimize cnn_unload() for 8-bit output values.')
 
     if mlator and output_width != 8:
         wprint('ignoring --mlator for 32-bit output.')
