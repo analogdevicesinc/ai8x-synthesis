@@ -403,6 +403,9 @@ def main():
             if conf_input_dim[ll] is None:
                 input_dim[ll] = auto_input_dim[ll]
                 # Print warning when going from 1D to 2D without explicitly reformatting the input
+                if input_dim[ll] is None:
+                    eprint(f'Layer {ll} does not have input dimension information. Please use '
+                           '`in_dim` to explicitly set dimensions.')
                 if input_dim[ll][1] == 1 and operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D] \
                    and prev_op == op.CONV1D:
                     wprint(f'Using 1-dimensional data {input_dim[ll][0]}x{input_dim[ll][1]} for '

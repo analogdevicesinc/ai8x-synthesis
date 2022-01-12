@@ -354,7 +354,7 @@ class Backend(backend.Backend):
         for ll in range(0, layers):
             if avgpool_reset_layer[ll]:
                 sum_hw_layers += 1
-                hw_add_layers[ll] = sum_hw_layers
+            hw_add_layers[ll] = sum_hw_layers
 
         if repeat_layers * (final_layer + sum_hw_layers) > tc.dev.MAX_LAYERS:
             rep = '' if repeat_layers == 1 else f'When repeating {repeat_layers} times, '
