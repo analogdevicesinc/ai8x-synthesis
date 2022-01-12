@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -211,12 +211,14 @@ def convert_checkpoint(input_file, output_file, arguments):
                 bias = checkpoint_state[bias_name]
                 if distribution_factor:
                     bias = bias * distribution_factor
-                # Quantize bias as how it is done in QAT
-                bias = (2**(CONV_DEFAULT_BIAS_BITS-1)*bias).add(0.5).floor(). \
-                    clamp(min=-(2**(CONV_DEFAULT_BIAS_BITS-1)),
-                          max=2**(CONV_DEFAULT_BIAS_BITS-1)-1). \
-                    div(2**(CONV_DEFAULT_BIAS_BITS-1))
-                bias = 2**(clamp_bits-1) * bias
+
+                bias = (2**(clamp_bits-1)*bias).add(0.5).floor(). \
+                    clamp(min=-(2**(clamp_bits-1)),
+                          max=2**(clamp_bits-1)-1)
+
+                # Since the device multiplies the biases with 8 bits by default, the range
+                # of bias needs to be shrinked according to the weight bits.
+                bias *= 2**(clamp_bits-8)
 
                 # Save conv biases so PyTorch can still use them to run a model. This needs
                 # to be reversed before loading the weights into the hardware.
@@ -231,7 +233,7 @@ def convert_checkpoint(input_file, output_file, arguments):
 
                 # Set bias_bits to default
                 new_checkpoint_state[bias_bits_name] = \
-                    torch.Tensor([CONV_DEFAULT_BIAS_BITS])
+                    torch.Tensor([clamp_bits])
 
             # Set output shift
             if arguments.clip_mode is None:
