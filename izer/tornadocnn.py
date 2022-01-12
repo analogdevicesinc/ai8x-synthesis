@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -11,6 +11,7 @@ from . import devices, state
 from .eprint import eprint
 
 dev = None
+MAX_MAX_LAYERS = 256
 
 
 class Dev:
@@ -569,5 +570,7 @@ def get_device(
 
     # Set device dependent state defaults
     state.apb_base = d.APB_BASE
+
+    assert d.MAX_LAYERS <= MAX_MAX_LAYERS
 
     return d

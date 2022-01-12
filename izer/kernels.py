@@ -181,7 +181,14 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             in_exp = in_expand[ll]
             in_chan = input_chan[ll]
         else:
-            kernel_reshaped = kernel[ll]
+            if operator[ll] == op.LINEAR:
+                kernel_reshaped = kernel[ll].reshape(
+                    -1,
+                    kernel_size[ll][0],
+                    kernel_size[ll][1],
+                )
+            else:
+                kernel_reshaped = kernel[ll]
             in_exp = in_expand[ll]
             in_chan = input_chan[ll]
 
