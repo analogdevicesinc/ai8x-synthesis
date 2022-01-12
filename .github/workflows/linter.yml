@@ -30,5 +30,6 @@ jobs:
           VALIDATE_JSCPD: false
           VALIDATE_CPP: false
           VALIDATE_NATURAL_LANGUAGE: false
-          VALIDATE_CLANG_FORMAT: false 
+          VALIDATE_CLANG_FORMAT: false
+          VALIDATE_GITHUB_ACTIONS: false
           FILTER_REGEX_EXCLUDE: attic/.*
