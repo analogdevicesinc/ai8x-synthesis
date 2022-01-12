@@ -12,6 +12,7 @@ import argparse
 from . import camera, state
 from .devices import device
 from .eprint import wprint
+from .tornadocnn import MAX_MAX_LAYERS
 
 
 def get_parser() -> argparse.Namespace:
@@ -344,9 +345,10 @@ def get_parser() -> argparse.Namespace:
                        help="ignore all 'streaming' layer directives (default: false)")
     group.add_argument('--allow-streaming', action='store_true', default=False,
                        help="allow streaming without use of a FIFO (default: false)")
-    group.add_argument('--no-bias', metavar='LIST', default=None,
-                       help="comma-separated list of layers where bias values will be ignored "
-                            "(default: None)")
+    group.add_argument('--no-bias', metavar='[LIST]', nargs='?',
+                       const=list(range(MAX_MAX_LAYERS)),
+                       help="comma-separated list of layers where bias values will be ignored, "
+                            "or no argument for all layers (default: None)")
     group.add_argument('--streaming-layers', metavar='LIST', default=None,
                        help="comma-separated list of additional streaming layers "
                             "(default: None)")
@@ -429,10 +431,13 @@ def get_parser() -> argparse.Namespace:
         args.no_bias = []
     else:
         try:
-            args.no_bias = [int(s) for s in args.no_bias.split(',')]
+            if isinstance(args.no_bias, list):
+                args.no_bias = [int(s) for s in args.no_bias]
+            else:
+                args.no_bias = [int(s) for s in args.no_bias.split(',')]
         except ValueError as exc:
             raise ValueError('ERROR: Argument `--no-bias` must be a comma-separated '
-                             'list of integers only') from exc
+                             'list of integers only, or no argument') from exc
 
     if args.clock_trim is not None:
         clock_trim_error = False

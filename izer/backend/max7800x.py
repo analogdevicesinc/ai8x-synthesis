@@ -19,7 +19,7 @@ from izer import tornadocnn as tc
 from izer.eprint import eprint, nprint, wprint
 from izer.simulate import (conv1d_layer, conv2d_layer, convtranspose2d_layer, eltwise_layer,
                            passthrough_layer, pooling_layer, print_data, show_data)
-from izer.utils import ffs, fls, overlap, popcount
+from izer.utils import ffs, fls, overlap, plural, popcount
 
 from . import backend
 
@@ -416,7 +416,8 @@ class Backend(backend.Backend):
             in_size = input_dim[ll][0] * input_dim[ll][1] * in_expand[ll] * operands[ll] \
                 * (1 if big_data[ll] else 4)
             if not streaming[ll] and in_size + in_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
-                eprint(f'Layer {ll}: {1 if big_data[ll] else 4} channels/word {input_dim[ll][0]}x'
+                eprint(f'Layer {ll}: {1 if big_data[ll] else 4} '
+                       f'channel{"s" if not big_data[ll] else ""}/word {input_dim[ll][0]}x'
                        f'{input_dim[ll][1]} input (size {in_size}) '
                        f'with input offset 0x{in_offset[ll]:04x} and expansion {in_expand[ll]}x '
                        f'exceeds data memory instance size of {tc.dev.INSTANCE_WIDTH*16}.')
@@ -553,7 +554,8 @@ class Backend(backend.Backend):
                    and in_expand[ll] > tc.dev.MAX_POOL_PASSES \
                    and (hw_pooled_dim[ll][0] > 1 or hw_pooled_dim[ll][1] > 1):
                     eprint(f'Layer {ll}: pooling in passthrough layer uses {in_expand[ll]} '
-                           f'passes, which exceeds the maximum of {tc.dev.MAX_POOL_PASSES} '
+                           f'{plural(in_expand[ll], "pass", "es")}, '
+                           f'which exceeds the maximum of {tc.dev.MAX_POOL_PASSES} '
                            'on this device.')
 
                 tram_max[ll] = 1
@@ -755,30 +757,38 @@ class Backend(backend.Backend):
         for ll in range(first_layer_used, layers):
             bits = processor_map[ll]
             processors_used |= bits
+            fl = ' (before flattening)' if flatten[ll] else ''
 
             if input_chan[ll] > tc.dev.MAX_CHANNELS:
-                eprint(f'Layer {ll} is configured for {input_chan[ll]} input channels, which '
+                eprint(f'Layer {ll} is configured for {input_chan[ll]} input channels{fl}, which '
                        f'exceeds the system maximum of {tc.dev.MAX_CHANNELS}.')
             if output_chan[ll] > tc.dev.MAX_CHANNELS:
                 eprint(f'Layer {ll} is configured for {output_chan[ll]} output channels, which '
                        f'exceeds the system maximum of {tc.dev.MAX_CHANNELS}.')
             if (ll != start_layer or not fast_fifo_quad) \
                and popcount(processor_map[ll]) != in_expand_thresh[ll]:
-                eprint(f'Layer {ll} has {input_chan[ll]} input channels using {in_expand[ll]} '
-                       f'passes, and {operands[ll]} operands ({in_expand_thresh[ll]} processors '
+                eprint(f'Layer {ll} has {input_chan[ll]} input '
+                       f'{plural(input_chan[ll], "channel")}{fl} '
+                       f'using {in_expand[ll]} {plural(in_expand[ll], "pass", "es")}, '
+                       f'and {operands[ll]} {plural(operands[ll], "operand")} '
+                       f'({in_expand_thresh[ll]} processors '
                        f'per pass), but the enabled processor map 0x{processor_map[ll]:016x} '
                        f'has {popcount(processor_map[ll])} bits instead of the '
                        f'expected number of {in_expand_thresh[ll]}.')
             if ll == start_layer and fast_fifo_quad \
                and popcount(processor_map_0) != in_expand_thresh[ll]:
-                eprint(f'Layer {ll} has {input_chan[ll]} input channels using {in_expand[ll]} '
-                       f'passes ({in_expand_thresh[ll]} processors per pass), but the '
+                eprint(f'Layer {ll} has {input_chan[ll]} input '
+                       f'{plural(input_chan[ll], "channel")}{fl} '
+                       f'using {in_expand[ll]} {plural(in_expand[ll], "pass", "es")} '
+                       f'({in_expand_thresh[ll]} processors per pass), but the '
                        f'enabled processor map 0x{processor_map[ll]:016x} '
                        f'has {popcount(processor_map[ll])} bits instead of the '
                        f'expected number of {in_expand_thresh[ll]}.')
             if popcount(output_processor_map[ll]) != out_expand_thresh[ll]:
-                eprint(f'Layer {ll} has {output_chan[ll]} output channels using {out_expand[ll]} '
-                       f'passes ({out_expand_thresh[ll]} processors per pass), but the '
+                eprint(f'Layer {ll} has {output_chan[ll]} output '
+                       f'{plural(output_chan[ll], "channel")} using {out_expand[ll]} '
+                       f'{plural(out_expand[ll], "pass", "es")} '
+                       f'({out_expand_thresh[ll]} processors per pass), but the '
                        f'processor output map 0x{output_processor_map[ll]:016x} '
                        f'has {popcount(output_processor_map[ll])} bits instead of the '
                        f'expected number of {out_expand_thresh[ll]}.')
@@ -928,7 +938,7 @@ class Backend(backend.Backend):
 
             # Human readable description of test
             apb.output(f'// Configuring {repeat_layers * layers} '
-                       f'layer{"s" if repeat_layers * layers > 1 else ""}\n'
+                       f'{plural(repeat_layers * layers, "layer")}\n'
                        f'// Input data: {"CHW" if big_data[first_layer_used] else "HWC"}\n',
                        embedded_code)
 
@@ -955,11 +965,12 @@ class Backend(backend.Backend):
                         apb.output(f', {operands[ll]}-element {op.string(eltwise[ll], elt=True)}',
                                    embedded_code)
                     if hw_operator[ll] != op.NONE:
-                        conv_str = f', {op.string(operator[ll])} with kernel size ' \
-                                   f'{kernel_size_str[ll]}, ' \
-                                   f'stride {stride_str[ll]}, ' \
-                                   f'pad {padding_str[ll]}, ' \
-                                   f'{op.act_string(activation[ll])}, '
+                        conv_str = f', {op.string(operator[ll])}'
+                        if operator[ll] != op.LINEAR:
+                            conv_str += f' with kernel size {kernel_size_str[ll]}, ' \
+                                        f'stride {stride_str[ll]}, ' \
+                                        f'pad {padding_str[ll]}'
+                        conv_str += f', {op.act_string(activation[ll])}, '
                         if dilation[ll][0] > 1 or dilation[ll][1] > 1:
                             conv_str += f'dilation {dilation_str[ll]}, '
                     else:
