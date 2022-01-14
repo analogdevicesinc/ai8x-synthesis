@@ -60,7 +60,7 @@ build/$(PROJECT).elf: arm
 buildrv/common_riscv.ld: build/$(PROJECT).elf arm
 	@mkdir -p buildrv
 	@grep "__FlashStart_" build/$(PROJECT).map | sed 's/__FlashStart_ = .*$$//' | sed 's/^ */__FlashStart = /' | sed 's/ *$$/;/' > $@
-	@echo "__FlashLength = (0x10080000 - __FlashStart);" >> $@
+	@echo "__FlashLength = (0x10280000 - __FlashStart);" >> $@
 
 riscv: buildrv/common_riscv.ld arm build/$(PROJECT).elf
 	@$(MAKE) -f Makefile.RISCV
