@@ -50,6 +50,7 @@ layers:
 
 # Layer 5: expand Conv2dReLU(32,128,3x3)
 - in_offset: 0x0000
+  in_sequences: 3
   out_offset: 0x8000
   processors: 0x00000000ffffffff
   operation: conv2d
@@ -95,6 +96,7 @@ layers:
 
 # Layer 10: expand Conv2dReLU(48,192,3x3)
 - in_offset: 0x4000
+  in_sequences: 8
   out_offset: 0x8000
   processors: 0x0000ffffffffffff
   operation: conv2d
@@ -149,6 +151,7 @@ layers:
 
 # Layer 16: expand Conv2dReLU(96,384,1x1)
 - in_offset: 0x4000
+  in_sequences: 14
   out_offset: 0x8000
   processors: 0x0000ffffffffffff
   operation: conv2d
@@ -218,6 +221,7 @@ layers:
 
 # Layer 24: expand Conv2dReLU(128,512,1x1)
 - in_offset: 0x4000
+  in_sequences: 22
   out_offset: 0x8000
   processors: 0xffffffffffffffff
   operation: conv2d
@@ -267,8 +271,8 @@ layers:
   processors: 0xffffffffffffffff
 
 # Layer 30: Linear
-- flatten: true
-  out_offset: 0x4000
+# No flatten needed, input is already 1x1
+- out_offset: 0x4000
   processors: 0xffffffffffffffff
   operation: MLP
   output_width: 32
