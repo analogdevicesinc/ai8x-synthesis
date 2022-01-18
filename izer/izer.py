@@ -364,6 +364,10 @@ def main():
             # Fix up default input maps
             if input_offset[ll] is None:
                 input_offset[ll] = output_offset[prev_sequence[ll]]
+            elif in_sequences[ll] is None and input_offset[ll] != output_offset[prev_sequence[ll]]:
+                wprint(f'Layer {ll}: Non-default `in_offset: 0x{input_offset[ll]:04x}`, '
+                       f'but no `in_sequences` given. Assuming `in_sequences: '
+                       f'{prev_sequence[ll]}` which may be incorrect.')
             # Check we don't turn on streaming too late
             if streaming[ll] and not streaming[prev_sequence[ll]]:
                 eprint(f'Layer {ll} is a streaming layer, but the previous layer '

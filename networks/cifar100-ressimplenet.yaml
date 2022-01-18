@@ -31,6 +31,7 @@ layers:
 
 # Layer 3
 - in_offset: 0x0000
+  in_sequences: 1
   out_offset: 0x2004
   processors: 0x00000000000fffff
   operation: conv2d
@@ -70,6 +71,7 @@ layers:
 
 # Layer 7 (input offset 0x0000)
 - in_offset: 0x2000
+  in_sequences: 5
   out_offset: 0x0004
   processors: 0x000000fffff00000
   operation: conv2d
@@ -108,6 +110,7 @@ layers:
 
 # Layer 11
 - in_offset: 0x0000
+  in_sequences: 9
   out_offset: 0x2004
   processors: 0x0000ffffffffffff
   operation: conv2d

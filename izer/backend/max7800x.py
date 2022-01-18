@@ -2635,8 +2635,15 @@ class Backend(backend.Backend):
 
             return data
 
+        # The data_buf list contains the output of each layer, with the exception of the
+        # first element which is the input to layer 0 (so everything is shifted right by one):
+        # data_buf[0]: Input to layer 0
+        # data_buf[1]: Output of layer 0
+        # data_buf[2]: Output of layer 1
+        # data_buf[ll + 1]: Output of layer ll
+        data_buf = [None] * (layers + 1)
         ll = start_layer
-        data_buf = [data]
+        data_buf[ll] = data
         # Compute layer-by-layer output and chain results into input
         while ll < layers:
             compute.debug_open(ll, base_directory, test_name, log_filename)
@@ -2651,7 +2658,7 @@ class Backend(backend.Backend):
                 else:
                     data = data_buf[in_sequences[ll][0] + 1]
             else:
-                data = data_buf[-1]
+                data = data_buf[ll]
 
             # Split data into multiple inputs if needed
             if operands[ll] > 1:
@@ -2982,7 +2989,7 @@ class Backend(backend.Backend):
                        'The generated known-answer test for this network may not be meaningful. '
                        'See the log file for details.')
 
-            data_buf.append(out_buf.reshape(out_size))
+            data_buf[ll + 1] = out_buf.reshape(out_size)
             if next_sequence[ll] != -1 and streaming[next_sequence[ll]]:
                 # When streaming, the output should not overwrite the input of prior layers since
                 # these layers are still needed.
@@ -3001,7 +3008,7 @@ class Backend(backend.Backend):
                     break
                 ll = next_sequence[ll]
 
-        data = data_buf[-1]
+        data = data_buf[ll]
 
         if not block_mode:
             with open(os.path.join(base_directory, test_name, filename), mode=filemode,
