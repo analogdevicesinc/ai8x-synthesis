@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -265,6 +265,15 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             kern_count[0] = (kern_count[0] + 3) // 4
             kern_ochan[0] = (kern_ochan[0] + 3) // 4
 
+        def kernel_mem_mask(
+                offs: int,
+        ):
+            """Return the mask bits for the kernel memory at offset `offs`"""
+            assert tc.dev is not None
+            if offs + 1 >= tc.dev.MASK_WIDTH_SMALL:
+                return tc.dev.MASK_INSTANCE_SMALL-1
+            return tc.dev.MASK_INSTANCE_LARGE-1
+
         def search_kernel_mem(
                 ll: int,
                 offs: int,
@@ -295,9 +304,33 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
 
                 # For this processor, is there space for all kernels starting at
                 # column 'offs'?
-                start_range = offs - 1 if reverse else offs + 1
-                end_range = offs - kern_len[ll] if reverse else offs + kern_len[ll]
-                step_range = -1 if reverse else 1
+                if not reverse:
+                    if tc.dev.REQUIRE_WEIGHT_MASK and conv_groups[ll] > 1:
+                        # Ensure that all kernels for this layer are in the same memory instance
+                        # Large or small memory instance mask?
+                        mmask = kernel_mem_mask(offs + 1)
+                        # Round up to next instance
+                        if (offs + 1) & ~mmask != (offs + kern_len[ll]) & ~mmask:
+                            offs = ((offs + mmask) & ~mmask) - 1
+                        # Update mask in case we move into the small instances
+                        mmask = kernel_mem_mask(offs + 1)
+                        if (offs + 1) & ~mmask != (offs + kern_len[ll]) & ~mmask:
+                            # Cannot ever make this fit since we just ran out of large instances
+                            return -1
+                    start_range = offs + 1
+                    end_range = offs + kern_len[ll]
+                    step_range = 1
+                else:
+                    # Note: reverse can only ever be true when kern_len[ll] <= MASK_INSTANCE_SMALL
+                    if tc.dev.REQUIRE_WEIGHT_MASK and conv_groups[ll] > 1:
+                        # Ensure that all kernels for this layer are in the same memory instance
+                        # Large or small memory instance mask?
+                        mmask = kernel_mem_mask(offs - 1)
+                        if (offs - 1) & ~mmask != (offs - kern_len[ll]) & ~mmask:
+                            offs &= ~mmask
+                    start_range = offs - 1
+                    end_range = offs - kern_len[ll]
+                    step_range = -1
                 for i in range(start_range, end_range, step_range):
                     if kernel_map[p][i] != _INVALID_VALUE:
                         # No, go to the next candidate
@@ -341,7 +374,9 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                             break
 
                 # Try the end of kernel memory first for processors with extended memory
-                if extended_masks:
+                if extended_masks and (not tc.dev.REQUIRE_WEIGHT_MASK
+                                       or conv_groups[ll] == 1
+                                       or kern_len[ll] <= tc.dev.MASK_INSTANCE_SMALL):
                     search_col = search_kernel_mem(ll, tc.dev.MASK_WIDTH_LARGE - 1,
                                                    first_proc, last_proc, proc_map,
                                                    reverse=True, error=False)
