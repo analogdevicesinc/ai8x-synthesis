@@ -139,6 +139,9 @@ def get_parser() -> argparse.Namespace:
     group.add_argument('--switch-delay', dest='enable_delay', type=int, metavar='N', default=None,
                        help="set delay in msec after cnn_enable() for load switches (default: 0"
                             " on MAX78000, 10 on MAX78002)")
+    group.add_argument('--output-width', type=int, default=None,
+                       choices=[8, 32],
+                       help="override `output_width` for the final layer (default: use YAML)")
 
     # File names
     group = parser.add_argument_group('File names')

@@ -283,6 +283,8 @@ def main():
     dilation = params['dilation'][:layers]
     big_data = params['big_data'][:layers]
     output_width = params['output_width'][:layers]
+    if args.output_width is not None:
+        output_width[final_layer] = args.output_width
     operator = params['operator'][:layers]
     if args.ignore_streaming:
         streaming = [False] * layers
