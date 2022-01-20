@@ -135,7 +135,7 @@ class APB():
                                 for (addr, val) in self.data_mem[group][proc][mem]:
                                     f.write(f'@{addr:04x} {val}\n')
 
-        if self.kernel_mem is not None and state.new_kernel_loader:
+        if self.kernel_mem is not None and not state.rtl_preload:
             # Build a list of sequential kernel "chunks" so the loader code can use compact
             # memcpy instructions of streaming copy
             input_list = []
@@ -216,7 +216,7 @@ class APB():
                 kl.append(0)  # EOF
                 self.output_define(kl, 'KERNELS', '0x%08x', 8)
 
-        if self.kernel_mem is not None and not state.new_kernel_loader:
+        if self.kernel_mem is not None and state.rtl_preload:
             try:
                 target_dir = target_dir = os.path.join(base_directory, test_name, 'masks')
                 os.makedirs(target_dir, exist_ok=False)
@@ -565,7 +565,7 @@ class APB():
                                        (tc.dev.MASK_WIDTH_LARGE - tc.dev.MASK_WIDTH_SMALL)
                                        // tc.dev.MASK_INSTANCES_EACH)
                     mem += tc.dev.MASK_INSTANCES_EACH
-                if not state.new_kernel_loader:
+                if state.rtl_preload:
                     if size != 1:
                         val = f'{k[0] & 0xff:02x}_{k[1] & 0xff:02x}{k[2] & 0xff:02x}' \
                             f'{k[3] & 0xff:02x}{k[4] & 0xff:02x}_{k[5] & 0xff:02x}' \
