@@ -265,15 +265,6 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             kern_count[0] = (kern_count[0] + 3) // 4
             kern_ochan[0] = (kern_ochan[0] + 3) // 4
 
-        def kernel_mem_mask(
-                offs: int,
-        ):
-            """Return the mask bits for the kernel memory at offset `offs`"""
-            assert tc.dev is not None
-            if offs + 1 >= tc.dev.MASK_WIDTH_SMALL:
-                return tc.dev.MASK_INSTANCE_SMALL-1
-            return tc.dev.MASK_INSTANCE_LARGE-1
-
         def search_kernel_mem(
                 ll: int,
                 offs: int,
@@ -285,6 +276,16 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         ) -> int:
             """Search kernel memory for free space"""
             assert tc.dev is not None
+
+            def kernel_mem_mask(
+                    offs: int,
+            ):
+                """Return the mask bits for the kernel memory at offset `offs`"""
+                assert tc.dev is not None
+                if offs + 1 >= tc.dev.MASK_WIDTH_SMALL:
+                    return tc.dev.MASK_INSTANCE_SMALL-1
+                return tc.dev.MASK_INSTANCE_LARGE-1
+
             p = first_proc
             while p < last_proc+1:
                 if (proc_map >> p) & 1 == 0:
