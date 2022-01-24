@@ -376,7 +376,7 @@ def loadfifo(
                         row, col = divmod(row_col + b, input_size[2])
                         val |= (s2u(data[c][row][col]) & 0xff) << b * 8
                 if not embedded_code:
-                    apb.write(0, val, '', fifo=fifo)
+                    apb.write(0, val, '', fifo=fifo, fifo_wait=state.fifo_wait)
                     for _ in range(state.slow_load):
                         apb.output('  asm volatile("nop");\n')
                 else:
@@ -416,7 +416,7 @@ def loadfifo(
                             val |= (s2u(data[c + b][row][col]) & 0xff) << b * 8
                         pmap >>= 1
                     if not embedded_code:
-                        apb.write(0, val, '', fifo=fifo)
+                        apb.write(0, val, '', fifo=fifo, fifo_wait=state.fifo_wait)
                         for _ in range(state.slow_load):
                             apb.output('  asm volatile("nop");\n')
                     else:
@@ -461,11 +461,11 @@ def loadfifo(
             if fifos > 1 and not const_len:
                 apb.output(f'    if (i < {len(code_buffer[c])})\n  ')
             if synthesize is None:
-                apb.write(0, f'*in{c}++', fifo=c,
+                apb.write(0, f'*in{c}++', fifo=c, fifo_wait=state.fifo_wait,
                           comment=f' // Write FIFO {c}', indent='    ')
             else:
                 s = f'*in{c}++ + add' if mask == '' else f'(*in{c}++ + add) & {mask}'
-                apb.write(0, s, fifo=c,
+                apb.write(0, s, fifo=c, fifo_wait=state.fifo_wait,
                           comment=f' // Write FIFO {c}', indent='    ')
         if synthesize is not None:
             apb.output(f'    if (i % {state.synthesize_words} == '

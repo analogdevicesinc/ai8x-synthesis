@@ -1093,7 +1093,9 @@ class APBTopLevel(APB):
             if not self.fast_fifo:
                 addr = state.apb_base + tc.dev.C_FIFO_BASE
                 if fifo_wait:
-                    self.memfile.write(f'{indent}while (((*((volatile uint32_t *) '
+                    self.memfile.write(f'{indent}// Remove the following line if there is no risk '
+                                       'that the source would overrun the FIFO:\n'
+                                       f'{indent}while (((*((volatile uint32_t *) '
                                        f'0x{addr + tc.dev.FIFO_STAT*4:08x})'
                                        f' & {1 << fifo})) != 0); // Wait for FIFO {fifo}\n')
                 self.memfile.write(f'{indent}*((volatile uint32_t *) '
@@ -1102,7 +1104,9 @@ class APBTopLevel(APB):
             else:
                 addr = tc.dev.FAST_FIFO_BASE
                 if fifo_wait:
-                    self.memfile.write(f'{indent}while (((*((volatile uint32_t *) '
+                    self.memfile.write(f'{indent}// Remove the following line if there is no risk '
+                                       'that the source would overrun the FIFO:\n'
+                                       f'{indent}while (((*((volatile uint32_t *) '
                                        f'0x{addr + tc.dev.FAST_FIFO_SR*4:08x})'
                                        f' & 2)) != 0); // Wait for FIFO\n')
                 self.memfile.write(f'{indent}*((volatile uint32_t *) '

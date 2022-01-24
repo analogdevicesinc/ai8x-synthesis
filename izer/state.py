@@ -54,6 +54,7 @@ ext_rdy: bool = False
 fast_fifo_quad: bool = False
 fast_fifo: bool = False
 fifo_go: bool = False
+fifo_wait: bool = True
 fifo: bool = False
 final_layer: int = -1
 first_layer_used: int = 0
