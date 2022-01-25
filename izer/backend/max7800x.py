@@ -95,7 +95,10 @@ class Backend(backend.Backend):
         out_offset = state.out_offset
         output_chan = state.output_channels
         output_dim = state.output_dim
+        output_size = list(zip(output_chan, (output_dim[x][0] for x in range(len(output_dim))),
+                                            (output_dim[x][1] for x in range(len(output_dim)))))
         output_filename = state.output_filename
+        output_layer = state.output_layer
         output_padding = state.output_padding
         output_processor_map = state.output_processor_map
         output_shift = state.output_shift
@@ -2861,6 +2864,8 @@ class Backend(backend.Backend):
 
             assert out_size[0] == output_chan[ll] \
                 and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
+            assert out_size[0] == output_size[ll][0] \
+                and out_size[1] == output_size[ll][1] and out_size[2] == output_size[ll][2]
 
             # Write .mem file for output or create the C check_output() function to
             # verify the output
@@ -2872,7 +2877,7 @@ class Backend(backend.Backend):
                     filename = f'{output_filename}-{ll}.mem'  # Intermediate output
                 filemode = 'w'
             else:
-                if ll == terminating_layer:
+                if output_layer[ll]:
                     filename = c_filename + ('_riscv' if riscv else '') + '.c'  # Final output
                 else:
                     filename = None  # Intermediate output - used for layer overwrite check
@@ -2887,13 +2892,7 @@ class Backend(backend.Backend):
                 apb.set_memfile(memfile)
 
                 if state.generate_kat:
-                    apb.output(f'// Expected output of layer {ll} for {test_name} '
-                               'given the sample input (known-answer test)\n'
-                               '// Delete this function for production code\n')
-                    if sampleoutput_header is not None:
-                        apb.output('static const uint32_t sample_output[] = SAMPLE_OUTPUT;\n')
-                    apb.function_header(dest='wrapper', prefix='', function='check_output')
-                    if ll == terminating_layer and mlator \
+                    if output_layer[ll] and mlator \
                        and not state.mlator_noverify and not embedded_code:
                         apb.verify_unload(
                             ll,
@@ -2909,7 +2908,7 @@ class Backend(backend.Backend):
                             overwrite_ok or streaming[ll],
                             mlator=False,
                             write_gap=write_gap[ll],
-                            final_layer=terminating_layer,
+                            unload_layer=output_layer[ll],
                         )
                     if log_intermediate:
                         filename2 = f'{output_filename}-{ll}.mem'  # Intermediate output
@@ -2940,7 +2939,7 @@ class Backend(backend.Backend):
                             out_expand_thresh[ll],
                             output_width[ll],
                             overwrite_ok or streaming[ll],
-                            mlator=mlator if ll == terminating_layer else False,
+                            mlator=mlator and output_layer[ll],
                             write_gap=write_gap[ll],
                         )
                     apb.verify_unload(
@@ -2956,9 +2955,9 @@ class Backend(backend.Backend):
                         output_width[ll],
                         overwrite_ok or (streaming[ll] if ll != start_layer
                                          else (streaming[ll] and fifo)),
-                        mlator=mlator if ll == terminating_layer else False,
+                        mlator=mlator and output_layer[ll],
                         write_gap=write_gap[ll],
-                        final_layer=terminating_layer,
+                        unload_layer=output_layer[ll],
                     )
                     if debug_snoop:
                         apb.verify_ctl(group, tc.dev.REG_SNP1_ACC, None, snoop[24],
@@ -2977,9 +2976,6 @@ class Backend(backend.Backend):
                                        comment=' // Verify snoop 2 match max accumulator')
                         apb.verify_ctl(group, tc.dev.REG_SNP2_AM, None, snoop[31],
                                        comment=' // Verify snoop 2 match address register')
-
-                    apb.verify_unload_finalize()
-                    apb.function_footer(dest='wrapper')  # check_output()
             finally:
                 if memfile:
                     memfile.close()
@@ -3010,6 +3006,29 @@ class Backend(backend.Backend):
 
         data = data_buf[ll]
 
+        try:
+            if filename:
+                memfile = open(os.path.join(base_directory, test_name, filename),
+                               mode=filemode, encoding='utf-8')
+            else:
+                memfile = None
+            apb.set_memfile(memfile)
+
+            if state.generate_kat:
+                layer_str = ", ".join([str(i) for i, e in enumerate(output_layer) if e])
+                apb.output(f'// Expected output of layer {layer_str} for {test_name} '
+                           'given the sample input (known-answer test)\n'
+                           '// Delete this function for production code\n')
+                if sampleoutput_header is not None:
+                    apb.output('static const uint32_t sample_output[] = SAMPLE_OUTPUT;\n')
+                apb.function_header(dest='wrapper', prefix='', function='check_output')
+
+                apb.verify_unload_finalize()
+                apb.function_footer(dest='wrapper')  # check_output()
+        finally:
+            if memfile:
+                memfile.close()
+
         if not block_mode:
             with open(os.path.join(base_directory, test_name, filename), mode=filemode,
                       encoding='utf-8') as memfile:
@@ -3017,13 +3036,14 @@ class Backend(backend.Backend):
 
                 if state.softmax or embedded_code and state.unload:
                     apb.unload(
-                        output_processor_map[terminating_layer],
-                        out_size,
-                        out_offset[terminating_layer],
-                        out_expand[terminating_layer],
-                        out_expand_thresh[terminating_layer],
-                        output_width[terminating_layer],
-                        write_gap=write_gap[terminating_layer],
+                        output_layer=output_layer,
+                        processor_map=output_processor_map,
+                        input_shape=output_size,
+                        output_offset=out_offset,
+                        out_expand=out_expand,
+                        out_expand_thresh=out_expand_thresh,
+                        output_width=output_width,
+                        write_gap=write_gap,
                     )
 
                 if state.softmax:

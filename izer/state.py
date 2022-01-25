@@ -114,6 +114,7 @@ output_channels: List[int] = []
 output_dim: List[List[int]] = []
 output_filename: str = ''
 output_is_console: bool = True
+output_layer: List[bool] = []
 output_offset: List[int] = []
 output_padding: List[List[int]] = []
 output_processor_map: List[int] = []

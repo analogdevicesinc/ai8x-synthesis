@@ -309,6 +309,11 @@ def main():
     tcalc = params['tcalc'][:layers]
     snoop_sequence = params['snoop_sequence'][:layers]
     simulated_sequence = params['simulated_sequence'][:layers]
+    output_layer = params['output_layer'][:layers]
+    if not any(output_layer):
+        output_layer[final_layer] = True
+    elif not output_layer[final_layer]:
+        wprint(f'The final layer {ll} is not designated as an `output` layer.')
 
     # Command line override
     if args.input_offset is not None:
@@ -379,9 +384,10 @@ def main():
                        'first layer.')
 
         # Check all but last layer
-        if ll != final_layer:
-            if output_width[ll] != 8:
-                wprint(f'`output_width` should be 8 for intermediate layer {ll}.')
+        next_seq = next_sequence[ll]
+        if output_width[ll] != 8 and next_seq != -1 \
+           and (in_sequences[next_seq] is None or ll in in_sequences[next_seq]):
+            wprint(f'`output_width` should be 8 for intermediate layer {ll}.')
 
         if in_sequences[ll] is not None:
             if tc.dev.SUPPORT_LINK_LAYER:
@@ -551,6 +557,7 @@ def main():
     state.output_channels = output_channels
     state.output_dim = output_dim
     state.output_offset = output_offset
+    state.output_layer = output_layer
     state.output_padding = output_padding
     state.output_processor_map = output_processor_map
     state.output_shift = output_shift

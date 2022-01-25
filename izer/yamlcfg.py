@@ -136,6 +136,7 @@ def parse(
     readahead = [False] * tc.dev.MAX_LAYERS
     pool_dilation = [[1, 1]] * tc.dev.MAX_LAYERS
     tcalc = [None] * tc.dev.MAX_LAYERS
+    output_layer = [False] * tc.dev.MAX_LAYERS
 
     sequence = 0
     skip = skip_layers
@@ -154,7 +155,7 @@ def parse(
                                  'next_sequence', 'snoop_sequence', 'simulated_sequence',
                                  'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
                                  'bias_group', 'bias_quadrant', 'calcx4', 'readahead',
-                                 'pool_dilation', 'output_pad', 'tcalc', 'read_gap'])
+                                 'pool_dilation', 'output_pad', 'tcalc', 'read_gap', 'output'])
         if bool(cfg_set):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`: '
                    f'{cfg_set}.')
@@ -514,6 +515,13 @@ def parse(
         elif operator[sequence] == op.CONVTRANSPOSE2D:
             output_padding[sequence] = [1, 1]
 
+        if 'output' in ll:
+            val = ll['output']
+            try:
+                output_layer[sequence] = bool(val)
+            except ValueError:
+                error_exit(f'Unsupported value `{val}` for `output`', sequence)
+
         # Fix up values for 1D convolution or no convolution
         if operator[sequence] == op.CONV1D:
             padding[sequence][1] = 0
@@ -574,6 +582,7 @@ def parse(
             del pool_dilation[ll]
             del output_padding[ll]
             del tcalc[ll]
+            del output_layer[ll]
 
     for ll, _ in enumerate(operator):
         # Warn when using default pool stride of 1, 1
@@ -629,5 +638,6 @@ def parse(
     settings['pool_dilation'] = pool_dilation
     settings['output_padding'] = output_padding
     settings['tcalc'] = tcalc
+    settings['output_layer'] = output_layer
 
     return cfg, len(processor_map), settings
