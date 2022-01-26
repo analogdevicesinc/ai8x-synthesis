@@ -28,7 +28,7 @@ def unload(
         out_expand: List[int],
         out_expand_thresh: List[int],
         output_width: List[int],
-        write_gap: List[int],  # pylint: disable=unused-argument
+        write_gap: List[int],
 ):
     """
     Unload HWC memory from hardware, writing C code to the `memfile` handle.
@@ -145,7 +145,7 @@ def unload(
                     offs = out_offset[ll] + \
                         (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
                             (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
-                            doffs * width + expand * out_size) * 4
+                            doffs * width + expand * out_size) * (write_gap[ll] + 1) * 4
 
                     for shift in range(4):
                         if this_map & 1:
@@ -204,7 +204,8 @@ def unload(
                             source = out_offset[ll] + \
                                 (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
                                   (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
-                                 (doffs >> 2) * width + expand * out_size) * 4
+                                 (doffs >> 2) * width + expand * out_size) \
+                                * (write_gap[ll] + 1) * 4
                             target = this_c * input_shape[ll][1] * input_shape[ll][2] \
                                 + row * input_shape[ll][1] + col + written
                             assert target & 3 == 0
