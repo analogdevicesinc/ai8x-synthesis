@@ -41,22 +41,66 @@ def unload(
     """
     assert tc.dev is not None
 
+    def mlator_write_one(
+            prefix: str = '',
+            comment: str = '',
+            out_size: int = 8,
+    ) -> None:
+        """
+        Print a single mlator unload line
+        """
+        return f'{prefix}  out_buf{"32" if out_size != 32 else ""}' \
+               f'[offs++] = *mlat;{comment}\n'
+
     # Cache for faster access
     apb_base = state.apb_base
     mlator = state.mlator
     mlator_chunk = state.mlator_chunk if state.embedded_code else 1
     narrow_chunk = state.narrow_chunk if state.embedded_code else 0
     wide_chunk = state.wide_chunk if state.embedded_code else 0
+    unload_custom = state.unload_custom
 
     assert not state.block_mode or not mlator
 
     mlator_warning_shown = False
 
+    # If 'unload' is specified in the YAML file, create synthetic versions of
+    # output_layer[], output_width[], input_shape[], processor_map[], out_expand[],
+    # out_expand_thresh[], out_offset[], write_gap[].
+    if unload_custom is not None:
+        num_custom_outputs = len(unload_custom)
+        layers = len(output_layer) + num_custom_outputs
+        # Create synthetic variables
+        output_layer = [False] * layers
+        processor_map = [None] * layers
+        input_shape = [None] * layers
+        out_offset = [None] * layers
+        output_width = [None] * layers
+        write_gap = [None] * layers
+        out_expand = [None] * layers
+        out_expand_thresh = [None] * layers
+        # Fill them
+        for i, e in enumerate(unload_custom):
+            ll = i - num_custom_outputs
+            output_layer[ll] = True
+            processor_map[ll] = e['proc']
+            input_shape[ll] = e['dim']
+            out_offset[ll] = e['offset']
+            output_width[ll] = e['width']
+            write_gap[ll] = e['write_gap']
+            output_chan = input_shape[ll][0]
+            out_expand[ll] = (output_chan + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
+            out_expand_thresh[ll] = (output_chan + out_expand[ll]-1) // out_expand[ll]
+            if output_chan > tc.dev.MAX_PROC:
+                out_expand_thresh[ll] = \
+                    min((out_expand_thresh[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1),
+                        tc.dev.MAX_PROC)
+
     o_width = 0
     for ll, e in enumerate(output_layer):
         if e:
             if o_width != 0 and output_width[ll] != o_width:
-                eprint(f'Layer {ll}: Multiple output layers with different output widths are '
+                eprint(f'Layer {ll}: Multiple outputs with different output widths are '
                        'not supported by this software.')
             else:
                 o_width = output_width[ll]
@@ -94,17 +138,6 @@ def unload(
     write_addr = None
     written = 0
     out_addr = 0
-
-    def mlator_write_one(
-            prefix: str = '',
-            comment: str = '',
-            out_size: int = 8,
-    ) -> None:
-        """
-        Print a single mlator unload line
-        """
-        return f'{prefix}  out_buf{"32" if out_size != 32 else ""}' \
-               f'[offs++] = *mlat;{comment}\n'
 
     for ll, e in enumerate(output_layer):
         if not e:
@@ -258,8 +291,6 @@ def unload(
 
                     this_map >>= 1
 
-                written += input_shape[ll][0] * input_shape[ll][1] * input_shape[ll][2]
-
             coffs += 4
             poffs += 4
             c += popcount(next_layer_map & 0x0f)
@@ -392,6 +423,9 @@ def unload(
                     if not short_write and idx < len(emit_list) and shift_count > 1:
                         out_text += f'  offs += 0x{xy_dim * (shift_count - 1):04x};\n'
                         written += xy_dim * (shift_count - 1)
+
+        if mlator:
+            written += input_shape[ll][0] * input_shape[ll][1] * input_shape[ll][2]
 
     if o_width != 32 and not mlator:
         memfile.write(f'  uint{o_width}_t *out_buf = (uint{o_width}_t *) out_buf32;\n')

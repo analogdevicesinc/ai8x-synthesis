@@ -174,6 +174,7 @@ tcalc: List[bool] = []
 test_dir: str = ''
 timeout: Optional[int] = None
 timer: Optional[int] = None
+unload_custom: Optional[List[List[int]]] = None
 unload: bool = True
 verbose_all: bool = False
 verbose: bool = False

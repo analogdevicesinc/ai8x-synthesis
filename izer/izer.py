@@ -581,6 +581,7 @@ def main():
     state.tcalc = tcalc
     state.weights = weights
     state.write_gap = write_gap
+    state.unload_custom = params['unload_custom']
 
     # Implied states
     if state.riscv_debug:
