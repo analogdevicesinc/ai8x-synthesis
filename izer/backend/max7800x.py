@@ -179,6 +179,8 @@ class Backend(backend.Backend):
         hw_add_layers = [0] * layers
         sum_hw_layers = 0
 
+        all_outputs_map = None
+
         terminating_layer = final_layer
         for i, s in enumerate(simulated_sequence):
             if s == -1:
@@ -2991,7 +2993,24 @@ class Backend(backend.Backend):
                 # these layers are still needed.
                 in_map = [a if a is not None else b for a, b, in zip(in_map, out_map)]
             else:
-                in_map = out_map
+                # Else, preserve the output map of all prior layers marked 'output' plus
+                # the current layer.
+                if output_layer[ll]:
+                    # Add this output to the map of all output layers
+                    if all_outputs_map is None:
+                        all_outputs_map = out_map
+                    else:
+                        all_outputs_map = [a if a is not None else b
+                                           for a, b, in zip(all_outputs_map, out_map)]
+                    # Since this layer is an output layer, in_map is the same
+                    in_map = all_outputs_map
+                else:
+                    # Take the map of all previous output layers, and add this layer to in_map
+                    if all_outputs_map is None:
+                        in_map = out_map
+                    else:
+                        in_map = [a if a is not None else b
+                                  for a, b, in zip(all_outputs_map, out_map)]
 
             compute.debug_close()
 
