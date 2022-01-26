@@ -139,6 +139,9 @@ def get_parser() -> argparse.Namespace:
     group.add_argument('--switch-delay', dest='enable_delay', type=int, metavar='N', default=None,
                        help="set delay in msec after cnn_enable() for load switches (default: 0"
                             " on MAX78000, 10 on MAX78002)")
+    group.add_argument('--output-width', type=int, default=None,
+                       choices=[8, 32],
+                       help="override `output_width` for the final layer (default: use YAML)")
 
     # File names
     group = parser.add_argument_group('File names')
@@ -170,6 +173,9 @@ def get_parser() -> argparse.Namespace:
     group.add_argument('--fast-fifo-quad', action='store_true', default=False,
                        help="use fast FIFO in quad fanout mode (implies --fast-fifo; "
                             "default: false)")
+    group.add_argument('--no-fifo-wait', dest='fifo_wait', action='store_false', default=True,
+                       help="do not check the FIFO for available space (requires matching source "
+                            "speed to inference, default: False)")
     group.add_argument('--fifo-go', action='store_true', default=False,
                        help="start processing before first FIFO push (default: false)")
     group.add_argument('--slow-load', type=int, metavar='N', default=0,
@@ -540,6 +546,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.fast_fifo_quad = args.fast_fifo_quad
     state.fifo = args.fifo
     state.fifo_go = args.fifo_go
+    state.fifo_wait = args.fifo_wait
     state.fixed_input = args.fixed_input
     state.forever = args.forever and args.embedded_code
     state.generate_kat = args.generate_kat
