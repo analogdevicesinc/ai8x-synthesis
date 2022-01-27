@@ -1,6 +1,6 @@
 # MAX78000 Model Training and Synthesis
 
-_January 12, 2022_
+_January 27, 2022_
 
 The Maxim Integrated AI project is comprised of five repositories:
 
@@ -1987,9 +1987,22 @@ The global `output_map`, if specified, overrides the memory instances where the 
 Example:
 	`output_map: 0x0000000000000ff0`
 
+##### `unload` (Optional)
+
+By default, the function `cnn_unload()` is automatically generated from the network’s output layers (typically, the final layer). `unload` can be used to override the shape and sequence of data copied from the CNN. It is possible to specify multiple `unload` list items, and they will be processed in the order they are given.
+
+The following keywords are required for each `unload` list item:
+
+`processors`: The processors data is copied from
+`channels`: Data channel count
+`dim`: Data dimensions (1D or 2D)
+`offset`: Data source offset
+`width`: Data width (optional, defaults to 8) — either 8 or 32
+`write_gap`: Gap between data words (optional, defaults to 0)
+
 ##### `layers` (Mandatory)
 
-`layers` is a list that defines the per-layer description.
+`layers` is a list that defines the per-layer description, as shown below:
 
 #### Per-Layer Configuration
 
@@ -2257,6 +2270,16 @@ For layers that use a bias, this key can specify one or more bias memories that 
 
 Example:
 	`bias_group: 0`
+
+##### `output` (Optional)
+
+By default, the final layer is used as the output layer. Output layers are checked using the known-answer test, and they are copied from hardware memory when `cnn_unload()` is called. The tool also checks that output layer data isn’t overwritten by any later layers.
+
+When specifying `output: True`, any layer (or a combination of layers) can be used as an output layer.
+*Note:* When `unload:` is used, output layers are not used for generating `cnn_unload()`.
+
+Example:
+	`output: True`
 
 ##### Dropout and Batch Normalization
 

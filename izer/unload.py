@@ -99,7 +99,7 @@ def unload(
     o_width = 0
     for ll, e in enumerate(output_layer):
         if e:
-            if o_width != 0 and output_width[ll] != o_width:
+            if o_width not in (0, output_width[ll]):
                 eprint(f'Layer {ll}: Multiple outputs with different output widths are '
                        'not supported by this software.')
             else:
