@@ -231,7 +231,10 @@ def unload(
                         out_text += f'  // Channel {this_c}\n'
 
                         for doffs in range(0, input_shape[ll][1] * input_shape[ll][2], 4):
-                            row, col = divmod(doffs, input_shape[ll][2])
+                            if input_shape[ll][1] == 1 or input_shape[ll][2] == 1:
+                                row, col = 0, doffs
+                            else:
+                                row, col = divmod(doffs, input_shape[ll][2])
 
                             # Get four bytes from memory
                             source = out_offset[ll] + \
