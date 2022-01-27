@@ -129,7 +129,12 @@ class Backend(backend.Backend):
 
         # Redirect stdout?
         if log:
-            sys.stdout = open(os.path.join(base_directory, test_name, log_filename), 'w')
+            state.output_is_console = False
+            sys.stdout = open(
+                os.path.join(base_directory, test_name, log_filename),
+                mode='w',
+                encoding='utf-8',
+            )
             print(f'{" ".join(str(x) for x in sys.argv)}')
             assert tc.dev is not None
             print(f'{tc.dev.partnum}\n')
@@ -137,11 +142,23 @@ class Backend(backend.Backend):
 
         filename = c_filename + '.c'
         sampledata_header = \
-            open(os.path.join(base_directory, test_name, sample_filename), mode='w')
+            open(
+                os.path.join(base_directory, test_name, sample_filename),
+                mode='w',
+                encoding='utf-8',
+            )
         weight_header = \
-            open(os.path.join(base_directory, test_name, weight_filename), mode='w')
+            open(
+                os.path.join(base_directory, test_name, weight_filename),
+                mode='w',
+                encoding='utf-8',
+            )
 
-        with open(os.path.join(base_directory, test_name, filename), mode='w') as c_file:
+        with open(
+            os.path.join(base_directory, test_name, filename),
+            mode='w',
+            encoding='utf-8',
+        ) as c_file:
             toplevel.copyright_header(c_file)
 
             c_file.write(f'// {test_name}\n')

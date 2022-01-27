@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -12,7 +12,7 @@ import yamllint
 import yamllint.config
 import yamllint.linter
 
-from . import devices, op
+from . import devices, op, state
 from . import tornadocnn as tc
 from .eprint import eprint, wprint
 
@@ -29,7 +29,7 @@ class UniqueKeyLoader(yaml.Loader):
         if not isinstance(node, yaml.MappingNode):
             raise yaml.constructor.ConstructorError(
                 None, None,
-                "Expected a mapping node, but found %s" % node.id,
+                f"Expected a mapping node, but found {node.id}",
                 node.start_mark
             )
 
@@ -73,13 +73,13 @@ def parse(
 
     # Run yamllint first
     yaml_config = yamllint.config.YamlLintConfig('extends: relaxed')
-    with open(config_file) as cfg_file:
+    with open(config_file, mode='r', encoding='utf-8') as cfg_file:
         for p in yamllint.linter.run(cfg_file, yaml_config):
             eprint(f'{config_file} line {p.line}, col {p.column}: {p.desc}',
                    error=p.level == 'error')
 
     # Load configuration file
-    with open(config_file) as cfg_file:
+    with open(config_file, mode='r', encoding='utf-8') as cfg_file:
         cfg = yaml.load(cfg_file, Loader=UniqueKeyLoader)
 
     cfg_set = set(cfg) - set(['bias', 'dataset', 'layers',
@@ -154,7 +154,7 @@ def parse(
                                  'next_sequence', 'snoop_sequence', 'simulated_sequence',
                                  'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
                                  'bias_group', 'bias_quadrant', 'calcx4', 'readahead',
-                                 'pool_dilation', 'output_pad', 'tcalc'])
+                                 'pool_dilation', 'output_pad', 'tcalc', 'read_gap'])
         if bool(cfg_set):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`: '
                    f'{cfg_set}.')
@@ -240,8 +240,9 @@ def parse(
             if isinstance(ll['in_dim'], list) and len(ll['in_dim']) > 2:
                 error_exit('`in_dim` must not exceed two dimensions', sequence)
             input_dim[sequence] = ll['in_dim']
-        if 'in_skip' in ll:
-            input_skip[sequence] = ll['in_skip']
+        if 'in_skip' in ll or 'read_gap' in ll:
+            key = 'in_skip' if 'in_skip' in ll else 'read_gap'
+            input_skip[sequence] = ll[key]
         if 'in_channel_skip' in ll:
             input_chan_skip[sequence] = ll['in_channel_skip']
         if 'in_offset' in ll:
@@ -264,6 +265,8 @@ def parse(
                 activation[sequence] = None
             else:
                 error_exit(f'Unknown value "{ll[key]}" for `{key}`', sequence)
+            if state.ignore_activation:
+                activation[sequence] = None
 
         if 'convolution' in ll or 'operation' in ll or 'op' in ll or 'operator' in ll:
             key = 'convolution' if 'convolution' in ll else \

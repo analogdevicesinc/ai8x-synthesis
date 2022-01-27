@@ -30,7 +30,14 @@
  # ownership rights.
  #
  ###############################################################################
+ 
+# Command-line option for overriding output filename.  
+# Ex: make all OUTFILE="filename" ... results in filename.elf
+ifneq "$(OUTFILE)" ""
+PROJECT=$(OUTFILE)
+endif
 
+# Default name of the build output file
 ifeq "$(PROJECT)" ""
 PROJECT=##__PROJ_NAME__##
 endif
@@ -38,11 +45,11 @@ endif
 .PHONY: all arm release clean distclean riscv
 all: build/$(PROJECT)-combined.elf
 
-build/$(PROJECT)-combined.elf: build/$(PROJECT).elf buildrv/$(PROJECT)-riscv.elf arm riscv
+build/$(PROJECT)-combined.elf: build/$(PROJECT).elf buildrv/$(PROJECT).elf arm riscv
 	@arm-none-eabi-objcopy -I elf32-littlearm build/$(PROJECT).elf -O ihex build/$(PROJECT).hex
 	@cat build/$(PROJECT).hex | sed '/^:00000001FF/d' > build/$(PROJECT)a.hex
-	@riscv-none-embed-objcopy buildrv/$(PROJECT)-riscv.elf -O ihex buildrv/$(PROJECT)-riscv.hex
-	@cat build/$(PROJECT)a.hex buildrv/$(PROJECT)-riscv.hex > build/$(PROJECT)-combined.hex
+	@riscv-none-embed-objcopy buildrv/$(PROJECT).elf -O ihex buildrv/$(PROJECT).hex
+	@cat build/$(PROJECT)a.hex buildrv/$(PROJECT).hex > build/$(PROJECT)-combined.hex
 	@arm-none-eabi-objcopy -I ihex build/$(PROJECT)-combined.hex -O elf32-littlearm build/$(PROJECT)-combined.elf
 
 arm:
@@ -53,12 +60,12 @@ build/$(PROJECT).elf: arm
 buildrv/common_riscv.ld: build/$(PROJECT).elf arm
 	@mkdir -p buildrv
 	@grep "__FlashStart_" build/$(PROJECT).map | sed 's/__FlashStart_ = .*$$//' | sed 's/^ */__FlashStart = /' | sed 's/ *$$/;/' > $@
-	@echo "__FlashLength = (0x10080000 - __FlashStart);" >> $@
+	@echo "__FlashLength = (0x10280000 - __FlashStart);" >> $@
 
 riscv: buildrv/common_riscv.ld arm build/$(PROJECT).elf
 	@$(MAKE) -f Makefile.RISCV
 
-buildrv/$(PROJECT)-riscv.elf: riscv arm build/$(PROJECT).elf buildrv/common_riscv.ld
+buildrv/$(PROJECT).elf: riscv arm build/$(PROJECT).elf buildrv/common_riscv.ld
 
 clean distclean:
 	@$(MAKE) -f Makefile.ARM $@

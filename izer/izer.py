@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -8,6 +8,7 @@
 Embedded network and simulation test generator program for Tornado CNN
 """
 import os
+import sys
 import time
 from pydoc import locate
 
@@ -26,6 +27,9 @@ def main():
     Command line wrapper
     """
     np.set_printoptions(threshold=np.inf, linewidth=190)
+
+    # Save stdout before colorama potentially wraps it
+    state.output_is_console = sys.stdout is not None and sys.stdout.isatty()
     colorama.init()
 
     args = commandline.get_parser()
@@ -279,6 +283,8 @@ def main():
     dilation = params['dilation'][:layers]
     big_data = params['big_data'][:layers]
     output_width = params['output_width'][:layers]
+    if args.output_width is not None:
+        output_width[final_layer] = args.output_width
     operator = params['operator'][:layers]
     if args.ignore_streaming:
         streaming = [False] * layers
@@ -326,6 +332,8 @@ def main():
     pooled_dim = [None] * layers
     output_dim = [None] * layers
 
+    avgpool_reset_layer = [False] * layers
+
     ll = args.start_layer
     auto_input_dim[ll] = [input_size[1], input_size[2]]
     if conf_input_dim[ll] is None:
@@ -358,6 +366,10 @@ def main():
             # Fix up default input maps
             if input_offset[ll] is None:
                 input_offset[ll] = output_offset[prev_sequence[ll]]
+            elif in_sequences[ll] is None and input_offset[ll] != output_offset[prev_sequence[ll]]:
+                wprint(f'Layer {ll}: Non-default `in_offset: 0x{input_offset[ll]:04x}`, '
+                       f'but no `in_sequences` given. Assuming `in_sequences: '
+                       f'{prev_sequence[ll]}` which may be incorrect.')
             # Check we don't turn on streaming too late
             if streaming[ll] and not streaming[prev_sequence[ll]]:
                 eprint(f'Layer {ll} is a streaming layer, but the previous layer '
@@ -397,6 +409,9 @@ def main():
             if conf_input_dim[ll] is None:
                 input_dim[ll] = auto_input_dim[ll]
                 # Print warning when going from 1D to 2D without explicitly reformatting the input
+                if input_dim[ll] is None:
+                    eprint(f'Layer {ll} does not have input dimension information. Please use '
+                           '`in_dim` to explicitly set dimensions.')
                 if input_dim[ll][1] == 1 and operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D] \
                    and prev_op == op.CONV1D:
                     wprint(f'Using 1-dimensional data {input_dim[ll][0]}x{input_dim[ll][1]} for '
@@ -490,6 +505,13 @@ def main():
             eprint(f'Layer {ll} specifies activation {op.act_string(activation[ll])} for a '
                    'passthrough layer.')
 
+        # On MAX78002, if an average pool directly follows an element-wise operation, we need
+        # to insert a small layer to reset the average pool logic
+        if tc.dev.REQUIRE_PASSTHROUGH_AVGPOOL_AFTER_ELTWISE and ll > 0 \
+           and operands[prev_sequence[ll]] > 1 \
+           and pool_average[ll]:
+            avgpool_reset_layer[ll] = True
+
         ll = next_sequence[ll]
         if ll == -1:
             break
@@ -508,6 +530,7 @@ def main():
     state.conv_groups = conv_groups
     state.data = data
     state.dilation = dilation
+    state.avgpool_reset_layer = avgpool_reset_layer
     state.eltwise = eltwise
     state.final_layer = final_layer
     state.first_layer_used = min_layer

@@ -1,0 +1,25 @@
+{
+    "terminal.integrated.env.windows": {
+        "Path":"${config:MAXIM_PATH}/Tools/MinGW/msys/1.0/bin;${config:MAXIM_PATH}/Tools/OpenOCD;${config:MAXIM_PATH}/Tools/GNUTools/bin;${config:MAXIM_PATH}/Tools/xPack/riscv-none-embed-gcc/bin;${env:Path}"   
+    },
+
+    "terminal.integrated.env.linux": {
+        "PATH":"${config:MAXIM_PATH}/Tools/OpenOCD:/${config:MAXIM_PATH}/Tools/GNUTools/bin:${config:MAXIM_PATH}/Tools/xPack/riscv-none-embed-gcc/bin:${env:PATH}"
+    },
+
+    "MAXIM_PATH":"C:/MaximSDK",
+
+    "target":"##__TARGET_UC__##",
+
+    "board":"##__BOARD__##",
+
+    "proj_name":"${workspaceFolderBasename}",
+
+    "prog_file":"##__ELF_FILE__##",
+
+    "OCD_interface_file":"##__OCD_INTERFACE__##",
+
+    "OCD_target_file":"##__TARGET_LC__##",
+
+    "v_libgcc": "9.2.1"
+}

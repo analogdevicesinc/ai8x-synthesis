@@ -11,7 +11,6 @@ NumPy implementation of Conv2d, ConvTranspose2d, Pool2d.
 Compatible with PyTorch.
 """
 import os
-from typing import Optional, TextIO
 
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
@@ -19,8 +18,6 @@ from numpy.typing import ArrayLike
 
 from . import op, state, stats
 from .eprint import eprint
-
-debug_log: Optional[TextIO] = None
 
 
 def debug_open(
@@ -32,12 +29,13 @@ def debug_open(
     """
     Create debug log for a layer
     """
-    global debug_log  # pylint: disable=global-statement
-
     if not state.debug_computation:
         return
-    debug_log = open(os.path.join(base_directory, test_name,
-                                  f'compute-{layer}.csv'), 'w')
+    state.debug_log = open(
+        os.path.join(base_directory, test_name, f'compute-{layer}.csv'),
+        mode='w',
+        encoding='utf-8',
+    )
 
 
 def debug_print(
@@ -46,23 +44,20 @@ def debug_print(
     """
     Print to the compute debug log
     """
-    global debug_log  # pylint: disable=global-statement
-
     if not state.debug_computation:
         return
-    print(t, file=debug_log)
+    print(t, file=state.debug_log)
 
 
 def debug_close() -> None:
     """
     Close the compute debug log
     """
-    global debug_log  # pylint: disable=global-statement
-
     if not state.debug_computation:
         return
-    assert debug_log is not None
-    debug_log.close()
+    assert state.debug_log is not None
+    state.debug_log.close()
+    state.debug_log = None
 
 
 def conv2d(

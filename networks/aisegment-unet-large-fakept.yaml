@@ -2,7 +2,9 @@
 # UNet Model
 
 arch: ai85unetlarge
-dataset: AISegment_352
+#for KAT test reduced data is used to limited FLASH size
+dataset: AISegment_352_reduced
+#dataset: AISegment_352
 
 layers:
 

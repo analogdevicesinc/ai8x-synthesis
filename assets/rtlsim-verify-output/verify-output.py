@@ -55,10 +55,10 @@ for _, _, fnames in sorted(os.walk('data-expected')):  # type: ignore
             log.error('data-output/%s does not exist!', outname)
             sys.exit(-2)
 
-        with open(os.path.join('data-output', outname)) as f:
+        with open(os.path.join('data-output', outname), encoding='utf-8') as f:
             data = f.readlines()
 
-        with open(os.path.join('data-expected', fname)) as f:
+        with open(os.path.join('data-expected', fname), encoding='utf-8') as f:
             expected = f.readlines()
 
         for e in expected:

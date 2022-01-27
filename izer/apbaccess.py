@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -129,12 +129,13 @@ class APB():
                             with open(
                                 os.path.join(target_dir,
                                              f'DRAM_x16_{group}_proc_{proc*4}_ram_{mem}.dat'),
-                                mode='w'
+                                mode='w',
+                                encoding='utf-8',
                             ) as f:
                                 for (addr, val) in self.data_mem[group][proc][mem]:
                                     f.write(f'@{addr:04x} {val}\n')
 
-        if self.kernel_mem is not None and state.new_kernel_loader:
+        if self.kernel_mem is not None and not state.rtl_preload:
             # Build a list of sequential kernel "chunks" so the loader code can use compact
             # memcpy instructions of streaming copy
             input_list = []
@@ -215,7 +216,7 @@ class APB():
                 kl.append(0)  # EOF
                 self.output_define(kl, 'KERNELS', '0x%08x', 8)
 
-        if self.kernel_mem is not None and not state.new_kernel_loader:
+        if self.kernel_mem is not None and state.rtl_preload:
             try:
                 target_dir = target_dir = os.path.join(base_directory, test_name, 'masks')
                 os.makedirs(target_dir, exist_ok=False)
@@ -229,7 +230,8 @@ class APB():
                             with open(
                                 os.path.join(target_dir,
                                              f'MRAM_x16_{group}_proc_{proc}_ram_{mem}.dat'),
-                                mode='w'
+                                mode='w',
+                                encoding='utf-8',
                             ) as f:
                                 for (addr, val) in self.kernel_mem[group][proc][mem]:
                                     f.write(f'@{addr:04x} {val}\n')
@@ -250,7 +252,8 @@ class APB():
                             with open(
                                 os.path.join(target_dir,
                                              f'DRAM_x16_{group}_proc_{proc*4}_ram_{mem}.dat'),
-                                mode='w'
+                                mode='w',
+                                encoding='utf-8',
                             ) as f:
                                 for (addr, val) in self.output_data_mem[group][proc][mem]:
                                     f.write(f'@{addr:04x} {val}\n')
@@ -291,7 +294,7 @@ class APB():
             no_verify=False,
             fifo=None,
             base=None,
-    ):  # pylint: disable=unused-argument
+    ):
         """
         Write address `addr` and data `val` to the output file.
         if `no_verify` is `True`, do not check the result of the write operation, even if
@@ -329,7 +332,7 @@ class APB():
             rv=False,
             api=False,
             data=False,
-    ):  # pylint: disable=unused-argument
+    ):
         """
         Verify that memory at address `addr` contains data `val`.
         """
@@ -562,7 +565,7 @@ class APB():
                                        (tc.dev.MASK_WIDTH_LARGE - tc.dev.MASK_WIDTH_SMALL)
                                        // tc.dev.MASK_INSTANCES_EACH)
                     mem += tc.dev.MASK_INSTANCES_EACH
-                if not state.new_kernel_loader:
+                if state.rtl_preload:
                     if size != 1:
                         val = f'{k[0] & 0xff:02x}_{k[1] & 0xff:02x}{k[2] & 0xff:02x}' \
                             f'{k[3] & 0xff:02x}{k[4] & 0xff:02x}_{k[5] & 0xff:02x}' \
@@ -732,9 +735,9 @@ class APB():
 
     def softmax_layer(  # pylint: disable=no-self-use
             self,
-            *args,
-            **kwargs,
-    ):  # pylint: disable=unused-argument
+            *args,  # pylint: disable=unused-argument
+            **kwargs,  # pylint: disable=unused-argument
+    ):
         """
         Write the call to the fully connected layer for the given `weights` and
         `bias`. The `bias` argument can be `None`.
@@ -1090,7 +1093,9 @@ class APBTopLevel(APB):
             if not self.fast_fifo:
                 addr = state.apb_base + tc.dev.C_FIFO_BASE
                 if fifo_wait:
-                    self.memfile.write(f'{indent}while (((*((volatile uint32_t *) '
+                    self.memfile.write(f'{indent}// Remove the following line if there is no risk '
+                                       'that the source would overrun the FIFO:\n'
+                                       f'{indent}while (((*((volatile uint32_t *) '
                                        f'0x{addr + tc.dev.FIFO_STAT*4:08x})'
                                        f' & {1 << fifo})) != 0); // Wait for FIFO {fifo}\n')
                 self.memfile.write(f'{indent}*((volatile uint32_t *) '
@@ -1099,7 +1104,9 @@ class APBTopLevel(APB):
             else:
                 addr = tc.dev.FAST_FIFO_BASE
                 if fifo_wait:
-                    self.memfile.write(f'{indent}while (((*((volatile uint32_t *) '
+                    self.memfile.write(f'{indent}// Remove the following line if there is no risk '
+                                       'that the source would overrun the FIFO:\n'
+                                       f'{indent}while (((*((volatile uint32_t *) '
                                        f'0x{addr + tc.dev.FAST_FIFO_SR*4:08x})'
                                        f' & 2)) != 0); // Wait for FIFO\n')
                 self.memfile.write(f'{indent}*((volatile uint32_t *) '

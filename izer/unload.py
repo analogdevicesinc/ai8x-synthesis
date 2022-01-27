@@ -14,7 +14,7 @@ import numpy as np
 
 from . import state, toplevel
 from . import tornadocnn as tc
-from .eprint import eprint, wprint
+from .eprint import eprint, nprint, wprint
 from .utils import ffs, popcount
 
 
@@ -49,7 +49,7 @@ def unload(
 
     if not mlator and output_width == 8 and state.embedded_code \
        and input_shape[1] * input_shape[2] % 4 == 0:
-        wprint('Use --mlator to optimize cnn_unload() for 8-bit output values.')
+        nprint('Use --mlator to optimize cnn_unload() for 8-bit output values.')
 
     if mlator and output_width != 8:
         wprint('ignoring --mlator for 32-bit output.')
@@ -275,7 +275,8 @@ def unload(
                             out_text += f'{prefix}  *out_buf++ = *addr++;\n'
                         else:
                             out_text += f'{prefix}  *out_buf++ = *addr;\n' \
-                                        f'{prefix}  addr += 0x{delta_r // 4:04x};\n'
+                                        f'{prefix}  addr {"+" if delta_r >= 0 else "-"}= ' \
+                                        f'0x{abs(delta_r) // 4:04x};\n'
                     if loop_runs > 1:
                         out_text += '  }\n'
                     remaining -= loop_runs * chunk
@@ -329,7 +330,8 @@ def unload(
                             out_text += f'{prefix}  val = *addr++;\n'
                         else:
                             out_text += f'{prefix}  val = *addr;\n' \
-                                        f'{prefix}  addr += 0x{delta_r // 4:04x};\n'
+                                        f'{prefix}  addr {"+" if delta_r >= 0 else "-"}= ' \
+                                        f'0x{abs(delta_r) // 4:04x};\n'
                         for _, shift in enumerate(shift_list):
                             if not short_write:
                                 out_text += f'{prefix}  out_buf[offs'

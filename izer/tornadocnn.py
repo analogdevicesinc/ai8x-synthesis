@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -11,6 +11,7 @@ from . import devices, state
 from .eprint import eprint
 
 dev = None
+MAX_MAX_LAYERS = 256
 
 
 class Dev:
@@ -47,6 +48,8 @@ class Dev:
     REQUIRE_NEW_STREAMING = False
     REQUIRE_FIFO_CPL = True
     REQUIRE_FLATTEN_BIAS_FIRST = False
+    REQUIRE_PASSTHROUGH_AVGPOOL_AFTER_ELTWISE = False
+    REQUIRE_WEIGHT_MASK = False
     EMULATE_ELTWISE_MP = False
     EMULATE_1X1_STREAMING = True
     USE_PROCESSORS = True
@@ -67,6 +70,7 @@ class Dev:
 
     MASK_INSTANCES = MASK_INSTANCES_EACH = 1
     C_SRAM_BASE = C_GROUP_OFFS = INSTANCE_SIZE = INSTANCE_COUNT = INSTANCE_WIDTH = 0
+    MASK_INSTANCE_SMALL = MASK_INSTANCE_LARGE = 0
     MASK_WIDTH_SMALL = MASK_WIDTH_LARGE = P_NUMPRO = 0  # These will be overridden by child classes
     IPO_SPEED = 100
     APB_SPEED = IPO_SPEED // 2
@@ -251,8 +255,8 @@ class DevAI85(Dev):
     TRAM_SIZE = 3072
     TRAM_OFFS = 4096
     BIAS_SIZE = 512
-    MASK_WIDTH_SMALL = 768
-    MASK_WIDTH_LARGE = 768
+    MASK_WIDTH_SMALL = MASK_INSTANCE_SMALL = 768
+    MASK_WIDTH_LARGE = MASK_INSTANCE_LARGE = 768
     MASK_OFFS = 1024
     MCNT_SAD_OFFS = 16
     MCNT_MAX_OFFS = 0
@@ -436,8 +440,10 @@ class DevAI87(Dev):
     BIAS_SIZE = 2048
     MASK_INSTANCES = 8
     MASK_INSTANCES_EACH = 4
-    MASK_WIDTH_SMALL = MASK_INSTANCES_EACH * 1024
-    MASK_WIDTH_LARGE = MASK_WIDTH_SMALL + MASK_INSTANCES_EACH * 256
+    MASK_INSTANCE_LARGE = 1024
+    MASK_WIDTH_SMALL = MASK_INSTANCES_EACH * MASK_INSTANCE_LARGE
+    MASK_INSTANCE_SMALL = 256
+    MASK_WIDTH_LARGE = MASK_WIDTH_SMALL + MASK_INSTANCES_EACH * MASK_INSTANCE_SMALL
     MASK_OFFS = 8192
     RD_AHEAD_OFFS = 17
     CPRIME_MAX_OFFS = 18
@@ -494,6 +500,8 @@ class DevAI87(Dev):
     REQUIRE_NEW_STREAMING = True
     REQUIRE_FIFO_CPL = False
     REQUIRE_PMON_GPIO = True
+    REQUIRE_PASSTHROUGH_AVGPOOL_AFTER_ELTWISE = True
+    REQUIRE_WEIGHT_MASK = True
 
     MAX_DILATION_1D = MAX_ROW_COL - 1
     MAX_POOL_DILATION = 2**4
@@ -567,5 +575,7 @@ def get_device(
 
     # Set device dependent state defaults
     state.apb_base = d.APB_BASE
+
+    assert d.MAX_LAYERS <= MAX_MAX_LAYERS
 
     return d
