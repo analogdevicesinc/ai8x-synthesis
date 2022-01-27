@@ -27,6 +27,7 @@ class UniqueKeyLoader(yaml.Loader):
     """
     def construct_mapping(self, node, deep=False):
         if not isinstance(node, yaml.MappingNode):
+            """Construct a key/value mapping"""
             raise yaml.constructor.ConstructorError(
                 None, None,
                 f"Expected a mapping node, but found {node.id}",
