@@ -1,0 +1,17 @@
+---
+arch: test
+dataset: test_eltwise
+
+layers:
+- pad: 0
+  processors: 0x000000000000000f
+  data_format: HWC
+  eltwise: add
+  op: conv2d
+  out_offset: 0x2000
+  kernel_size: 1x1
+- op: none
+  avg_pool: 2
+  pool_stride: 2
+  out_offset: 0x4000
+  processors: 0x000000000000000f

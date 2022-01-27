@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -42,7 +42,7 @@ def print_map(
             val = kmap[row][col]
             if val == _INVALID_VALUE:
                 val = 'X'
-            print_fn('{:>{w}}'.format(val, w=width), end='')
+            print_fn(f'{val:>{width}}', end='')
         print_fn('')
     print_fn('-' * tc.dev.MASK_WIDTH_LARGE * width)
 
@@ -108,6 +108,28 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     if debug:
         print('\nLoading Kernels...')
 
+    def check_kernel_mem(
+            ll: int,
+            p: int,
+            offs: int,
+            length: int = None,
+            error: bool = True,
+            reverse: bool = False,
+    ) -> bool:
+        """Check that there is enough space at index `offs` for processor `p`"""
+        assert tc.dev is not None
+        if length is None:
+            length = kern_len[ll]
+        if reverse and offs < 0 or not reverse and offs + length > tc.dev.mask_width(p):
+            if error:
+                eprint(f'\nKernel memory exhausted at layer {ll}, processor {p}; '
+                       f'offset: {offs} (0x{offs:04x}), needed: {length}.\n\n'
+                       'Kernel map so far:', exit_code=None)
+                print_map(layers, kernel_map, print_fn=eprint_noprefix)
+                sys.exit(1)
+            return False
+        return True
+
     for ll in range(start_layer, layers):
         if operator[ll] == op.NONE or bypass[ll]:
             assert kern_len[ll] == 0
@@ -159,7 +181,14 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             in_exp = in_expand[ll]
             in_chan = input_chan[ll]
         else:
-            kernel_reshaped = kernel[ll]
+            if operator[ll] == op.LINEAR:
+                kernel_reshaped = kernel[ll].reshape(
+                    -1,
+                    kernel_size[ll][0],
+                    kernel_size[ll][1],
+                )
+            else:
+                kernel_reshaped = kernel[ll]
             in_exp = in_expand[ll]
             in_chan = input_chan[ll]
 
@@ -236,28 +265,6 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             kern_count[0] = (kern_count[0] + 3) // 4
             kern_ochan[0] = (kern_ochan[0] + 3) // 4
 
-        def check_kernel_mem(
-                ll: int,
-                p: int,
-                offs: int,
-                length: int = None,
-                error: bool = True,
-                reverse: bool = False,
-        ) -> bool:
-            """Check that there is enough space at index `offs` for processor `p`"""
-            assert tc.dev is not None
-            if length is None:
-                length = kern_len[ll]
-            if reverse and offs < 0 or not reverse and offs + length > tc.dev.mask_width(p):
-                if error:
-                    eprint(f'\nKernel memory exhausted at layer {ll}, processor {p}; '
-                           f'offset: {offs} (0x{offs:04x}), needed: {length}.\n\n'
-                           'Kernel map so far:', exit_code=None)
-                    print_map(layers, kernel_map, print_fn=eprint_noprefix)
-                    sys.exit(1)
-                return False
-            return True
-
         def search_kernel_mem(
                 ll: int,
                 offs: int,
@@ -269,6 +276,16 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         ) -> int:
             """Search kernel memory for free space"""
             assert tc.dev is not None
+
+            def kernel_mem_mask(
+                    offs: int,
+            ):
+                """Return the mask bits for the kernel memory at offset `offs`"""
+                assert tc.dev is not None
+                if offs + 1 >= tc.dev.MASK_WIDTH_SMALL:
+                    return tc.dev.MASK_INSTANCE_SMALL-1
+                return tc.dev.MASK_INSTANCE_LARGE-1
+
             p = first_proc
             while p < last_proc+1:
                 if (proc_map >> p) & 1 == 0:
@@ -288,9 +305,33 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
 
                 # For this processor, is there space for all kernels starting at
                 # column 'offs'?
-                start_range = offs - 1 if reverse else offs + 1
-                end_range = offs - kern_len[ll] if reverse else offs + kern_len[ll]
-                step_range = -1 if reverse else 1
+                if not reverse:
+                    if tc.dev.REQUIRE_WEIGHT_MASK and conv_groups[ll] > 1:
+                        # Ensure that all kernels for this layer are in the same memory instance
+                        # Large or small memory instance mask?
+                        mmask = kernel_mem_mask(offs + 1)
+                        # Round up to next instance
+                        if (offs + 1) & ~mmask != (offs + kern_len[ll]) & ~mmask:
+                            offs = ((offs + mmask) & ~mmask) - 1
+                        # Update mask in case we move into the small instances
+                        mmask = kernel_mem_mask(offs + 1)
+                        if (offs + 1) & ~mmask != (offs + kern_len[ll]) & ~mmask:
+                            # Cannot ever make this fit since we just ran out of large instances
+                            return -1
+                    start_range = offs + 1
+                    end_range = offs + kern_len[ll]
+                    step_range = 1
+                else:
+                    # Note: reverse can only ever be true when kern_len[ll] <= MASK_INSTANCE_SMALL
+                    if tc.dev.REQUIRE_WEIGHT_MASK and conv_groups[ll] > 1:
+                        # Ensure that all kernels for this layer are in the same memory instance
+                        # Large or small memory instance mask?
+                        mmask = kernel_mem_mask(offs - 1)
+                        if (offs - 1) & ~mmask != (offs - kern_len[ll]) & ~mmask:
+                            offs &= ~mmask
+                    start_range = offs - 1
+                    end_range = offs - kern_len[ll]
+                    step_range = -1
                 for i in range(start_range, end_range, step_range):
                     if kernel_map[p][i] != _INVALID_VALUE:
                         # No, go to the next candidate
@@ -334,7 +375,9 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                             break
 
                 # Try the end of kernel memory first for processors with extended memory
-                if extended_masks:
+                if extended_masks and (not tc.dev.REQUIRE_WEIGHT_MASK
+                                       or conv_groups[ll] == 1
+                                       or kern_len[ll] <= tc.dev.MASK_INSTANCE_SMALL):
                     search_col = search_kernel_mem(ll, tc.dev.MASK_WIDTH_LARGE - 1,
                                                    first_proc, last_proc, proc_map,
                                                    reverse=True, error=False)
@@ -516,7 +559,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         print('\nKernel map:')
         print_map(layers, kernel_map)
 
-    if state.new_kernel_loader:
+    if state.new_kernel_loader and not state.rtl_preload:
         apb.output('static const uint32_t kernels[] = KERNELS;\n\n', api)
 
     if verify:
@@ -607,7 +650,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                        * abs(quantization[ll])
                                        // (kernel_size[ll][0] * kernel_size[ll][1] * 8))
 
-        if state.new_kernel_loader:
+        if state.new_kernel_loader and not state.rtl_preload:
             apb.output('  uint32_t len;\n'
                        '  volatile uint32_t *addr;\n'
                        '  const uint32_t *ptr = kernels;\n'

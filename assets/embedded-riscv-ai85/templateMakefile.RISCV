@@ -33,7 +33,7 @@
 
 # This is the name of the build output file
 ifeq "$(PROJECT)" ""
-PROJECT=##__PROJ_NAME__##-riscv
+PROJECT=##__PROJ_NAME__##
 endif
 
 # Specify the target processor

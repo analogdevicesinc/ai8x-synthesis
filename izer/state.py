@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2021 Maxim Integrated Products Inc. All Rights Reserved.
+# Copyright (C) 2021-2022 Maxim Integrated Products Inc. All Rights Reserved.
 #
 # Maxim Integrated Products Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -7,7 +7,7 @@
 """
 Configuration state for backends.
 """
-from typing import Any, List, Optional
+from typing import Any, List, Optional, TextIO
 
 # These are the raw global state variables, initialized to None, False, 0, [], or their defaults.
 # Defaults must not depend on any other module such as tc.
@@ -17,6 +17,7 @@ apb_base: int = 0
 api_filename: str = ''
 auto_input_dim: List[List[int]] = []
 avg_pool_rounding: bool = False
+avgpool_reset_layer: List[bool] = []
 base_directory: str = ''
 bias_group_map: List[Any] = []
 bias: List[Any] = []
@@ -34,6 +35,7 @@ conv_groups: List[int] = []
 data: Any = None
 debug_computation: bool = False
 debug_latency: bool = False
+debug_log: Optional[TextIO] = None
 debug_new_streaming: bool = False
 debug_snoop: bool = False
 debug_wait: int = 1
@@ -52,6 +54,7 @@ ext_rdy: bool = False
 fast_fifo_quad: bool = False
 fast_fifo: bool = False
 fifo_go: bool = False
+fifo_wait: bool = True
 fifo: bool = False
 final_layer: int = -1
 first_layer_used: int = 0
@@ -60,7 +63,9 @@ flatten: List[bool] = []
 forever: bool = False
 generate_kat: bool = True
 greedy_kernel_allocator: bool = True
+ignore_activation: bool = False
 ignore_bias_groups: bool = False
+ignore_bn: bool = False
 ignore_hw_limits: bool = False
 in_offset: List[int] = []
 in_sequences: List[Any] = []
@@ -108,6 +113,7 @@ out_offset: List[int] = []
 output_channels: List[int] = []
 output_dim: List[List[int]] = []
 output_filename: str = ''
+output_is_console: bool = True
 output_offset: List[int] = []
 output_padding: List[List[int]] = []
 output_processor_map: List[int] = []
