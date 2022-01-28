@@ -112,8 +112,7 @@ def unload(
             mlator = False
             mlator_warning_shown = True
 
-        if mlator and input_shape[ll][0] > 1 \
-            and input_shape[ll][1] * input_shape[ll][2] % 4 != 0:
+        if mlator and input_shape[ll][0] > 1 and input_shape[ll][1] * input_shape[ll][2] % 4 != 0:
             wprint(f'{lname}: Ignoring --mlator for '
                    f'{input_shape[ll][1]}x{input_shape[ll][2]} frame size '
                    f'({input_shape[ll][1] * input_shape[ll][2]} bytes) that is '
