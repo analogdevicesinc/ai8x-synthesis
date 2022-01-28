@@ -68,8 +68,7 @@ def unload(
     # output_layer[], output_width[], input_shape[], processor_map[], out_expand[],
     # out_expand_thresh[], out_offset[], write_gap[].
     if unload_custom is not None:
-        num_custom_outputs = len(unload_custom)
-        layers = len(output_layer) + num_custom_outputs
+        layers = len(unload_custom)
         # Create synthetic variables
         output_layer = [False] * layers
         processor_map = [None] * layers
@@ -80,8 +79,7 @@ def unload(
         out_expand = [None] * layers
         out_expand_thresh = [None] * layers
         # Fill them
-        for i, e in enumerate(unload_custom):
-            ll = i - num_custom_outputs
+        for ll, e in enumerate(unload_custom):
             output_layer[ll] = True
             processor_map[ll] = e['proc']
             input_shape[ll] = e['dim']
@@ -98,31 +96,34 @@ def unload(
 
     o_width = 0
     for ll, e in enumerate(output_layer):
-        if e:
-            if o_width not in (0, output_width[ll]):
-                eprint(f'Layer {ll}: Multiple outputs with different output widths are '
-                       'not supported by this software.')
-            else:
-                o_width = output_width[ll]
+        if not e:
+            continue
 
-            # Show only one of these warnings, if any
-            if mlator and o_width != 8 and not mlator_warning_shown:
-                wprint(f'Layer {ll}: Ignoring --mlator for 32-bit output.')
-                mlator = False
-                mlator_warning_shown = True
+        lname = f"Layer {ll}" if unload_custom is None else f"Unload sequence #{ll}"
+        if o_width not in (0, output_width[ll]):
+            eprint(f'{lname}: Multiple outputs with different output widths are '
+                   'not supported by this software.')
+        else:
+            o_width = output_width[ll]
 
-            if mlator and input_shape[ll][0] > 1 \
-               and input_shape[ll][1] * input_shape[ll][2] % 4 != 0:
-                wprint(f'Layer {ll}: Ignoring --mlator for '
-                       f'{input_shape[ll][1]}x{input_shape[ll][2]} frame size '
-                       f'({input_shape[ll][1] * input_shape[ll][2]} bytes) that is '
-                       f'not divisible by 4.')
-                mlator = False
-                mlator_warning_shown = True
+        # Show only one of these warnings, if any
+        if mlator and o_width != 8 and not mlator_warning_shown:
+            wprint(f'{lname}: Ignoring --mlator for 32-bit output.')
+            mlator = False
+            mlator_warning_shown = True
 
-            # Don't show the final hint if this layer prevents mlator from being used
-            if not mlator and input_shape[ll][1] * input_shape[ll][2] % 4 != 0:
-                mlator_warning_shown = True
+        if mlator and input_shape[ll][0] > 1 \
+            and input_shape[ll][1] * input_shape[ll][2] % 4 != 0:
+            wprint(f'{lname}: Ignoring --mlator for '
+                   f'{input_shape[ll][1]}x{input_shape[ll][2]} frame size '
+                   f'({input_shape[ll][1] * input_shape[ll][2]} bytes) that is '
+                   f'not divisible by 4.')
+            mlator = False
+            mlator_warning_shown = True
+
+        # Don't show the final hint if this layer prevents mlator from being used
+        if not mlator and input_shape[ll][1] * input_shape[ll][2] % 4 != 0:
+            mlator_warning_shown = True
 
     # If mlator is still True, we might have been able to use it
     if not mlator and o_width == 8 and state.embedded_code and not mlator_warning_shown:
@@ -143,7 +144,8 @@ def unload(
         if not e:
             continue
 
-        out_text += f'\n  // Custom unload for this network, layer {ll}: ' \
+        lname = f"layer {ll}" if unload_custom is None else f"unload sequence #{ll}"
+        out_text += f'\n  // Custom unload for this network, {lname}: ' \
                     f'{o_width}-bit data, shape: {input_shape[ll]}\n'
         if o_width != 32 and input_shape[ll][1] * input_shape[ll][2] != 1:
             need_offs = True
