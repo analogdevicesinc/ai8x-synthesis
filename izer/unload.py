@@ -344,7 +344,6 @@ def unload(
                         if loop_runs > 1:
                             out_text += '  }\n'
                         remaining -= loop_runs * chunk
-                        written += loop_runs * chunk
                         out_addr += loop_runs * chunk
                     idx += run + 1
             else:  # out_size == 1
@@ -417,7 +416,6 @@ def unload(
 
                             if not short_write:
                                 out_text += f'{prefix}  offs++;\n'
-                                written += 4
                         if loop_runs > 1:
                             out_text += '  }\n'
                         remaining -= loop_runs * chunk
@@ -426,10 +424,8 @@ def unload(
                     idx += (run + 1) * shift_count
                     if not short_write and idx < len(emit_list) and shift_count > 1:
                         out_text += f'  offs += 0x{xy_dim * (shift_count - 1):04x};\n'
-                        written += xy_dim * (shift_count - 1)
 
-        if mlator:
-            written += input_shape[ll][0] * input_shape[ll][1] * input_shape[ll][2]
+        written += input_shape[ll][0] * input_shape[ll][1] * input_shape[ll][2]
 
     if o_width != 32 and not mlator:
         memfile.write(f'  uint{o_width}_t *out_buf = (uint{o_width}_t *) out_buf32;\n')
