@@ -26,6 +26,7 @@ class UniqueKeyLoader(yaml.Loader):
     Throw an error when encountering duplicate YAML keys.
     """
     def construct_mapping(self, node, deep=False):
+        """Construct a key/value mapping"""
         if not isinstance(node, yaml.MappingNode):
             raise yaml.constructor.ConstructorError(
                 None, None,
