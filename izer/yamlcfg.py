@@ -83,14 +83,14 @@ def parse(
     with open(config_file, mode='r', encoding='utf-8') as cfg_file:
         cfg = yaml.load(cfg_file, Loader=UniqueKeyLoader)
 
-    cfg_set = set(cfg) - set(['bias', 'dataset', 'layers',
+    cfg_set = set(cfg) - set(['bias', 'dataset', 'layers', 'unload',
                               'output_map', 'arch', 'weights', 'snoop'])
     if bool(cfg_set):
         eprint(f'Configuration file {config_file} contains unknown key(s): {cfg_set}.')
 
     if 'layers' not in cfg or 'arch' not in cfg or 'dataset' not in cfg:
         eprint(f'Configuration file {config_file} does not contain '
-               f'`layers`, `arch`, or `dataset`.')
+               '`layers`, `arch`, or `dataset`.')
 
     # These are initialized with 'None'. Use this to see whether a layer was configured,
     # will be auto-initialized to previous layer's value or a default.
@@ -137,6 +137,8 @@ def parse(
     readahead = [False] * tc.dev.MAX_LAYERS
     pool_dilation = [[1, 1]] * tc.dev.MAX_LAYERS
     tcalc = [None] * tc.dev.MAX_LAYERS
+    output_layer = [False] * tc.dev.MAX_LAYERS
+    unload_custom = []
 
     sequence = 0
     skip = skip_layers
@@ -155,7 +157,7 @@ def parse(
                                  'next_sequence', 'snoop_sequence', 'simulated_sequence',
                                  'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
                                  'bias_group', 'bias_quadrant', 'calcx4', 'readahead',
-                                 'pool_dilation', 'output_pad', 'tcalc', 'read_gap'])
+                                 'pool_dilation', 'output_pad', 'tcalc', 'read_gap', 'output'])
         if bool(cfg_set):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`: '
                    f'{cfg_set}.')
@@ -515,6 +517,13 @@ def parse(
         elif operator[sequence] == op.CONVTRANSPOSE2D:
             output_padding[sequence] = [1, 1]
 
+        if 'output' in ll:
+            val = ll['output']
+            try:
+                output_layer[sequence] = bool(val)
+            except ValueError:
+                error_exit(f'Unsupported value `{val}` for `output`', sequence)
+
         # Fix up values for 1D convolution or no convolution
         if operator[sequence] == op.CONV1D:
             padding[sequence][1] = 0
@@ -575,6 +584,7 @@ def parse(
             del pool_dilation[ll]
             del output_padding[ll]
             del tcalc[ll]
+            del output_layer[ll]
 
     for ll, _ in enumerate(operator):
         # Warn when using default pool stride of 1, 1
@@ -586,6 +596,40 @@ def parse(
         # Check that pooling isn't set for ConvTranspose2d:
         if not pool_first[ll] and (operands[ll] == 1 or pool[ll][0] == 1 and pool[ll][1] == 1):
             error_exit('`pool_first: False` requires both pooling and element-wise operations', ll)
+
+    if 'unload' in cfg:
+        for ll in cfg['unload']:
+            cfg_set = set(ll)
+
+            if bool(cfg_set - set(['processors', 'dim', 'offset', 'width',
+                                   'write_gap', 'channels'])):
+                eprint(f'Configuration file {config_file} contains unknown key(s) for `unload`.')
+
+            if 'processors' not in cfg_set or 'dim' not in cfg_set or 'channels' not in cfg_set \
+               or 'offset' not in cfg_set:
+                eprint(f'`unload` sequence in configuration file {config_file} does not contain '
+                       '`processors`, `channels`, `dim`, or `offset`.')
+
+            unload_proc = ll['processors']
+            if isinstance(unload_proc, str):
+                try:
+                    unload_proc = int(unload_proc.replace('.', '').replace('_', ''), 16)
+                except ValueError:
+                    pass
+            val = ll['dim']
+            unload_dim = val if isinstance(val, list) else [val, 1]
+            unload_channels = ll['channels']
+            unload_offset = ll['offset']
+            unload_width = ll['width'] if 'with' in ll else 8
+            unload_write_gap = ll['write_gap'] if 'write_gap' in ll else 0
+
+            unload_custom.append({
+                'proc': unload_proc,
+                'dim': (unload_channels, unload_dim[0], unload_dim[1]),
+                'offset': unload_offset,
+                'width': unload_width,
+                'write_gap': unload_write_gap,
+            })
 
     settings = {}
     settings['processor_map'] = processor_map
@@ -630,5 +674,7 @@ def parse(
     settings['pool_dilation'] = pool_dilation
     settings['output_padding'] = output_padding
     settings['tcalc'] = tcalc
+    settings['output_layer'] = output_layer
+    settings['unload_custom'] = unload_custom if len(unload_custom) > 0 else None
 
     return cfg, len(processor_map), settings
