@@ -399,14 +399,16 @@ def main():
                            'on this device')
 
         if input_dim[ll] is None:
+            pixels = 0
             if in_sequences[ll] is not None:
                 dim = auto_input_dim[0] if in_sequences[ll][0] == -1 \
                     else output_dim[in_sequences[ll][0]]
                 for _, e in enumerate(in_sequences[ll], start=1):
                     odim = auto_input_dim[0] if e == -1 else output_dim[e]
-                    if odim != dim:
-                        eprint('Cannot concatenate outputs of different dimensions in layer '
-                               f'{ll}: {dim} vs {odim}.')
+                    if odim != dim and conf_input_dim[ll] is None:
+                        eprint(f'Layer {ll}: Cannot concatenate outputs of different dimensions '
+                               f'without specfying `in_dim`: {dim} vs {odim}.')
+                    pixels += odim[0] * odim[1]
                 auto_input_dim[ll] = dim
                 prev_op = operator[in_sequences[ll][0]]
             else:
@@ -425,6 +427,9 @@ def main():
                            'Use `in_dim:` to reshape the data to two dimensions, or to silence '
                            'this message.')
             else:
+                if pixels > 0 and conf_input_dim[ll][0] * conf_input_dim[ll][1] != pixels:
+                    eprint(f'Layer {ll}: The configured `in_dim` does not match the sum of all '
+                           f'pixels ({pixels}) in the layer\'s `in_sequences`.')
                 input_dim[ll] = conf_input_dim[ll]
         if operator[ll] != op.CONV1D:
             if pool_stride[ll][0] != pool_stride[ll][1]:
