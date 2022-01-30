@@ -1454,9 +1454,10 @@ class Backend(backend.Backend):
                                                f'(offset 0x{out_offset[ll]:04x} - write gap '
                                                f'{write_gap[ll]} * sequence position '
                                                f'{ll_index} * 4 = 0x{ll_offset:04x}).')
-                                    if (input_chan[lt] != output_chan[ll]
-                                        * len(in_sequences[lt])
-                                        or input_dim[lt] != output_dim[ll]) and gindex == 0:
+                                    if (
+                                        (input_chan[lt] != output_chan[ll] * len(in_sequences[lt])
+                                         or input_dim[lt] != output_dim[ll]) and gindex == 0
+                                    ):
                                         wprint(f'Layer {ll}: The input dimensions of the next '
                                                f'sequence (layer {lt}, '
                                                f'{len(in_sequences[lt])} inputs, '
