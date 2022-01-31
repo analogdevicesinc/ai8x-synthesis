@@ -1417,7 +1417,7 @@ class Backend(backend.Backend):
                                      * output_width[ll] + 7) // 8 - 1
                                 )
 
-                    for _, group in enumerate(groups_used):
+                    for gindex, group in enumerate(groups_used):
                         if avgpool_reset_layer[ll] and group == groups_used[0]:
                             # Insert small single-quadrant passthrough layer
                             apb.output('  // Average pool accumulator reset layer and\n',
@@ -1447,16 +1447,17 @@ class Backend(backend.Backend):
                                    and operands[lt] == 1:
                                     ll_index = in_sequences[lt].index(ll)
                                     ll_offset = out_offset[ll] - ll_index * write_gap[ll] * 4
-                                    if in_offset[lt] != ll_offset:
+                                    if in_offset[lt] != ll_offset and gindex == 0:
                                         wprint(f'Layer {ll}: The input offset of the next '
                                                f'sequence (layer {lt}, 0x{in_offset[lt]:04x}) '
                                                "does not match the current layer's output "
                                                f'(offset 0x{out_offset[ll]:04x} - write gap '
                                                f'{write_gap[ll]} * sequence position '
                                                f'{ll_index} * 4 = 0x{ll_offset:04x}).')
-                                    if input_chan[lt] != output_chan[ll] \
-                                       * len(in_sequences[lt]) \
-                                       or input_dim[lt] != output_dim[ll]:
+                                    if (
+                                        (input_chan[lt] != output_chan[ll] * len(in_sequences[lt])
+                                         or input_dim[lt] != output_dim[ll]) and gindex == 0
+                                    ):
                                         wprint(f'Layer {ll}: The input dimensions of the next '
                                                f'sequence (layer {lt}, '
                                                f'{len(in_sequences[lt])} inputs, '
@@ -2656,10 +2657,21 @@ class Backend(backend.Backend):
             # Concatenate input data if needed
             if in_sequences[ll] is not None:
                 if len(in_sequences[ll]) > 1:
+                    err_concat = None
                     try:
                         data = np.concatenate([data_buf[i + 1] for i in in_sequences[ll]], axis=0)
                     except ValueError as err:
-                        eprint('Error in input data concatenation layer:', err)
+                        err_concat = err
+                    if err_concat is not None:
+                        try:
+                            data = np.hstack(
+                                [data_buf[i + 1].reshape(data_buf[i + 1].shape[0], -1)
+                                 for i in in_sequences[ll]]
+                            ).reshape(data_buf[in_sequences[ll][0] + 1].shape[0],
+                                      input_dim[ll][0], input_dim[ll][1])
+                        except ValueError as err:
+                            eprint(f'Layer {ll}: Input data concatenation unsuccessful: ',
+                                   err_concat, err)
                 else:
                     data = data_buf[in_sequences[ll][0] + 1]
             else:
@@ -2730,13 +2742,13 @@ class Backend(backend.Backend):
             if operator[ll] == op.CONV1D:
                 if out_size[0] != in_chan \
                    or out_size[1] != pooled_dim[ll][0] or pooled_dim[ll][1] != 1:
-                    eprint(f'Input dimensions do not match in layer {ll}. '
+                    eprint(f'Layer {ll}: Input dimensions do not match. '
                            f'Expected: {in_chan}x{pooled_dim[ll][0]}, '
                            f'got {out_size[0]}x{out_size[1]}.')
             else:
                 if out_size[0] != in_chan \
                    or out_size[1] != pooled_dim[ll][0] or out_size[2] != pooled_dim[ll][1]:
-                    eprint(f'Input dimensions do not match in layer {ll}. '
+                    eprint(f'Layer {ll}: Input dimensions do not match. '
                            f'Expected: {in_chan}x{pooled_dim[ll][0]}x{pooled_dim[ll][1]}, '
                            f'got {out_size[0]}x{out_size[1]}x{out_size[2]}.')
 
