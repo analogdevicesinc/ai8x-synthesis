@@ -1,4 +1,4 @@
-# HWC (big data) configuration for batchnorm test model for cifar-100
+# MobileNet-v2 model with scale=0.5 for cifar-100. Compatible with MAX78002.
 
 arch: ai87netmobilenetv2cifar100_m0_5
 dataset: cifar100
