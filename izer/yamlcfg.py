@@ -12,7 +12,7 @@ import yamllint
 import yamllint.config
 import yamllint.linter
 
-from . import devices, op, state
+from . import devices, names, op, state
 from . import tornadocnn as tc
 from .eprint import eprint, wprint
 
@@ -139,6 +139,7 @@ def parse(
     tcalc = [None] * tc.dev.MAX_LAYERS
     output_layer = [False] * tc.dev.MAX_LAYERS
     unload_custom = []
+    layer_name = [None] * tc.dev.MAX_LAYERS
 
     sequence = 0
     skip = skip_layers
@@ -156,7 +157,7 @@ def parse(
                                  'output_shift', 'pool_first', 'processors', 'pad', 'quantization',
                                  'next_sequence', 'snoop_sequence', 'simulated_sequence',
                                  'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
-                                 'bias_group', 'bias_quadrant', 'calcx4', 'readahead',
+                                 'bias_group', 'bias_quadrant', 'calcx4', 'readahead', 'name',
                                  'pool_dilation', 'output_pad', 'tcalc', 'read_gap', 'output'])
         if bool(cfg_set):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`: '
@@ -435,24 +436,32 @@ def parse(
                 error_exit(f'Unsupported value `{val}` for `flatten`', sequence)
 
         if 'in_sequences' in ll:
-            in_sequences[sequence] = ll['in_sequences']
-            if not isinstance(in_sequences[sequence], list):
-                in_sequences[sequence] = [in_sequences[sequence]]
-            in_sequences[sequence] = [x - skip_layers for x in in_sequences[sequence]]
+            val = ll['in_sequences']
+            if not isinstance(val, list):
+                val = [val]
+            in_sequences[sequence] = [
+                x - skip_layers if not isinstance(x, str) else x for x in val
+            ]
 
         if 'next_sequence' in ll:
-            if isinstance(ll['next_sequence'], str) \
-               and ll['next_sequence'].lower() == 'stop':
-                next_sequence[sequence] = -1
+            val = ll['next_sequence']
+            if isinstance(val, str):
+                val = val.lower()
+                if val == 'stop':
+                    val = -1
+                next_sequence[sequence] = val
             else:
-                next_sequence[sequence] = ll['next_sequence'] - skip_layers
+                next_sequence[sequence] = val - skip_layers
 
         if 'simulated_sequence' in ll:
-            if isinstance(ll['simulated_sequence'], str) \
-               and ll['simulated_sequence'].lower() == 'stop':
-                simulated_sequence[sequence] = -1
+            val = ll['simulated_sequence']
+            if isinstance(val, str):
+                val = val.lower()
+                if val == 'stop':
+                    val = -1
+                simulated_sequence[sequence] = val
             else:
-                simulated_sequence[sequence] = ll['simulated_sequence'] - skip_layers
+                simulated_sequence[sequence] = val - skip_layers
 
         if 'snoop_sequence' in ll:
             snoop_sequence[sequence] = ll['snoop_sequence'] - skip_layers
@@ -524,6 +533,14 @@ def parse(
             except ValueError:
                 error_exit(f'Unsupported value `{val}` for `output`', sequence)
 
+        if 'name' in ll:
+            val = ll['name']
+            if names.find_layer(layer_name, sequence, val.lower(), 'name', False) is not None:
+                error_exit(f'Duplicate layer name {val} for `name`', sequence)
+            if val.lower() in ['stop', 'input']:
+                error_exit(f'Using reserved name {val} for `name`', sequence)
+            layer_name[sequence] = val
+
         # Fix up values for 1D convolution or no convolution
         if operator[sequence] == op.CONV1D:
             padding[sequence][1] = 0
@@ -587,6 +604,22 @@ def parse(
             del output_layer[ll]
 
     for ll, _ in enumerate(operator):
+        # Convert string layer names to sequences
+        if isinstance(next_sequence[ll], str):
+            next_sequence[ll] = names.find_layer(layer_name, ll, next_sequence[ll],
+                                                 'next_sequence')
+        if isinstance(simulated_sequence[ll], str):
+            simulated_sequence[ll] = names.find_layer(layer_name, ll, simulated_sequence[ll],
+                                                      'simulated_sequence')
+        if in_sequences[ll] is not None:
+            new_in_sequences = []
+            for _, e in enumerate(in_sequences[ll]):
+                if isinstance(e, str):
+                    new_in_sequences.append(names.find_layer(layer_name, ll, e, 'in_sequences'))
+                else:
+                    new_in_sequences.append(e)
+            in_sequences[ll] = new_in_sequences
+
         # Warn when using default pool stride of 1, 1
         if pool_stride[ll][0] is None:
             if pooling_enabled[ll]:
@@ -632,49 +665,50 @@ def parse(
             })
 
     settings = {}
-    settings['processor_map'] = processor_map
-    settings['padding'] = padding
-    settings['pool'] = pool
-    settings['pooling_enabled'] = pooling_enabled
-    settings['pool_stride'] = pool_stride
-    settings['input_chan'] = input_chan
+    settings['activation'] = activation
+    settings['average'] = average
+    settings['bias_group_map'] = bias_group_map
+    settings['bias_quantization'] = bias_quantization
+    settings['big_data'] = big_data
+    settings['bypass'] = bypass
+    settings['calcx4'] = calcx4
+    settings['conv_groups'] = conv_groups
+    settings['dilation'] = dilation
+    settings['eltwise'] = eltwise
+    settings['flatten'] = flatten
+    settings['in_sequences'] = in_sequences
     settings['input_chan_skip'] = input_chan_skip
-    settings['input_skip'] = input_skip
+    settings['input_chan'] = input_chan
     settings['input_dim'] = input_dim
     settings['input_offset'] = input_offset
-    settings['output_chan'] = output_chan
-    settings['output_offset'] = output_offset
-    settings['average'] = average
-    settings['activation'] = activation
-    settings['big_data'] = big_data
-    settings['quantization'] = quantization
-    settings['bias_quantization'] = bias_quantization
-    settings['output_shift'] = output_shift
-    settings['output_processor_map'] = output_map
-    settings['output_width'] = output_width
-    settings['operator'] = operator
-    settings['dilation'] = dilation
+    settings['input_skip'] = input_skip
     settings['kernel_size'] = kernel_size
-    settings['stride'] = stride
-    settings['streaming'] = streaming
-    settings['flatten'] = flatten
-    settings['operands'] = operands
-    settings['eltwise'] = eltwise
-    settings['pool_first'] = pool_first
-    settings['in_sequences'] = in_sequences
+    settings['layer_name'] = layer_name
     settings['next_sequence'] = next_sequence
+    settings['operands'] = operands
+    settings['operator'] = operator
+    settings['output_chan'] = output_chan
+    settings['output_layer'] = output_layer
+    settings['output_offset'] = output_offset
+    settings['output_padding'] = output_padding
+    settings['output_processor_map'] = output_map
+    settings['output_shift'] = output_shift
+    settings['output_width'] = output_width
+    settings['padding'] = padding
+    settings['pool_dilation'] = pool_dilation
+    settings['pool_first'] = pool_first
+    settings['pool_stride'] = pool_stride
+    settings['pool'] = pool
+    settings['pooling_enabled'] = pooling_enabled
+    settings['processor_map'] = processor_map
+    settings['quantization'] = quantization
+    settings['readahead'] = readahead
     settings['simulated_sequence'] = simulated_sequence
     settings['snoop_sequence'] = snoop_sequence
-    settings['conv_groups'] = conv_groups
-    settings['write_gap'] = write_gap
-    settings['bypass'] = bypass
-    settings['bias_group_map'] = bias_group_map
-    settings['calcx4'] = calcx4
-    settings['readahead'] = readahead
-    settings['pool_dilation'] = pool_dilation
-    settings['output_padding'] = output_padding
+    settings['streaming'] = streaming
+    settings['stride'] = stride
     settings['tcalc'] = tcalc
-    settings['output_layer'] = output_layer
     settings['unload_custom'] = unload_custom if len(unload_custom) > 0 else None
+    settings['write_gap'] = write_gap
 
     return cfg, len(processor_map), settings

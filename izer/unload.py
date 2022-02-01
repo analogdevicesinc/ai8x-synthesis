@@ -15,6 +15,7 @@ import numpy as np
 from . import state, toplevel
 from . import tornadocnn as tc
 from .eprint import eprint, nprint, wprint
+from .names import layer_pfx, layer_str
 from .utils import ffs, popcount
 
 
@@ -99,21 +100,21 @@ def unload(
         if not e:
             continue
 
-        lname = f"Layer {ll}" if unload_custom is None else f"Unload sequence #{ll}"
+        lname = layer_pfx(ll) if unload_custom is None else f"Unload sequence #{ll}: "
         if o_width not in (0, output_width[ll]):
-            eprint(f'{lname}: Multiple outputs with different output widths are '
+            eprint(f'{lname}Multiple outputs with different output widths are '
                    'not supported by this software.')
         else:
             o_width = output_width[ll]
 
         # Show only one of these warnings, if any
         if mlator and o_width != 8 and not mlator_warning_shown:
-            wprint(f'{lname}: Ignoring --mlator for 32-bit output.')
+            wprint(f'{lname}Ignoring --mlator for 32-bit output.')
             mlator = False
             mlator_warning_shown = True
 
         if mlator and input_shape[ll][0] > 1 and input_shape[ll][1] * input_shape[ll][2] % 4 != 0:
-            wprint(f'{lname}: Ignoring --mlator for '
+            wprint(f'{lname}Ignoring --mlator for '
                    f'{input_shape[ll][1]}x{input_shape[ll][2]} frame size '
                    f'({input_shape[ll][1] * input_shape[ll][2]} bytes) that is '
                    f'not divisible by 4.')
@@ -143,7 +144,7 @@ def unload(
         if not e:
             continue
 
-        lname = f"layer {ll}" if unload_custom is None else f"unload sequence #{ll}"
+        lname = f"layer {layer_str(ll)}" if unload_custom is None else f"unload sequence #{ll}"
         out_text += f'\n  // Custom unload for this network, {lname}: ' \
                     f'{o_width}-bit data, shape: {input_shape[ll]}\n'
         if o_width != 32 and input_shape[ll][1] * input_shape[ll][2] != 1:
@@ -489,7 +490,7 @@ def verify(
         # and for RTL sims)
         mlator = False
     if mlator and output_width != 8:
-        wprint(f'Layer {ll}: Ignoring --mlator for 32-bit output.')
+        wprint(f'{layer_pfx(ll)}Ignoring --mlator for 32-bit output.')
         mlator = False
 
     count = 0
@@ -507,24 +508,25 @@ def verify(
         if (not overwrite_ok) and in_map[target_offs >> 2] is not None:
             if isinstance(in_map[target_offs >> 2], bool):
                 eprint(f'Processor {p}: '
-                       f'Layer {ll} output is overwriting '
+                       f'Layer {layer_str(ll)} output is overwriting '
                        f'input at offset 0x{target_offs:08x}.',
                        error=not no_error_stop)
             else:
                 old_ll, old_c, old_row, old_col, _ = in_map[target_offs >> 2]
-                old_layer = f'layer {old_ll}' if old_ll >= 0 else 'the input loader'
+                old_layer = f'layer {layer_str(old_ll)}' if old_ll >= 0 else 'the input loader'
                 eprint(f'Processor {p}: '
-                       f'Layer {ll} output for CHW={c},{row},{col} is overwriting '
+                       f'Layer {layer_str(ll)} output for CHW={c},{row},{col} is overwriting '
                        f'input at offset 0x{target_offs:08x} that was created by '
-                       f'{old_layer}, CHW={old_c},{old_row},{old_col}.',
+                       f'{layer_str(old_layer)}, CHW={old_c},{old_row},{old_col}.',
                        error=not no_error_stop)
         # Check we're not overflowing the data memory
         if (not overwrite_ok) and out_map is not None and out_map[target_offs >> 2] is not None:
             old_ll, old_c, old_row, old_col, old_val = out_map[target_offs >> 2]
             eprint(f'Processor {p}: '
-                   f'Layer {ll} output for CHW={c},{row},{col} is overwriting '
+                   f'Layer {layer_str(ll)} output for CHW={c},{row},{col} is overwriting '
                    f'offset 0x{target_offs:08x}. Previous write by '
-                   f'layer {old_ll},CHW={old_c},{old_row},{old_col} with value 0x{old_val:08x}.',
+                   f'layer {layer_str(old_ll)},CHW={old_c},{old_row},{old_col} with value '
+                   f'0x{old_val:08x}.',
                    error=not no_error_stop)
 
     # Start at the instance of the first active output processor/channel

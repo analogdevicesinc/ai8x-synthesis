@@ -14,6 +14,7 @@ import numpy as np
 from . import op, rv, state
 from . import tornadocnn as tc
 from .eprint import eprint, eprint_noprefix, wprint
+from .names import layer_pfx
 from .utils import ffs, fls, popcount
 
 _INVALID_VALUE = -(2**63)
@@ -122,7 +123,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             length = kern_len[ll]
         if reverse and offs < 0 or not reverse and offs + length > tc.dev.mask_width(p):
             if error:
-                eprint(f'\nKernel memory exhausted at layer {ll}, processor {p}; '
+                eprint(f'\n{layer_pfx(ll)}Kernel memory exhausted at processor {p}; '
                        f'offset: {offs} (0x{offs:04x}), needed: {length}.\n\n'
                        'Kernel map so far:', exit_code=None)
                 print_map(layers, kernel_map, print_fn=eprint_noprefix)
@@ -198,13 +199,13 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         if np.ndim(kernel_reshaped) > 2:
             if kernel_reshaped.shape[-1] != kernel_size[ll][0] \
                or kernel_reshaped.shape[-2] != kernel_size[ll][1]:
-                eprint(f'The configured kernel dimensions ({kernel_size[ll][0]}x'
-                       f'{kernel_size[ll][1]}) for layer {ll} do not match the weights file '
+                eprint(f'{layer_pfx(ll)}The configured kernel dimensions ({kernel_size[ll][0]}x'
+                       f'{kernel_size[ll][1]}) do not match the weights file '
                        f'({kernel_reshaped.shape[-1]}x{kernel_reshaped.shape[-2]})!')
         else:
             if kernel_reshaped.shape[-1] != kernel_size[ll][0]:
-                eprint(f'The configured kernel dimensions ({kernel_size[ll][0]}) '
-                       f'for layer {ll} do not match the weights file '
+                eprint(f'{layer_pfx(ll)}The configured kernel dimensions ({kernel_size[ll][0]}) '
+                       f'do not match the weights file '
                        f'({kernel_reshaped.shape[-1]})!')
 
         proc_map = processor_map[ll]
@@ -220,7 +221,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
         first_output_proc = ffs(next_layer_map)
         start_col = first_output_proc % tc.dev.P_SHARED  # First target column out of 4 shared
         if start_col > 0 and quantization[ll] != 8:
-            wprint(f'Warning: Layer {ll} with {quantization[ll]}-bit quantization uses unaligned '
+            wprint(f'{layer_pfx(ll)}Warning: {quantization[ll]}-bit quantization uses unaligned '
                    'output processors, this may cause issues')
 
         # Determine the number of kernels that need to be programmed. Since each instance
@@ -502,7 +503,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                 mask >>= 1
                             if debug:
                                 with np.printoptions(formatter={'int': '{0:02x}'.format}):
-                                    print(f'Layer {ll} processor {p} channel '
+                                    print(f'{layer_pfx(ll)}Processor {p} channel '
                                           f'{ch + ie * in_expand_thresh[ll]} m[{m}..{m+n-1}] '
                                           f'of {output_chan[ll]}: {k}')
                             if flatten[ll]:

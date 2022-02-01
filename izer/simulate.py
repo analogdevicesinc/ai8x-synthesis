@@ -14,6 +14,7 @@ import numpy as np
 from . import op, state, stats
 from . import tornadocnn as tc
 from .compute import conv1d, conv2d, convtranspose2d, eltwise, linear, pool1d, pool2d
+from .names import layer_str
 
 
 def print_data(
@@ -782,9 +783,9 @@ def show_data(
 
         if operation != op.CONV1D:
             if operands == 1:
-                op_string = f"LAYER {layer} ({op.string(operation).upper()})...\n"
+                op_string = f"LAYER {layer_str(layer)} ({op.string(operation).upper()})...\n"
             else:
-                op_string = f"LAYER {layer} ({op.string(operation).upper()}, " \
+                op_string = f"LAYER {layer_str(layer)} ({op.string(operation).upper()}, " \
                             f"{operands} OPERANDS)...\n"
             print(op_string)
 
@@ -804,7 +805,7 @@ def show_data(
                                expand,
                                expand_thresh)
         else:
-            print(f"LAYER {layer} ({op.string(operation).upper()})...\n")
+            print(f"LAYER {layer_str(layer)} ({op.string(operation).upper()})...\n")
             print(f"{input_size[1]}x{input_size[2]} INPUT DATA", end='')
             if verbose_data:
                 print(':')

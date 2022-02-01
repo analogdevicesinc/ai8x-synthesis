@@ -88,6 +88,7 @@ input_skip: List[int] = []
 input_sync: bool = False
 kernel_format: str = ''
 kernel_size: List[List[int]] = []
+layer_name: List[Optional[int]] = []
 layers: int = 0
 legacy_kernels: bool = False
 legacy_test: bool = False
