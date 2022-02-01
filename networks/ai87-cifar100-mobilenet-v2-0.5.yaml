@@ -1,0 +1,579 @@
+# MobileNet-v2 model with scale=0.5 for cifar-100. Compatible with MAX78002.
+
+arch: ai87netmobilenetv2cifar100_m0_5
+dataset: cifar100
+
+layers:
+# Layer 0: pre_stage. in 3ch, out 16 ch
+- processors: 0x0000000000000007
+  out_offset: 0x4000
+  operation: Conv2d
+  kernel_size: 3x3
+  pad: 1
+  activate: ReLU
+# Bottleneck-0, n=0, conv1 empty as expansion factor = 1.
+# Layer 1: Bottleneck-0, n=0, conv2. in 16ch, out 16 ch
+- processors: 0x000000000000ffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 3x3
+  pad: 1
+  groups: 16
+  activate: ReLU
+# Layer 2: Bottleneck-0, n=0, conv3. in 16ch, out 8 ch
+- processors: 0x000000000000ffff
+  output_processors: 0x00000000000000ff
+  out_offset: 0x4000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+# Layer 3: Bottleneck-1, n=0, conv1. in 8ch, out 48 ch
+- processors: 0x00000000000000ff
+  output_processors: 0x0000ffffffffffff
+  out_offset: 0x2000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  activate: ReLU
+# Layer 4: Bottleneck-1, n=0, conv2. in 48 ch, out 48 ch. -> 16x16
+- processors: 0x0000ffffffffffff
+  output_processors: 0x0000ffffffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 3x3
+  pad: 1
+  groups: 48
+  activate: ReLU
+  max_pool: 2
+  pool_stride: 2
+# Layer 5: Bottleneck-1, n=0, conv3. in 48ch, out 12 ch
+- processors: 0x0000ffffffffffff
+  output_processors: 0x0000000000000fff
+  out_offset: 0x4000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+# Layer 6: Bottleneck-1, n=1, conv1. in 12 ch, out 72 ch
+- processors: 0x0000000000000fff
+  output_processors: 0x0000000fffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  activate: ReLU
+# Layer 7: Bottleneck-1, n=1, conv2. in 72 ch, out 72 ch
+- processors: 0x0000000fffffffff
+  output_processors: 0x0000000fffffffff
+  out_offset: 0x2000
+  operation: Conv2d
+  kernel_size: 3x3
+  pad: 1
+  groups: 72
+  activate: ReLU
+# Layer 8: Bottleneck-1, n=1, conv3, in 72 ch, out ch 12
+- processors: 0x0000000fffffffff
+  output_processors: 0x0000000000000fff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  write_gap: 1
+# Layer 9: Bottleneck-1, n=1, Reform input layer
+- in_offset: 0x4000
+  out_offset: 0x0004
+  processors: 0x0000000000000fff
+  operation: passthrough
+  write_gap: 1
+  in_sequences: [5]
+# Layer 10: Bottleneck-1, n=1, Residual add
+- in_offset: 0x0000
+  out_offset: 0x4000
+  processors: 0x0000000000000fff
+  operation: none
+  eltwise: add
+  in_sequences: [8, 9]
+# Layer 11: Bottleneck-2, n=0, conv1. in 12ch, out 72 ch
+- processors: 0x0000000000000fff
+  out_offset: 0x2000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  activate: ReLU
+# Layer 12: Bottleneck-2, n=0, conv2. in 72 ch, out 72 ch. -> 8x8
+- processors: 0x0000000fffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 3x3
+  pad: 1
+  groups: 72
+  activate: ReLU
+  max_pool: 2
+  pool_stride: 2
+# Layer 13: Bottleneck-2, n=0, conv3. in 72, out 16 ch
+- processors: 0x0000000fffffffff
+  output_processors: 0x000000000000ffff
+  out_offset: 0x4000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+# Layer 14: Bottleneck-2, n=1, conv1. in 16 ch, out 96 ch
+- processors: 0x000000000000ffff
+  output_processors: 0x0000ffffffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  activate: ReLU
+# Layer 15: Bottleneck-2, n=1, conv2. in 96 ch, out 96 ch
+- processors: 0x0000ffffffffffff
+  output_processors: 0x0000ffffffffffff
+  out_offset: 0x2000
+  operation: Conv2d
+  kernel_size: 3x3
+  pad: 1
+  groups: 96
+  activate: ReLU
+# Layer 16: Bottleneck-2, n=1, conv3, in 96 ch, out ch 16
+- processors: 0x0000ffffffffffff
+  output_processors: 0x000000000000ffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  write_gap: 1
+# Layer 17: Bottleneck-2, n=1, Reform input layer
+- in_offset: 0x4000
+  out_offset: 0x0004
+  processors: 0x000000000000ffff
+  operation: passthrough
+  write_gap: 1
+  in_sequences: [13]
+# Layer 18: Bottleneck-2, n=1, Residual add
+- in_offset: 0x0000
+  out_offset: 0x4000
+  processors: 0x000000000000ffff
+  operation: none
+  eltwise: add
+  in_sequences: [16, 17]
+# Layer 19: Bottleneck-2, n=2, conv1. in 16 ch, out 96 ch
+- processors: 0x000000000000ffff
+  output_processors: 0x0000ffffffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  activate: ReLU
+# Layer 20: Bottleneck-2, n=2, conv2. in 96 ch, out 96 ch
+- processors: 0x0000ffffffffffff
+  output_processors: 0x0000ffffffffffff
+  out_offset: 0x2000
+  operation: Conv2d
+  kernel_size: 3x3
+  pad: 1
+  groups: 96
+  activate: ReLU
+# Layer 21: Bottleneck-2, n=2, conv3, in 96 ch, out ch 16
+- processors: 0x0000ffffffffffff
+  output_processors: 0x000000000000ffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  write_gap: 1
+# Layer 22: Bottleneck-2, n=2, Reform input layer
+- in_offset: 0x4000
+  out_offset: 0x0004
+  processors: 0x000000000000ffff
+  operation: passthrough
+  write_gap: 1
+  in_sequences: [18]
+# Layer 23: Bottleneck-2, n=2, Residual add
+- in_offset: 0x0000
+  out_offset: 0x4000
+  processors: 0x000000000000ffff
+  operation: none
+  eltwise: add
+  in_sequences: [21, 22]
+# Layer 24: Bottleneck-3, n=0, conv1. in 16ch, out 96 ch
+- processors: 0x000000000000ffff
+  out_offset: 0x2000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  activate: ReLU
+# Layer 25: Bottleneck-3, n=0, conv2. in 96 ch, out 96 ch. -> 4x4
+- processors: 0x0000ffffffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 3x3
+  pad: 1
+  groups: 96
+  activate: ReLU
+  max_pool: 2
+  pool_stride: 2
+# Layer 26: Bottleneck-3, n=0, conv3. in 96 ch, out 32ch
+- processors: 0x0000ffffffffffff
+  output_processors: 0x00000000ffffffff
+  out_offset: 0x4000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+# Layer 27: Bottleneck-3, n=1, conv1. in 32 ch, out 192 ch
+- processors: 0x00000000ffffffff
+  output_processors: 0xffffffffffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  activate: ReLU
+# Layer 28: Bottleneck-3, n=1, conv2. in 192 ch, out 192 ch
+- processors: 0xffffffffffffffff
+  output_processors: 0xffffffffffffffff
+  out_offset: 0x2000
+  operation: Conv2d
+  kernel_size: 3x3
+  pad: 1
+  groups: 192
+  activate: ReLU
+# Layer 29: Bottleneck-3, n=1, conv3, in 192 ch, out ch 32
+- processors: 0xffffffffffffffff
+  output_processors: 0x00000000ffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  write_gap: 1
+# Layer 30: Bottleneck-3, n=1, Reform input layer
+- in_offset: 0x4000
+  out_offset: 0x0004
+  processors: 0x00000000ffffffff
+  operation: passthrough
+  write_gap: 1
+  in_sequences: [26]
+# Layer 31: Bottleneck-3, n=1, Residual add
+- in_offset: 0x0000
+  out_offset: 0x4000
+  processors: 0x00000000ffffffff
+  operation: none
+  eltwise: add
+  in_sequences: [29, 30]
+# Layer 32: Bottleneck-3, n=2, conv1. in 32 ch, out 192 ch
+- processors: 0x00000000ffffffff
+  output_processors: 0xffffffffffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  activate: ReLU
+# Layer 33: Bottleneck-3, n=2, conv2. in 192 ch, out 192 ch
+- processors: 0xffffffffffffffff
+  output_processors: 0xffffffffffffffff
+  out_offset: 0x2000
+  operation: Conv2d
+  kernel_size: 3x3
+  pad: 1
+  groups: 192
+  activate: ReLU
+# Layer 34: Bottleneck-3, n=2, conv3, in 192 ch, out ch 32
+- processors: 0xffffffffffffffff
+  output_processors: 0x00000000ffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  write_gap: 1
+# Layer 35: Bottleneck-3, n=2, Reform input layer
+- in_offset: 0x4000
+  out_offset: 0x0004
+  processors: 0x00000000ffffffff
+  operation: passthrough
+  write_gap: 1
+  in_sequences: [31]
+# Layer 36: Bottleneck-3, n=2, Residual add
+- in_offset: 0x0000
+  out_offset: 0x4000
+  processors: 0x00000000ffffffff
+  operation: none
+  eltwise: add
+  in_sequences: [34, 35]
+# Layer 37: Bottleneck-3, n=3, conv1. in 32 ch, out 192 ch
+- processors: 0x00000000ffffffff
+  output_processors: 0xffffffffffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  activate: ReLU
+# Layer 38: Bottleneck-3, n=3, conv2. in 192 ch, out 192 ch
+- processors: 0xffffffffffffffff
+  output_processors: 0xffffffffffffffff
+  out_offset: 0x2000
+  operation: Conv2d
+  kernel_size: 3x3
+  pad: 1
+  groups: 192
+  activate: ReLU
+# Layer 39: Bottleneck-3, n=3, conv3, in 192 ch, out ch 32
+- processors: 0xffffffffffffffff
+  output_processors: 0x00000000ffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  write_gap: 1
+# Layer 40: Bottleneck-3, n=3, Reform input layer
+- in_offset: 0x4000
+  out_offset: 0x0004
+  processors: 0x00000000ffffffff
+  operation: passthrough
+  write_gap: 1
+  in_sequences: [36]
+# Layer 41: Bottleneck-3, n=3, Residual add
+- in_offset: 0x0000
+  out_offset: 0x4000
+  processors: 0x00000000ffffffff
+  operation: none
+  eltwise: add
+  in_sequences: [39, 40]
+# Layer 42: Bottleneck-4, n=0, conv1. in 32 ch, out 192 ch
+- processors: 0x00000000ffffffff
+  out_offset: 0x2000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  activate: ReLU
+# Layer 43: Bottleneck-4, n=0, conv2. in 192 ch, out 192 ch.
+- processors: 0xffffffffffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 3x3
+  pad: 1
+  groups: 192
+  activate: ReLU
+# Layer 44: Bottleneck-4, n=0, conv3. in 192ch, out 48 ch
+- processors: 0xffffffffffffffff
+  output_processors: 0x0000ffffffffffff
+  out_offset: 0x4000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+# Layer 45: Bottleneck-4, n=1, conv1. in 48 ch, out 288 ch
+- processors: 0x0000ffffffffffff
+  output_processors: 0x0fffffffffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  activate: ReLU
+# Layer 46: Bottleneck-4, n=1, conv2. in 288 ch, out 288 ch
+- processors: 0x0fffffffffffffff
+  output_processors: 0x0fffffffffffffff
+  out_offset: 0x2000
+  operation: Conv2d
+  kernel_size: 3x3
+  pad: 1
+  groups: 288
+  activate: ReLU
+# Layer 47: Bottleneck-4, n=1, conv3, in 288 ch, out ch 48
+- processors: 0x0fffffffffffffff
+  output_processors: 0x0000ffffffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  write_gap: 1
+# Layer 48: Bottleneck-4, n=1, Reform input layer
+- in_offset: 0x4000
+  out_offset: 0x0004
+  processors: 0x0000ffffffffffff
+  operation: passthrough
+  write_gap: 1
+  in_sequences: [44]
+# Layer 49: Bottleneck-4, n=1, Residual add
+- in_offset: 0x0000
+  out_offset: 0x4000
+  processors: 0x0000ffffffffffff
+  operation: none
+  eltwise: add
+  in_sequences: [47, 48]
+# Layer 50: Bottleneck-4, n=2, conv1. in 48 ch, out 288 ch
+- processors: 0x0000ffffffffffff
+  output_processors: 0x0fffffffffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  activate: ReLU
+# Layer 51: Bottleneck-4, n=2, conv2. in 288 ch, out 288 ch
+- processors: 0x0fffffffffffffff
+  output_processors: 0x0fffffffffffffff
+  out_offset: 0x2000
+  operation: Conv2d
+  kernel_size: 3x3
+  pad: 1
+  groups: 288
+  activate: ReLU
+# Layer 52: Bottleneck-4, n=2, conv3, in 288 ch, out ch 48
+- processors: 0x0fffffffffffffff
+  output_processors: 0x0000ffffffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  write_gap: 1
+# Layer 53: Bottleneck-4, n=2, Reform input layer
+- in_offset: 0x4000
+  out_offset: 0x0004
+  processors: 0x0000ffffffffffff
+  operation: passthrough
+  write_gap: 1
+  in_sequences: [49]
+# Layer 54: Bottleneck-4, n=2, Residual add
+- in_offset: 0x0000
+  out_offset: 0x4000
+  processors: 0x0000ffffffffffff
+  operation: none
+  eltwise: add
+  in_sequences: [52, 53]
+# Layer 55: Bottleneck-5, n=0, conv1. in 48 ch, out 288 ch
+- processors: 0x0000ffffffffffff
+  out_offset: 0x2000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  activate: ReLU
+# Layer 56: Bottleneck-5, n=0, conv2. in 288 ch, out 288 ch.
+- processors: 0x0fffffffffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 3x3
+  pad: 1
+  groups: 288
+  activate: ReLU
+# Layer 57: Bottleneck-5, n=0, conv3. in 288 ch, out 80 ch
+- processors: 0x0fffffffffffffff
+  output_processors: 0x000000ffffffffff
+  out_offset: 0x4000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+# Layer 58: Bottleneck-5, n=1, conv1. in 80 ch, out 480 ch
+- processors: 0x000000ffffffffff
+  output_processors: 0x0fffffffffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  activate: ReLU
+# Layer 59: Bottleneck-5, n=1, conv2. in 480 ch, out 480 ch
+- processors: 0x0fffffffffffffff
+  output_processors: 0x0fffffffffffffff
+  out_offset: 0x2000
+  operation: Conv2d
+  kernel_size: 3x3
+  pad: 1
+  groups: 480
+  activate: ReLU
+# Layer 60: Bottleneck-5, n=1, conv3, in 480 ch, out ch 80
+- processors: 0x0fffffffffffffff
+  output_processors: 0x000000ffffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  write_gap: 1
+# Layer 61: Bottleneck-5, n=1, Reform input layer
+- in_offset: 0x4000
+  out_offset: 0x0004
+  processors: 0x000000ffffffffff
+  operation: passthrough
+  write_gap: 1
+  in_sequences: [57]
+# Layer 62: Bottleneck-5, n=1, Residual add
+- in_offset: 0x0000
+  out_offset: 0x4000
+  processors: 0x000000ffffffffff
+  operation: none
+  eltwise: add
+  in_sequences: [60, 61]
+# Layer 63: Bottleneck-5, n=2, conv1. in 80 ch, out 480 ch
+- processors: 0x000000ffffffffff
+  output_processors: 0x0fffffffffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  activate: ReLU
+# Layer 64: Bottleneck-5, n=2, conv2. in 480 ch, out 480 ch
+- processors: 0x0fffffffffffffff
+  output_processors: 0x0fffffffffffffff
+  out_offset: 0x2000
+  operation: Conv2d
+  kernel_size: 3x3
+  pad: 1
+  groups: 480
+  activate: ReLU
+# Layer 65: Bottleneck-5, n=2, conv3, in 480 ch, out ch 80
+- processors: 0x0fffffffffffffff
+  output_processors: 0x000000ffffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  write_gap: 1
+# Layer 66: Bottleneck-5, n=2, Reform input layer
+- in_offset: 0x4000
+  out_offset: 0x0004
+  processors: 0x000000ffffffffff
+  operation: passthrough
+  write_gap: 1
+  in_sequences: [62]
+# Layer 67: Bottleneck-5, n=2, Residual add
+- in_offset: 0x0000
+  out_offset: 0x4000
+  processors: 0x000000ffffffffff
+  operation: none
+  eltwise: add
+  in_sequences: [65, 66]
+# Layer 68: Bottleneck-6, n=0, conv1. in 80 ch, out 480 ch
+- processors: 0x000000ffffffffff
+  output_processors: 0x0fffffffffffffff
+  out_offset: 0x2000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  activate: ReLU
+# Layer 69: Bottleneck-6, n=0, conv2. in 480 ch, out 480 ch.
+- processors: 0x0fffffffffffffff
+  output_processors: 0x0fffffffffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 3x3
+  pad: 1
+  groups: 480
+  activate: ReLU
+# Layer 70: Bottleneck-6, n=0, conv3. in 480 ch, out 160 ch
+- processors: 0x0fffffffffffffff
+  output_processors: 0x00ffffffffffffff
+  out_offset: 0x4000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+# Layer 71: post-stage in 160 ch, out 640 ch
+- processors: 0x00ffffffffffffff
+  output_processors: 0xffffffffffffffff
+  out_offset: 0x2000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  activate: ReLU
+# Layer 72: classifier in 640 ch, out 100 ch -> 1x1
+- processors: 0xffffffffffffffff
+  output_processors: 0x000fffffffffffff
+  out_offset: 0x0000
+  operation: Conv2d
+  kernel_size: 1x1
+  pad: 0
+  avg_pool: 4
+  pool_stride: 4
+  output_width: 32
