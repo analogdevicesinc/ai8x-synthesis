@@ -31,6 +31,7 @@ def main():
 
     # Save stdout before colorama potentially wraps it
     state.output_is_console = sys.stdout is not None and sys.stdout.isatty()
+    saved_stdout = sys.stdout
     colorama.init()
 
     args = commandline.get_parser()
@@ -620,3 +621,6 @@ def main():
             args.autogen,
             args.autogen_list,
         )
+
+    # Restore stdout in case we're wrapped in cProfile
+    sys.stdout = saved_stdout
