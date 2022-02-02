@@ -610,7 +610,7 @@ For example, if 192-channel data is read using 64 active processors, Data Memory
 
 ### Streaming Mode
 
-The machine also implements a streaming mode. Streaming allows input data dimensions that exceed the available per-channel data memory in the accelerator. *Note: Depending on the model and application, Data Folding may have performance benefits over streaming.*
+The machine also implements a streaming mode. Streaming allows input data dimensions that exceed the available per-channel data memory in the accelerator. *Note: Depending on the model and application, [Data Folding](#Data Folding) may have performance benefits over Streaming Mode.*
 
 The following illustration shows the basic principle: In order to produce the first output pixel of the second layer, not all data needs to be present at the input. In the example, a 5×5 input needs to be available.
 
@@ -930,7 +930,7 @@ The MAX78000 hardware does not support arbitrary network parameters. Specificall
   
 * Streaming mode:
   
-  * When using data greater than 90×91 (8,192 pixels per channel in HWC mode), or 181×181 (32,768 pixels in CHW mode), and *Data Folding* techniques are not used, then `streaming` mode must be used.
+  * When using data greater than 90×91 (8,192 pixels per channel in HWC mode), or 181×181 (32,768 pixels in CHW mode), and [Data Folding](#Data Folding) techniques are not used, then `streaming` mode must be used.
   * When using `streaming` mode, the product of any layer’s input width, input height, and input channels divided by 64 rounded up must not exceed 2^21: $width * height * ⌈\frac{channels}{64}⌉ < 2^{21}$; _width_ and _height_ must not exceed 1023.
   * Streaming is limited to 8 consecutive layers or fewer, and is limited to four FIFOs (up to 4 input channels in CHW and up to 16 channels in HWC format), see [FIFOs](#FIFOs).
   * For streaming layers, bias values may not be added correctly in all cases.
@@ -943,7 +943,7 @@ The MAX78000 hardware does not support arbitrary network parameters. Specificall
   Weights must be arranged according to specific rules detailed in [Layers and Weight Memory](#Layers and Weight Memory).
 
 * There are 16 instances of 32 KiB data memory (for a total of 512 KiB). When not using streaming mode, any data channel (input, intermediate, or output) must completely fit into one memory instance. This limits the first-layer input to 181×181 pixels per channel in the CHW format. However, when using more than one input channel, the HWC format may be preferred, and all layer outputs are in HWC format as well. In those cases, it is required that four channels fit into a single memory instance — or 91×90 pixels per channel.
-  Note that the first layer commonly creates a wide expansion (i.e., a large number of output channels) that needs to fit into data memory, so the input size limit is mostly theoretical. In many cases, *Data Folding* (distributing the input data across multiple channels) can effectively increase both the input dimensions as well as improve model performance.
+  Note that the first layer commonly creates a wide expansion (i.e., a large number of output channels) that needs to fit into data memory, so the input size limit is mostly theoretical. In many cases, [Data Folding](#Data Folding) (distributing the input data across multiple channels) can effectively increase both the input dimensions as well as improve model performance.
 
 * The hardware supports 1D and 2D convolution layers, 2D transposed convolution layers (upsampling), element-wise addition, subtraction, binary OR, binary XOR as well as fully connected layers (`Linear`), which are implemented using 1×1 convolutions on 1×1 data:
   * The maximum number of input neurons is 1024, and the maximum number of output neurons is 1024 (16 each per processor used).
@@ -1021,7 +1021,7 @@ The MAX78002 hardware does not support arbitrary network parameters. Specificall
 
 * Streaming mode:
 
-  * When using data greater than 143×143 (20,480 pixels per channel in HWC mode), or 286×286 (81,920 pixels in CHW mode), and *Data Folding* techniques are not used, then `streaming` mode must be used.
+  * When using data greater than 143×143 (20,480 pixels per channel in HWC mode), or 286×286 (81,920 pixels in CHW mode), and [Data Folding](#Data Folding) techniques are not used, then `streaming` mode must be used.
   * When using `streaming` mode, the product of any layer’s input width, input height, and input channels divided by 64 rounded up must not exceed 2^21: $width * height * ⌈\frac{channels}{64}⌉ < 2^{21}$; _width_ and _height_ must not exceed 2047.
   * Streaming is limited to 8 consecutive layers or fewer, and is limited to four FIFOs (up to 4 input channels in CHW and up to 16 channels in HWC format), see [FIFOs](#FIFOs).
   * Layers that use 1×1 kernels without padding are automatically replaced with equivalent layers that use 3×3 kernels with padding.
@@ -1032,7 +1032,7 @@ The MAX78002 hardware does not support arbitrary network parameters. Specificall
   Weights must be arranged according to specific rules detailed in [Layers and Weight Memory](#Layers and Weight Memory).
 
 * The total of 1,280 KiB of data memory is split into 16 sections of 80 KiB each. When not using streaming mode, any data channel (input, intermediate, or output) must completely fit into one memory instance. This limits the first-layer input to 286×286 pixels per channel in the CHW format. However, when using more than one input channel, the HWC format may be preferred, and all layer outputs are in HWC format as well. In those cases, it is required that four channels fit into a single memory section — or 143×143 pixels per channel.
-  Note that the first layer commonly creates a wide expansion (i.e., a large number of output channels) that needs to fit into data memory, so the input size limit is mostly theoretical. In many cases, *Data Folding* (distributing the input data across multiple channels) can effectively increase both the input dimensions as well as improve model performance.
+  Note that the first layer commonly creates a wide expansion (i.e., a large number of output channels) that needs to fit into data memory, so the input size limit is mostly theoretical. In many cases, [Data Folding](#Data Folding) (distributing the input data across multiple channels) can effectively increase both the input dimensions as well as improve model performance.
 
 * The hardware supports 1D and 2D convolution layers, 2D transposed convolution layers (upsampling), element-wise addition, subtraction, binary OR, binary XOR as well as fully connected layers (`Linear`), which are implemented using 1×1 convolutions on 1×1 data:
 
@@ -1518,6 +1518,22 @@ The following table describes the command line arguments for `batchnormfuser.py`
 | `-i`, `--inp_path`  | Set input checkpoint path                                    | `-i logs/2020.06.05-235316/best.pth.tar` |
 | `-o`, `--out_path`  | Set output checkpoint path for saving fused model            | `-o best_without_bn.pth.tar`             |
 | `-oa`, `--out_arch` | Set output architecture name (architecture without batchnorm layers) | `-oa ai85simplenet`              |
+
+
+
+### Data Folding
+
+*Data Folding* is data reshaping operation. When followed by a Conv2d operation, it is equivalent to a convolution operation on the original image with a larger kernel and a larger stride.
+
+On MAX78000 and MAX78002, data folding is beneficial because it increases available resolution and reduces latency. A typical 3-channel RGB image uses only three processors in the first layer which increases latency, and restricts the image dimensions to what can be fit into the data memories associated with three processors.
+
+By creating many low resolution sub-images and concatenating them through the channel dimension, up to 64 processors and their associated data memories can be used. This results in a higher maximum effective resolution, and increased throughput in the first layer.
+
+For certain models (see `models/ai85net-unet.py` in the training repository) this also improves model performance, due to the increase in effective kernel size and stride.
+
+Note that data folding must be applied during model training. During inference, there is no additional overhead; the input data is simply loaded to different processors/memory addresses.
+
+
 
 ### Quantization
 
