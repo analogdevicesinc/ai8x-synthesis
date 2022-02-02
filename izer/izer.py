@@ -19,8 +19,8 @@ import colorama
 from . import checkpoint, commandline, onnxcp, op, rtlsim, sampledata, sampleweight, state
 from . import tornadocnn as tc
 from . import versioncheck, yamlcfg
-from .names import layer_pfx, layer_str
 from .eprint import eprint, wprint
+from .names import layer_pfx, layer_str
 
 
 def main():
