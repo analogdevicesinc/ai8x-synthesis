@@ -12,6 +12,7 @@ import numpy as np
 from . import state
 from . import tornadocnn as tc
 from .eprint import eprint, wprint
+from .names import layer_pfx
 from .utils import argmin, ffs, fls, popcount
 
 _INVALID_VALUE = -(2**63)
@@ -66,10 +67,10 @@ def load(
             continue
         # Check all layers, including non-depth-wise
         if len(bias[ll]) != output_chan[ll]:
-            eprint(f'Layer {ll}: output channel count {output_chan[ll]} does not match the number '
-                   f'of bias values {len(bias[ll])}.')
+            eprint(f'{layer_pfx(ll)}Output channel count {output_chan[ll]} does not match the '
+                   f'number of bias values {len(bias[ll])}.')
         if not np.any(bias[ll] != 0):
-            wprint(f'Layer {ll}: All bias values are zero. Ignoring the input.')
+            wprint(f'{layer_pfx(ll)}All bias values are zero. Ignoring the input.')
             continue
         if conv_groups[ll] == 1 and not (state.fast_fifo_quad and ll == start_layer):
             # For regular convolutions, collect length data
@@ -92,7 +93,7 @@ def load(
             """
             assert 0 <= group < tc.dev.P_NUMGROUPS_ALL
             if group_bias_max[group] >= tc.dev.BIAS_SIZE:
-                eprint(f'Layer {layer}: bias memory capacity for group {group} exhausted, '
+                eprint(f'{layer_pfx(layer)}Bias memory capacity for group {group} exhausted, '
                        f'used so far: {group_bias_max[group]}.')
 
             if val is not None and val != _INVALID_VALUE:  # else just consume the space
@@ -201,7 +202,7 @@ def load(
             group_bias_max[group] = (group_bias_max[group] + 3) & ~3  # Round up for x4 mode
 
         if group_bias_max[group] + blen > tc.dev.BIAS_SIZE:
-            eprint(f'Layer {ll}: bias memory capacity exhausted - available groups: '
+            eprint(f'{layer_pfx(ll)}bias memory capacity exhausted - available groups: '
                    f'{gmap}, used so far: {group_bias_max}, needed: {blen} bytes, '
                    f'best available: group {group} with '
                    f'{tc.dev.BIAS_SIZE - group_bias_max[group]} bytes available.')
@@ -219,7 +220,7 @@ def load(
         target_offs = ffs(output_processor_map[ll]) % tc.dev.P_SHARED * out_expand[ll]
 
         if streaming[ll] and not tc.dev.SUPPORT_STREAM_BIAS:
-            wprint(f'Layer {ll} uses streaming and a bias. '
+            wprint(f'{layer_pfx(ll)}Combining streaming and a bias. '
                    'THIS COMBINATION MIGHT NOT FUNCTION CORRECTLY!!!')
 
         group = bias_group[ll]

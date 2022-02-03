@@ -1,8 +1,8 @@
-# MAX78000 Model Training and Synthesis
+# ADI MAX78000 Model Training and Synthesis
 
-_January 27, 2022_
+_February 2, 2022_
 
-The Maxim Integrated AI project is comprised of five repositories:
+ADI’s MAX78000 project is comprised of five repositories:
 
 1. **Start here**:
     **[Top Level Documentation](https://github.com/MaximIntegratedAI/MaximAI_Documentation)**
@@ -24,7 +24,7 @@ See https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet for a descr
 
 ## Part Numbers
 
-This document covers several of Maxim’s ultra-low power machine learning accelerator systems. They are sometimes referred to by their die types. The following shows the die types and their corresponding part numbers:
+This document covers several of ADI’s ultra-low power machine learning accelerator systems. They are sometimes referred to by their die types. The following shows the die types and their corresponding part numbers:
 
 | Die Type | Part Number(s)                 |
 | -------- | ------------------------------ |
@@ -2014,6 +2014,13 @@ This key allows overriding of the processing sequence. The default is `0` for th
 
 `sequence` numbers may have gaps. The software will sort layers by their numeric value, with the lowest value first.
 
+##### `name` (Optional)
+
+`name` assigns a name to the current layer. By default, layers are referenced by their sequence number. Using `name`, they can be referenced using a string. *Note: “stop” and “input” are reserved names.*
+
+Example:
+	`name: parallel_1_2`
+
 ##### `processors` (Mandatory)
 
 `processors` specifies which processors will handle the input data. The processor map must match the number of input channels, and the input data format. For example, in CHW format, processors must be attached to different data memory instances.
@@ -2205,7 +2212,7 @@ Example:
 
 ##### `in_sequences` (Optional)
 
-By default, a layer’s input is the output of the previous layer. `in_sequences` can be used to point to the output of one or more arbitrary previous layers, for example when processing the same data using two different kernel sizes, or when combining the outputs of several prior layers. `in_sequences` can be specified as an integer (for a single input) or as a list (for multiple inputs). As a special case, `-1` refers to the input data. The `in_offset` and `out_offset` must be set to match the specified sequence.
+By default, a layer’s input is the output of the previous layer. `in_sequences` can be used to point to the output of one or more arbitrary previous layers, for example when processing the same data using two different kernel sizes, or when combining the outputs of several prior layers. `in_sequences` can be specified as a single item (for a single input) or as a list (for multiple inputs). Both layer sequence numbers as well as layer names can be used. As a special case, `-1` or `input` refer to the input data. The `in_offset` and `out_offset` must be set to match the specified sequence.
 
 ###### Multiple Arguments (Element-wise Operations)
 
@@ -2226,8 +2233,9 @@ def forward(self, x):
 
 In this case, `in_sequences` would be  `[1, 0]` since `y` (the output of layer 1) precedes `x` (the output of layer 0) in the `torch.cat()` statement.
 
-Example:
-  `in_sequences: [2, 3]` 
+Examples:
+	`in_sequences: [2, 3]`
+	`in_sequences: [expand_1x1, expand_3x3]` 
 
 See the [Fire example](#example) for a network that uses `in_sequences`.
 
@@ -2299,7 +2307,7 @@ dataset: CIFAR-10
 
 layers:
 ### Fire
-# Squeeze
+# Squeeze (0)
 - avg_pool: 2
   pool_stride: 2
   pad: 0
@@ -2310,7 +2318,7 @@ layers:
   operation: conv2d
   kernel_size: 1x1
   activate: ReLU
-# Expand 1x1
+# Expand 1x1 (1)
 - in_offset: 0x0000
   out_offset: 0x1000
   processors: 0x0000000000000030
@@ -2319,7 +2327,8 @@ layers:
   kernel_size: 1x1
   pad: 0
   activate: ReLU
-# Expand 3x3
+  name: expand_1x1
+# Expand 3x3 (2)
 - in_offset: 0x0000
   out_offset: 0x1000
   processors: 0x0000000000000030
@@ -2328,15 +2337,16 @@ layers:
   kernel_size: 3x3
   activate: ReLU
   in_sequences: 0
-# Concatenate
+  name: expand_3x3
+# Concatenate (3)
 - max_pool: 2
   pool_stride: 2
   in_offset: 0x1000
   out_offset: 0x0000
   processors: 0x000000000000ff00
   operation: none
-  in_sequences: [1, 2]
-### Additional layers
+  in_sequences: [expand_1x1, expand_3x3]
+### Additional layers (4, 5)
 - max_pool: 2
   pool_stride: 2
   out_offset: 0x1000

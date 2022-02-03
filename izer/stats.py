@@ -13,6 +13,7 @@ from typing import List, Optional, Tuple
 
 from . import state
 from . import tornadocnn as tc
+from .names import layer_pfx
 
 statsdict = {
     "macc": [0],  # Hardware multiply-accumulates (Conv2D, etc.)
@@ -104,7 +105,7 @@ def summary(
     if debug:
         rv += f'{sp}          True MACs: {factor * sum(statsdict["true_macc"]):,}\n'
     for ll in range(state.first_layer_used, state.layers):
-        rv += f'{sp}  Layer {ll}: {factor * ops(ll):,} ops ' \
+        rv += f'{sp}  {layer_pfx(ll)}{factor * ops(ll):,} ops ' \
               f'({factor * get(ll, "macc"):,} macc; ' \
               f'{factor * get(ll, "comp"):,} ' \
               f'comp; {factor * get(ll, "add"):,} add; ' \
