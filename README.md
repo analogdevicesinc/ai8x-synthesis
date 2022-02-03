@@ -1,6 +1,6 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-_February 2, 2022_
+_February 3, 2022_
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
@@ -937,12 +937,12 @@ The MAX78000 hardware does not support arbitrary network parameters. Specificall
   * The *final* streaming layer must use padding.
   * Layers that use 1×1 kernels without padding are automatically replaced with equivalent layers that use 3×3 kernels with padding.
   
-* The weight memory supports up to 768 * 64 3×3 Q7 kernels (see [Number Format](#Number-Format)).
+* The weight memory supports up to 768 * 64 3×3 Q7 kernels (see [Number Format](#Number-Format)), for a total of [432 KiB of kernel memory](docs/AHBAddresses.md).
   When using 1-, 2- or 4-bit weights, the capacity increases accordingly.
   When using more than 64 input or output channels, weight memory is shared, and effective capacity decreases.
   Weights must be arranged according to specific rules detailed in [Layers and Weight Memory](#Layers and Weight Memory).
 
-* There are 16 instances of 32 KiB data memory (for a total of 512 KiB). When not using streaming mode, any data channel (input, intermediate, or output) must completely fit into one memory instance. This limits the first-layer input to 181×181 pixels per channel in the CHW format. However, when using more than one input channel, the HWC format may be preferred, and all layer outputs are in HWC format as well. In those cases, it is required that four channels fit into a single memory instance — or 91×90 pixels per channel.
+* There are 16 instances of 32 KiB data memory ([for a total of 512 KiB](docs/AHBAddresses.md)). When not using streaming mode, any data channel (input, intermediate, or output) must completely fit into one memory instance. This limits the first-layer input to 181×181 pixels per channel in the CHW format. However, when using more than one input channel, the HWC format may be preferred, and all layer outputs are in HWC format as well. In those cases, it is required that four channels fit into a single memory instance — or 91×90 pixels per channel.
   Note that the first layer commonly creates a wide expansion (i.e., a large number of output channels) that needs to fit into data memory, so the input size limit is mostly theoretical. In many cases, [Data Folding](#Data Folding) (distributing the input data across multiple channels) can effectively increase both the input dimensions as well as improve model performance.
 
 * The hardware supports 1D and 2D convolution layers, 2D transposed convolution layers (upsampling), element-wise addition, subtraction, binary OR, binary XOR as well as fully connected layers (`Linear`), which are implemented using 1×1 convolutions on 1×1 data:
@@ -1026,12 +1026,12 @@ The MAX78002 hardware does not support arbitrary network parameters. Specificall
   * Streaming is limited to 8 consecutive layers or fewer, and is limited to four FIFOs (up to 4 input channels in CHW and up to 16 channels in HWC format), see [FIFOs](#FIFOs).
   * Layers that use 1×1 kernels without padding are automatically replaced with equivalent layers that use 3×3 kernels with padding.
 
-* The weight memory of processors 0, 16, 32, and 48 supports up to 5,120 3×3 Q7 kernels (see [Number Format](#Number-Format)), all other processors support up to 4,096 3×3 Q7 kernels.
+* The weight memory of processors 0, 16, 32, and 48 supports up to 5,120 3×3 Q7 kernels (see [Number Format](#Number-Format)), all other processors support up to 4,096 3×3 Q7 kernels, for a total of [2,340 KiB of kernel memory](docs/AHBAddresses.md).
   When using 1-, 2- or 4-bit weights, the capacity increases accordingly. The hardware supports two different flavors of 1-bit weights, either 0/–1 or +1/–1.
   When using more than 64 input or output channels, weight memory is shared, and effective capacity decreases.
   Weights must be arranged according to specific rules detailed in [Layers and Weight Memory](#Layers and Weight Memory).
 
-* The total of 1,280 KiB of data memory is split into 16 sections of 80 KiB each. When not using streaming mode, any data channel (input, intermediate, or output) must completely fit into one memory instance. This limits the first-layer input to 286×286 pixels per channel in the CHW format. However, when using more than one input channel, the HWC format may be preferred, and all layer outputs are in HWC format as well. In those cases, it is required that four channels fit into a single memory section — or 143×143 pixels per channel.
+* The total of [1,280 KiB of data memory](docs/AHBAddresses.md) is split into 16 sections of 80 KiB each. When not using streaming mode, any data channel (input, intermediate, or output) must completely fit into one memory instance. This limits the first-layer input to 286×286 pixels per channel in the CHW format. However, when using more than one input channel, the HWC format may be preferred, and all layer outputs are in HWC format as well. In those cases, it is required that four channels fit into a single memory section — or 143×143 pixels per channel.
   Note that the first layer commonly creates a wide expansion (i.e., a large number of output channels) that needs to fit into data memory, so the input size limit is mostly theoretical. In many cases, [Data Folding](#Data Folding) (distributing the input data across multiple channels) can effectively increase both the input dimensions as well as improve model performance.
 
 * The hardware supports 1D and 2D convolution layers, 2D transposed convolution layers (upsampling), element-wise addition, subtraction, binary OR, binary XOR as well as fully connected layers (`Linear`), which are implemented using 1×1 convolutions on 1×1 data:
@@ -1049,7 +1049,11 @@ The MAX78002 hardware does not support arbitrary network parameters. Specificall
 
 * Since the internal network format is HWC in groups of four channels, output concatenation only works properly when all components of the concatenation other than the last have multiples of four channels.
 
+* The MAX78002 hardware supports several processing speedups that accesses memory instances in parallel. The tools are capable of generating code that supports these speedups.
+
 * *Note: Batch normalization should be folded into the weights, see [Batch Normalization](#Batch-Normalization).*
+
+
 
 ### Fully Connected (Linear) Layers
 
