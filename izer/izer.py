@@ -76,7 +76,7 @@ def main():
     # This also configures the network's output channels
     if cfg['arch'] != 'test':
         if not args.checkpoint_file:
-            eprint("--checkpoint-file is a required argument.")
+            eprint('--checkpoint-file is a required argument.')
         fext = args.checkpoint_file.rsplit(sep='.', maxsplit=1)[1].lower()
         if fext == 'onnx':
             # ONNX file selected
@@ -147,8 +147,8 @@ def main():
                 layers += 1
 
     if layers != cfg_layers:
-        eprint(f"Number of layers in the YAML configuration file ({cfg_layers}) "
-               f"does not match the checkpoint file ({layers}).")
+        eprint(f'Number of layers in the YAML configuration file ({cfg_layers}) '
+               f'does not match the checkpoint file ({layers}).')
 
     if any(p < 0 or p >= 4*tc.dev.MEM_SIZE for p in params['output_offset']):
         eprint('Unsupported value for `out_offset` in YAML configuration. Supported on this '
@@ -157,7 +157,7 @@ def main():
     if any(q != 8 for q in params['bias_quantization']):
         eprint('All bias quantization configuration values must be 8.')
 
-    print(f"Configuring data set: {cfg['dataset']}.")
+    print(f'Configuring data set: {cfg["dataset"]}.')
     if args.sample_input is None:
         sampledata_file = os.path.join('tests', f'sample_{cfg["dataset"].lower()}.npy')
     else:
@@ -182,6 +182,7 @@ def main():
     in_sequences = params['in_sequences'][:layers]
     next_sequence = params['next_sequence'][:layers]
     prev_sequence = [-1] * layers
+    write_gap = params['write_gap'][:layers]
 
     # Override channels, establish sequence
     for ll in range(layers - 1):
@@ -205,9 +206,15 @@ def main():
                 # Element-wise operation
                 input_channels[ll] = input_size[0] if in_sequences[ll][0] == -1 \
                     else output_channels[in_sequences[ll][0]]
-                for i in range(1, len(in_sequences[ll])):
-                    assert output_channels[in_sequences[ll][0]] \
-                        == output_channels[in_sequences[ll][i]]
+                gap = write_gap[in_sequences[ll][0]]
+                chan = output_channels[in_sequences[ll][0]]
+                for _, e in enumerate(in_sequences[ll], start=1):
+                    if chan != output_channels[e]:
+                        eprint(f'{layer_pfx(ll)}`in_sequences` for the element-wise operation '
+                               'includes inputs with different channel counts.')
+                    if gap != write_gap[e]:
+                        wprint(f'{layer_pfx(ll)}`in_sequences` for the element-wise operation '
+                               'includes inputs with different `write_gap` values.')
 
         if input_channels[ll] <= 0:
             if ll == 0:
@@ -235,10 +242,10 @@ def main():
         min_layer = min(ll, min_layer)
         if next_sequence[ll] != -1 and next_sequence[ll] != ll + 1 \
            and not tc.dev.SUPPORT_LINK_LAYER:
-            eprint(f"{layer_pfx(ll)}`next_sequence` is not supported on this device.")
+            eprint(f'{layer_pfx(ll)}`next_sequence` is not supported on this device.')
         elif next_sequence[ll] > layers:
-            wprint(f"{layer_pfx(ll)}`next_sequence` exceeds available layers, "
-                   "setting to `stop`.")
+            wprint(f'{layer_pfx(ll)}`next_sequence` exceeds available layers, '
+                   'setting to `stop`.')
             next_sequence[ll] = -1
         if next_sequence[ll] == -1:
             final_layer = ll
@@ -304,7 +311,6 @@ def main():
     pool_first = params['pool_first'][:layers]
     activation = params['activation'][:layers]
     conv_groups = params['conv_groups'][:layers]
-    write_gap = params['write_gap'][:layers]
     bypass = params['bypass'][:layers]
     bias_group_map = params['bias_group_map'][:layers]
     calcx4 = [True] * layers if args.calcx4 else params['calcx4'][:layers]
@@ -533,7 +539,7 @@ def main():
             break
 
     if args.riscv and not args.riscv_cache and args.embedded_code:
-        eprint("Embedded code on RISC-V requires --riscv-cache.")
+        eprint('Embedded code on RISC-V requires --riscv-cache.')
 
     # Modify global state based on locally calculated variables
     state.activation = activation
