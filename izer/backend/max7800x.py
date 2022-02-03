@@ -844,8 +844,8 @@ class Backend(backend.Backend):
                     broadcast_mode[ll] = True
                 else:
                     nprint(f'{layer_pfx(ll)}depth-wise convolution moves data across processors. '
-                           f'This has a performance impact. Input {processor_map[ll]:016x}, '
-                           f'output {output_processor_map[ll]:016x}.')
+                           f'This has a performance impact. Input 0x{processor_map[ll]:016x}, '
+                           f'output 0x{output_processor_map[ll]:016x}.')
 
             # Block certain element-wise operations when not using passthrough mode
             if tc.dev.EMULATE_ELTWISE_MP and operands[ll] > 1 and in_expand[ll] > 1 \

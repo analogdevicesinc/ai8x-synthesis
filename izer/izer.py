@@ -183,6 +183,8 @@ def main():
     next_sequence = params['next_sequence'][:layers]
     prev_sequence = [-1] * layers
     write_gap = params['write_gap'][:layers]
+    input_skip = params['input_skip'][:layers]
+    operands = params['operands'][:layers]
 
     # Override channels, establish sequence
     for ll in range(layers - 1):
@@ -208,13 +210,24 @@ def main():
                     else output_channels[in_sequences[ll][0]]
                 gap = write_gap[in_sequences[ll][0]]
                 chan = output_channels[in_sequences[ll][0]]
+                l_str = ", ".join([layer_str(e) for _, e in enumerate(in_sequences[ll])])
                 for _, e in enumerate(in_sequences[ll], start=1):
                     if chan != output_channels[e]:
-                        eprint(f'{layer_pfx(ll)}`in_sequences` for the element-wise operation '
-                               'includes inputs with different channel counts.')
+                        eprint(f'{layer_pfx(ll)}`in_sequences` [{l_str}] for the element-wise '
+                               'operation includes inputs with non-matching channel counts.')
                     if gap != write_gap[e]:
-                        wprint(f'{layer_pfx(ll)}`in_sequences` for the element-wise operation '
-                               'includes inputs with different `write_gap` values.')
+                        wprint(f'{layer_pfx(ll)}`in_sequences` [{l_str}] for the element-wise '
+                               'operation includes inputs with non-matching `write_gap` values.')
+                if gap != operands[ll] - 1:
+                    wprint(f'{layer_pfx(ll)}The element-wise operation has {operands[ll]} '
+                           f'operands, but the `write_gap` is {gap} for the `in_sequences` '
+                           f'[{l_str}] instead of {operands[ll] - 1}.')
+        else:
+            gap = 0 if prev_ll == -1 else write_gap[prev_ll]
+            if gap != input_skip[ll]:
+                wprint(f'{layer_pfx(ll)}`read_gap` {input_skip[ll]} does not match the '
+                       f'`write_gap` {gap} of layer {layer_str(prev_ll)} that created the input '
+                       'for this layer.')
 
         if input_channels[ll] <= 0:
             if ll == 0:
@@ -277,7 +290,6 @@ def main():
     prev_sequence = prev_sequence[:layers]
 
     input_channels = input_channels[:layers]
-    input_skip = params['input_skip'][:layers]
     input_channel_skip = params['input_chan_skip'][:layers]
     output_channels = output_channels[:layers]
     output_offset = params['output_offset'][:layers]
@@ -306,7 +318,6 @@ def main():
         for _, e in enumerate(args.streaming_layers):
             streaming[e] = True
     flatten = params['flatten'][:layers]
-    operands = params['operands'][:layers]
     eltwise = params['eltwise'][:layers]
     pool_first = params['pool_first'][:layers]
     activation = params['activation'][:layers]
@@ -324,6 +335,8 @@ def main():
         output_layer[final_layer] = True
     elif not output_layer[final_layer]:
         wprint(f'The final layer {layer_str(ll)} is not designated as an `output` layer.')
+    # Set this since 'layers' may have changed
+    operands = params['operands'][:layers]
 
     # Command line override
     if args.input_offset is not None:
