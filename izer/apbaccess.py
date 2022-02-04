@@ -747,14 +747,15 @@ class APB():
 
     def unload(  # pylint: disable=no-self-use
             self,
+            *,
+            output_layer,
             processor_map,
             input_shape,
-            output_offset=0,
-            out_expand=1,
-            out_expand_thresh=64,
-            output_width=8,
-            mlator=False,
-            write_gap=0,
+            output_offset,
+            out_expand,
+            out_expand_thresh,
+            output_width,
+            write_gap,
     ):  # pylint: disable=unused-argument
         """
         Write the unload function. The layer to unload has the shape `input_shape`,
@@ -778,7 +779,7 @@ class APB():
             overwrite_ok=False,
             mlator=False,
             write_gap=0,
-            final_layer=0,
+            unload_layer=False,
     ):
         """
         Write a verification function. The layer to unload has the shape `input_shape`,
@@ -800,7 +801,7 @@ class APB():
             mlator=mlator,
             stream=self.memfile,
             write_gap=write_gap,
-            final_layer=final_layer,
+            unload_layer=unload_layer,
             embedded=self.embedded_code,
             test_name=self.test_name,
         )
@@ -1346,27 +1347,30 @@ class APBTopLevel(APB):
 
     def unload(
             self,
-            processor_map,
-            input_shape,
-            output_offset=0,
-            out_expand=1,
-            out_expand_thresh=64,
-            output_width=8,
-            mlator=False,
-            write_gap=0,
-    ):
-        """
-        Write the unload function. The layer to unload has the shape `input_shape`,
-        and the optional `output_offset` argument can shift the output.
-        """
-        unload.unload(
-            self.apifile or self.memfile,
+            *,
+            output_layer,
             processor_map,
             input_shape,
             output_offset,
             out_expand,
             out_expand_thresh,
             output_width,
+            write_gap,
+    ):
+        """
+        Write the unload function. The layer to unload has the shape `input_shape`,
+        and the optional `output_offset` argument can shift the output.
+        """
+        unload.unload(
+            memfile=self.apifile or self.memfile,
+            output_layer=output_layer,
+            processor_map=processor_map,
+            input_shape=input_shape,
+            out_offset=output_offset,
+            out_expand=out_expand,
+            out_expand_thresh=out_expand_thresh,
+            output_width=output_width,
+            write_gap=write_gap,
         )
 
     def output_define(

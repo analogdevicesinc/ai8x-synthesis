@@ -116,10 +116,11 @@ def get_parser() -> argparse.Namespace:
                             "(default: 8)")
     group.add_argument('--softmax', action='store_true', default=False,
                        help="add software softmax function (default: false)")
-    group.add_argument('--unload', action='store_true', default=None,
-                       help="enable use of cnn_unload() function (default)")
-    group.add_argument('--no-unload', dest='unload', action='store_false',
-                       help="disable use of cnn_unload() function (default: enabled)")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('--unload', action='store_true', default=None,
+                        help="enable use of cnn_unload() function (default)")
+    mgroup.add_argument('--no-unload', dest='unload', action='store_false',
+                        help="disable use of cnn_unload() function (default: enabled)")
     group.add_argument('--no-kat', dest='generate_kat', action='store_false', default=True,
                        help="disable known-answer test generation (KAT) (default: enabled)")
     group.add_argument('--boost', metavar='S', default=None,

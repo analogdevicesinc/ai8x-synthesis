@@ -20,6 +20,7 @@ from . import checkpoint, commandline, onnxcp, op, rtlsim, sampledata, samplewei
 from . import tornadocnn as tc
 from . import versioncheck, yamlcfg
 from .eprint import eprint, wprint
+from .names import layer_pfx, layer_str
 
 
 def main():
@@ -30,6 +31,7 @@ def main():
 
     # Save stdout before colorama potentially wraps it
     state.output_is_console = sys.stdout is not None and sys.stdout.isatty()
+    saved_stdout = sys.stdout
     colorama.init()
 
     args = commandline.get_parser()
@@ -174,6 +176,7 @@ def main():
 
     input_size = list(data.shape)
 
+    state.layer_name = params['layer_name'][:layers]
     processor_map = params['processor_map'][:layers]
     output_processor_map = params['output_processor_map'][:layers]
     in_sequences = params['in_sequences'][:layers]
@@ -232,9 +235,10 @@ def main():
         min_layer = min(ll, min_layer)
         if next_sequence[ll] != -1 and next_sequence[ll] != ll + 1 \
            and not tc.dev.SUPPORT_LINK_LAYER:
-            eprint(f"Layer {ll}: `next_sequence` is not supported on this device.")
+            eprint(f"{layer_pfx(ll)}`next_sequence` is not supported on this device.")
         elif next_sequence[ll] > layers:
-            wprint(f"Layer {ll}: `next_sequence` exceeds available layers, setting to `stop`.")
+            wprint(f"{layer_pfx(ll)}`next_sequence` exceeds available layers, "
+                   "setting to `stop`.")
             next_sequence[ll] = -1
         if next_sequence[ll] == -1:
             final_layer = ll
@@ -309,6 +313,11 @@ def main():
     tcalc = params['tcalc'][:layers]
     snoop_sequence = params['snoop_sequence'][:layers]
     simulated_sequence = params['simulated_sequence'][:layers]
+    output_layer = params['output_layer'][:layers]
+    if not any(output_layer):
+        output_layer[final_layer] = True
+    elif not output_layer[final_layer]:
+        wprint(f'The final layer {layer_str(ll)} is not designated as an `output` layer.')
 
     # Command line override
     if args.input_offset is not None:
@@ -346,11 +355,11 @@ def main():
     if not tc.dev.SUPPORT_ARBITRARY_OUTPUT_WIDTH:
         # Check last layer
         if output_width[final_layer] != 8 and activation[final_layer] is not None:
-            eprint(f'`output_width` must be 8 when activation is used in (layer {ll}).')
+            eprint(f'{layer_pfx(ll)}`output_width` must be 8 when activation is used.')
 
     while ll < layers:
         if input_channels[ll] <= 0:
-            eprint(f'Must specify `in_channels` for layer {ll}.')
+            eprint(f'{layer_pfx(ll)}`in_channels` is required.')
         if quantization[ll] is None:
             quantization[ll] = 8 if not bypass[ll] and operator[ll] != op.NONE else 0  # Defaults
         if operator[ll] != op.NONE and not bypass[ll]:
@@ -367,40 +376,44 @@ def main():
             if input_offset[ll] is None:
                 input_offset[ll] = output_offset[prev_sequence[ll]]
             elif in_sequences[ll] is None and input_offset[ll] != output_offset[prev_sequence[ll]]:
-                wprint(f'Layer {ll}: Non-default `in_offset: 0x{input_offset[ll]:04x}`, '
-                       f'but no `in_sequences` given. Assuming `in_sequences: '
-                       f'{prev_sequence[ll]}` which may be incorrect.')
+                wprint(f'{layer_pfx(ll)}Non-default `in_offset: 0x{input_offset[ll]:04x}`'
+                       f', but no `in_sequences` given. Assuming `in_sequences: '
+                       f'{layer_str(prev_sequence[ll])}` which may be incorrect.')
             # Check we don't turn on streaming too late
             if streaming[ll] and not streaming[prev_sequence[ll]]:
-                eprint(f'Layer {ll} is a streaming layer, but the previous layer '
-                       f'(layer {prev_sequence[ll]}) is non-streaming. This is not supported.')
+                eprint(f'Layer {layer_str(ll)} is a streaming layer, but the previous layer '
+                       f'{layer_str(prev_sequence[ll])} is non-streaming. This is not supported.')
             if big_data[ll]:
-                eprint(f'`data_format` in layer {ll}: CHW can only be configured for the '
+                eprint(f'{layer_pfx(ll)}`data_format` CHW can only be configured for the '
                        'first layer.')
 
         # Check all but last layer
-        if ll != final_layer:
-            if output_width[ll] != 8:
-                wprint(f'`output_width` should be 8 for intermediate layer {ll}.')
+        next_seq = next_sequence[ll]
+        if output_width[ll] != 8 and next_seq != -1 \
+           and (in_sequences[next_seq] is None or ll in in_sequences[next_seq]):
+            wprint(f'{layer_pfx(ll)}`output_width` should be 8 for intermediate layers.')
 
         if in_sequences[ll] is not None:
             if tc.dev.SUPPORT_LINK_LAYER:
                 if any(i > len(in_sequences) for i in in_sequences[ll]):
-                    eprint(f'`in_sequences` in layer {ll} cannot be greater than the last layer.')
+                    eprint(f'{layer_pfx(ll)}`in_sequences` cannot be greater than the '
+                           'last layer.')
             else:
                 if any(i >= ll for i in in_sequences[ll]):
-                    eprint(f'`in_sequences` in layer {ll} cannot be greater than layer sequence '
-                           'on this device')
+                    eprint(f'{layer_pfx(ll)}`in_sequences` cannot be greater than layer '
+                           'sequence on this device')
 
         if input_dim[ll] is None:
+            pixels = 0
             if in_sequences[ll] is not None:
                 dim = auto_input_dim[0] if in_sequences[ll][0] == -1 \
                     else output_dim[in_sequences[ll][0]]
                 for _, e in enumerate(in_sequences[ll], start=1):
                     odim = auto_input_dim[0] if e == -1 else output_dim[e]
-                    if odim != dim:
-                        eprint('Cannot concatenate outputs of different dimensions in layer '
-                               f'{ll}: {dim} vs {odim}.')
+                    if odim != dim and conf_input_dim[ll] is None:
+                        eprint(f'{layer_pfx(ll)}Cannot concatenate outputs of different '
+                               f'dimensions without specfying `in_dim`: {dim} vs {odim}.')
+                    pixels += odim[0] * odim[1]
                 auto_input_dim[ll] = dim
                 prev_op = operator[in_sequences[ll][0]]
             else:
@@ -410,19 +423,22 @@ def main():
                 input_dim[ll] = auto_input_dim[ll]
                 # Print warning when going from 1D to 2D without explicitly reformatting the input
                 if input_dim[ll] is None:
-                    eprint(f'Layer {ll} does not have input dimension information. Please use '
+                    eprint(f'{layer_pfx(ll)}No input dimension information. Use '
                            '`in_dim` to explicitly set dimensions.')
                 if input_dim[ll][1] == 1 and operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D] \
                    and prev_op == op.CONV1D:
-                    wprint(f'Using 1-dimensional data {input_dim[ll][0]}x{input_dim[ll][1]} for '
-                           f'layer {ll} with a {op.string(operator[ll])} operator. '
+                    wprint(f'{layer_pfx(ll)}Using 1-dimensional data {input_dim[ll][0]}x'
+                           f'{input_dim[ll][1]} with a {op.string(operator[ll])} operator. '
                            'Use `in_dim:` to reshape the data to two dimensions, or to silence '
                            'this message.')
             else:
+                if pixels > 0 and conf_input_dim[ll][0] * conf_input_dim[ll][1] != pixels:
+                    eprint(f'{layer_pfx(ll)}The configured `in_dim` does not match the '
+                           f'sum of all pixels ({pixels}) in the layer\'s `in_sequences`.')
                 input_dim[ll] = conf_input_dim[ll]
         if operator[ll] != op.CONV1D:
             if pool_stride[ll][0] != pool_stride[ll][1]:
-                eprint(f'{op.string(operator[ll])} in layer {ll} does not support '
+                eprint(f'{layer_pfx(ll)}{op.string(operator[ll])} does not support '
                        f'non-square pooling stride (currently set to '
                        f'{pool_stride[ll][0]}x{pool_stride[ll][1]}).')
             pooled_size = [(input_dim[ll][0] + pool_stride[ll][0] - pool[ll][0]
@@ -436,15 +452,15 @@ def main():
 
         pooled_dim[ll] = pooled_size
         if any(dim == 0 for dim in pooled_dim[ll]):
-            eprint(f'Pooling or zero-padding in layer {ll} results in a zero data dimension '
-                   f'(input {input_dim[ll]}, result {pooled_dim[ll]}).')
+            eprint(f'{layer_pfx(ll)}Pooling or zero-padding results in a zero data '
+                   f'dimension (input {input_dim[ll]}, result {pooled_dim[ll]}).')
 
         if operator[ll] != op.CONV1D:
             if stride[ll][0] != stride[ll][1]:
-                eprint(f'{op.string(operator[ll])} in layer {ll} does not support '
+                eprint(f'{layer_pfx(ll)}{op.string(operator[ll])} does not support '
                        f'non-square stride (currently set to {stride[ll][0]}x{stride[ll][1]}).')
             if operator[ll] != op.CONVTRANSPOSE2D and stride[ll][0] != 1:
-                eprint(f'{op.string(operator[ll])} in layer {ll} does not support stride '
+                eprint(f'{layer_pfx(ll)}{op.string(operator[ll])} does not support stride '
                        f'other than 1 (currently set to {stride[ll][0]}x{stride[ll][1]}).')
             if operator[ll] in [op.NONE, op.CONV2D, op.LINEAR]:
                 output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1)
@@ -462,23 +478,23 @@ def main():
                 output_dim[ll] = [pooled_size[0], pooled_size[1]]
             if flatten[ll]:
                 if pooled_dim[ll][0] * pooled_dim[ll][1] > 256:
-                    eprint(f'`flatten` in layer {ll} exceeds supported input dimensions '
+                    eprint(f'{layer_pfx(ll)}`flatten` exceeds supported input dimensions '
                            f'({pooled_dim[ll][0]} * {pooled_dim[ll][1]} > 256)).')
                 if pooled_dim[ll][0] * pooled_dim[ll][1] == 1:
-                    wprint(f'`flatten` in layer {ll} is not needed since input dimensions are '
-                           '1x1.')
+                    wprint(f'{layer_pfx(ll)}`flatten` is not needed since input '
+                           'dimensions are 1x1.')
                 output_dim[ll] = [1, 1]
                 input_channels[ll] //= pooled_dim[ll][0] * pooled_dim[ll][1]
                 assert input_channels[ll] > 0
             if padding[ll][0] >= 3 and not tc.dev.SUPPORT_ARBITRARY_PADDING:
-                eprint(f'{op.string(operator[ll])} in layer {ll} does not support '
+                eprint(f'{layer_pfx(ll)}{op.string(operator[ll])} does not support '
                        f'`pad` >= 3 (currently set to {padding[ll][0]}).')
         else:
             if padding[ll][0] >= 3 and not tc.dev.SUPPORT_ARBITRARY_PADDING:
-                eprint(f'{op.string(operator[ll])} in layer {ll} does not support '
+                eprint(f'{layer_pfx(ll)}{op.string(operator[ll])} does not support '
                        f'`pad` >= 3 (currently set to {padding[ll][0]}).')
             if stride[ll][0] != 1 and not tc.dev.SUPPORT_ARBITRARY_STRIDE:
-                eprint(f'{op.string(operator[ll])} in layer {ll} does not support stride '
+                eprint(f'{layer_pfx(ll)}{op.string(operator[ll])} does not support stride '
                        f'other than 1 (currently set to {stride[ll][0]}).')
             output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
                                2 * padding[ll][0]) // stride[ll][0] + 1,
@@ -486,24 +502,24 @@ def main():
 
         # Prohibit pad greater than or equal to kernel size
         if padding[ll][0] >= kernel_size[ll][0] or padding[ll][1] >= kernel_size[ll][1]:
-            eprint(f'Pad size ({padding[ll]}) for layer {ll} is greater than or equal to'
+            eprint(f'{layer_pfx(ll)}Pad size ({padding[ll]}) is greater than or equal to'
                    f' kernel size ({kernel_size[ll]}).')
 
         # Check for max dimensions
         if any(dim > tc.dev.MAX_ROW_COL for dim in input_dim[ll]):
-            eprint(f'Input dimension {input_dim[ll]} exceeds system maximum of '
-                   f'{tc.dev.MAX_ROW_COL} in layer {ll}.')
+            eprint(f'{layer_pfx(ll)}Input dimension {input_dim[ll]} exceeds system '
+                   f'maximum of {tc.dev.MAX_ROW_COL}.')
         if any(dim > tc.dev.MAX_ROW_COL for dim in output_dim[ll]):
-            eprint(f'Output dimension {output_dim[ll]} exceeds system maximum of '
-                   f'{tc.dev.MAX_ROW_COL} in layer {ll}.')
+            eprint(f'{layer_pfx(ll)}Output dimension {output_dim[ll]} exceeds system '
+                   f'maximum of {tc.dev.MAX_ROW_COL}.')
         if any(dim == 0 for dim in output_dim[ll]):
-            eprint(f'Output dimension {output_dim[ll]} is zero in layer {ll}.')
+            eprint(f'{layer_pfx(ll)}Output dimension {output_dim[ll]} is zero.')
 
         assert input_channels[ll] > 0
 
         if activation[ll] is not None and operator[ll] == op.NONE:
-            eprint(f'Layer {ll} specifies activation {op.act_string(activation[ll])} for a '
-                   'passthrough layer.')
+            eprint(f'{layer_pfx(ll)}Activation {op.act_string(activation[ll])} cannot '
+                   'be used in a passthrough layer.')
 
         # On MAX78002, if an average pool directly follows an element-wise operation, we need
         # to insert a small layer to reset the average pool logic
@@ -522,6 +538,7 @@ def main():
     # Modify global state based on locally calculated variables
     state.activation = activation
     state.auto_input_dim = auto_input_dim
+    state.avgpool_reset_layer = avgpool_reset_layer
     state.bias = bias
     state.bias_group_map = bias_group_map
     state.big_data = big_data
@@ -530,7 +547,6 @@ def main():
     state.conv_groups = conv_groups
     state.data = data
     state.dilation = dilation
-    state.avgpool_reset_layer = avgpool_reset_layer
     state.eltwise = eltwise
     state.final_layer = final_layer
     state.first_layer_used = min_layer
@@ -550,6 +566,7 @@ def main():
     state.out_offset = output_offset
     state.output_channels = output_channels
     state.output_dim = output_dim
+    state.output_layer = output_layer
     state.output_offset = output_offset
     state.output_padding = output_padding
     state.output_processor_map = output_processor_map
@@ -572,6 +589,7 @@ def main():
     state.streaming = streaming
     state.stride = stride
     state.tcalc = tcalc
+    state.unload_custom = params['unload_custom']
     state.weights = weights
     state.write_gap = write_gap
 
@@ -603,3 +621,6 @@ def main():
             args.autogen,
             args.autogen_list,
         )
+
+    # Restore stdout in case we're wrapped in cProfile
+    sys.stdout = saved_stdout
