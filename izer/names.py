@@ -40,6 +40,8 @@ def layer_str(
     """
     Convert a layer number to a layer name.
     """
+    if ll == -1:
+        return 'input'
     name = state.layer_name[ll]
     if name is not None:
         return f'{ll} ({name})'
