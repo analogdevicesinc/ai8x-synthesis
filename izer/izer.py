@@ -76,7 +76,7 @@ def main():
     # This also configures the network's output channels
     if cfg['arch'] != 'test':
         if not args.checkpoint_file:
-            eprint("--checkpoint-file is a required argument.")
+            eprint('--checkpoint-file is a required argument.')
         fext = args.checkpoint_file.rsplit(sep='.', maxsplit=1)[1].lower()
         if fext == 'onnx':
             # ONNX file selected
@@ -147,8 +147,8 @@ def main():
                 layers += 1
 
     if layers != cfg_layers:
-        eprint(f"Number of layers in the YAML configuration file ({cfg_layers}) "
-               f"does not match the checkpoint file ({layers}).")
+        eprint(f'Number of layers in the YAML configuration file ({cfg_layers}) '
+               f'does not match the checkpoint file ({layers}).')
 
     if any(p < 0 or p >= 4*tc.dev.MEM_SIZE for p in params['output_offset']):
         eprint('Unsupported value for `out_offset` in YAML configuration. Supported on this '
@@ -157,7 +157,7 @@ def main():
     if any(q != 8 for q in params['bias_quantization']):
         eprint('All bias quantization configuration values must be 8.')
 
-    print(f"Configuring data set: {cfg['dataset']}.")
+    print(f'Configuring data set: {cfg["dataset"]}.')
     if args.sample_input is None:
         sampledata_file = os.path.join('tests', f'sample_{cfg["dataset"].lower()}.npy')
     else:
@@ -182,6 +182,9 @@ def main():
     in_sequences = params['in_sequences'][:layers]
     next_sequence = params['next_sequence'][:layers]
     prev_sequence = [-1] * layers
+    write_gap = params['write_gap'][:layers]
+    input_skip = params['input_skip'][:layers]
+    operands = params['operands'][:layers]
 
     # Override channels, establish sequence
     for ll in range(layers - 1):
@@ -205,9 +208,26 @@ def main():
                 # Element-wise operation
                 input_channels[ll] = input_size[0] if in_sequences[ll][0] == -1 \
                     else output_channels[in_sequences[ll][0]]
-                for i in range(1, len(in_sequences[ll])):
-                    assert output_channels[in_sequences[ll][0]] \
-                        == output_channels[in_sequences[ll][i]]
+                gap = write_gap[in_sequences[ll][0]]
+                chan = output_channels[in_sequences[ll][0]]
+                l_str = ", ".join([layer_str(e) for _, e in enumerate(in_sequences[ll])])
+                for _, e in enumerate(in_sequences[ll], start=1):
+                    if chan != output_channels[e]:
+                        eprint(f'{layer_pfx(ll)}`in_sequences` [{l_str}] for the element-wise '
+                               'operation includes inputs with non-matching channel counts.')
+                    if gap != write_gap[e]:
+                        wprint(f'{layer_pfx(ll)}`in_sequences` [{l_str}] for the element-wise '
+                               'operation includes inputs with non-matching `write_gap` values.')
+                if gap != operands[ll] - 1:
+                    wprint(f'{layer_pfx(ll)}The element-wise operation has {operands[ll]} '
+                           f'operands, but the `write_gap` is {gap} for the `in_sequences` '
+                           f'[{l_str}] instead of {operands[ll] - 1}.')
+        else:
+            gap = 0 if prev_ll == -1 else write_gap[prev_ll]
+            if gap != input_skip[ll]:
+                wprint(f'{layer_pfx(ll)}`read_gap` {input_skip[ll]} does not match the '
+                       f'`write_gap` {gap} of layer {layer_str(prev_ll)} that created the input '
+                       'for this layer.')
 
         if input_channels[ll] <= 0:
             if ll == 0:
@@ -235,10 +255,10 @@ def main():
         min_layer = min(ll, min_layer)
         if next_sequence[ll] != -1 and next_sequence[ll] != ll + 1 \
            and not tc.dev.SUPPORT_LINK_LAYER:
-            eprint(f"{layer_pfx(ll)}`next_sequence` is not supported on this device.")
+            eprint(f'{layer_pfx(ll)}`next_sequence` is not supported on this device.')
         elif next_sequence[ll] > layers:
-            wprint(f"{layer_pfx(ll)}`next_sequence` exceeds available layers, "
-                   "setting to `stop`.")
+            wprint(f'{layer_pfx(ll)}`next_sequence` exceeds available layers, '
+                   'setting to `stop`.')
             next_sequence[ll] = -1
         if next_sequence[ll] == -1:
             final_layer = ll
@@ -270,7 +290,6 @@ def main():
     prev_sequence = prev_sequence[:layers]
 
     input_channels = input_channels[:layers]
-    input_skip = params['input_skip'][:layers]
     input_channel_skip = params['input_chan_skip'][:layers]
     output_channels = output_channels[:layers]
     output_offset = params['output_offset'][:layers]
@@ -299,12 +318,10 @@ def main():
         for _, e in enumerate(args.streaming_layers):
             streaming[e] = True
     flatten = params['flatten'][:layers]
-    operands = params['operands'][:layers]
     eltwise = params['eltwise'][:layers]
     pool_first = params['pool_first'][:layers]
     activation = params['activation'][:layers]
     conv_groups = params['conv_groups'][:layers]
-    write_gap = params['write_gap'][:layers]
     bypass = params['bypass'][:layers]
     bias_group_map = params['bias_group_map'][:layers]
     calcx4 = [True] * layers if args.calcx4 else params['calcx4'][:layers]
@@ -318,6 +335,8 @@ def main():
         output_layer[final_layer] = True
     elif not output_layer[final_layer]:
         wprint(f'The final layer {layer_str(ll)} is not designated as an `output` layer.')
+    # Set this since 'layers' may have changed
+    operands = params['operands'][:layers]
 
     # Command line override
     if args.input_offset is not None:
@@ -533,7 +552,7 @@ def main():
             break
 
     if args.riscv and not args.riscv_cache and args.embedded_code:
-        eprint("Embedded code on RISC-V requires --riscv-cache.")
+        eprint('Embedded code on RISC-V requires --riscv-cache.')
 
     # Modify global state based on locally calculated variables
     state.activation = activation
