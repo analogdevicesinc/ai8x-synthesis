@@ -19,6 +19,50 @@ from .eprint import eprint, wprint
 
 READ_TIME_NS = 230
 WRITE_TIME_NS = 280
+UNUSED = 2**63-1
+
+
+def mem_pack(ll, c, row, col):
+    """
+    Pack layer/channel/row/column into int64 value
+
+    On MAX78002: Used here:
+    ll:   8 bits    16 bits   (signed, can be negative for input layer)
+    c:   10 bits    16 bits   (unsigned)
+    row: 11 bits    16 bits   (unsigned)
+    col: 11 bits    16 bits   (unsigned)
+         -------    -------
+         40 bits    64 bits
+    """
+    return (ll << 48) | (c << 32) | (row << 16) | col
+
+
+def mem_unpack(ll):
+    """
+    Unpack int64 value into layer/channel/row/column
+    """
+    col = ll & 0xffff
+    ll >>= 16
+    row = ll & 0xffff
+    ll >>= 16
+    c = ll & 0xffff
+    ll >>= 16
+    return ll, c, row, col
+
+
+def mem_array():
+    """
+    Allocate an empty memory map
+    """
+    return np.full((tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS), dtype=np.int64, fill_value=UNUSED)
+
+
+def mem_combine(a, b):
+    """
+    Combine two memory maps `a` and `b`; use the first if it's used, else the second.
+    """
+    mask = a == UNUSED
+    a[mask] = b[mask]
 
 
 class APB():
@@ -80,7 +124,7 @@ class APB():
         self.data = 0
         self.num = 0
         self.data_offs = 0
-        self.mem = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
+        self.mem = mem_array()
         self.writes = 0
         self.reads = 0
         self.verify_listdata = []
@@ -613,8 +657,10 @@ class APB():
         """
         Check whether we're overwriting location `offs`.
         """
-        if self.mem[offs >> 2]:
-            eprint(f'Overwriting location {offs:08x}', error=not state.no_error_stop)
+        if self.mem[offs >> 2] != UNUSED:
+            eprint(f'Overwriting location {offs:08x} 0x{self.mem[offs >> 2]:016x} '
+                   f'[{mem_unpack(self.mem[offs >> 2])}]',
+                   error=not state.no_error_stop)
 
     def write_byte_flush(
             self,
@@ -632,7 +678,7 @@ class APB():
             woffs = self.data_offs - self.num
             self.check_overwrite(woffs)
             self.write_data(woffs, self.data, comment, fifo=fifo)
-            self.mem[woffs >> 2] = True
+            self.mem[woffs >> 2] = mem_pack(-1, 0, 0, 0)
             self.num = 0
             self.data = 0
         self.data_offs = offs

@@ -11,7 +11,7 @@ from typing import List
 
 import numpy as np
 
-from . import camera, rv, state
+from . import apbaccess, camera, rv, state
 from . import tornadocnn as tc
 from .eprint import eprint
 from .utils import popcount, s2u
@@ -142,7 +142,8 @@ def load(
                         val |= (s2u(data[c][row][col]) & 0xff) << (shift * 8)
                         if shift == 3:
                             apb.check_overwrite(data_offs & ~3)
-                            out_map[(data_offs & ~3) >> 2] = (-1, c, row, col, val)
+                            out_map[(data_offs & ~3) >> 2] = \
+                                apbaccess.mem_pack(-1, c, row, col)
                             code_buffer[offs] = val
                             offs += 1
                             val = 0
@@ -152,7 +153,7 @@ def load(
 
                 if shift != 3:
                     apb.check_overwrite(data_offs & ~3)
-                    out_map[(data_offs & ~3) >> 2] = (-1, c, row, col, val)
+                    out_map[(data_offs & ~3) >> 2] = apbaccess.mem_pack(-1, c, row, col)
                     code_buffer[offs] = val
                     offs += 1
 
@@ -245,7 +246,7 @@ def load(
                                 this_c += 1
 
                         apb.check_overwrite(data_offs)
-                        out_map[data_offs >> 2] = (-1, this_c, row, col, val)
+                        out_map[data_offs >> 2] = apbaccess.mem_pack(-1, this_c, row, col)
                         if not embedded_code:
                             apb.write_data(data_offs, val)
                         else:

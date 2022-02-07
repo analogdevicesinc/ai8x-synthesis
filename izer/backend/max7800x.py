@@ -2935,7 +2935,7 @@ class Backend(backend.Backend):
 
             # Write .mem file for output or create the C check_output() function to
             # verify the output
-            out_map = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
+            out_map = apbaccess.mem_array()
             if block_mode:
                 if ll == terminating_layer:
                     filename = output_filename + '.mem'  # Final output
@@ -2992,7 +2992,7 @@ class Backend(backend.Backend):
                             debug_mem=True,
                             test_name=test_name,
                         )
-                        out_map2 = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
+                        out_map2 = apbaccess.mem_array()
                         apb2.verify_unload(
                             ll,
                             in_map,
@@ -3055,7 +3055,7 @@ class Backend(backend.Backend):
             if next_sequence[ll] != -1 and streaming[next_sequence[ll]]:
                 # When streaming, the output should not overwrite the input of prior layers since
                 # these layers are still needed.
-                in_map = [a if a is not None else b for a, b, in zip(in_map, out_map)]
+                apbaccess.mem_combine(in_map, out_map)
             else:
                 # Else, preserve the output map of all prior layers marked 'output' plus
                 # the current layer.
@@ -3064,8 +3064,7 @@ class Backend(backend.Backend):
                     if all_outputs_map is None:
                         all_outputs_map = out_map
                     else:
-                        all_outputs_map = [a if a is not None else b
-                                           for a, b, in zip(all_outputs_map, out_map)]
+                        apbaccess.mem_combine(all_outputs_map, out_map)
                     # Since this layer is an output layer, in_map is the same
                     in_map = all_outputs_map
                 else:
@@ -3073,8 +3072,8 @@ class Backend(backend.Backend):
                     if all_outputs_map is None:
                         in_map = out_map
                     else:
-                        in_map = [a if a is not None else b
-                                  for a, b, in zip(all_outputs_map, out_map)]
+                        in_map = np.array(all_outputs_map, copy=True)
+                        apbaccess.mem_combine(in_map, out_map)
 
             compute.debug_close()
 
