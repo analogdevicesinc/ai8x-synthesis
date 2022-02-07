@@ -358,7 +358,7 @@ def main():
     auto_input_dim = [None] * layers
     input_dim = [None] * layers
     pooled_dim = [None] * layers
-    output_dim = [None] * layers
+    output_dim = [(0, 0)] * layers
 
     avgpool_reset_layer = [False] * layers
 
