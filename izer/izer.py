@@ -21,6 +21,7 @@ from . import tornadocnn as tc
 from . import versioncheck, yamlcfg
 from .eprint import eprint, wprint
 from .names import layer_pfx, layer_str
+from .utils import plural
 
 
 def main():
@@ -208,20 +209,35 @@ def main():
                 # Element-wise operation
                 input_channels[ll] = input_size[0] if in_sequences[ll][0] == -1 \
                     else output_channels[in_sequences[ll][0]]
-                gap = write_gap[in_sequences[ll][0]]
-                chan = output_channels[in_sequences[ll][0]]
-                l_str = ", ".join([layer_str(e) for _, e in enumerate(in_sequences[ll])])
-                for _, e in enumerate(in_sequences[ll], start=1):
-                    if chan != output_channels[e]:
-                        eprint(f'{layer_pfx(ll)}`in_sequences` [{l_str}] for the element-wise '
-                               'operation includes inputs with non-matching channel counts.')
-                    if gap != write_gap[e]:
-                        wprint(f'{layer_pfx(ll)}`in_sequences` [{l_str}] for the element-wise '
-                               'operation includes inputs with non-matching `write_gap` values.')
+            gap = write_gap[in_sequences[ll][0]]
+            chan = output_channels[in_sequences[ll][0]]
+            l_str = ", ".join([layer_str(e) for _, e in enumerate(in_sequences[ll])])
+            l_inseq = len(in_sequences[ll])
+            for _, e in enumerate(in_sequences[ll], start=1):
+                if chan != output_channels[e]:
+                    eprint(f'{layer_pfx(ll)}`in_sequences` [{l_str}] for the element-wise '
+                           'operation includes inputs with non-matching channel counts.')
+                if gap != write_gap[e]:
+                    wprint(f'{layer_pfx(ll)}`in_sequences` [{l_str}] for the element-wise '
+                           'operation includes inputs with non-matching `write_gap` values.')
+            if operands[ll] > 1:
                 if gap != operands[ll] - 1:
                     wprint(f'{layer_pfx(ll)}The element-wise operation has {operands[ll]} '
                            f'operands, but the `write_gap` is {gap} for the `in_sequences` '
                            f'[{l_str}] instead of {operands[ll] - 1}.')
+                if input_skip[ll] != gap // operands[ll]:
+                    wprint(f'{layer_pfx(ll)}`read_gap` {input_skip[ll]} does not match the '
+                           f'operand count ({operands[ll]}) and `write_gap` {gap} of the '
+                           f'{plural(operands[ll], "input")} for this layer.')
+            elif gap > 0:
+                if gap != l_inseq - 1:
+                    wprint(f'{layer_pfx(ll)}The channel interleave operation has {l_inseq} '
+                           f'inputs, but the `write_gap` is {gap} for the `in_sequences` '
+                           f'[{l_str}] instead of {l_inseq - 1}.')
+                if input_skip[ll] != (gap + 1) // l_inseq - 1:
+                    wprint(f'{layer_pfx(ll)}`read_gap` {input_skip[ll]} does not match the '
+                           f'input count ({l_inseq}) and `write_gap` {gap} of the '
+                           f'{plural(l_inseq, "input")} for this layer.')
         else:
             gap = 0 if prev_ll == -1 else write_gap[prev_ll]
             if gap != input_skip[ll]:
