@@ -631,7 +631,11 @@ class Backend(backend.Backend):
                 #            f' supported when using `wide` output.')
 
             if input_skip[ll] != 0 and not tc.dev.SUPPORT_MULTIPASS_STRIDE:
-                eprint(f'{layer_pfx(ll)}`in_skip` must be 0 for this device.')
+                eprint(f'{layer_pfx(ll)}`read_gap` must be 0 for this device.')
+            if input_skip[ll] != 0 and in_expand[ll] > 1 \
+               and not tc.dev.SUPPORT_MULTIPASS_READ_STRIDE:
+                eprint(f'{layer_pfx(ll)}`read_gap` must be 0 when using more than 64 channels or '
+                       'multi-pass on this device.')
 
             # Conv1d pool_dilation
             if pool_dilation[ll][0] < 1 or pool_dilation[ll][1] < 1 \
@@ -1301,7 +1305,7 @@ class Backend(backend.Backend):
                 print(f'Input dimensions    = {input_dim}')
                 print(f'Flatten             = {flatten}')
                 if any(s > 0 for s in input_skip):
-                    print(f'Input skip          = {input_skip}')
+                    print(f'Input read gap      = {input_skip}')
                 if any(s > 0 for s in input_channel_skip):
                     print(f'Input channel skip  = {input_channel_skip}')
                 print(f'Input expansion     = {in_expand}')
@@ -1322,6 +1326,8 @@ class Backend(backend.Backend):
 
                 print(f'Output channels     = {output_chan}')
                 print(f'Output dimensions   = {output_dim}')
+                if any(s > 0 for s in write_gap):
+                    print(f'Output write gap    = {write_gap}')
                 print(f'Output expansion    = {out_expand}')
                 print(f'Expansion threshold = {out_expand_thresh}')
                 print(f'Output shift        = {output_shift}')
