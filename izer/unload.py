@@ -517,7 +517,7 @@ def verify(
                 eprint(f'Processor {p}: '
                        f'Layer {layer_str(ll)} output for CHW={c},{row},{col} is overwriting '
                        f'input at offset 0x{target_offs:08x} that was created by '
-                       f'{layer_str(old_layer)}, CHW={old_c},{old_row},{old_col}.',
+                       f'{old_layer}, CHW={old_c},{old_row},{old_col}.',
                        error=not no_error_stop)
         # Check we're not overflowing the data memory
         if (not overwrite_ok) and out_map is not None and out_map[target_offs >> 2] is not None:

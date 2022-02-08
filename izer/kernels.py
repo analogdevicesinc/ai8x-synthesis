@@ -288,21 +288,21 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 return tc.dev.MASK_INSTANCE_LARGE-1
 
             p = first_proc
+            # Find the first free column for the first processor
+            while kernel_map[p][offs] != _INVALID_VALUE:
+                # Start at a multiple of 4 - round up to next multiple
+                if not reverse:
+                    offs += tc.dev.P_SHARED
+                else:
+                    offs -= tc.dev.P_SHARED
+                if not check_kernel_mem(ll, p, offs, error=error, reverse=reverse):
+                    return -1
+
             while p < last_proc+1:
                 if (proc_map >> p) & 1 == 0:
                     # Skip unused processors
                     p += 1
                     continue
-
-                # Find the first free column for this processor
-                while kernel_map[p][offs] != _INVALID_VALUE:
-                    # Start at a multiple of 4 - round up to next multiple
-                    if not reverse:
-                        offs += tc.dev.P_SHARED
-                    else:
-                        offs -= tc.dev.P_SHARED
-                    if not check_kernel_mem(ll, p, offs, error=error, reverse=reverse):
-                        return -1
 
                 # For this processor, is there space for all kernels starting at
                 # column 'offs'?
@@ -319,7 +319,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                         if (offs + 1) & ~mmask != (offs + kern_len[ll]) & ~mmask:
                             # Cannot ever make this fit since we just ran out of large instances
                             return -1
-                    start_range = offs + 1
+                    start_range = offs
                     end_range = offs + kern_len[ll]
                     step_range = 1
                 else:
@@ -330,7 +330,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                         mmask = kernel_mem_mask(offs - 1)
                         if (offs - 1) & ~mmask != (offs - kern_len[ll]) & ~mmask:
                             offs &= ~mmask
-                    start_range = offs - 1
+                    start_range = offs
                     end_range = offs - kern_len[ll]
                     step_range = -1
                 for i in range(start_range, end_range, step_range):
