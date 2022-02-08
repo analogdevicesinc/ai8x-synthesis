@@ -1,6 +1,6 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-_February 3, 2022_
+_February 8, 2022_
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
@@ -2404,7 +2404,7 @@ Example:
 
 ##### `read_gap` (Optional)
 
-On MAX78002 only, data can be fetched while skipping bytes. This allows a layer to directly consume data produced by a layer with `write_gap` without the need for intermediate layers. The default is 0.
+On MAX78002 only, when multi-pass is not used (i.e., typically 64 input channels or less), data can be fetched while skipping bytes. This allows a layer to directly consume data produced by a layer with `write_gap` without the need for intermediate layers. The default is 0.
 
 Example:
 	`read_gap: 1`

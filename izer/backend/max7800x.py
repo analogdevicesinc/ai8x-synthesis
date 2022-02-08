@@ -631,7 +631,11 @@ class Backend(backend.Backend):
                 #            f' supported when using `wide` output.')
 
             if input_skip[ll] != 0 and not tc.dev.SUPPORT_MULTIPASS_STRIDE:
-                eprint(f'{layer_pfx(ll)}`in_skip` must be 0 for this device.')
+                eprint(f'{layer_pfx(ll)}`read_gap` must be 0 for this device.')
+            if input_skip[ll] != 0 and in_expand[ll] > 1 \
+               and not tc.dev.SUPPORT_MULTIPASS_READ_STRIDE:
+                eprint(f'{layer_pfx(ll)}`read_gap` must be 0 when using more than 64 channels or '
+                       'multi-pass on this device.')
 
             # Conv1d pool_dilation
             if pool_dilation[ll][0] < 1 or pool_dilation[ll][1] < 1 \
