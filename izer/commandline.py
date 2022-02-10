@@ -212,6 +212,8 @@ def get_parser() -> argparse.Namespace:
                        help="redirect stdout to log file (default)")
     group.add_argument('--no-log', dest='log', action='store_false',
                        help="do not redirect stdout to log file (default: false)")
+    group.add_argument('--no-progress', dest='display_progress', action='store_false',
+                       default=True, help="do not display progress bars (default: show)")
     group.add_argument('--log-intermediate', action='store_true', default=False,
                        help="log weights/data between layers to .mem files (default: false)")
     group.add_argument('--log-pooling', action='store_true', default=False,
@@ -537,6 +539,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.defines = args.define
     state.defines_arm = args.define_default_arm
     state.defines_riscv = args.define_default_riscv
+    state.display_progress = args.display_progress
     state.eclipse_includes = args.eclipse_includes
     state.eclipse_openocd_args = args.eclipse_openocd_args
     state.eclipse_variables = args.eclipse_variables
