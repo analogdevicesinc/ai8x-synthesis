@@ -92,13 +92,13 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     riscv_flash = state.riscv_flash and not state.riscv_cache
 
     # Kernels: Stack kernels; write only the kernels needed
-    proc_kern_max = [0] * tc.dev.MAX_PROC
-    kern_offs = [start_offs] * layers
-    kern_len = [0] * layers
-    kern_count = [0] * layers
-    kern_ochan = [0] * layers
+    proc_kern_max = np.zeros((tc.dev.MAX_PROC), dtype=np.int64)
+    kern_offs = np.full((layers), fill_value=start_offs, dtype=np.int64)
+    kern_len = np.zeros((layers), dtype=np.int64)
+    kern_count = np.zeros((layers), dtype=np.int64)
+    kern_ochan = np.zeros((layers), dtype=np.int64)
     kernel_map = np.full((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE),
-                         _INVALID_VALUE, dtype=np.int64)
+                         fill_value=_INVALID_VALUE, dtype=np.int64)
     kernels_used = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE), dtype=np.int64)
     kernel_data = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE, 9), dtype=np.int8)
     # There are four 32-bit words per 9-byte kernel.

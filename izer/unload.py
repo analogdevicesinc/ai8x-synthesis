@@ -12,7 +12,7 @@ from typing import List, TextIO
 
 import numpy as np
 
-from . import apbaccess, state, toplevel
+from . import datamem, state, toplevel
 from . import tornadocnn as tc
 from .eprint import eprint, nprint, wprint
 from .names import layer_pfx, layer_str
@@ -504,27 +504,27 @@ def verify(
             row,
             col,
     ):
-        # If using single layer, make sure we're not overwriting the input
-        if (not overwrite_ok) and in_map[target_offs >> 2] != apbaccess.UNUSED:
-            old_ll, old_c, old_row, old_col = apbaccess.mem_unpack(in_map[target_offs >> 2])
-            old_layer = \
-                f'layer {layer_str(old_ll)}, CHW={old_c},{old_row},{old_col}' if old_ll >= 0 \
-                else 'the input loader'
-            eprint(f'Processor {p}: '
-                   f'Layer {layer_str(ll)} output for CHW={c},{row},{col} is overwriting '
-                   f'input at offset 0x{target_offs:08x} that was created by '
-                   f'{old_layer}.',
-                   error=not no_error_stop)
-        # Check we're not overflowing the data memory
-        if (not overwrite_ok) and out_map is not None \
-           and out_map[target_offs >> 2] != apbaccess.UNUSED:
-            old_ll, old_c, old_row, old_col = \
-                apbaccess.mem_unpack(out_map[target_offs >> 2])
-            eprint(f'Processor {p}: '
-                   f'Layer {layer_str(ll)} output for CHW={c},{row},{col} is overwriting '
-                   f'offset 0x{target_offs:08x}. Previous write by '
-                   f'layer {layer_str(old_ll)},CHW={old_c},{old_row},{old_col}.',
-                   error=not no_error_stop)
+        if not overwrite_ok:
+            # If using single layer, make sure we're not overwriting the input
+            old_ll, old_c, old_row, old_col = datamem.unpack(in_map, target_offs)
+            if old_ll is not None:
+                old_layer = \
+                    f'layer {layer_str(old_ll)}, CHW={old_c},{old_row},{old_col}' if old_ll >= 0 \
+                    else 'the input loader'
+                eprint(f'Processor {p}: '
+                       f'Layer {layer_str(ll)} output for CHW={c},{row},{col} is overwriting '
+                       f'input at offset 0x{target_offs:08x} that was created by '
+                       f'{old_layer}.',
+                       error=not no_error_stop)
+            # Check we're not overflowing the data memory
+            if out_map is not None:
+                old_ll, old_c, old_row, old_col = datamem.unpack(out_map, target_offs)
+                if old_ll is not None:
+                    eprint(f'Processor {p}: '
+                           f'Layer {layer_str(ll)} output for CHW={c},{row},{col} is overwriting '
+                           f'offset 0x{target_offs:08x}. Previous write by '
+                           f'layer {layer_str(old_ll)}, CHW={old_c},{old_row},{old_col}.',
+                           error=not no_error_stop)
 
     # Start at the instance of the first active output processor/channel
     coffs_start = ffs(processor_map) & ~(tc.dev.P_SHARED-1)
@@ -591,7 +591,7 @@ def verify(
                             col,
                         )
                         if out_map is not None:
-                            out_map[offs >> 2] = apbaccess.mem_pack(ll, this_c, row, col)
+                            datamem.store(out_map, offs, (ll, this_c, row, col))
                         if max_count is None or count < max_count:
                             verify_fn(
                                 offs,
@@ -614,8 +614,7 @@ def verify(
                                 col,
                             )
                             if out_map is not None:
-                                out_map[offs >> 2] = \
-                                    apbaccess.mem_pack(ll, this_c, row, col)
+                                datamem.store(out_map, offs, (ll, this_c, row, col))
                             if max_count is None or count < max_count:
                                 verify_fn(
                                     offs,
@@ -706,7 +705,7 @@ def verify(
                             col,
                         )
                         if out_map is not None:
-                            out_map[source >> 2] = apbaccess.mem_pack(ll, c, row, col)
+                            datamem.store(out_map, source, (ll, c, row, col))
                         verify_fn(
                             mlat,
                             val,

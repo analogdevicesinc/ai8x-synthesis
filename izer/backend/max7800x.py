@@ -14,8 +14,8 @@ import sys
 
 import numpy as np
 
-from izer import (apbaccess, assets, compute, console, kbias, kernels, load, op, rtlsim, state,
-                  stats)
+from izer import (apbaccess, assets, compute, console, datamem, kbias, kernels, load, op, rtlsim,
+                  state, stats)
 from izer import tornadocnn as tc
 from izer.eprint import eprint, nprint, wprint
 from izer.names import layer_pfx, layer_str
@@ -1378,9 +1378,9 @@ class Backend(backend.Backend):
                 print('Activation          = [',
                       ', '.join(op.act_string(k) if k is not None
                                 else 'no' for k in activation), ']', sep='',)
-                print(f'Kernel offset       = {kern_offs}')
-                print(f'Kernel length       = {kern_len}')
-                print(f'Kernel count        = {kern_count}')
+                print(f'Kernel offset       = {kern_offs.tolist()}')
+                print(f'Kernel length       = {kern_len.tolist()}')
+                print(f'Kernel count        = {kern_count.tolist()}')
                 print(f'Kernel dimensions   = {kernel_size}')
                 if any(h != 1 or w != 1 for h, w in dilation):
                     print(f'Dilation            = {dilation}')
@@ -2705,7 +2705,7 @@ class Backend(backend.Backend):
         data_buf[ll] = data
 
         with console.Progress(start=True) as progress:
-            task = progress.add_task(description='Computing network...', total=layers)
+            task = progress.add_task(description='Creating network... ', total=layers)
             # Compute layer-by-layer output and chain results into input
             while ll < layers:
                 progress.update(task, completed=ll)
@@ -2942,7 +2942,7 @@ class Backend(backend.Backend):
 
                 # Write .mem file for output or create the C check_output() function to
                 # verify the output
-                out_map = apbaccess.mem_array()
+                out_map = datamem.allocate()
                 if block_mode:
                     if ll == terminating_layer:
                         filename = output_filename + '.mem'  # Final output
@@ -2999,7 +2999,7 @@ class Backend(backend.Backend):
                                 debug_mem=True,
                                 test_name=test_name,
                             )
-                            out_map2 = apbaccess.mem_array()
+                            out_map2 = datamem.allocate()
                             apb2.verify_unload(
                                 ll,
                                 in_map,
@@ -3062,7 +3062,7 @@ class Backend(backend.Backend):
                 if next_sequence[ll] != -1 and streaming[next_sequence[ll]]:
                     # When streaming, the output should not overwrite the input of prior layers
                     # since these layers are still needed.
-                    apbaccess.mem_combine(in_map, out_map)
+                    datamem.combine(in_map, out_map)
                 else:
                     # Else, preserve the output map of all prior layers marked 'output' plus
                     # the current layer.
@@ -3071,7 +3071,7 @@ class Backend(backend.Backend):
                         if all_outputs_map is None:
                             all_outputs_map = out_map
                         else:
-                            apbaccess.mem_combine(all_outputs_map, out_map)
+                            datamem.combine(all_outputs_map, out_map)
                         # Since this layer is an output layer, in_map is the same
                         in_map = all_outputs_map
                     else:
@@ -3080,7 +3080,7 @@ class Backend(backend.Backend):
                             in_map = out_map
                         else:
                             in_map = np.array(all_outputs_map, copy=True)
-                            apbaccess.mem_combine(in_map, out_map)
+                            datamem.combine(in_map, out_map)
 
                 compute.debug_close()
 
