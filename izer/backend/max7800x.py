@@ -645,6 +645,36 @@ class Backend(backend.Backend):
                        f'{tc.dev.MAX_POOL_DILATION} or smaller on this device.')
 
             if in_sequences[ll] is not None:
+                or_map = 0
+                and_map = ~or_map
+                for i, lt in enumerate(in_sequences[ll]):
+                    emap = processor_map[0] if lt == -1 else output_processor_map[lt]
+                    or_map |= emap
+                    and_map &= emap
+                if or_map != processor_map[ll]:
+                    wprint(f'{layer_pfx(ll)}The combination of the `in_sequences` '
+                           '`output_processor_map`s does not combine to `processor_map`.')
+                if and_map != processor_map[ll]:
+                    # Concatenate channels sequentially
+                    if and_map != 0:
+                        wprint(f'{layer_pfx(ll)}Channel concatenation has `output_processor_map` '
+                               f'overlap for `in_sequences` {in_sequences[ll]}.')
+                    for i, lt in enumerate(in_sequences[ll]):
+                        if lt != -1 and in_offset[ll] != out_offset[lt]:
+                            wprint(f'{layer_pfx(ll)}`in_offset` (0x{in_offset[ll]:04x}, for '
+                                   f'input #{i}) does not match `out_offset` '
+                                   f'(0x{out_offset[lt]:04x}) for layer {layer_str(lt)}.')
+                else:
+                    # Channel-wise concatenation or element-wise or interleaved concatenation
+                    offs = 0
+                    for i, lt in enumerate(in_sequences[ll]):
+                        if lt != -1 and in_offset[ll] + 4 * i != out_offset[lt] \
+                           and in_offset[ll] + offs != out_offset[lt]:
+                            wprint(f'{layer_pfx(ll)}`in_offset` (0x{in_offset[ll]:04x}, for '
+                                   f'input #{i}) does not match `out_offset` '
+                                   f'(0x{out_offset[lt]:04x}) for layer {layer_str(lt)}.')
+                        offs += 4 * output_dim[lt][0] * output_dim[lt][1]
+
                 if operands[ll] == 1:  # cat
                     if write_gap[ll] == 0:
                         min_proc = -1
@@ -1457,29 +1487,35 @@ class Backend(backend.Backend):
                                 lt = snoop_sequence[ll]
                                 assert lt >= 0
                                 val = 1 << 7 | lt + hw_add_layers[lt]
-                            if lt != -1:
+                            if lt != -1 and gindex == 0:
                                 if in_sequences[lt] is not None and ll in in_sequences[lt] \
                                    and operands[lt] == 1:
                                     ll_index = in_sequences[lt].index(ll)
                                     ll_offset = out_offset[ll] - ll_index * write_gap[ll] * 4
-                                    if in_offset[lt] != ll_offset and gindex == 0:
-                                        wprint(f'{layer_pfx(ll)}The input offset of the next '
-                                               f'sequence (layer {layer_str(lt)}, '
-                                               f'0x{in_offset[lt]:04x}) does not match the '
-                                               'current layer\'s output '
-                                               f'(offset 0x{out_offset[ll]:04x} - write gap '
-                                               f'{write_gap[ll]} * sequence position '
-                                               f'{ll_index} * 4 = 0x{ll_offset:04x}).')
+                                    offs = 0
+                                    for _, e in enumerate(in_sequences[lt][:ll_index]):
+                                        offs += output_dim[e][0] * output_dim[e][1]
+                                    if in_offset[lt] != ll_offset \
+                                       and out_offset[ll] != offs * 4:
+                                        wprint(f'{layer_pfx(ll)}The input offset '
+                                               f'0x{in_offset[lt]:04x} of the next sequence '
+                                               f'(layer {layer_str(lt)}) does not match the '
+                                               'current layer\'s output offset '
+                                               f'0x{out_offset[ll]:04x}, write gap '
+                                               f'{write_gap[ll]}, input #{ll_index}.')
+                                    pix = sum(output_dim[e][0] * output_dim[e][1]
+                                              for e in in_sequences[lt])
                                     if (
                                         (input_chan[lt] != output_chan[ll] * len(in_sequences[lt])
-                                         or input_dim[lt] != output_dim[ll]) and gindex == 0
+                                         or input_dim[lt] != output_dim[ll])
+                                        and (input_chan[lt] != output_chan[ll]
+                                             or input_dim[lt][0] * input_dim[lt][1] != pix)
                                     ):
                                         wprint(f'{layer_pfx(ll)}The input dimensions of the next '
                                                f'sequence (layer {layer_str(lt)}, '
                                                f'{len(in_sequences[lt])} inputs, '
                                                f'{input_chan[lt]}x{input_dim_str[lt]}) do '
-                                               "not match the current layer's output "
-                                               "dimensions "
+                                               "not match the current layer's output dimensions "
                                                f'({output_chan[ll]}x{output_dim_str[ll]}).')
 
                         if hasattr(tc.dev, 'LREG_NXTLYR'):

@@ -15,6 +15,7 @@ import torch
 from . import op, state
 from . import tornadocnn as tc
 from .eprint import eprint, wprint
+from .names import layer_str
 from .utils import fls
 
 
@@ -157,20 +158,20 @@ def load(
 
             if len(w.shape) == 2:  # MLP
                 if kernel_size[seq][0] != 1 or kernel_size[seq][1] != 1:
-                    eprint(f'The `kernel_size` for the MLP layer {seq} should '
+                    eprint(f'The `kernel_size` for the MLP layer {layer_str(seq)} should '
                            f'be set to 1x1 instead of '
                            f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.', exit_code=None)
                     error_exit = True
             elif len(w.shape) == 3:  # 1D
                 if kernel_size[seq][0] != w.shape[2] or kernel_size[seq][1] != 1:
-                    eprint(f'The `kernel_size` for the 1D layer {seq} should '
+                    eprint(f'The `kernel_size` for the 1D layer {layer_str(seq)} should '
                            f'be set to {w.shape[2]}x1 instead of '
                            f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.', exit_code=None)
                     error_exit = True
             elif len(w.shape) == 4:  # 2D
                 if kernel_size[seq][0] != w.shape[2] \
                    or kernel_size[seq][1] != w.shape[3]:
-                    eprint(f'The `kernel_size` for the 2D layer {seq} should '
+                    eprint(f'The `kernel_size` for the 2D layer {layer_str(seq)} should '
                            f'be set to {w.shape[2]}x{w.shape[3]} instead of '
                            f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.', exit_code=None)
                     error_exit = True
