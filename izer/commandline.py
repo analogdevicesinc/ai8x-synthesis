@@ -219,9 +219,9 @@ def get_parser() -> argparse.Namespace:
     group.add_argument('--log-pooling', action='store_true', default=False,
                        help="log unpooled and pooled data between layers in CSV format "
                             "(default: false)")
-    group.add_argument('--log-last-only', '--verbose-all',
+    group.add_argument('--short-log', '--log-last-only', '--verbose-all',
                        action='store_false', dest='verbose_all', default=True,
-                       help="log data for last layer only (default: all layers)")
+                       help="log data for output layers only (default: all layers)")
     group.add_argument('--log-filename', default='log.txt', metavar='S',
                        help="log file name (default: 'log.txt')")
     group.add_argument('-D', '--debug', action='store_true', default=False,
