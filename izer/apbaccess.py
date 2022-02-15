@@ -12,10 +12,10 @@ from typing import Optional, TextIO
 
 import numpy as np
 
-from . import state, toplevel
+from . import datamem, state, toplevel
 from . import tornadocnn as tc
 from . import unload
-from .eprint import eprint, wprint
+from .eprint import wprint
 
 READ_TIME_NS = 230
 WRITE_TIME_NS = 280
@@ -80,7 +80,7 @@ class APB():
         self.data = 0
         self.num = 0
         self.data_offs = 0
-        self.mem = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
+        self.mem = datamem.allocate()
         self.writes = 0
         self.reads = 0
         self.verify_listdata = []
@@ -91,9 +91,14 @@ class APB():
             if not (state.compact_weights
                     or state.mexpress and state.rtl_preload
                     or state.verify_kernels and state.rtl_preload):
-                self.kernel_mem = [[[[] for mem in range(tc.dev.MASK_INSTANCES)]
-                                    for proc in range(tc.dev.P_NUMPRO)]
-                                   for group in range(tc.dev.P_NUMGROUPS)]
+                self.kernel_mem = np.empty(
+                    (tc.dev.P_NUMGROUPS, tc.dev.P_NUMPRO, tc.dev.MASK_INSTANCES),
+                    dtype=list,
+                )
+                for i in range(tc.dev.P_NUMGROUPS):
+                    for j in range(tc.dev.P_NUMPRO):
+                        for k in range(tc.dev.MASK_INSTANCES):
+                            self.kernel_mem[i][j][k] = []
 
         if embedded_arm or embedded_code:
             return
@@ -606,16 +611,6 @@ class APB():
                 self.verify(addr+8, 0, api=True)
             self.verify(addr+12, 0, api=True)
 
-    def check_overwrite(
-            self,
-            offs,
-    ):
-        """
-        Check whether we're overwriting location `offs`.
-        """
-        if self.mem[offs >> 2]:
-            eprint(f'Overwriting location {offs:08x}', error=not state.no_error_stop)
-
     def write_byte_flush(
             self,
             offs,
@@ -630,9 +625,8 @@ class APB():
         """
         if self.num > 0:
             woffs = self.data_offs - self.num
-            self.check_overwrite(woffs)
+            datamem.store(self.mem, woffs, (-1, 0, 0, 0), check_overwrite=True)
             self.write_data(woffs, self.data, comment, fifo=fifo)
-            self.mem[woffs >> 2] = True
             self.num = 0
             self.data = 0
         self.data_offs = offs

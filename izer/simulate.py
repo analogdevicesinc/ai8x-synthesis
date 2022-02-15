@@ -113,13 +113,13 @@ def conv2d_layer(
     """
     Perform 2D convolution for one layer.
     """
-    verbose_data = state.verbose_all or layer == state.final_layer
+    verbose_data = state.verbose_all or state.output_layer[layer]
 
     if state.verbose:
         print(f"{kernel_size[0]}x{kernel_size[1]} KERNEL(S)", end='')
         if bypass:
             print(' (BYPASS)')
-        if verbose_data and not bypass:
+        if state.verbose_all and not bypass:
             print(":")
             with np.printoptions(formatter={'int': state.kernel_format.format}):
                 for i in range(output_channels):
@@ -135,7 +135,7 @@ def conv2d_layer(
                                 print(f'Output channel #{i} (input channels {j}-'
                                       f'{min(kernel[i].shape[0], j+8) - 1})')
                                 print(kernel[i][j:j+8])
-        print_data1d(verbose_data, "BIAS", bias)
+        print_data1d(state.verbose_all, "BIAS", bias)
 
     out_size = [output_channels,
                 (input_size[1] - dilation[0] * (kernel_size[0] - 1) - 1 +
@@ -239,13 +239,13 @@ def convtranspose2d_layer(
     """
     Perform a fractionally strided 2D convolution for one layer.
     """
-    verbose_data = state.verbose_all or layer == state.final_layer
+    verbose_data = state.verbose_all or state.output_layer[layer]
 
     if state.verbose:
         print(f"{kernel_size[0]}x{kernel_size[1]} KERNEL(S)", end='')
         if bypass:
             print(' (BYPASS)')
-        if verbose_data and not bypass:
+        if state.verbose_all and not bypass:
             print(':')
             with np.printoptions(formatter={'int': state.kernel_format.format}):
                 for i in range(output_channels):
@@ -262,7 +262,7 @@ def convtranspose2d_layer(
                                       f'{min(kernel[i].shape[0], j+8) - 1})')
                                 print(kernel[i][j:j+8])
 
-        print_data1d(verbose_data, "BIAS", bias)
+        print_data1d(state.verbose_all, "BIAS", bias)
 
     out_size = [output_channels,
                 (input_size[1] - 1) * fractional_stride[0] - 2 * padding[0]
@@ -367,17 +367,17 @@ def conv1d_layer(
     """
     Perform 1D convolution for one layer.
     """
-    verbose_data = state.verbose_all or layer == state.final_layer
+    verbose_data = state.verbose_all or state.output_layer[layer]
 
     if state.verbose:
         print(f"KERNEL SIZE {kernel_size}", end='')
         if bypass:
             print(' (BYPASS)')
-        if verbose_data and not bypass:
+        if state.verbose_all and not bypass:
             print(':')
             with np.printoptions(formatter={'int': state.kernel_format.format}):
                 print(kernel)
-        print_data1d(verbose_data, "BIAS", bias)
+        print_data1d(state.verbose_all, "BIAS", bias)
 
     out_size = [output_channels,
                 (input_size[1] - dilation * (kernel_size - 1) - 1 +
@@ -459,24 +459,26 @@ def linear_layer(
     """
     Perform one software linear layer.
     """
-    verbose_data = state.verbose_all or layer == state.final_layer
+    verbose_data = state.verbose_all or state.output_layer[layer]
+    verbose_input = state.verbose_all or layer == state.start_layer \
+        or state.in_sequences[layer] is not None and -1 in state.in_sequences[layer]
 
     in_features = data.shape[0]
     out_features = weight.shape[0]
 
-    if state.verbose:
+    if state.verbose_all or verbose_input:
         print("CLASSIFICATION LAYER (LINEAR)...\n")
         print(f"INPUT DATA (size {in_features})", end='')
-        if verbose_data:
+        if verbose_input:
             print(':')
             print(data)
         print('')
 
+    if state.verbose_all:
         print(f"WEIGHTS (size {in_features * out_features})", end='')
-        if verbose_data:
-            print(':')
-            print(weight)
-        print_data1d(verbose_data, "BIAS", bias)
+        print(':')
+        print(weight)
+        print_data1d(state.verbose_all, "BIAS", bias)
 
     out_buf = linear(
         layer=layer,
@@ -549,7 +551,7 @@ def eltwise_layer(
     """
     Element-wise operators for one layer.
     """
-    verbose_data = state.verbose_all or layer == state.final_layer
+    verbose_data = state.verbose_all or state.output_layer[layer]
 
     bits = 8
     assert operands == len(data)
@@ -629,8 +631,6 @@ def pooling_layer(
     """
     Perform pooling for one layer.
     """
-    verbose_data = state.verbose_all or layer == state.final_layer
-
     # Always apply stride
     if operation != op.CONV1D:
         pooled_size = [input_size[0],
@@ -669,7 +669,7 @@ def pooling_layer(
                     else:
                         dilation_str = ''
                     print_data(
-                        verbose_data,
+                        state.verbose_all,
                         f"{'AVERAGE' if pool_average else 'MAX'} "
                         f"POOL {pool[0]}x{pool[1]} WITH STRIDE {pool_stride[0]}/{pool_stride[1]}"
                         + dilation_str +
@@ -715,7 +715,7 @@ def pooling_layer(
                 if dilation[0] > 1:
                     print(f", DILATION {dilation[0]} ", end='')
                 print(f"{input_size} -> {pooled_size}", end='')
-                if verbose_data:
+                if state.verbose_all:
                     print(':')
                     print(pooled)
                 print('')
@@ -744,7 +744,7 @@ def pooling_layer(
                     print(f"{'AVERAGE' if pool_average else 'MAX'} "
                           f"POOL {pool[0]}x{pool[1]} WITH STRIDE {pool_stride[0]}/{pool_stride[1]}"
                           f" {input_size} -> {pooled_size}", end='')
-                    if verbose_data:
+                    if state.verbose_all:
                         print(':')
                         print(pooled)
                     print('')
@@ -755,7 +755,7 @@ def pooling_layer(
                     print(f"{'AVERAGE' if pool_average else 'MAX'} "
                           f"POOL {pool[0]} WITH STRIDE {pool_stride[0]} "
                           f"{input_size} -> {pooled_size}", end='')
-                    if verbose_data:
+                    if state.verbose_all:
                         print(':')
                         print(pooled)
                     print('')
@@ -775,9 +775,10 @@ def show_data(
     """
     Show input data.
     """
-    verbose_data = state.verbose_all or layer == state.final_layer
-
     if state.verbose:
+        verbose_input = state.verbose_all or layer == state.start_layer \
+            or state.in_sequences[layer] is not None and -1 in state.in_sequences[layer]
+
         if expand_thresh is None:
             expand_thresh = input_size[0]
 
@@ -790,7 +791,7 @@ def show_data(
             print(op_string)
 
             if operands == 1:
-                print_data(verbose_data,
+                print_data(verbose_input,
                            f"{data.shape[1]}x{data.shape[2]}x{data.shape[3]} INPUT DATA",
                            data[0],
                            [data.shape[1], data.shape[2], data.shape[3]],
@@ -798,7 +799,7 @@ def show_data(
                            expand_thresh)
             else:
                 for i in range(operands):
-                    print_data(verbose_data,
+                    print_data(verbose_input,
                                f"{data.shape[1]}x{data.shape[2]}x{data.shape[3]} INPUT DATA {i}",
                                data[i],
                                [data.shape[1], data.shape[2], data.shape[3]],
@@ -807,7 +808,7 @@ def show_data(
         else:
             print(f"LAYER {layer_str(layer)} ({op.string(operation).upper()})...\n")
             print(f"{input_size[1]}x{input_size[2]} INPUT DATA", end='')
-            if verbose_data:
+            if verbose_input:
                 print(':')
                 print(np.squeeze(data))
             print('')

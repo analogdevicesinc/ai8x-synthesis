@@ -107,6 +107,8 @@ def load_bias(
         layers,
         cfg_bias=None,
         no_bias=None,
+        operator=None,
+        bypass=None,
 ):
     """
     Return sample bias weights.
@@ -116,13 +118,18 @@ def load_bias(
 
     if cfg_bias is not None:
         ll = 0
+        seq = 0
         fname = os.path.join('tests', f'bias_{cfg_bias}.npy')
         with open(fname, mode='rb') as file:
             print(f'Reading bias from {fname}...')
             try:
                 while ll < layers:
-                    if ll not in no_bias:
-                        bias[ll] = np.load(file)
+                    if operator[ll] != op.NONE and not bypass[ll]:
+                        if ll not in no_bias:
+                            bias[seq] = np.load(file)
+                        else:
+                            _ = np.load(file)
+                        seq += 1
                     ll += 1
             except ValueError:
                 pass

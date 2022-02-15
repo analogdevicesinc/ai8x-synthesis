@@ -14,9 +14,9 @@ from pydoc import locate
 
 import numpy as np
 
-import colorama
+import rich.console
 
-from . import checkpoint, commandline, onnxcp, op, rtlsim, sampledata, sampleweight, state
+from . import checkpoint, commandline, console, onnxcp, op, rtlsim, sampledata, sampleweight, state
 from . import tornadocnn as tc
 from . import versioncheck, yamlcfg
 from .eprint import eprint, wprint
@@ -33,7 +33,7 @@ def main():
     # Save stdout before colorama potentially wraps it
     state.output_is_console = sys.stdout is not None and sys.stdout.isatty()
     saved_stdout = sys.stdout
-    colorama.init()
+    console.stderr = rich.console.Console(stderr=True)
 
     args = commandline.get_parser()
 
@@ -130,8 +130,9 @@ def main():
             cfg_layers,
             cfg['bias'] if 'bias' in cfg else None,
             args.no_bias,
+            params['operator'],
+            params['bypass'],
         )
-
     if cfg_layers > layers:
         # Add empty weights/biases and channel counts for layers not in checkpoint file.
         # The checkpoint file does not contain weights for non-convolution operations.
@@ -215,8 +216,11 @@ def main():
             l_inseq = len(in_sequences[ll])
             for _, e in enumerate(in_sequences[ll], start=1):
                 if chan != output_channels[e]:
+                    ochan_str = ', '.join(str(output_channels[e])
+                                          for _, e in enumerate(in_sequences[ll]))
                     eprint(f'{layer_pfx(ll)}`in_sequences` [{l_str}] for the element-wise '
-                           'operation includes inputs with non-matching channel counts.')
+                           'operation includes inputs with non-matching channel counts '
+                           f'({ochan_str}).')
                 if gap != write_gap[e]:
                     wprint(f'{layer_pfx(ll)}`in_sequences` [{l_str}] for the element-wise '
                            'operation includes inputs with non-matching `write_gap` values.')

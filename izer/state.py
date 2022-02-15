@@ -44,6 +44,7 @@ defines_arm: str = ''
 defines_riscv: str = ''
 defines: str = ''
 dilation: List[List[int]] = []
+display_progress: bool = True
 eclipse_includes: str = ''
 eclipse_openocd_args: str = ''
 eclipse_variables: str = ''
