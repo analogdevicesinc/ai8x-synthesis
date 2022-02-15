@@ -25,8 +25,8 @@ def eprint(*args, error=True, notice=False, prefix=True, exit_code=1, **kwargs):
         if not state.output_is_console:
             print(pfx, *args, **kwargs)
 
-        color = "bold red" if error else "bold yellow" \
-            if not notice else "bold green"
+        color = "red" if error else "yellow" \
+            if not notice else "green"
 
         rich.print('[' + color + ']' + pfx + '[/' + color + '] ', file=sys.stderr, end='')
         print(*args, file=sys.stderr, **kwargs)
