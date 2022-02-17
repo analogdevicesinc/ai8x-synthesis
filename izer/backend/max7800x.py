@@ -14,7 +14,8 @@ import sys
 
 import numpy as np
 
-from izer import apbaccess, assets, compute, kbias, kernels, load, op, rtlsim, state, stats
+from izer import (apbaccess, assets, compute, console, datamem, kbias, kernels, load, op, rtlsim,
+                  state, stats)
 from izer import tornadocnn as tc
 from izer.eprint import eprint, nprint, wprint
 from izer.names import layer_pfx, layer_str
@@ -631,7 +632,11 @@ class Backend(backend.Backend):
                 #            f' supported when using `wide` output.')
 
             if input_skip[ll] != 0 and not tc.dev.SUPPORT_MULTIPASS_STRIDE:
-                eprint(f'{layer_pfx(ll)}`in_skip` must be 0 for this device.')
+                eprint(f'{layer_pfx(ll)}`read_gap` must be 0 for this device.')
+            if input_skip[ll] != 0 and in_expand[ll] > 1 \
+               and not tc.dev.SUPPORT_MULTIPASS_READ_STRIDE:
+                eprint(f'{layer_pfx(ll)}`read_gap` must be 0 when using more than 64 channels or '
+                       'multi-pass on this device.')
 
             # Conv1d pool_dilation
             if pool_dilation[ll][0] < 1 or pool_dilation[ll][1] < 1 \
@@ -641,6 +646,36 @@ class Backend(backend.Backend):
                        f'{tc.dev.MAX_POOL_DILATION} or smaller on this device.')
 
             if in_sequences[ll] is not None:
+                or_map = 0
+                and_map = ~or_map
+                for i, lt in enumerate(in_sequences[ll]):
+                    emap = processor_map[0] if lt == -1 else output_processor_map[lt]
+                    or_map |= emap
+                    and_map &= emap
+                if or_map != processor_map[ll]:
+                    wprint(f'{layer_pfx(ll)}The combination of the `in_sequences` '
+                           '`output_processor_map`s does not combine to `processor_map`.')
+                if and_map != processor_map[ll]:
+                    # Concatenate channels sequentially
+                    if and_map != 0:
+                        wprint(f'{layer_pfx(ll)}Channel concatenation has `output_processor_map` '
+                               f'overlap for `in_sequences` {in_sequences[ll]}.')
+                    for i, lt in enumerate(in_sequences[ll]):
+                        if lt != -1 and in_offset[ll] != out_offset[lt]:
+                            wprint(f'{layer_pfx(ll)}`in_offset` (0x{in_offset[ll]:04x}, for '
+                                   f'input #{i}) does not match `out_offset` '
+                                   f'(0x{out_offset[lt]:04x}) for layer {layer_str(lt)}.')
+                else:
+                    # Channel-wise concatenation or element-wise or interleaved concatenation
+                    offs = 0
+                    for i, lt in enumerate(in_sequences[ll]):
+                        if lt != -1 and in_offset[ll] + 4 * i != out_offset[lt] \
+                           and in_offset[ll] + offs != out_offset[lt]:
+                            wprint(f'{layer_pfx(ll)}`in_offset` (0x{in_offset[ll]:04x}, for '
+                                   f'input #{i}) does not match `out_offset` '
+                                   f'(0x{out_offset[lt]:04x}) for layer {layer_str(lt)}.')
+                        offs += 4 * output_dim[lt][0] * output_dim[lt][1]
+
                 if operands[ll] == 1:  # cat
                     if write_gap[ll] == 0:
                         min_proc = -1
@@ -1301,7 +1336,7 @@ class Backend(backend.Backend):
                 print(f'Input dimensions    = {input_dim}')
                 print(f'Flatten             = {flatten}')
                 if any(s > 0 for s in input_skip):
-                    print(f'Input skip          = {input_skip}')
+                    print(f'Input read gap      = {input_skip}')
                 if any(s > 0 for s in input_channel_skip):
                     print(f'Input channel skip  = {input_channel_skip}')
                 print(f'Input expansion     = {in_expand}')
@@ -1322,6 +1357,8 @@ class Backend(backend.Backend):
 
                 print(f'Output channels     = {output_chan}')
                 print(f'Output dimensions   = {output_dim}')
+                if any(s > 0 for s in write_gap):
+                    print(f'Output write gap    = {write_gap}')
                 print(f'Output expansion    = {out_expand}')
                 print(f'Expansion threshold = {out_expand_thresh}')
                 print(f'Output shift        = {output_shift}')
@@ -1341,9 +1378,9 @@ class Backend(backend.Backend):
                 print('Activation          = [',
                       ', '.join(op.act_string(k) if k is not None
                                 else 'no' for k in activation), ']', sep='',)
-                print(f'Kernel offset       = {kern_offs}')
-                print(f'Kernel length       = {kern_len}')
-                print(f'Kernel count        = {kern_count}')
+                print(f'Kernel offset       = {kern_offs.tolist()}')
+                print(f'Kernel length       = {kern_len.tolist()}')
+                print(f'Kernel count        = {kern_count.tolist()}')
                 print(f'Kernel dimensions   = {kernel_size}')
                 if any(h != 1 or w != 1 for h, w in dilation):
                     print(f'Dilation            = {dilation}')
@@ -1451,29 +1488,35 @@ class Backend(backend.Backend):
                                 lt = snoop_sequence[ll]
                                 assert lt >= 0
                                 val = 1 << 7 | lt + hw_add_layers[lt]
-                            if lt != -1:
+                            if lt != -1 and gindex == 0:
                                 if in_sequences[lt] is not None and ll in in_sequences[lt] \
                                    and operands[lt] == 1:
                                     ll_index = in_sequences[lt].index(ll)
                                     ll_offset = out_offset[ll] - ll_index * write_gap[ll] * 4
-                                    if in_offset[lt] != ll_offset and gindex == 0:
-                                        wprint(f'{layer_pfx(ll)}The input offset of the next '
-                                               f'sequence (layer {layer_str(lt)}, '
-                                               f'0x{in_offset[lt]:04x}) does not match the '
-                                               'current layer\'s output '
-                                               f'(offset 0x{out_offset[ll]:04x} - write gap '
-                                               f'{write_gap[ll]} * sequence position '
-                                               f'{ll_index} * 4 = 0x{ll_offset:04x}).')
+                                    offs = 0
+                                    for _, e in enumerate(in_sequences[lt][:ll_index]):
+                                        offs += output_dim[e][0] * output_dim[e][1]
+                                    if in_offset[lt] != ll_offset \
+                                       and out_offset[ll] != offs * 4:
+                                        wprint(f'{layer_pfx(ll)}The input offset '
+                                               f'0x{in_offset[lt]:04x} of the next sequence '
+                                               f'(layer {layer_str(lt)}) does not match the '
+                                               'current layer\'s output offset '
+                                               f'0x{out_offset[ll]:04x}, write gap '
+                                               f'{write_gap[ll]}, input #{ll_index}.')
+                                    pix = sum(output_dim[e][0] * output_dim[e][1]
+                                              for e in in_sequences[lt])
                                     if (
                                         (input_chan[lt] != output_chan[ll] * len(in_sequences[lt])
-                                         or input_dim[lt] != output_dim[ll]) and gindex == 0
+                                         or input_dim[lt] != output_dim[ll])
+                                        and (input_chan[lt] != output_chan[ll]
+                                             or input_dim[lt][0] * input_dim[lt][1] != pix)
                                     ):
                                         wprint(f'{layer_pfx(ll)}The input dimensions of the next '
                                                f'sequence (layer {layer_str(lt)}, '
                                                f'{len(in_sequences[lt])} inputs, '
                                                f'{input_chan[lt]}x{input_dim_str[lt]}) do '
-                                               "not match the current layer's output "
-                                               "dimensions "
+                                               "not match the current layer's output dimensions "
                                                f'({output_chan[ll]}x{output_dim_str[ll]}).')
 
                         if hasattr(tc.dev, 'LREG_NXTLYR'):
@@ -2660,268 +2703,322 @@ class Backend(backend.Backend):
         data_buf = [None] * (layers + 1)
         ll = start_layer
         data_buf[ll] = data
-        # Compute layer-by-layer output and chain results into input
-        while ll < layers:
-            compute.debug_open(ll, base_directory, test_name, log_filename)
 
-            # Concatenate input data if needed
-            if in_sequences[ll] is not None:
-                if len(in_sequences[ll]) > 1:
-                    err_concat = None
-                    try:
-                        data = np.concatenate([data_buf[i + 1] for i in in_sequences[ll]], axis=0)
-                    except ValueError as err:
-                        err_concat = err
-                    if err_concat is not None:
+        with console.Progress(start=True) as progress:
+            task = progress.add_task(description='Creating network... ', total=layers)
+            # Compute layer-by-layer output and chain results into input
+            while ll < layers:
+                progress.update(task, completed=ll)
+                compute.debug_open(ll, base_directory, test_name, log_filename)
+
+                # Concatenate input data if needed
+                if in_sequences[ll] is not None:
+                    if len(in_sequences[ll]) > 1:
+                        err_concat = None
                         try:
-                            data = np.hstack(
-                                [data_buf[i + 1].reshape(data_buf[i + 1].shape[0], -1)
-                                 for i in in_sequences[ll]]
-                            ).reshape(data_buf[in_sequences[ll][0] + 1].shape[0],
-                                      input_dim[ll][0], input_dim[ll][1])
+                            data = np.concatenate([data_buf[i + 1] for i in in_sequences[ll]],
+                                                  axis=0)
                         except ValueError as err:
-                            eprint(f'{layer_pfx(ll)}Input data concatenation unsuccessful: ',
-                                   err_concat, err)
+                            err_concat = err
+                        if err_concat is not None:
+                            try:
+                                data = np.hstack(
+                                    [data_buf[i + 1].reshape(data_buf[i + 1].shape[0], -1)
+                                     for i in in_sequences[ll]]
+                                ).reshape(data_buf[in_sequences[ll][0] + 1].shape[0],
+                                          input_dim[ll][0], input_dim[ll][1])
+                            except ValueError as err:
+                                eprint(f'{layer_pfx(ll)}Input data concatenation unsuccessful: ',
+                                       err_concat, err)
+                    else:
+                        data = data_buf[in_sequences[ll][0] + 1]
                 else:
-                    data = data_buf[in_sequences[ll][0] + 1]
-            else:
-                data = data_buf[ll]
+                    data = data_buf[ll]
 
-            # Split data into multiple inputs if needed
-            if operands[ll] > 1:
-                if ll == start_layer and legacy_test:
-                    data = np.array(np.split(data, operands[ll], axis=0))
-                elif legacy_test:
-                    d = np.empty((operands[ll],
-                                  data.shape[0], data.shape[1], data.shape[2] // operands[ll]),
-                                 dtype=np.int64)
-                    for i in range(operands[ll]):
-                        d[i, :, :, :] = data[:, :, i::operands[ll]]
-                    data = d
+                # Split data into multiple inputs if needed
+                if operands[ll] > 1:
+                    if ll == start_layer and legacy_test:
+                        data = np.array(np.split(data, operands[ll], axis=0))
+                    elif legacy_test:
+                        d = np.empty((operands[ll],
+                                      data.shape[0], data.shape[1], data.shape[2] // operands[ll]),
+                                     dtype=np.int64)
+                        for i in range(operands[ll]):
+                            d[i, :, :, :] = data[:, :, i::operands[ll]]
+                        data = d
+                    else:
+                        data = np.array(np.split(data, operands[ll], axis=0))
                 else:
-                    data = np.array(np.split(data, operands[ll], axis=0))
-            else:
-                data = np.expand_dims(data, 0)
+                    data = np.expand_dims(data, 0)
 
-            in_chan = input_chan[ll]
+                in_chan = input_chan[ll]
 
-            # Drop input channels?
-            if reshape_inputs:
-                if input_channel_skip[ll] > 0:
-                    data = np.delete(data, np.s_[:input_channel_skip[ll]], axis=1)
-                data = np.delete(data, np.s_[in_chan:], axis=1)
+                # Drop input channels?
+                if reshape_inputs:
+                    if input_channel_skip[ll] > 0:
+                        data = np.delete(data, np.s_[:input_channel_skip[ll]], axis=1)
+                    data = np.delete(data, np.s_[in_chan:], axis=1)
 
-            show_data(
-                ll,
-                data.shape,
-                data,
-                expand=in_expand[ll],
-                expand_thresh=in_expand_thresh[ll],
-                operation=operator[ll],
-                operands=operands[ll],
-            )
-
-            # Run in-flight element-wise operations first?
-            if operands[ll] > 1 and not pool_first[ll]:
-                data = np.expand_dims(run_eltwise(data, ll), 0)
-
-            # Allow 1D <-> 2D and 2D W/L conversions
-            if operator[ll] == op.CONV1D:
-                assert input_dim[ll][1] == 1
-                data = data.reshape(data.shape[0], -1, input_dim[ll][0])
-            else:
-                data = data.reshape(data.shape[0], -1, input_dim[ll][0], input_dim[ll][1])
-
-            # In-flight pooling
-            data, out_size = pooling_layer(
-                ll,
-                data[0].shape,
-                pool[ll],
-                pool_stride[ll],
-                pool_average[ll],
-                data,
-                dilation=pool_dilation[ll],
-                expand=in_expand[ll],
-                expand_thresh=in_expand_thresh[ll],
-                operation=operator[ll],
-                operands=data.shape[0],
-                rounding=avg_pool_rounding,
-                debug_data=None if not log_pooling else os.path.join(base_directory, test_name),
-            )
-
-            if operator[ll] == op.CONV1D:
-                if out_size[0] != in_chan \
-                   or out_size[1] != pooled_dim[ll][0] or pooled_dim[ll][1] != 1:
-                    eprint(f'{layer_pfx(ll)}Input dimensions do not match. '
-                           f'Expected: {in_chan}x{pooled_dim[ll][0]}, '
-                           f'got {out_size[0]}x{out_size[1]}.')
-            else:
-                if out_size[0] != in_chan \
-                   or out_size[1] != pooled_dim[ll][0] or out_size[2] != pooled_dim[ll][1]:
-                    eprint(f'{layer_pfx(ll)}Input dimensions do not match. '
-                           f'Expected: {in_chan}x{pooled_dim[ll][0]}x{pooled_dim[ll][1]}, '
-                           f'got {out_size[0]}x{out_size[1]}x{out_size[2]}.')
-
-            if operands[ll] > 1 and pool_first[ll]:
-                data = run_eltwise(data, ll)
-            else:
-                data = np.squeeze(data, axis=0)
-
-            # Convolution or passthrough
-            if operator[ll] in [op.CONV2D, op.LINEAR]:
-                if flatten[ll]:
-                    in_chan *= pooled_dim[ll][0] * pooled_dim[ll][1]
-                    data = data.reshape(in_chan, 1, 1)
-                    if verbose:
-                        print_data(
-                            verbose,
-                            f'FLATTEN TO {in_chan}x1x1',
-                            data,
-                            data.shape,
-                            1,
-                            in_chan,
-                        )
-
-                if not bypass[ll]:
-                    k = kernel[ll].reshape(
-                            output_chan[ll],
-                            in_chan // conv_groups[ll],
-                            kernel_size[ll][0],
-                            kernel_size[ll][1],
-                        )
-                else:
-                    k = np.full(
-                            (output_chan[ll], in_chan, kernel_size[ll][0], kernel_size[ll][0]),
-                            1,
-                            dtype=np.int64,
-                        )
-
-                out_buf, out_size = conv2d_layer(
-                    ll,
-                    data.shape,
-                    kernel_size[ll],
-                    output_shift[ll],
-                    output_chan[ll],
-                    padding[ll],
-                    dilation[ll],
-                    stride[ll],
-                    activation[ll],
-                    k,
-                    bias[ll],
-                    data,
-                    output_width=output_width[ll],
-                    groups=conv_groups[ll],
-                    bypass=bypass[ll],
-                )
-            elif operator[ll] == op.CONVTRANSPOSE2D:
-                if not bypass[ll]:
-                    k = kernel[ll].reshape(
-                            output_chan[ll],
-                            in_chan // conv_groups[ll],
-                            kernel_size[ll][0],
-                            kernel_size[ll][1],
-                        )
-                else:
-                    k = np.full(
-                            (output_chan[ll], in_chan, kernel_size[ll][0], kernel_size[ll][0]),
-                            1,
-                            dtype=np.int64,
-                        )
-
-                out_buf, out_size = convtranspose2d_layer(
-                    ll,
-                    data.shape,
-                    kernel_size[ll],
-                    output_shift[ll],
-                    output_chan[ll],
-                    padding[ll],
-                    dilation[ll],
-                    stride[ll],
-                    output_padding[ll],
-                    activation[ll],
-                    k,
-                    bias[ll],
-                    data,
-                    output_width=output_width[ll],
-                    groups=conv_groups[ll],
-                    bypass=bypass[ll],
-                )
-            elif operator[ll] == op.CONV1D:
-                if not bypass[ll]:
-                    k = kernel[ll].reshape(
-                            output_chan[ll],
-                            input_chan[ll] // conv_groups[ll],
-                            kernel_size[ll][0],
-                        )
-                else:
-                    k = np.full(
-                            (output_chan[ll], input_chan[ll], kernel_size[ll][0],),
-                            1,
-                            dtype=np.int64,
-                        )
-
-                out_buf, out_size = conv1d_layer(
-                    ll,
-                    data.shape,
-                    kernel_size[ll][0],
-                    output_shift[ll],
-                    output_chan[ll],
-                    padding[ll][0],
-                    dilation[ll][0],
-                    stride[ll][0],
-                    activation[ll],
-                    k,
-                    bias[ll],
-                    data,
-                    output_width=output_width[ll],
-                    groups=conv_groups[ll],
-                    bypass=bypass[ll],
-                )
-            elif operator[ll] == op.NONE:  # '0'D (pooling only or passthrough)
-                out_buf, out_size = passthrough_layer(
+                show_data(
                     ll,
                     data.shape,
                     data,
+                    expand=in_expand[ll],
+                    expand_thresh=in_expand_thresh[ll],
+                    operation=operator[ll],
+                    operands=operands[ll],
                 )
-            else:
-                eprint(f'Unknown operator `{op.string(operator[ll])}`.')
 
-            assert out_size[0] == output_chan[ll] \
-                and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
-            assert out_size[0] == output_size[ll][0] \
-                and out_size[1] == output_size[ll][1] and out_size[2] == output_size[ll][2]
+                # Run in-flight element-wise operations first?
+                if operands[ll] > 1 and not pool_first[ll]:
+                    data = np.expand_dims(run_eltwise(data, ll), 0)
 
-            # Write .mem file for output or create the C check_output() function to
-            # verify the output
-            out_map = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
-            if block_mode:
-                if ll == terminating_layer:
-                    filename = output_filename + '.mem'  # Final output
+                # Allow 1D <-> 2D and 2D W/L conversions
+                if operator[ll] == op.CONV1D:
+                    assert input_dim[ll][1] == 1
+                    data = data.reshape(data.shape[0], -1, input_dim[ll][0])
                 else:
-                    filename = f'{output_filename}-{ll}.mem'  # Intermediate output
-                filemode = 'w'
-            else:
-                if output_layer[ll]:
-                    filename = c_filename + ('_riscv' if riscv else '') + '.c'  # Final output
-                else:
-                    filename = None  # Intermediate output - used for layer overwrite check
-                filemode = 'a'
+                    data = data.reshape(data.shape[0], -1, input_dim[ll][0], input_dim[ll][1])
 
-            try:
-                if filename:
-                    memfile = open(os.path.join(base_directory, test_name, filename),
-                                   mode=filemode, encoding='utf-8')
-                else:
-                    memfile = None
-                apb.set_memfile(memfile)
+                # In-flight pooling
+                data, out_size = pooling_layer(
+                    ll,
+                    data[0].shape,
+                    pool[ll],
+                    pool_stride[ll],
+                    pool_average[ll],
+                    data,
+                    dilation=pool_dilation[ll],
+                    expand=in_expand[ll],
+                    expand_thresh=in_expand_thresh[ll],
+                    operation=operator[ll],
+                    operands=data.shape[0],
+                    rounding=avg_pool_rounding,
+                    debug_data=None if not log_pooling else os.path.join(base_directory,
+                                                                         test_name),
+                )
 
-                if state.generate_kat:
-                    if output_layer[ll] and mlator \
-                       and not state.mlator_noverify and not embedded_code:
+                if operator[ll] == op.CONV1D:
+                    if out_size[0] != in_chan \
+                       or out_size[1] != pooled_dim[ll][0] or pooled_dim[ll][1] != 1:
+                        eprint(f'{layer_pfx(ll)}Input dimensions do not match. '
+                               f'Expected: {in_chan}x{pooled_dim[ll][0]}, '
+                               f'got {out_size[0]}x{out_size[1]}.')
+                else:
+                    if out_size[0] != in_chan \
+                       or out_size[1] != pooled_dim[ll][0] or out_size[2] != pooled_dim[ll][1]:
+                        eprint(f'{layer_pfx(ll)}Input dimensions do not match. '
+                               f'Expected: {in_chan}x{pooled_dim[ll][0]}x{pooled_dim[ll][1]}, '
+                               f'got {out_size[0]}x{out_size[1]}x{out_size[2]}.')
+
+                if operands[ll] > 1 and pool_first[ll]:
+                    data = run_eltwise(data, ll)
+                else:
+                    data = np.squeeze(data, axis=0)
+
+                # Convolution or passthrough
+                if operator[ll] in [op.CONV2D, op.LINEAR]:
+                    if flatten[ll]:
+                        in_chan *= pooled_dim[ll][0] * pooled_dim[ll][1]
+                        data = data.reshape(in_chan, 1, 1)
+                        if verbose:
+                            print_data(
+                                verbose,
+                                f'FLATTEN TO {in_chan}x1x1',
+                                data,
+                                data.shape,
+                                1,
+                                in_chan,
+                            )
+
+                    if not bypass[ll]:
+                        k = kernel[ll].reshape(
+                                output_chan[ll],
+                                in_chan // conv_groups[ll],
+                                kernel_size[ll][0],
+                                kernel_size[ll][1],
+                            )
+                    else:
+                        k = np.full(
+                                (output_chan[ll], in_chan, kernel_size[ll][0], kernel_size[ll][0]),
+                                1,
+                                dtype=np.int64,
+                            )
+
+                    out_buf, out_size = conv2d_layer(
+                        ll,
+                        data.shape,
+                        kernel_size[ll],
+                        output_shift[ll],
+                        output_chan[ll],
+                        padding[ll],
+                        dilation[ll],
+                        stride[ll],
+                        activation[ll],
+                        k,
+                        bias[ll],
+                        data,
+                        output_width=output_width[ll],
+                        groups=conv_groups[ll],
+                        bypass=bypass[ll],
+                    )
+                elif operator[ll] == op.CONVTRANSPOSE2D:
+                    if not bypass[ll]:
+                        k = kernel[ll].reshape(
+                                output_chan[ll],
+                                in_chan // conv_groups[ll],
+                                kernel_size[ll][0],
+                                kernel_size[ll][1],
+                            )
+                    else:
+                        k = np.full(
+                                (output_chan[ll], in_chan, kernel_size[ll][0], kernel_size[ll][0]),
+                                1,
+                                dtype=np.int64,
+                            )
+
+                    out_buf, out_size = convtranspose2d_layer(
+                        ll,
+                        data.shape,
+                        kernel_size[ll],
+                        output_shift[ll],
+                        output_chan[ll],
+                        padding[ll],
+                        dilation[ll],
+                        stride[ll],
+                        output_padding[ll],
+                        activation[ll],
+                        k,
+                        bias[ll],
+                        data,
+                        output_width=output_width[ll],
+                        groups=conv_groups[ll],
+                        bypass=bypass[ll],
+                    )
+                elif operator[ll] == op.CONV1D:
+                    if not bypass[ll]:
+                        k = kernel[ll].reshape(
+                                output_chan[ll],
+                                input_chan[ll] // conv_groups[ll],
+                                kernel_size[ll][0],
+                            )
+                    else:
+                        k = np.full(
+                                (output_chan[ll], input_chan[ll], kernel_size[ll][0],),
+                                1,
+                                dtype=np.int64,
+                            )
+
+                    out_buf, out_size = conv1d_layer(
+                        ll,
+                        data.shape,
+                        kernel_size[ll][0],
+                        output_shift[ll],
+                        output_chan[ll],
+                        padding[ll][0],
+                        dilation[ll][0],
+                        stride[ll][0],
+                        activation[ll],
+                        k,
+                        bias[ll],
+                        data,
+                        output_width=output_width[ll],
+                        groups=conv_groups[ll],
+                        bypass=bypass[ll],
+                    )
+                elif operator[ll] == op.NONE:  # '0'D (pooling only or passthrough)
+                    out_buf, out_size = passthrough_layer(
+                        ll,
+                        data.shape,
+                        data,
+                    )
+                else:
+                    eprint(f'Unknown operator `{op.string(operator[ll])}`.')
+
+                assert out_size[0] == output_chan[ll] \
+                    and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
+                assert out_size[0] == output_size[ll][0] \
+                    and out_size[1] == output_size[ll][1] and out_size[2] == output_size[ll][2]
+
+                # Write .mem file for output or create the C check_output() function to
+                # verify the output
+                out_map = datamem.allocate()
+                if block_mode:
+                    if ll == terminating_layer:
+                        filename = output_filename + '.mem'  # Final output
+                    else:
+                        filename = f'{output_filename}-{ll}.mem'  # Intermediate output
+                    filemode = 'w'
+                else:
+                    if output_layer[ll]:
+                        filename = c_filename + ('_riscv' if riscv else '') + '.c'  # Final output
+                    else:
+                        filename = None  # Intermediate output - used for layer overwrite check
+                    filemode = 'a'
+
+                try:
+                    if filename:
+                        memfile = open(os.path.join(base_directory, test_name, filename),
+                                       mode=filemode, encoding='utf-8')
+                    else:
+                        memfile = None
+                    apb.set_memfile(memfile)
+
+                    if state.generate_kat:
+                        if output_layer[ll] and mlator \
+                           and not state.mlator_noverify and not embedded_code:
+                            apb.verify_unload(
+                                ll,
+                                in_map,
+                                None,
+                                out_buf,
+                                output_processor_map[ll],
+                                out_size,
+                                out_offset[ll],
+                                out_expand[ll],
+                                out_expand_thresh[ll],
+                                output_width[ll],
+                                overwrite_ok or streaming[ll],
+                                mlator=False,
+                                write_gap=write_gap[ll],
+                                unload_layer=output_layer[ll],
+                            )
+                        if log_intermediate:
+                            filename2 = f'{output_filename}-{ll}.mem'  # Intermediate output
+                            memfile2 = open(os.path.join(base_directory, test_name, filename2),
+                                            mode='w', encoding='utf-8')
+                            apb2 = apbaccess.apbwriter(
+                                memfile2,
+                                verify_writes=False,
+                                embedded_code=False,
+                                write_zero_registers=True,
+                                master=groups_used[0] if oneshot > 0 or stopstart else False,
+                                riscv=None,
+                                fast_fifo=False,
+                                input_chan=input_chan[start_layer],
+                                debug_mem=True,
+                                test_name=test_name,
+                            )
+                            out_map2 = datamem.allocate()
+                            apb2.verify_unload(
+                                ll,
+                                in_map,
+                                out_map2,
+                                out_buf,
+                                output_processor_map[ll],
+                                out_size,
+                                out_offset[ll],
+                                out_expand[ll],
+                                out_expand_thresh[ll],
+                                output_width[ll],
+                                overwrite_ok or streaming[ll],
+                                mlator=mlator and output_layer[ll],
+                                write_gap=write_gap[ll],
+                            )
                         apb.verify_unload(
                             ll,
                             in_map,
-                            None,
+                            out_map,
                             out_buf,
                             output_processor_map[ll],
                             out_size,
@@ -2929,121 +3026,73 @@ class Backend(backend.Backend):
                             out_expand[ll],
                             out_expand_thresh[ll],
                             output_width[ll],
-                            overwrite_ok or streaming[ll],
-                            mlator=False,
+                            overwrite_ok or (streaming[ll] if ll != start_layer
+                                             else (streaming[ll] and fifo)),
+                            mlator=mlator and output_layer[ll],
                             write_gap=write_gap[ll],
                             unload_layer=output_layer[ll],
                         )
-                    if log_intermediate:
-                        filename2 = f'{output_filename}-{ll}.mem'  # Intermediate output
-                        memfile2 = open(os.path.join(base_directory, test_name, filename2),
-                                        mode='w', encoding='utf-8')
-                        apb2 = apbaccess.apbwriter(
-                            memfile2,
-                            verify_writes=False,
-                            embedded_code=False,
-                            write_zero_registers=True,
-                            master=groups_used[0] if oneshot > 0 or stopstart else False,
-                            riscv=None,
-                            fast_fifo=False,
-                            input_chan=input_chan[start_layer],
-                            debug_mem=True,
-                            test_name=test_name,
-                        )
-                        out_map2 = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
-                        apb2.verify_unload(
-                            ll,
-                            in_map,
-                            out_map2,
-                            out_buf,
-                            output_processor_map[ll],
-                            out_size,
-                            out_offset[ll],
-                            out_expand[ll],
-                            out_expand_thresh[ll],
-                            output_width[ll],
-                            overwrite_ok or streaming[ll],
-                            mlator=mlator and output_layer[ll],
-                            write_gap=write_gap[ll],
-                        )
-                    apb.verify_unload(
-                        ll,
-                        in_map,
-                        out_map,
-                        out_buf,
-                        output_processor_map[ll],
-                        out_size,
-                        out_offset[ll],
-                        out_expand[ll],
-                        out_expand_thresh[ll],
-                        output_width[ll],
-                        overwrite_ok or (streaming[ll] if ll != start_layer
-                                         else (streaming[ll] and fifo)),
-                        mlator=mlator and output_layer[ll],
-                        write_gap=write_gap[ll],
-                        unload_layer=output_layer[ll],
-                    )
-                    if debug_snoop:
-                        apb.verify_ctl(group, tc.dev.REG_SNP1_ACC, None, snoop[24],
-                                       comment=' // Verify snoop 1 data accumulator')
-                        apb.verify_ctl(group, tc.dev.REG_SNP1_HIT, None, snoop[25],
-                                       comment=' // Verify snoop 1 match hit accumulator')
-                        apb.verify_ctl(group, tc.dev.REG_SNP1_MAX, None, snoop[26],
-                                       comment=' // Verify snoop 1 match max accumulator')
-                        apb.verify_ctl(group, tc.dev.REG_SNP1_AM, None, snoop[27],
-                                       comment=' // Verify snoop 1 match address register')
-                        apb.verify_ctl(group, tc.dev.REG_SNP2_ACC, None, snoop[28],
-                                       comment=' // Verify snoop 2 data accumulator')
-                        apb.verify_ctl(group, tc.dev.REG_SNP2_HIT, None, snoop[29],
-                                       comment=' // Verify snoop 2 match hit accumulator')
-                        apb.verify_ctl(group, tc.dev.REG_SNP2_MAX, None, snoop[30],
-                                       comment=' // Verify snoop 2 match max accumulator')
-                        apb.verify_ctl(group, tc.dev.REG_SNP2_AM, None, snoop[31],
-                                       comment=' // Verify snoop 2 match address register')
-            finally:
-                if memfile:
-                    memfile.close()
+                        if debug_snoop:
+                            apb.verify_ctl(group, tc.dev.REG_SNP1_ACC, None, snoop[24],
+                                           comment=' // Verify snoop 1 data accumulator')
+                            apb.verify_ctl(group, tc.dev.REG_SNP1_HIT, None, snoop[25],
+                                           comment=' // Verify snoop 1 match hit accumulator')
+                            apb.verify_ctl(group, tc.dev.REG_SNP1_MAX, None, snoop[26],
+                                           comment=' // Verify snoop 1 match max accumulator')
+                            apb.verify_ctl(group, tc.dev.REG_SNP1_AM, None, snoop[27],
+                                           comment=' // Verify snoop 1 match address register')
+                            apb.verify_ctl(group, tc.dev.REG_SNP2_ACC, None, snoop[28],
+                                           comment=' // Verify snoop 2 data accumulator')
+                            apb.verify_ctl(group, tc.dev.REG_SNP2_HIT, None, snoop[29],
+                                           comment=' // Verify snoop 2 match hit accumulator')
+                            apb.verify_ctl(group, tc.dev.REG_SNP2_MAX, None, snoop[30],
+                                           comment=' // Verify snoop 2 match max accumulator')
+                            apb.verify_ctl(group, tc.dev.REG_SNP2_AM, None, snoop[31],
+                                           comment=' // Verify snoop 2 match address register')
+                finally:
+                    if memfile:
+                        memfile.close()
 
-            if not np.any(out_buf):
-                wprint(f'{layer_pfx(ll)}All output values for the given sample input are zero. '
-                       'The generated known-answer test for this network may not be meaningful. '
-                       'See the log file for details.')
+                if not np.any(out_buf):
+                    wprint(f'{layer_pfx(ll)}All output values for the given sample input are '
+                           'zero. The generated known-answer test for this network may not be '
+                           'meaningful. See the log file for details.')
 
-            data_buf[ll + 1] = out_buf.reshape(out_size)
-            if next_sequence[ll] != -1 and streaming[next_sequence[ll]]:
-                # When streaming, the output should not overwrite the input of prior layers since
-                # these layers are still needed.
-                in_map = [a if a is not None else b for a, b, in zip(in_map, out_map)]
-            else:
-                # Else, preserve the output map of all prior layers marked 'output' plus
-                # the current layer.
-                if output_layer[ll]:
-                    # Add this output to the map of all output layers
-                    if all_outputs_map is None:
-                        all_outputs_map = out_map
-                    else:
-                        all_outputs_map = [a if a is not None else b
-                                           for a, b, in zip(all_outputs_map, out_map)]
-                    # Since this layer is an output layer, in_map is the same
-                    in_map = all_outputs_map
+                data_buf[ll + 1] = out_buf.reshape(out_size)
+                if next_sequence[ll] != -1 and streaming[next_sequence[ll]]:
+                    # When streaming, the output should not overwrite the input of prior layers
+                    # since these layers are still needed.
+                    datamem.combine(in_map, out_map)
                 else:
-                    # Take the map of all previous output layers, and add this layer to in_map
-                    if all_outputs_map is None:
-                        in_map = out_map
+                    # Else, preserve the output map of all prior layers marked 'output' plus
+                    # the current layer.
+                    if output_layer[ll]:
+                        # Add this output to the map of all output layers
+                        if all_outputs_map is None:
+                            all_outputs_map = out_map
+                        else:
+                            datamem.combine(all_outputs_map, out_map)
+                        # Since this layer is an output layer, in_map is the same
+                        in_map = all_outputs_map
                     else:
-                        in_map = [a if a is not None else b
-                                  for a, b, in zip(all_outputs_map, out_map)]
+                        # Take the map of all previous output layers, and add this layer to in_map
+                        if all_outputs_map is None:
+                            in_map = out_map
+                        else:
+                            in_map = np.array(all_outputs_map, copy=True)
+                            datamem.combine(in_map, out_map)
 
-            compute.debug_close()
+                compute.debug_close()
 
-            if simulated_sequence[ll] is not None:
-                if simulated_sequence[ll] == -1:
-                    break
-                ll = simulated_sequence[ll]
-            else:
-                if next_sequence[ll] == -1:
-                    break
-                ll = next_sequence[ll]
+                if simulated_sequence[ll] is not None:
+                    if simulated_sequence[ll] == -1:
+                        break
+                    ll = simulated_sequence[ll]
+                else:
+                    if next_sequence[ll] == -1:
+                        break
+                    ll = next_sequence[ll]
+            progress.update(task, completed=layers)
 
         data = data_buf[ll]
 

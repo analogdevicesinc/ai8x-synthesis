@@ -14,13 +14,14 @@ from pydoc import locate
 
 import numpy as np
 
-import colorama
+import rich.console
 
-from . import checkpoint, commandline, onnxcp, op, rtlsim, sampledata, sampleweight, state
+from . import checkpoint, commandline, console, onnxcp, op, rtlsim, sampledata, sampleweight, state
 from . import tornadocnn as tc
 from . import versioncheck, yamlcfg
 from .eprint import eprint, wprint
 from .names import layer_pfx, layer_str
+from .utils import plural
 
 
 def main():
@@ -32,7 +33,7 @@ def main():
     # Save stdout before colorama potentially wraps it
     state.output_is_console = sys.stdout is not None and sys.stdout.isatty()
     saved_stdout = sys.stdout
-    colorama.init()
+    console.stderr = rich.console.Console(stderr=True)
 
     args = commandline.get_parser()
 
@@ -71,6 +72,7 @@ def main():
 
     # Load configuration file
     cfg, cfg_layers, params = yamlcfg.parse(args.config_file, args.skip_yaml_layers)
+    state.layer_name = params['layer_name']
 
     # If not using test data, load weights and biases
     # This also configures the network's output channels
@@ -128,8 +130,9 @@ def main():
             cfg_layers,
             cfg['bias'] if 'bias' in cfg else None,
             args.no_bias,
+            params['operator'],
+            params['bypass'],
         )
-
     if cfg_layers > layers:
         # Add empty weights/biases and channel counts for layers not in checkpoint file.
         # The checkpoint file does not contain weights for non-convolution operations.
@@ -176,7 +179,6 @@ def main():
 
     input_size = list(data.shape)
 
-    state.layer_name = params['layer_name'][:layers]
     processor_map = params['processor_map'][:layers]
     output_processor_map = params['output_processor_map'][:layers]
     in_sequences = params['in_sequences'][:layers]
@@ -208,20 +210,38 @@ def main():
                 # Element-wise operation
                 input_channels[ll] = input_size[0] if in_sequences[ll][0] == -1 \
                     else output_channels[in_sequences[ll][0]]
-                gap = write_gap[in_sequences[ll][0]]
-                chan = output_channels[in_sequences[ll][0]]
-                l_str = ", ".join([layer_str(e) for _, e in enumerate(in_sequences[ll])])
-                for _, e in enumerate(in_sequences[ll], start=1):
-                    if chan != output_channels[e]:
-                        eprint(f'{layer_pfx(ll)}`in_sequences` [{l_str}] for the element-wise '
-                               'operation includes inputs with non-matching channel counts.')
-                    if gap != write_gap[e]:
-                        wprint(f'{layer_pfx(ll)}`in_sequences` [{l_str}] for the element-wise '
-                               'operation includes inputs with non-matching `write_gap` values.')
+            gap = write_gap[in_sequences[ll][0]]
+            chan = output_channels[in_sequences[ll][0]]
+            l_str = ", ".join([layer_str(e) for _, e in enumerate(in_sequences[ll])])
+            l_inseq = len(in_sequences[ll])
+            for _, e in enumerate(in_sequences[ll], start=1):
+                if chan != output_channels[e]:
+                    ochan_str = ', '.join(str(output_channels[e])
+                                          for _, e in enumerate(in_sequences[ll]))
+                    eprint(f'{layer_pfx(ll)}`in_sequences` [{l_str}] for the element-wise '
+                           'operation includes inputs with non-matching channel counts '
+                           f'({ochan_str}).')
+                if gap != write_gap[e]:
+                    wprint(f'{layer_pfx(ll)}`in_sequences` [{l_str}] for the element-wise '
+                           'operation includes inputs with non-matching `write_gap` values.')
+            if operands[ll] > 1:
                 if gap != operands[ll] - 1:
                     wprint(f'{layer_pfx(ll)}The element-wise operation has {operands[ll]} '
                            f'operands, but the `write_gap` is {gap} for the `in_sequences` '
                            f'[{l_str}] instead of {operands[ll] - 1}.')
+                if input_skip[ll] != gap // operands[ll]:
+                    wprint(f'{layer_pfx(ll)}`read_gap` {input_skip[ll]} does not match the '
+                           f'operand count ({operands[ll]}) and `write_gap` {gap} of the '
+                           f'{plural(operands[ll], "input")} for this layer.')
+            elif gap > 0:
+                if gap != l_inseq - 1:
+                    wprint(f'{layer_pfx(ll)}The channel interleave operation has {l_inseq} '
+                           f'inputs, but the `write_gap` is {gap} for the `in_sequences` '
+                           f'[{l_str}] instead of {l_inseq - 1}.')
+                if input_skip[ll] != (gap + 1) // l_inseq - 1:
+                    wprint(f'{layer_pfx(ll)}`read_gap` {input_skip[ll]} does not match the '
+                           f'input count ({l_inseq}) and `write_gap` {gap} of the '
+                           f'{plural(l_inseq, "input")} for this layer.')
         else:
             gap = 0 if prev_ll == -1 else write_gap[prev_ll]
             if gap != input_skip[ll]:
@@ -358,7 +378,7 @@ def main():
     auto_input_dim = [None] * layers
     input_dim = [None] * layers
     pooled_dim = [None] * layers
-    output_dim = [None] * layers
+    output_dim = [(0, 0)] * layers
 
     avgpool_reset_layer = [False] * layers
 
