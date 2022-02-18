@@ -270,7 +270,7 @@ layers:
   operation: none
   eltwise: add # Add Residual-4
 
-# Layer 28: Stem-Conv2dReLU(128,1024,1x1)
+# Layer 28: Head-Conv2dReLU(128,1024,1x1)
 - out_offset: 0x8000
   processors: 0xffffffffffffffff
   operation: conv2d
