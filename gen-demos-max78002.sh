@@ -18,3 +18,4 @@ python ai8xize.py --test-dir $TARGET --prefix camvid_unet --checkpoint-file trai
 python ai8xize.py --test-dir $TARGET --prefix aisegment_unet --checkpoint-file trained/ai85-aisegment-unet-large-fakept-q.pth.tar --config-file networks/aisegment-unet-large-fakept.yaml $COMMON_ARGS --overlap-data --mlator --no-unload --max-checklines 8192 "$@"
 python ai8xize.py --test-dir $TARGET --prefix cifar-100-effnet2 --checkpoint-file trained/ai87-cifar100-effnet2-qat8-q.pth.tar --config-file networks/ai87-cifar100-effnet2.yaml --softmax $COMMON_ARGS "$@"
 python ai8xize.py --test-dir $TARGET --prefix cifar-100-mobilenet-v2-0.75 --checkpoint-file trained/ai87-cifar100-mobilenet-v2-0.75-qat8-q.pth.tar --config-file networks/ai87-cifar100-mobilenet-v2-0.75.yaml --softmax $COMMON_ARGS "$@"
+python ai8xize.py --test-dir $TARGET --prefix imagenet --checkpoint-file trained/ai87-imagenet-effnet2-q.pth.tar --config-file networks/ai87-imagenet-effnet2.yaml $COMMON_ARGS "$@"

@@ -1947,6 +1947,14 @@ class Backend(backend.Backend):
                             assert offs < 2**12
                             val |= 1 << 12 | offs
 
+                        if not tc.dev.SUPPORT_MULTIPASS_ELTWISE_CONV_BIAS \
+                           and group == bias_group[ll] \
+                           and operator[ll] != op.NONE \
+                           and operands[ll] > 1:
+                            eprint(f'{layer_pfx(ll)}On this device, multi-pass element-wise '
+                                   'operations must be in a separate layer from convolutions with '
+                                   'bias.')
+
                         if hw_operator[ll] == op.NONE:
                             if operands[ll] == 1:
                                 val |= 3 << 24
