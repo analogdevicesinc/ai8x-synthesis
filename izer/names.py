@@ -23,6 +23,7 @@ def find_layer(
     """
     Find layer number given a layer name.
     """
+    name = name.lower()
     if name == 'input':
         return -1
     for ll, e in enumerate(layer_name):
