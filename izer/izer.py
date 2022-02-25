@@ -28,7 +28,7 @@ def main():
     """
     Command line wrapper
     """
-    np.set_printoptions(threshold=np.inf, linewidth=190)
+    np.set_printoptions(threshold=sys.maxsize, linewidth=190)
 
     # Save stdout before colorama potentially wraps it
     state.output_is_console = sys.stdout is not None and sys.stdout.isatty()
