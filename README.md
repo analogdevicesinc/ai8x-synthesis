@@ -1,6 +1,6 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-_February 21, 2022_
+_March 10, 2022_
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
@@ -502,39 +502,141 @@ With the installation of Training and Synthesis projects completed it is importa
 
 ### Embedded Software Development Kit (SDK)
 
-The MAX78000 SDK is a git submodule of ai8x-synthesis. It is checked out automatically to a version compatible with the project into the folder `sdk`. *Note: The MAX78000 SDK also includes MAX78002 support.*
+The Embedded SDK for MAX78000 and MAX78002 is used to compile, flash, and debug the output of the *ai8x-synthesis* (“izer”) tool. It contains the following components:
+* Peripheral Drivers
+* Board Support Packages (BSPs)
+* Libraries
+* Examples
+* Toolchain
+  * Arm GCC
+  * RISC-V GCC
+  * Make
+  * OpenOCD
 
-***If the embedded C compiler is run on Windows instead of Linux or macOS, ignore this section*** *and install the Maxim SDK executable, see https://github.com/MaximIntegratedAI/MaximAI_Documentation.*
+There are two ways to install the SDK.
 
-The Arm embedded compiler can be downloaded from [https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads](https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads). *The SDK has been tested with version 9-2019-q4-major of the embedded Arm compiler. Newer versions may or may not work correctly.*
+#### Method 1:  Manual Installation
 
-The RISC-V embedded compiler can be downloaded from [https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack/releases/](https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack/releases/). *The SDK has been tested with version 8.3.0-1.1 of the RISC-V embedded compiler. Newer versions may or may not work correctly.*
+The MAX78000/MAX78002 SDK is available as a git submodule of ai8x-synthesis. It is checked out automatically to a version compatible with the project into the folder `ai8x-synthesis/sdk`. This submodule contains all of the SDK's components _except_ the Arm GCC, RISC-V GCC, and Make. These must be downloaded and installed manually.
 
-Add the following to your `~/.profile` (and on macOS, to `~/.zprofile`), adjusting for the actual `PATH` to the compilers and the `MAXIM_PATH` to the `sdk` folder:
+The Arm embedded compiler can be downloaded from [https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads](https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads). 
+* Recommended version:  9-2019-q4-major *(Newer versions may or may not work correctly.)*
+* Recommended installation location:  /usr/local/gcc-arm-none-eabi-9-2019-q4-major/
+
+The RISC-V embedded compiler can be downloaded from [https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack/releases/](https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack/releases/).
+* Recommended version:  8.3.0-1.1 *(Newer versions may or may not work correctly.)*
+* Recommended installation location:  /usr/local/riscv-none-embed-gcc/8.3.0-1.1
+
+“Make” is available on most systems by default. If not, it is usually available via the system package manager (Linux and macOS) or [MSYS](https://www.msys2.org/) (Windows)
+
+OpenOCD binaries are available in the “openocd” sub-folder of the ai8x-synthesis repo. However, some additional dependencies are required on most systems. See [openocd/Readme.md](openocd/Readme.md) for a list of packages to install, then return here to continue.
+
+##### System Path
+
+Next, add the location of the toolchain binaries to the system path.
+
+For example, on Linux add the following to `~/.profile` (and on macOS, to `~/.zprofile`), adjusting for the actual `PATH` to the compilers:
 
 ```shell
-echo $PATH | grep -q -s "/usr/local/gcc-arm-none-eabi-9-2019-q4-major/bin"
+# Arm GCC
+ARMGCC_DIR=/usr/local/gcc-arm-none-eabi-9-2019-q4-major # Change me!
+echo $PATH | grep -q -s "$ARMGCC_DIR/bin"
 if [ $? -eq 1 ] ; then
-    PATH=$PATH:/usr/local/gcc-arm-none-eabi-9-2019-q4-major/bin
+    PATH=$PATH:"$ARMGCC_DIR/bin"
     export PATH
-    ARMGCC_DIR=/usr/local/gcc-arm-none-eabi-9-2019-q4-major
     export ARMGCC_DIR
 fi
 
-echo $PATH | grep -q -s "/usr/local/riscv-none-embed-gcc/8.3.0-1.1/bin"
+# RISC-V GCC
+RISCVGCC_DIR=/usr/local/riscv-none-embed-gcc/8.3.0-1.1 # Change me!
+echo $PATH | grep -q -s "$RISCVGCC_DIR/bin"
 if [ $? -eq 1 ] ; then
-    PATH=$PATH:/usr/local/riscv-none-embed-gcc/8.3.0-1.1/bin
+    PATH=$PATH:"$RISCVGCC_DIR/bin"
     export PATH
-    RISCVGCC_DIR=/usr/local/riscv-none-embed-gcc/8.3.0-1.1
     export RISCVGCC_DIR
 fi
 
-export MAXIM_PATH="$HOME/..../ai8x-synthesis/sdk"
+# OpenOCD
+OPENOCD_DIR=/home/example/ai8x-synthesis/openocd/bin/targetarch # Change me!
+echo $PATH | grep -q -s "$OPENOCD_DIR"
+if [ $? -eq 1 ] ; then
+    PATH=$PATH:$OPENOCD_DIR
+    export PATH
+    export OPENOCD_DIR
+fi
 ```
 
-The debugger requires OpenOCD. On Windows, an OpenOCD executable is installed with the SDK. On macOS and Linux, scripts and binaries are provided in the `openocd` folder of the `ai8x-synthesis` project, see [openocd/Readme.md](openocd/Readme.md).
+Once the tools above have been installed, continue to the [Final Check](#Final Check) step below.
 
-`gen-demos-max78000.sh` will create code that is compatible with the SDK and copy it into the SDK’s Example directories.
+#### Method 2:  SDK Installer
+
+The MAX78000/MAX78002 SDK is also available via the installer links below. These installers require a GUI on your system.
+* [Windows](https://www.maximintegrated.com/content/maximintegrated/en/design/software-description.html/swpart=SFW0010820A)
+* [Linux](https://www.maximintegrated.com/content/maximintegrated/en/design/software-description.html/swpart=SFW0018720A)
+* [macOS](https://www.maximintegrated.com/content/maximintegrated/en/design/software-description.html/swpart=SFW0018610A)
+
+At minimum, the following components should be selected during the installation:
+* GNU RISC-V Embedded GCC
+* GNU Tools for ARM Embedded Processors
+* Open On-Chip Debugger
+* MAXIM Microcontrollers 
+  * MAX78000 Resources
+  * MAX78002 Resources
+* Product Libs
+  * CMSIS Core Libraries
+  * Miscellaneous Drivers
+  * Peripheral Drivers
+
+##### System Path
+
+Next, add the location of the toolchain binaries to the system path.
+
+For example, on Linux add the following to `~/.profile` (and on macOS, to `~/.zprofile`), adjusting for the actual `PATH` to the compilers:
+
+```shell
+# MaximSDK location
+MAXIM_PATH=/home/example/MaximSDK # Change me!
+export MAXIM_PATH
+
+# Arm GCC
+ARMGCC_DIR=$MAXIM_PATH/Tools/GNUTools
+echo $PATH | grep -q -s "$ARMGCC_DIR/bin"
+if [ $? -eq 1 ] ; then
+    PATH=$PATH:"$ARMGCC_DIR/bin"
+    export PATH
+    export ARMGCC_DIR
+fi
+
+# RISC-V GCC
+RISCVGCC_DIR=$MAXIM_PATH/Tools/xPack/riscv-none-embed-gcc
+echo $PATH | grep -q -s "$RISCVGCC_DIR/bin"
+if [ $? -eq 1 ] ; then
+    PATH=$PATH:"$RISCVGCC_DIR/bin"
+    export PATH
+    export RISCVGCC_DIR
+fi
+
+# OpenOCD
+OPENOCD_DIR=$MAXIM_PATH/Tools/OpenOCD
+echo $PATH | grep -q -s "$OPENOCD_DIR"
+if [ $? -eq 1 ] ; then
+    PATH=$PATH:$OPENOCD_DIR
+    export PATH
+    export OPENOCD_DIR
+fi
+```
+
+Once the tools above have been installed, continue with [Final Check](#Final Check).
+
+#### Final Check
+
+After a successful SDK installation, the following commands will run from on the terminal and display their version numbers:
+* `arm-none-eabi-gcc -v`
+* `arm-none-eabi-gdb -v`
+* `make -v`
+* `openocd -v`
+
+`gen-demos-max78000.sh` and `gen-demos-max78002.sh` will create code that is compatible with the SDK and copy it into the SDK’s Example directories.
 
 ---
 
@@ -1655,6 +1757,10 @@ Log file for this run: 2021.07.20-123302/2021.07.20-123302.log
 
 *Note that the “Loss” output is not always directly comparable to the unquantized network, depending on the loss function itself.*
 
+#### Troubleshooting
+
+If the model initially trains correctly, but the quantized performance is significantly worse, verify that the data loader calls `ai8x.normalize()`. Data must be normalized to the range expected by hardware, $[–128, +127]$, for both evaluation on simulated hardware and on the actual hardware. See also [Normalizing Input Data](#Normalizing Input Data) in the [Data Loader](#Data Loader) description.
+
 #### Alternative Quantization Approaches
 
 If quantization-aware training is not desired, post-training quantization can be improved using more sophisticated methods. For example, see
@@ -1730,7 +1836,7 @@ In brief, the following steps are needed for new data formats and datasets:
 
 ##### Normalizing Input Data
 
-For training, input data is expected to be in the range $[–\frac{128}{128}, +\frac{127}{128}]$​. When evaluating quantized weights, or when running on hardware, input data is instead expected to be in the native MAX78000/MAX78002 range of $[–128, +127]$​. Conversely, the majority of PyTorch datasets are PIL images of range $[0, 1]$​​. The respective data loaders therefore call the `ai8x.normalize()` function, which expects an input of 0 to 1 and normalizes the data, automatically switching between the two supported data ranges.
+For training, input data is expected to be in the range $[–\frac{128}{128}, +\frac{127}{128}]$​. When evaluating quantized weights, or when running on hardware, input data is instead expected to be in the native MAX78000/MAX78002 range of $[–128, +127]$​. Conversely, the majority of PyTorch datasets are PIL images of range $[0, 1]$​​. The respective data loaders therefore call the `ai8x.normalize()` function, which expects an input of 0 to 1 and normalizes the data, automatically switching between the two supported data ranges. *Note: A missing call to `ai8x.normalize()` may cause severe performance degradation when evaluating the quantized model compared to the unquantized model.*
 
 When running inference on MAX78000/MAX78002 hardware, it is important to take the native data format into account, and it is desirable to perform as little preprocessing as possible during inference. For example, an image sensor may return “signed” data in the range $[–128, +127]$ for each color. No additional preprocessing or mapping is needed for this sensor since the model was trained with this data range.
 
