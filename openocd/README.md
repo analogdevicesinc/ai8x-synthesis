@@ -4,11 +4,11 @@ For your convenience, this folder contains the files and binaries needed to run 
 
 
 
-#### Using the Pre-built OpenOCD Binaries
+## Using the Pre-built OpenOCD Binaries
 
 The `run-openocd-maxdap` and `run-openocd-olimex` scripts automatically select an appropriate binary and run OpenOCD with all arguments required for MAX78000.
 
-##### Linux
+### Linux
 
 On Linux, several packages are required:
 
@@ -16,7 +16,7 @@ On Linux, several packages are required:
 $ sudo apt-get install libusb-1.0 libusb-0.1 libhidapi-libusb0 libhidapi-hidraw0
 ```
 
-##### macOS
+### macOS
 
 On macOS, both the command line developer tools and Homebrew must be installed. Follow the instructions to set up your shell.
 
@@ -33,11 +33,11 @@ The following additional packages are also required:
 
 
 
-#### Building from Scratch
+## Building from Scratch
 
-To obtain the full OpenOCD source code, and to re-build the binaries, please use `git clone https://github.com/MaximIntegratedMicros/openocd.git`. 
+To obtain the full OpenOCD source code, and to re-build the binaries, please use `git clone https://github.com/MaximIntegratedMicros/openocd.git`.
 
-##### Linux
+### Linux
 
 ```shell
 $ ./bootstrap
@@ -46,7 +46,7 @@ $ make
 $ sudo make install  # or use binary from src/
 ```
 
-##### macOS
+### macOS
 
 On macOS, the following packages are needed to build the binary:
 

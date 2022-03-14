@@ -6,7 +6,7 @@ The ‘izer’ includes an unsupported CMSIS-NN code generator. To use it:
 2. Use only networks **without any** input sequences (concatenation) and without element-wise operations. Some or more of these features could be added without too much effort, any suggestions or pull requests are welcome.
 3. Understand that there is no proper build environment.
 
-### Setup
+## Setup
 
 Install a copy of CMSIS_5 at the same level as ai8x-synthesis.
 
@@ -20,7 +20,7 @@ Install a copy of CMSIS_5 at the same level as ai8x-synthesis.
 
 There are additional files in the `assets/cmsis-nn` folder of ai8x-synthesis. These files are added to all projects built by the ‘izer’.
 
-### Generating C Code
+## Generating C Code
 
 To generate C code, use the special “CMSIS-NN” device (instead of MAX78000 or MAX78002). For example, to generate a CIFAR-10 demo for CMSIS-NN, run:
 
@@ -49,7 +49,8 @@ Output of final layer:
 ```
 
 To build for the Cortex-M4 core in MAX78000, instead run
-```
+
+```shell
 (ai8x-synthesis) $ MAXIM_PATH=../../../sdk make -f Makefile.ARM
 ```
 
