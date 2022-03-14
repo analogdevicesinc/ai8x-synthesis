@@ -1,6 +1,5 @@
 ---
-line-length:
-  line_length: 32767
+line-length: false
 emphasis-style: false
 no-inline-html:
   allowed_elements:
