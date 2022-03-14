@@ -20,7 +20,7 @@ Several applications and packages are needed. Some of the installation steps may
 
 #### Maxim Micros SDK
 
-Install the [Maxim Micros SDK](https://www.maximintegrated.com/en/design/software-description.html/swpart=SFW0010820A) for MAX7800X. 
+Install the [Maxim Micros SDK](https://www.maximintegrated.com/en/design/software-description.html/swpart=SFW0010820A) for MAX78000/MAX78002.
 
 ![maximsdk](maximsdk.png)
 
@@ -90,6 +90,7 @@ Check out the training and synthesis repositories as detailed in the [main docum
 
 
 ## Troubleshooting
+
 ### Could not Install Packages due to an OSError
 
 When `pip3 install -U pip setup tools wheel` returns that it could not uninstall pip3.exe, simply ignore the error and repeat the command one more time.
@@ -108,7 +109,7 @@ $ scripts/train_mnist.sh --workers=1
 
 ### Git Executable Error
 
-When running `ai8xize.py` , the software may display an error regarding `GIT_PYTHON_GIT_EXECUTABLE` as shown below. Please set the `GIT_PYTHON_GIT_EXECUTABLE` environment variable as shown [above](#GIT_PYTHON_GIT_EXECUTABLE Environment Variable). 
+When running `ai8xize.py` , the software may display an error regarding `GIT_PYTHON_GIT_EXECUTABLE` as shown below. Please set the `GIT_PYTHON_GIT_EXECUTABLE` environment variable as shown [above](#GIT_PYTHON_GIT_EXECUTABLE Environment Variable).
 
 As an alternative, run the following before calling `ai8xize.py`:
 

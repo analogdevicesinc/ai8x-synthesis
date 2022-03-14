@@ -4,13 +4,13 @@
 
 Windows Subsystem for Linux 2 allows model training under Ubuntu Linux with CUDA hardware acceleration, with full compatibility to the vast number of machine learning tools that are primarily developed on Linux.
 
-### Requirements
+## Requirements
 
-#### Drive Space
+### Drive Space
 
-Ensure there is enough free space for the WSL2 installation and the MAX7800X tools, and datasets. A minimum of 32 GB free space is strongly recommended, but requirements vary with the size of the datasets used.
+Ensure there is enough free space for the WSL2 installation and the MAX78000/MAX78002 tools, and datasets. A minimum of 32 GB free space is strongly recommended, but requirements vary with the size of the datasets used.
 
-#### Windows Version
+### Windows Version
 
 New versions of Windows (Windows 10 **21H2** or newer, and Windows 11) support WSL2, the Windows Subsystem for Windows, *with* CUDA hardware acceleration.
 
@@ -26,7 +26,7 @@ For more information, see https://aka.ms/wsl2-install.
 
 
 
-### CUDA Drivers
+## CUDA Drivers
 
 For certain graphics card models, Nvidia offers drivers that allow CUDA hardware acceleration inside WSL2. Install the latest drivers from https://developer.nvidia.com/cuda/wsl/:
 
@@ -38,7 +38,7 @@ After installing the drivers, ensure CUDA is available to Windows. Open a comman
 
 
 
-### WSL2 Installation
+## WSL2 Installation
 
 Open a command prompt **with Administrator privileges** and install WSL2:
 
@@ -52,7 +52,7 @@ Then reboot.
 
 
 
-### Using Ubuntu on Windows
+## Using Ubuntu on Windows
 
 Start or click on the “Ubuntu” icon and open it.
 
@@ -74,7 +74,7 @@ Ensure CUDA is available inside WSL2 by running `nvidia-smi`.
 
 
 
-### File Sharing with Windows
+## File Sharing with Windows
 
 The WSL2 file system should be used for all actions such as creating git repositories. Operating directly on the Windows file system can cause issues.
 
@@ -91,19 +91,19 @@ The user home is typically at `\\wsl$\Ubuntu\home\<name>\`.
 
 
 
-### Troubleshooting
+## Troubleshooting
 
-#### Graphics Card (CUDA) Memory Use
+### Graphics Card (CUDA) Memory Use
 
 Windows Display Manager will use a portion of the graphics card (CUDA) memory for its display manager, subtracting from the memory available for model training. The amount of used memory is proportional to the screen resolution, and other factors. This can only be prevented when there is a second graphics card present in the system that also offers hardware acceleration. This card must be selected using the Nvidia control panel (Manage 3D Settings – Preferred Graphics Processor).
 
 *Note: Reduce the training batch size to reduce model training memory requirements.*
 
-#### Resource Reporting
+### Resource Reporting
 
 Running `nvidia-smi` inside WSL2 may not in all cases accurately display the total GPU resource usage. Run `nvidia-smi` from a Windows command prompt instead.
 
-#### Lack of Virtualization Features
+### Lack of Virtualization Features
 
 If virtualization is disabled, the system will display an error message. For troubleshooting, please go to https://aka.ms/wsl2-install.
 

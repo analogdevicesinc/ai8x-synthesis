@@ -2,7 +2,7 @@
 
 *July 1, 2021*
 
-### Requirements and Performance
+## Requirements and Performance
 
 Software development for MAX78000 is possible on a 64-bit Raspberry Pi OS with the following restrictions:
 
@@ -13,7 +13,7 @@ Software development for MAX78000 is possible on a 64-bit Raspberry Pi OS with t
 * The installation will take more time than on an x86_64 system, since more Python “wheels” have to be built from source during installation compared to x86_64.
 * Since there is no CUDA on Raspberry Pi, model training will be very slow and a CPU fan is required.
 
-### Installation
+## Installation
 
 First, install the following additional packages on the Raspberry Pi:
 
@@ -26,21 +26,21 @@ libblas-dev libeigen3-dev libprotobuf-dev protobuf-compiler llvm-dev
 
 Then follow the instructions for Ubuntu Linux.
 
-#### OpenOCD
+### OpenOCD
 
 The pre-built binary in the `openocd` folder of the `ai8x-synthesis` project works with MAX78000.
 
 To avoid having to use superuser privileges to run OpenOCD, follow the instructions on https://forgge.github.io/theCore/guides/running-openocd-without-sudo.html.
 
-#### Embedded Arm Compiler
+### Embedded Arm Compiler
 
 The embedded C compiler version 10-2020-q4-major for “aarch64” works on Raspberry Pi OS 64-bit (`gcc-arm-none-eabi-10-2020-q4-major-x86_64-linux.tar.bz2`).
 
-#### Embedded RISC-V Compiler
+### Embedded RISC-V Compiler
 
 The embedded C compiler version v10.1.0-1.1 for “arm64” works on Raspberry Pi OS 64-bit (`xpack-riscv-none-embed-gcc-10.1.0-1.1-linux-arm64.tar.gz`).
 
-#### Training and Synthesis Projects
+### Training and Synthesis Projects
 
 Both model training and C code generation will work on a Raspberry Pi 64-bit. Note that model training will be very slow without CUDA.
 
