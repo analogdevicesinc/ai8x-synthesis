@@ -1,6 +1,6 @@
 # Windows Subsystem for Linux (WSL2)
 
-*December 9, 2021*
+December 9, 2021
 
 Windows Subsystem for Linux 2 allows model training under Ubuntu Linux with CUDA hardware acceleration, with full compatibility to the vast number of machine learning tools that are primarily developed on Linux.
 
@@ -22,13 +22,13 @@ In the start menu, type `About` to determine your Windows version and edition, a
 
 <img src="winver.png" alt="winver" style="zoom:50%;" />
 
-For more information, see https://aka.ms/wsl2-install.
+For more information, see <https://aka.ms/wsl2-install>.
 
 
 
 ## CUDA Drivers
 
-For certain graphics card models, Nvidia offers drivers that allow CUDA hardware acceleration inside WSL2. Install the latest drivers from https://developer.nvidia.com/cuda/wsl/:
+For certain graphics card models, Nvidia offers drivers that allow CUDA hardware acceleration inside WSL2. Install the latest drivers from <https://developer.nvidia.com/cuda/wsl/>:
 
 ![nvidia](nvidia.png)
 
@@ -105,6 +105,6 @@ Running `nvidia-smi` inside WSL2 may not in all cases accurately display the tot
 
 ### Lack of Virtualization Features
 
-If virtualization is disabled, the system will display an error message. For troubleshooting, please go to https://aka.ms/wsl2-install.
+If virtualization is disabled, the system will display an error message. For troubleshooting, please go to <https://aka.ms/wsl2-install>.
 
 ![novm](novm.png)

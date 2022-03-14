@@ -1,7 +1,7 @@
 ---
-line-length: false
+line-length:
+  line_length: 32767
 emphasis-style: false
-no-bare-urls: false
 no-inline-html:
   allowed_elements:
   - u
@@ -12,4 +12,3 @@ code-block-style: false
 commands-show-output: false
 no-duplicate-heading: false
 no-space-in-emphasis: false
-no-emphasis-as-heading: false

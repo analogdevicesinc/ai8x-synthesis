@@ -1,6 +1,6 @@
 # Neural Network Training on Windows
 
-*December 9, 2021*
+December 9, 2021
 
 The preferred and most compatible way to train networks is using the *[Windows Subsystem for Linux (WSL2)](https://github.com/MaximIntegratedAI/ai8x-synthesis/blob/develop/docs/WSL2.md).* However, WSL2 is not always available. The instructions in this document demonstrate how to train networks natively on Windows, without WSL2.
 
