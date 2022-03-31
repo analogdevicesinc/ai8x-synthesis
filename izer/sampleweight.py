@@ -24,6 +24,7 @@ def load(
         conv_groups=None,
         operator=None,
         bypass=None,
+        filename=None,
 ):
     """
     Return sample weights.
@@ -39,7 +40,9 @@ def load(
     #    np.save(f'tests/{dataset}', w)
 
     w = []
-    if cfg_weights is None:
+    if filename is not None:
+        fname = filename
+    elif cfg_weights is None:
         fname = os.path.join('tests', f'weights_{dataset}.npy')
     else:
         fname = os.path.join('tests', f'{cfg_weights}.npy')
@@ -109,6 +112,7 @@ def load_bias(
         no_bias=None,
         operator=None,
         bypass=None,
+        filename=None,
 ):
     """
     Return sample bias weights.
@@ -116,10 +120,13 @@ def load_bias(
     no_bias = no_bias or []
     bias = [None] * layers
 
-    if cfg_bias is not None:
+    if cfg_bias is not None or filename is not None:
         ll = 0
         seq = 0
-        fname = os.path.join('tests', f'bias_{cfg_bias}.npy')
+        if filename is not None:
+            fname = filename
+        else:
+            fname = os.path.join('tests', f'bias_{cfg_bias}.npy')
         with open(fname, mode='rb') as file:
             print(f'Reading bias from {fname}...')
             try:
