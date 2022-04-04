@@ -156,7 +156,7 @@ def convert_checkpoint(input_file, output_file, arguments):
 
             bias_name = '.'.join([layer, operation, 'bias'])
             params_r = torch.flatten(checkpoint_state[k])
-            if sat_fn == get_max_bit_shift:
+            if sat_fn is get_max_bit_shift:
                 if bias_name in checkpoint_state:
                     weight_r = torch.flatten(checkpoint_state[k])
                     bias_r = torch.flatten(checkpoint_state[bias_name])
