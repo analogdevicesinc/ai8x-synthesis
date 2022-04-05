@@ -798,6 +798,11 @@ def load(  # pylint: disable=R0914
                 output_channels.append(new_size0)
                 weights.append(None)
                 bias.append(None)
+                bias_min.append(0)
+                bias_max.append(0)
+                bias_keys.append("N/A")
+                bias_quant.append(0)
+                bias_size.append(0)
                 quantization.append(None)
                 continue
 
