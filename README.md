@@ -1,6 +1,6 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-April 4, 2022
+April 5, 2022
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
@@ -991,7 +991,6 @@ The following example shows the weight memory layout for two layers. The first l
 
 Bias values are stored in separate bias memories. There are four bias memory instances available, and a layer can access any bias memory instance where at least one processor is enabled. By default, bias memories are automatically allocated using a modified Fit-First Descending (FFD) algorithm. Before considering the required resource sizes in descending order, and placing values in the bias memory with the most available resources, the algorithm places those bias values that require a single specified bias memory. The bias memory allocation can optionally be controlled using the [`bias_group`](#`bias_group`-(Optional)) configuration option.
 
-
 ### Weight Storage Example
 
 The file `ai84net.xlsx` contains an example for a single-channel CHW input using the `AI84Net5` network (this example also supports up to four channels in HWC).
@@ -1005,6 +1004,28 @@ The Network Loader prints a kernel map that shows the kernel arrangement based o
 The following picture shows an example of a `Conv2d` with 1×1 kernels, five input channels, two output channels, and a data size of 2×2. The inputs are shown on the left, and the outputs on the right, and the kernels are shown lined up with the associated inputs — the number of kernel rows matches the number of input channels, and the number of kernel columns matches the number of output channels. The lower half of the picture shows how the data is arranged in memory when HWC data is used for both input and output.
 
 ![Conv2Dk1x1](docs/Conv2Dk1x1.png)
+
+### Activation Functions
+
+MAX78000/MAX78002 hardware provides several activation functions.
+
+#### None
+
+There is always an implicit non-linearity when outputting 8-bit data since outputs are [clamped](#Saturation-and-Clipping) to $[–128, +127]$ (or $[–128/128, +127/128]$ during training). Due to the clamping, “no activation” behaves similar to PyTorch’s `nn.Hardtanh(min_value=-128[/128], max_value=127[/128])`.
+
+<img src="docs/noactivation.png" alt="no activation" style="zoom:33%;" />
+
+#### ReLU
+
+All output values are [clipped (saturated)](#Saturation-and-Clipping) to $[0, +127]$. Because of this, `ReLU` behaves more similar to PyTorch’s `nn.Hardtanh(min_value=0, max_value=127[/128])` than to PyTorch’s `nn.ReLU()`.
+
+<img src="docs/relu.png" alt="relu" style="zoom:33%;" />
+
+#### Abs
+
+`Abs` returns the absolute value for all inputs, and then [clamps](#Saturation-and-Clipping) the outputs to  to $[0, +127]$, similar to PyTorch `abs()` followed by `nn.Hardtanh(min_value=0, max_value=127[/128])`.
+
+<img src="docs/abs.png" alt="abs" style="zoom:33%;" />
 
 ### Limitations of MAX78000 Networks
 
@@ -1033,7 +1054,7 @@ The MAX78000 hardware does not support arbitrary network parameters. Specificall
 
 * A programmable layer-specific shift operator is available at the output of a convolution, see [`output_shift` (Optional)](#output_shift-\(Optional\)).
 
-* The supported activation functions are `ReLU` and `Abs`, and a limited subset of `Linear`. *Note that due to clipping, non-linearities are introduced even when not explicitly specifying an activation function.*
+* The supported [activation functions](#Activation-Functions) are `ReLU` and `Abs`, and a limited subset of `Linear`. *Note that due to [clipping](#Saturation-and-Clipping), non-linearities are introduced even when not explicitly specifying an activation function.*
 
 * Pooling:
   * Both max pooling and average pooling are available, with or without convolution.
@@ -1129,7 +1150,7 @@ The MAX78002 hardware does not support arbitrary network parameters. Specificall
 
 * A programmable layer-specific shift operator is available at the output of a convolution, see [`output_shift` (Optional)](#output_shift-\(Optional\)).
 
-* The supported activation functions are `ReLU` and `Abs`, and a limited subset of `Linear`. *Note that due to clipping, non-linearities are introduced even when not explicitly specifying an activation function.*
+* The supported [activation functions](#Activation-Functions) are `ReLU` and `Abs`, and a limited subset of `Linear`. *Note that due to [clipping](#Saturation-and-Clipping), non-linearities are introduced even when not explicitly specifying an activation function.*
 
 * Pooling:
 
@@ -2396,13 +2417,9 @@ Example:
 
 ##### `activate` (Optional)
 
-This key describes whether to activate the layer output (the default is to not activate). When specified, this key must be `ReLU`, `Abs` or `None` (the default). *Please note that there is always an implicit non-linearity when outputting 8-bit data since outputs are clamped to $[–1, +127/128]$.*
-
-Note that the output values are clipped (saturated) to $[0, +127]$. Because of this, `ReLU` behaves more similar to PyTorch’s `nn.Hardtanh(min_value=0, max_value=127)` than to PyTorch’s `nn.ReLU()`.
+This key describes whether to activate the layer output (the default is to not activate). When specified, this key must be `ReLU`, `Abs` or `None` (the default). *Please note that there is always an implicit non-linearity when outputting 8-bit data since outputs are clamped to $[–1, +127/128]$, see [activation functions](#Activation-Functions).*
 
 `output_shift` can be used for (limited) “linear” activation.
-
-<img src="docs/relu.png" alt="relu" style="zoom:33%;" /><img src="docs/abs.png" alt="abs" style="zoom:33%;" /><img src="docs/noactivation.png" alt="no activation" style="zoom:33%;" />
 
 ##### `quantization` (Optional)
 
