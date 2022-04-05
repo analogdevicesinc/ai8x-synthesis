@@ -959,6 +959,7 @@ def load(  # pylint: disable=R0914
                                     w = np.reshape(w, save_shape)
                                     w = np.transpose(w, inv(save_perm))
                                     w = np.reshape(w, dense_shape)
+                                    save_perm = []
 
                         input_channels.append(w.shape[t1])  # Input channels
                         output_channels.append(w.shape[t0])  # Output channels
