@@ -2269,31 +2269,33 @@ class Backend(backend.Backend):
                             assert val < 2**tc.dev.MAX_FBUF_BITS
 
                             # Check rollover vs available data memory
-                            if in_offset[ll] < out_offset[ll] - out_ignore[ll]:
-                                if in_offset[ll] + val * 4 >= out_offset[ll] - out_ignore[ll]:
-                                    eprint(f'{layer_pfx(ll)}Overlapping input and output: '
-                                           f'in_offset 0x{in_offset[ll]:08x} + '
-                                           f'rollover 0x{val:08x} * 4 >= '
-                                           f'out_offset 0x{out_offset[ll]:08x} - '
-                                           f'out_ignore 0x{out_ignore[ll]:08x}.',
-                                           error=not no_error_stop)
-                            else:
-                                if out_offset[ll] + val * 4 >= in_offset[ll]:
-                                    eprint(f'{layer_pfx(ll)}Overlapping input and output: '
-                                           f'out_offset 0x{out_offset[ll]:08x} + '
-                                           f'rollover 0x{val:08x} * 4 >= '
-                                           f'in_offset 0x{in_offset[ll]:08x}.',
-                                           error=not no_error_stop)
-                                if ll == terminating_layer:
-                                    osize = output_dim[ll][0] * output_dim[ll][1] + out_pad[ll]
-                                    if out_offset[ll] + osize * out_expand[ll] * 4 >= \
-                                       in_offset[ll]:
+                            if output_processor_map[ll] & processor_map[ll] != 0:  # Any overlap?
+                                if in_offset[ll] < out_offset[ll] - out_ignore[ll]:
+                                    if in_offset[ll] + val * 4 >= out_offset[ll] - out_ignore[ll]:
+                                        eprint(f'{layer_pfx(ll)}Overlapping input and output: '
+                                               f'in_offset 0x{in_offset[ll]:08x} + '
+                                               f'rollover 0x{val:08x} * 4 >= '
+                                               f'out_offset 0x{out_offset[ll]:08x} - '
+                                               f'out_ignore 0x{out_ignore[ll]:08x}.',
+                                               error=not no_error_stop)
+                                else:
+                                    if out_offset[ll] + val * 4 >= in_offset[ll]:
                                         eprint(f'{layer_pfx(ll)}Overlapping input and output: '
                                                f'out_offset 0x{out_offset[ll]:08x} + '
-                                               f'output of size {osize} ({output_dim_str[ll]}) '
-                                               f'* {out_expand[ll]} * 4 >= '
+                                               f'rollover 0x{val:08x} * 4 >= '
                                                f'in_offset 0x{in_offset[ll]:08x}.',
                                                error=not no_error_stop)
+                                    if ll == terminating_layer:
+                                        osize = output_dim[ll][0] * output_dim[ll][1] + out_pad[ll]
+                                        if out_offset[ll] + osize * out_expand[ll] * 4 >= \
+                                           in_offset[ll]:
+                                            eprint(f'{layer_pfx(ll)}Overlapping input and output: '
+                                                   f'out_offset 0x{out_offset[ll]:08x} + '
+                                                   f'output of size {osize} '
+                                                   f'({output_dim_str[ll]}) '
+                                                   f'* {out_expand[ll]} * 4 >= '
+                                                   f'in_offset 0x{in_offset[ll]:08x}.',
+                                                   error=not no_error_stop)
                             if in_offset[ll] + val * 4 >= tc.dev.INSTANCE_WIDTH \
                                * tc.dev.P_SHARED * 4:
                                 eprint('Input plus rollover exceeds instance size: '
