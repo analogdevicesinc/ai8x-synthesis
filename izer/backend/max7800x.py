@@ -321,6 +321,11 @@ class Backend(backend.Backend):
                 eprint(f'{layer_pfx(ll)}Padding for the final streaming layer must not '
                        'be zero.')
 
+            if not tc.dev.SUPPORT_STREAMING_PASSTHROUGH \
+               and operator[ll] == op.NONE and streaming[ll]:
+                eprint(f'{layer_pfx(ll)}Passthrough operations are not supported for streaming '
+                       'layers.')
+
         if state.mlator and (output_dim[terminating_layer][0]
                              * output_dim[terminating_layer][1] < 4
                              or output_width[terminating_layer] > 8):

@@ -1,6 +1,6 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-April 5, 2022
+April 6, 2022
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
@@ -999,7 +999,7 @@ The file `ai84net.xlsx` contains an example for a single-channel CHW input using
 
 The Network Loader prints a kernel map that shows the kernel arrangement based on the provided network description. It will also flag cases where kernel or bias memories are exceeded.
 
-### Example: `Conv2D`
+### Example: `Conv2d`
 
 The following picture shows an example of a `Conv2d` with 1×1 kernels, five input channels, two output channels, and a data size of 2×2. The inputs are shown on the left, and the outputs on the right, and the kernels are shown lined up with the associated inputs — the number of kernel rows matches the number of input channels, and the number of kernel columns matches the number of output channels. The lower half of the picture shows how the data is arranged in memory when HWC data is used for both input and output.
 
@@ -1183,6 +1183,7 @@ The MAX78002 hardware does not support arbitrary network parameters. Specificall
   * When using `streaming` mode, the product of any layer’s input width, input height, and input channels divided by 64 rounded up must not exceed 2^21: $width * height * ⌈\frac{channels}{64}⌉ < 2^{21}$; _width_ and _height_ must not exceed 2047.
   * Streaming is limited to 8 consecutive layers or fewer, and is limited to four FIFOs (up to 4 input channels in CHW and up to 16 channels in HWC format), see [FIFOs](#FIFOs).
   * Layers that use 1×1 kernels without padding are automatically replaced with equivalent layers that use 3×3 kernels with padding.
+  * Streaming layers must use convolution (i.e., the `Conv1d`, `Conv2d`, or `ConvTranspose2d` [operators](#operation)).
 
 * The weight memory of processors 0, 16, 32, and 48 supports up to 5,120 3×3 Q7 kernels (see [Number Format](#Number-Format)), all other processors support up to 4,096 3×3 Q7 kernels, for a total of [2,340 KiB of kernel memory](docs/AHBAddresses.md).
   When using 1-, 2- or 4-bit weights, the capacity increases accordingly. The hardware supports two different flavors of 1-bit weights, either 0/–1 or +1/–1.
@@ -1225,7 +1226,7 @@ For MAX78000/MAX78002, the product C×H×W must not exceed 16384.
 
 ### Upsampling (Fractionally-Strided 2D Convolutions)
 
-The hardware supports 2D upsampling (“fractionally-strided convolutions,” sometimes called “deconvolution” even though this is not strictly mathematically correct). The PyTorch equivalent is `ConvTranspose2D` with a stride of 2.
+The hardware supports 2D upsampling (“fractionally-strided convolutions,” sometimes called “deconvolution” even though this is not strictly mathematically correct). The PyTorch equivalent is `ConvTranspose2d` with a stride of 2.
 
 The example shows a fractionally-strided convolution with a stride of 2, a pad of 1, and a 3×3 kernel. This “upsamples” the input dimensions from 3×3 to output dimensions of 6×6.
 
@@ -2452,9 +2453,9 @@ Example:
 
 ##### `kernel_size` (Optional)
 
-* For `Conv2D`, this key must be `3x3` (the default) or `1x1`.
-* For `Conv1D`, this key must be `1` through `9`.
-* For `ConvTranspose2D`, this key must be `3x3` (the default).
+* For `Conv2d`, this key must be `3x3` (the default) or `1x1`.
+* For `Conv1d`, this key must be `1` through `9`.
+* For `ConvTranspose2d`, this key must be `3x3` (the default).
 
 Example:
         `kernel_size: 1x1`
