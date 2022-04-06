@@ -297,15 +297,16 @@ class Backend(backend.Backend):
         if any(streaming) and start_layer != 0:
             eprint('`--start_layer` must be 0 when using streaming.')
 
-        for ll in range(min(tc.dev.MAX_STREAM_LAYERS, layers)):
+        for ll in range(min(tc.dev.MAX_STREAM_LAYERS + 1, layers)):
             if next_sequence[ll] != -1 and next_sequence[ll] != ll + 1 and streaming[ll]:
                 eprint(f'{layer_pfx(ll)}`next_sequence` must be {layer_str(ll+1)} when '
                        f'using streaming. Currently configured: {layer_str(next_sequence[ll])}')
 
-            if tc.dev.EMULATE_1X1_STREAMING and streaming[ll] and kernel_size[ll] == [1, 1] \
-               and operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D]:
-                nprint(f'{layer_pfx(ll)}Using 3x3 kernel hardware for 1x1 streaming '
-                       'layer.')
+            if tc.dev.EMULATE_1X1_STREAMING and kernel_size[ll] == [1, 1] \
+               and operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D] \
+               and (streaming[ll] or prev_sequence[ll] >= 0 and streaming[prev_sequence[ll]]):
+                nprint(f'{layer_pfx(ll)}Using 3x3 kernel hardware for layer with 1x1 kernel due '
+                       'to streaming.')
                 # Create 3x3 weights from 1x1 weights and emulate using 3x3 kernels
                 weight33 = np.zeros((kernel[ll].shape[0], 3, 3), dtype=np.int64)
                 weight33[:, 1, 1] = kernel[ll][:, 0, 0]
