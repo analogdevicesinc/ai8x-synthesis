@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -345,15 +345,18 @@ def pool2d(
             for row in range(0, output_size[1]*stride[0], stride[0]):
                 for col in range(0, output_size[2]*stride[1], stride[1]):
                     if average:
-                        avg = np.average(data[c][row:row+pool[0]*dilation[0]:dilation[0],
-                                                 col:col+pool[1]*dilation[1]:dilation[1]])
+                        avg = np.mean(data[c][row:row+pool[0]*dilation[0]:dilation[0],
+                                              col:col+pool[1]*dilation[1]:dilation[1]])
                         if floor:
-                            if avg < 0:
+                            if avg < 0.:
                                 val = np.ceil(avg).astype(np.int64).clip(min=-128, max=127)
                             else:
                                 val = np.floor(avg).astype(np.int64).clip(min=-128, max=127)
                         else:
-                            val = np.floor(avg + 0.5).astype(np.int64).clip(min=-128, max=127)
+                            if avg < 0.:
+                                val = np.ceil(avg - 0.5).astype(np.int64).clip(min=-128, max=127)
+                            else:
+                                val = np.floor(avg + 0.5).astype(np.int64).clip(min=-128, max=127)
                     else:
                         val = np.amax(data[c][row:row+pool[0]*dilation[0]:dilation[0],
                                               col:col+pool[1]*dilation[1]:dilation[1]])
@@ -381,7 +384,10 @@ def pool2d(
         if floor:
             pooled = np.nanmean(view, dtype=np.int64, axis=(3, 4))
         else:
-            pooled = np.round(np.nanmean(view, axis=(3, 4))).astype(np.int64)
+            pooled = np.mean(view, axis=(3, 4))
+            pooled = np.ceil(pooled - 0.5, where=pooled < 0., out=pooled)
+            pooled = np.floor(pooled + 0.5, where=pooled >= 0., out=pooled) \
+                .astype(np.int64).clip(min=-128, max=127)
     else:
         pooled = np.nanmax(view, axis=(3, 4))
 
