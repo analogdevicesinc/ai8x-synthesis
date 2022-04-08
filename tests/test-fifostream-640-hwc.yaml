@@ -1,28 +1,29 @@
+---
 # 640x8 FIFO
 
 arch: test
 dataset: test_fifostream-640
 
 layers:
-- pad: 1
-  activate: ReLU
-  out_offset: 0x2a00
-  processors: 0x0000000000000007
-  data_format: HWC
-  streaming: true
-  op: conv2d
-- max_pool: 2
-  pool_stride: 2
-  pad: 1
-  activate: ReLU
-  out_offset: 0x5d00
-  processors: 0xffffffffffffffff
-  streaming: true
-  op: conv2d
-- max_pool: 2
-  pool_stride: 2
-  pad: 1
-  out_offset: 0x7700
-  processors: 0x00000000ffffffff
-  streaming: true
-  op: conv2d
+  - pad: 1
+    activate: ReLU
+    out_offset: 0x2a00
+    processors: 0x0000000000000007
+    data_format: HWC
+    streaming: true
+    op: conv2d
+  - max_pool: 2
+    pool_stride: 2
+    pad: 1
+    activate: ReLU
+    out_offset: 0x5d00
+    processors: 0xffffffffffffffff
+    streaming: true
+    op: conv2d
+  - max_pool: 2
+    pool_stride: 2
+    pad: 1
+    out_offset: 0x7700
+    processors: 0x00000000ffffffff
+    streaming: true
+    op: conv2d

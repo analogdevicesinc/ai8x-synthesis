@@ -1,3 +1,4 @@
+---
 # CHW (big data) configuration for CIFAR-10
 # Note: This does not work past the third layer due to lack of weight memory
 # Used for testing the CHW input with gaps
@@ -7,29 +8,29 @@ dataset: test_bypass
 
 # Define layer parameters in order of the layer sequence
 layers:
-- activate: ReLU
-  in_channels: 8
-  out_offset: 0x2000
-  processors: 0x00000000000000ff
-  op: conv2d
-  pad: 1
-  bypass: True
-- max_pool: 2
-  pool_stride: 2
-  activate: abs
-  out_offset: 0
-  processors: 0x00000000000000ff
-  op: conv2d
-  pad: 0
-  kernel_size: 1x1
-  bypass: True
-- max_pool: 2
-  pool_stride: 1
-  activate: none
-  out_offset: 0x2000
-  out_channels: 12
-  processors: 0x00000000000000ff
-  op: conv2d
-  pad: 0
-  kernel_size: 1x1
-  bypass: True
+  - activate: ReLU
+    in_channels: 8
+    out_offset: 0x2000
+    processors: 0x00000000000000ff
+    op: conv2d
+    pad: 1
+    bypass: true
+  - max_pool: 2
+    pool_stride: 2
+    activate: abs
+    out_offset: 0
+    processors: 0x00000000000000ff
+    op: conv2d
+    pad: 0
+    kernel_size: 1x1
+    bypass: true
+  - max_pool: 2
+    pool_stride: 1
+    activate: none
+    out_offset: 0x2000
+    out_channels: 12
+    processors: 0x00000000000000ff
+    op: conv2d
+    pad: 0
+    kernel_size: 1x1
+    bypass: true

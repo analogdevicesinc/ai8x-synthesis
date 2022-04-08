@@ -1,3 +1,4 @@
+---
 # Readahead test
 
 arch: test
@@ -5,11 +6,11 @@ dataset: test_readahead-pool
 
 # Define layer parameters in order of the layer sequence
 layers:
-- pad: 1
-  activate: ReLU
-  out_offset: 0x4000
-  processors: 0x0000000000000007
-  data_format: HWC
-  op: Conv2d
-  max_pool: 2
-  pool_stride: 2
+  - pad: 1
+    activate: ReLU
+    out_offset: 0x4000
+    processors: 0x0000000000000007
+    data_format: HWC
+    op: Conv2d
+    max_pool: 2
+    pool_stride: 2

@@ -1,10 +1,11 @@
+---
 # Test Conv1D (CMSIS-NN only)
 
 arch: test
 dataset: test_conv1d
 
 layers:
-- operation: conv1d
-  kernel_size: 9
-  stride: 3
-  pad: 6
+  - operation: conv1d
+    kernel_size: 9
+    stride: 3
+    pad: 6

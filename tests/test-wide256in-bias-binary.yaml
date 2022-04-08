@@ -1,12 +1,13 @@
+---
 arch: test
 dataset: test_wide256in
 bias: eight
 
 layers:
-- pad: 0
-  out_offset: 0x2000
-  processors: 0xffffffffffffffff
-  data_format: HWC
-  quantization: binary
-  output_shift: -4
-  op: conv2d
+  - pad: 0
+    out_offset: 0x2000
+    processors: 0xffffffffffffffff
+    data_format: HWC
+    quantization: binary
+    output_shift: -4
+    op: conv2d

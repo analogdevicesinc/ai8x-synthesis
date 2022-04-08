@@ -1,14 +1,15 @@
+---
 # Test Non-Square Conv2D with -1/+1 weights
 
 arch: test
 dataset: test_nonsquare
 
 layers:
-- out_offset: 0x2000
-  processors: 0x000000000000001f
-  pad: 1
-  max_pool: 2
-  pool_stride: 1
-  op: conv2d
-  quantization: binary
-  output_shift: -2
+  - out_offset: 0x2000
+    processors: 0x000000000000001f
+    pad: 1
+    max_pool: 2
+    pool_stride: 1
+    op: conv2d
+    quantization: binary
+    output_shift: -2

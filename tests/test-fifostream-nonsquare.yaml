@@ -1,17 +1,18 @@
+---
 # Four FIFOs, nonsquare data
 
 arch: test
 dataset: test_fifostream-nonsquare
 
 layers:
-- pad: 1
-  out_offset: 0x400
-  processors: 0x0001000100010001
-  data_format: CHW
-  streaming: true
-  op: conv2d
-- pad: 1
-  out_offset: 0x800
-  processors: 0x000000000000fffe
-  streaming: true
-  op: conv2d
+  - pad: 1
+    out_offset: 0x400
+    processors: 0x0001000100010001
+    data_format: CHW
+    streaming: true
+    op: conv2d
+  - pad: 1
+    out_offset: 0x800
+    processors: 0x000000000000fffe
+    streaming: true
+    op: conv2d

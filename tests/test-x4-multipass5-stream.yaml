@@ -1,21 +1,22 @@
+---
 arch: test
 dataset: test_multipass5
 
 layers:
-- pad: 0
-  activate: ReLU
-  in_offset: 0xf000
-  out_offset: 0x8000
-  processors: 0x0000000000000007
-  data_format: HWC
-  op: Conv2d
-  streaming: True
-- max_pool: 2
-  pool_stride: 2
-  pad: 0
-  activate: ReLU
-  out_offset: 0x6000
-  processors: 0xffffffffffffffff
-  op: Conv2d
-  streaming: True
-  calcx4: True
+  - pad: 0
+    activate: ReLU
+    in_offset: 0xf000
+    out_offset: 0x8000
+    processors: 0x0000000000000007
+    data_format: HWC
+    op: Conv2d
+    streaming: true
+  - max_pool: 2
+    pool_stride: 2
+    pad: 0
+    activate: ReLU
+    out_offset: 0x6000
+    processors: 0xffffffffffffffff
+    op: Conv2d
+    streaming: true
+    calcx4: true

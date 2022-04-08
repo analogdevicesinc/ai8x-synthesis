@@ -5,9 +5,9 @@ weights: weights_test_burnin-random_16-16
 
 # Define layer parameters in order of the layer sequence
 layers:
-- pad: 1
-  activate: ReLU
-  out_offset: 0x4000
-  processors: 0x000000000000ffff
-  data_format: HWC
-  op: Conv2d
+  - pad: 1
+    activate: ReLU
+    out_offset: 0x4000
+    processors: 0x000000000000ffff
+    data_format: HWC
+    op: Conv2d

@@ -1,3 +1,4 @@
+---
 # HWC (little data) configuration for CIFAR-10
 # Allow for readahead memory organization
 
@@ -6,11 +7,11 @@ dataset: test_burnin-alternating_64x128x128
 
 # Define layer parameters in order of the layer sequence
 layers:
-- pad: 1
-  activate: None
-  out_offset: 0x10000
-  processors: 0xffffffffffffffff
-  data_format: HWC
-  op: Conv2d
-  max_pool: 16
-  pool_stride: 16
+  - pad: 1
+    activate: None
+    out_offset: 0x10000
+    processors: 0xffffffffffffffff
+    data_format: HWC
+    op: Conv2d
+    max_pool: 16
+    pool_stride: 16

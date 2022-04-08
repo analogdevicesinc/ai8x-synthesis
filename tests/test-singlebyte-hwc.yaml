@@ -1,9 +1,10 @@
+---
 arch: test
 dataset: test_singlebyte
 
 layers:
-- pad: 1
-  out_offset: 0x2000
-  processors: 0x0000000000000001
-  data_format: HWC
-  op: conv2d
+  - pad: 1
+    out_offset: 0x2000
+    processors: 0x0000000000000001
+    data_format: HWC
+    op: conv2d

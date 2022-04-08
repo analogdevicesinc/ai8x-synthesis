@@ -5,10 +5,10 @@ arch: test
 dataset: test_conv1d-pool-mpin
 
 layers:
-- out_offset: 0x2000
-  processors: 0xffffffffffffffff
-  operation: conv1d
-  kernel_size: 3
-  max_pool: 2
-  pool_stride: 2
-  pad: 1
+  - out_offset: 0x2000
+    processors: 0xffffffffffffffff
+    operation: conv1d
+    kernel_size: 3
+    max_pool: 2
+    pool_stride: 2
+    pad: 1

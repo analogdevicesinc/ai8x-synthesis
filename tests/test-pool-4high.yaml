@@ -1,13 +1,14 @@
+---
 # 640x8 FIFO
 
 arch: test
 dataset: test_pool-4high
 
 layers:
-- max_pool: 2
-  in_offset: 0x4000
-  pool_stride: 2
-  pad: 1
-  out_offset: 0x6000
-  processors: 0x00000000ffffffff
-  op: conv2d
+  - max_pool: 2
+    in_offset: 0x4000
+    pool_stride: 2
+    pad: 1
+    out_offset: 0x6000
+    processors: 0x00000000ffffffff
+    op: conv2d

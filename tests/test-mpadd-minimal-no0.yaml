@@ -1,40 +1,41 @@
+---
 arch: ai85nettestmpaddminimal
 dataset: test_mpadd
 
 layers:
-# Layer 0
-- processors: 0x0000000000000007
-  output_processors: 0xffffffffffffffff
-  operation: conv2d
-  kernel_size: 1x1
-  pad: 0
-  out_offset: 0x1000
-  data_format: HWC
-# Layer 1
-- processors: 0xffffffffffffffff
-  output_processors: 0xffffffffffffffff
-  in_offset: 0x1000
-  out_offset: 0x2000
-  operation: conv2d
-  kernel_size: 1x1
-  pad: 0
-  in_sequences: [0]
-  write_gap: 1
-# Layer 2
-- processors: 0xffffffffffffffff
-  output_processors: 0xffffffffffffffff
-  in_offset: 0x1000
-  out_offset: 0x2004
-  operation: conv2d
-  kernel_size: 1x1
-  pad: 0
-  in_sequences: [0]
-  write_gap: 1
-  output_shift: 1
-# Layer 3
-- processors: 0xffffffffffffffff
-  output_processors: 0xffffffffffffffff
-  in_offset: 0x2000
-  out_offset: 0x3000
-  operation: add
-  in_sequences: [1, 2]
+  # Layer 0
+  - processors: 0x0000000000000007
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    out_offset: 0x1000
+    data_format: HWC
+  # Layer 1
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    in_offset: 0x1000
+    out_offset: 0x2000
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    in_sequences: [0]
+    write_gap: 1
+  # Layer 2
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    in_offset: 0x1000
+    out_offset: 0x2004
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    in_sequences: [0]
+    write_gap: 1
+    output_shift: 1
+  # Layer 3
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    in_offset: 0x2000
+    out_offset: 0x3000
+    operation: add
+    in_sequences: [1, 2]

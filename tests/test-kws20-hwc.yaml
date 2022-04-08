@@ -1,3 +1,4 @@
+---
 # HWC (big data) configuration for KWS20
 
 arch: ai85kws20net
@@ -5,61 +6,61 @@ dataset: KWS_20
 
 # Define layer parameters in order of the layer sequence
 layers:
-# Conv 1D - 4 layers
-- pad: 0
-  activate: ReLU
-  out_offset: 0x2000
-  processors: 0xffffffffffffffff
-  data_format: HWC
-  operation: Conv1d
-  kernel_size: 1
-- pad: 0
-  activate: ReLU
-  out_offset: 0x0000
-  processors: 0x000fffffffffffff
-  operation: Conv1d
-  kernel_size: 1
-- pad: 0
-  activate: ReLU
-  out_offset: 0x2000
-  processors: 0x000fffffffffffff
-  operation: Conv1d
-  kernel_size: 1
-- pad: 0
-  activate: ReLU
-  out_offset: 0x0000
-  processors: 0x0003ffffffffffff
-  operation: Conv1d
-  kernel_size: 1
-# Conv 2D - 5 layers
-- pad: 1
-  in_dim: [16, 8]
-  activate: ReLU
-  out_offset: 0x2000
-  processors: 0x000000000000ffff
-  operation: Conv2d
-- pad: 1
-  activate: ReLU
-  out_offset: 0x0000
-  processors: 0x0000000ffffffff0
-  operation: Conv2d
-- pad: 1
-  activate: ReLU
-  out_offset: 0x2000
-  processors: 0xffffffffffffffff
-  operation: Conv2d
-- pad: 1
-  activate: ReLU
-  out_offset: 0x0000
-  processors: 0xffffffffffffffff
-  operation: Conv2d
-- pad: 1
-  activate: ReLU
-  out_offset: 0x0000
-  processors: 0xfffffffc00000000
-  operation: Conv2d
-- flatten: true
-  out_offset: 0x2000
-  processors: 0x000000000000007f
-  operation: MLP
-  output_width: 32
+  # Conv 1D - 4 layers
+  - pad: 0
+    activate: ReLU
+    out_offset: 0x2000
+    processors: 0xffffffffffffffff
+    data_format: HWC
+    operation: Conv1d
+    kernel_size: 1
+  - pad: 0
+    activate: ReLU
+    out_offset: 0x0000
+    processors: 0x000fffffffffffff
+    operation: Conv1d
+    kernel_size: 1
+  - pad: 0
+    activate: ReLU
+    out_offset: 0x2000
+    processors: 0x000fffffffffffff
+    operation: Conv1d
+    kernel_size: 1
+  - pad: 0
+    activate: ReLU
+    out_offset: 0x0000
+    processors: 0x0003ffffffffffff
+    operation: Conv1d
+    kernel_size: 1
+  # Conv 2D - 5 layers
+  - pad: 1
+    in_dim: [16, 8]
+    activate: ReLU
+    out_offset: 0x2000
+    processors: 0x000000000000ffff
+    operation: Conv2d
+  - pad: 1
+    activate: ReLU
+    out_offset: 0x0000
+    processors: 0x0000000ffffffff0
+    operation: Conv2d
+  - pad: 1
+    activate: ReLU
+    out_offset: 0x2000
+    processors: 0xffffffffffffffff
+    operation: Conv2d
+  - pad: 1
+    activate: ReLU
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff
+    operation: Conv2d
+  - pad: 1
+    activate: ReLU
+    out_offset: 0x0000
+    processors: 0xfffffffc00000000
+    operation: Conv2d
+  - flatten: true
+    out_offset: 0x2000
+    processors: 0x000000000000007f
+    operation: MLP
+    output_width: 32
