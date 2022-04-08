@@ -2093,13 +2093,18 @@ class Backend(backend.Backend):
                             elif ll == start_layer and fifo:
                                 if streaming[ll]:
                                     # =IF(AND(Stride=1,Row_Pool=1),Col_Inc,
-                                    #     (((Row_Inc-1)*(Cols+(Pad*2)))+Col_Inc))
+                                    #     ((((Row_Inc)*(Cols+(Pad*2)))
+                                    #                       +(Pad+(2*Col_Inc)))*Elementwise) +
+                                    #      (Read_Ahead*Stride))
                                     if pool_stride[ll][0] == 1 and pool[ll][0] == 1:
                                         stream_start = col_inc
                                     else:
-                                        stream_start = (row_inc - 1) * \
-                                            (hw_input_dim[ll][1]
-                                             + 2 * hw_padding[ll][1]) + col_inc
+                                        stream_start = (
+                                            row_inc * (hw_input_dim[ll][1] + hw_padding[ll][1] * 2)
+                                            + (hw_padding[ll][1] + 2 * col_inc)
+                                        ) * operands[ll]
+                                        if rd_ahead[ll]:
+                                            stream_start += pool_stride[ll][1]
                                 else:  # fifo only
                                     stream_start = hw_input_dim[ll][0] * hw_input_dim[ll][1]
                                 stream_start_hwc = stream_start
@@ -2154,13 +2159,14 @@ class Backend(backend.Backend):
                                     if override_delta1 is not None:
                                         delta1 = override_delta1
                                     else:
-                                        # =(Stride*Elementwise)-1
-                                        delta1 = pool_stride[ll][1] * operands[ll] - 1
+                                        # =IF(AND(Stride=1,Row_Pool=1),(Stride*Elementwise)-1,
+                                        #     (Stride*Elementwise))
+                                        delta1 = pool_stride[ll][1] * operands[ll]
+                                        if pool_stride[ll][0] == 1 and pool[ll][0] == 1:
+                                            delta1 -= 1
                                         if big_data[ll]:
                                             # =(ROUNDUP(Delta1_0/4,0))
                                             delta1 = (delta1 + 3) // 4
-                                        if pipeline and delta1 > 0:
-                                            delta1 += 1
 
                                     if override_delta2 is not None:
                                         delta2 = override_delta2
@@ -2254,8 +2260,10 @@ class Backend(backend.Backend):
                             else:
                                 # MAX78002 - Buffer
                                 if ll == start_layer:
-                                    # =Prefill0 + Col_Inc
-                                    val = stream_start_hwc + col_inc
+                                    # =Prefill0 + ((Stride - 1) * (Cols + (Pad * 2))) + Col_Inc
+                                    val = stream_start_hwc + col_inc \
+                                        + (pool_stride[ll][1] - 1) * (hw_input_dim[ll][1]
+                                                                      + hw_padding[ll][1] * 2)
                                     if big_data[ll]:
                                         # =Buffer0*4*Stride
                                         val *= pool_stride[ll][1] * 4
