@@ -285,6 +285,12 @@ def get_parser() -> argparse.Namespace:
                         default=None, help="use new kernel loader (default on MAX78002)")
     mgroup.add_argument('--old-kernel-loader', dest='new_kernel_loader', action='store_false',
                         default=None, help="use old kernel loader (default on MAX78000)")
+    group.add_argument('--weight-input', metavar='S', default=None,
+                       help="weight input file name (development only, "
+                            "default: 'tests/weight_test_dataset.npy')")
+    group.add_argument('--bias-input', metavar='S', default=None,
+                       help="bias input file name (development only, "
+                            "default: 'tests/bias_dataset.npy')")
 
     # RTL sim
     group = parser.add_argument_group('RTL simulation')

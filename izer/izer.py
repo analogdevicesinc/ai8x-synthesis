@@ -125,6 +125,7 @@ def main():
                 params['conv_groups'],
                 params['operator'],
                 params['bypass'],
+                filename=args.weight_input,
             )
         bias = sampleweight.load_bias(
             cfg_layers,
@@ -132,6 +133,7 @@ def main():
             args.no_bias,
             params['operator'],
             params['bypass'],
+            filename=args.bias_input,
         )
     if cfg_layers > layers:
         # Add empty weights/biases and channel counts for layers not in checkpoint file.

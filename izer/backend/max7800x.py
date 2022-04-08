@@ -297,15 +297,16 @@ class Backend(backend.Backend):
         if any(streaming) and start_layer != 0:
             eprint('`--start_layer` must be 0 when using streaming.')
 
-        for ll in range(min(tc.dev.MAX_STREAM_LAYERS, layers)):
+        for ll in range(min(tc.dev.MAX_STREAM_LAYERS + 1, layers)):
             if next_sequence[ll] != -1 and next_sequence[ll] != ll + 1 and streaming[ll]:
                 eprint(f'{layer_pfx(ll)}`next_sequence` must be {layer_str(ll+1)} when '
                        f'using streaming. Currently configured: {layer_str(next_sequence[ll])}')
 
-            if tc.dev.EMULATE_1X1_STREAMING and streaming[ll] and kernel_size[ll] == [1, 1] \
-               and operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D]:
-                nprint(f'{layer_pfx(ll)}Using 3x3 kernel hardware for 1x1 streaming '
-                       'layer.')
+            if tc.dev.EMULATE_1X1_STREAMING and kernel_size[ll] == [1, 1] \
+               and operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D] \
+               and (streaming[ll] or prev_sequence[ll] >= 0 and streaming[prev_sequence[ll]]):
+                nprint(f'{layer_pfx(ll)}Using 3x3 kernel hardware for layer with 1x1 kernel due '
+                       'to streaming.')
                 # Create 3x3 weights from 1x1 weights and emulate using 3x3 kernels
                 weight33 = np.zeros((kernel[ll].shape[0], 3, 3), dtype=np.int64)
                 weight33[:, 1, 1] = kernel[ll][:, 0, 0]
@@ -320,6 +321,11 @@ class Backend(backend.Backend):
                and (padding[ll][0] == 0 or padding[ll][1] == 0):
                 eprint(f'{layer_pfx(ll)}Padding for the final streaming layer must not '
                        'be zero.')
+
+            if not tc.dev.SUPPORT_STREAMING_PASSTHROUGH \
+               and operator[ll] == op.NONE and streaming[ll]:
+                eprint(f'{layer_pfx(ll)}Passthrough operations are not supported for streaming '
+                       'layers.')
 
         if state.mlator and (output_dim[terminating_layer][0]
                              * output_dim[terminating_layer][1] < 4
@@ -2087,13 +2093,18 @@ class Backend(backend.Backend):
                             elif ll == start_layer and fifo:
                                 if streaming[ll]:
                                     # =IF(AND(Stride=1,Row_Pool=1),Col_Inc,
-                                    #     (((Row_Inc-1)*(Cols+(Pad*2)))+Col_Inc))
+                                    #     ((((Row_Inc)*(Cols+(Pad*2)))
+                                    #                       +(Pad+(2*Col_Inc)))*Elementwise) +
+                                    #      (Read_Ahead*Stride))
                                     if pool_stride[ll][0] == 1 and pool[ll][0] == 1:
                                         stream_start = col_inc
                                     else:
-                                        stream_start = (row_inc - 1) * \
-                                            (hw_input_dim[ll][1]
-                                             + 2 * hw_padding[ll][1]) + col_inc
+                                        stream_start = (
+                                            row_inc * (hw_input_dim[ll][1] + hw_padding[ll][1] * 2)
+                                            + (hw_padding[ll][1] + 2 * col_inc)
+                                        ) * operands[ll]
+                                        if rd_ahead[ll]:
+                                            stream_start += pool_stride[ll][1]
                                 else:  # fifo only
                                     stream_start = hw_input_dim[ll][0] * hw_input_dim[ll][1]
                                 stream_start_hwc = stream_start
@@ -2148,13 +2159,14 @@ class Backend(backend.Backend):
                                     if override_delta1 is not None:
                                         delta1 = override_delta1
                                     else:
-                                        # =(Stride*Elementwise)-1
-                                        delta1 = pool_stride[ll][1] * operands[ll] - 1
+                                        # =IF(AND(Stride=1,Row_Pool=1),(Stride*Elementwise)-1,
+                                        #     (Stride*Elementwise))
+                                        delta1 = pool_stride[ll][1] * operands[ll]
+                                        if pool_stride[ll][0] == 1 and pool[ll][0] == 1:
+                                            delta1 -= 1
                                         if big_data[ll]:
                                             # =(ROUNDUP(Delta1_0/4,0))
                                             delta1 = (delta1 + 3) // 4
-                                        if pipeline and delta1 > 0:
-                                            delta1 += 1
 
                                     if override_delta2 is not None:
                                         delta2 = override_delta2
@@ -2248,8 +2260,10 @@ class Backend(backend.Backend):
                             else:
                                 # MAX78002 - Buffer
                                 if ll == start_layer:
-                                    # =Prefill0 + Col_Inc
-                                    val = stream_start_hwc + col_inc
+                                    # =Prefill0 + ((Stride - 1) * (Cols + (Pad * 2))) + Col_Inc
+                                    val = stream_start_hwc + col_inc \
+                                        + (pool_stride[ll][1] - 1) * (hw_input_dim[ll][1]
+                                                                      + hw_padding[ll][1] * 2)
                                     if big_data[ll]:
                                         # =Buffer0*4*Stride
                                         val *= pool_stride[ll][1] * 4
@@ -2269,31 +2283,33 @@ class Backend(backend.Backend):
                             assert val < 2**tc.dev.MAX_FBUF_BITS
 
                             # Check rollover vs available data memory
-                            if in_offset[ll] < out_offset[ll] - out_ignore[ll]:
-                                if in_offset[ll] + val * 4 >= out_offset[ll] - out_ignore[ll]:
-                                    eprint(f'{layer_pfx(ll)}Overlapping input and output: '
-                                           f'in_offset 0x{in_offset[ll]:08x} + '
-                                           f'rollover 0x{val:08x} * 4 >= '
-                                           f'out_offset 0x{out_offset[ll]:08x} - '
-                                           f'out_ignore 0x{out_ignore[ll]:08x}.',
-                                           error=not no_error_stop)
-                            else:
-                                if out_offset[ll] + val * 4 >= in_offset[ll]:
-                                    eprint(f'{layer_pfx(ll)}Overlapping input and output: '
-                                           f'out_offset 0x{out_offset[ll]:08x} + '
-                                           f'rollover 0x{val:08x} * 4 >= '
-                                           f'in_offset 0x{in_offset[ll]:08x}.',
-                                           error=not no_error_stop)
-                                if ll == terminating_layer:
-                                    osize = output_dim[ll][0] * output_dim[ll][1] + out_pad[ll]
-                                    if out_offset[ll] + osize * out_expand[ll] * 4 >= \
-                                       in_offset[ll]:
+                            if output_processor_map[ll] & processor_map[ll] != 0:  # Any overlap?
+                                if in_offset[ll] < out_offset[ll] - out_ignore[ll]:
+                                    if in_offset[ll] + val * 4 >= out_offset[ll] - out_ignore[ll]:
+                                        eprint(f'{layer_pfx(ll)}Overlapping input and output: '
+                                               f'in_offset 0x{in_offset[ll]:08x} + '
+                                               f'rollover 0x{val:08x} * 4 >= '
+                                               f'out_offset 0x{out_offset[ll]:08x} - '
+                                               f'out_ignore 0x{out_ignore[ll]:08x}.',
+                                               error=not no_error_stop)
+                                else:
+                                    if out_offset[ll] + val * 4 >= in_offset[ll]:
                                         eprint(f'{layer_pfx(ll)}Overlapping input and output: '
                                                f'out_offset 0x{out_offset[ll]:08x} + '
-                                               f'output of size {osize} ({output_dim_str[ll]}) '
-                                               f'* {out_expand[ll]} * 4 >= '
+                                               f'rollover 0x{val:08x} * 4 >= '
                                                f'in_offset 0x{in_offset[ll]:08x}.',
                                                error=not no_error_stop)
+                                    if ll == terminating_layer:
+                                        osize = output_dim[ll][0] * output_dim[ll][1] + out_pad[ll]
+                                        if out_offset[ll] + osize * out_expand[ll] * 4 >= \
+                                           in_offset[ll]:
+                                            eprint(f'{layer_pfx(ll)}Overlapping input and output: '
+                                                   f'out_offset 0x{out_offset[ll]:08x} + '
+                                                   f'output of size {osize} '
+                                                   f'({output_dim_str[ll]}) '
+                                                   f'* {out_expand[ll]} * 4 >= '
+                                                   f'in_offset 0x{in_offset[ll]:08x}.',
+                                                   error=not no_error_stop)
                             if in_offset[ll] + val * 4 >= tc.dev.INSTANCE_WIDTH \
                                * tc.dev.P_SHARED * 4:
                                 eprint('Input plus rollover exceeds instance size: '

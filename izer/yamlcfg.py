@@ -241,9 +241,14 @@ def parse(
         if 'in_channels' in ll:
             input_chan[sequence] = ll['in_channels']
         if 'in_dim' in ll:
-            if isinstance(ll['in_dim'], list) and len(ll['in_dim']) > 2:
-                error_exit('`in_dim` must not exceed two dimensions', sequence)
-            input_dim[sequence] = ll['in_dim']
+            val = ll['in_dim']
+            if isinstance(val, int):
+                val = [val, 1]
+            else:
+                if not isinstance(val, list) or len(val) > 2:
+                    error_exit('`in_dim` must be an integer or list not exceeding two dimensions',
+                               sequence)
+            input_dim[sequence] = val
         if 'in_skip' in ll or 'read_gap' in ll:
             key = 'in_skip' if 'in_skip' in ll else 'read_gap'
             input_skip[sequence] = ll[key]
