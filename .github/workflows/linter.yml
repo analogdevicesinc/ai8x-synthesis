@@ -32,4 +32,4 @@ jobs:
           VALIDATE_NATURAL_LANGUAGE: false
           VALIDATE_CLANG_FORMAT: false
           VALIDATE_GITHUB_ACTIONS: false
-          FILTER_REGEX_EXCLUDE: (attic/.*|.github/workflows/*\.yml|assets/vscode/.vscode/*\.json)
+          FILTER_REGEX_EXCLUDE: (attic/.*|\.github/workflows/.*\.yml|assets/vscode/\.vscode/.*\.json)
