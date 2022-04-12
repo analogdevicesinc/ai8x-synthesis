@@ -1,9 +1,10 @@
+---
 # Test upsampling/deconv
 
 arch: test
 dataset: test_upsample-nonsquare
 
 layers:
-- out_offset: 0x2000
-  processors: 0x0000000000000007
-  operation: convtranspose2d
+  - out_offset: 0x2000
+    processors: 0x0000000000000007
+    operation: convtranspose2d

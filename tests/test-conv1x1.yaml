@@ -1,12 +1,13 @@
+---
 # Test 1x1 Conv2D
 
 arch: test
 dataset: test_conv1x1
 
 layers:
-- out_offset: 0x2000
-  processors: 0x000000000001ffff
-  operation: conv2d
-  kernel_size: 1x1
-  stride: 1
-  pad: 0
+  - out_offset: 0x2000
+    processors: 0x000000000001ffff
+    operation: conv2d
+    kernel_size: 1x1
+    stride: 1
+    pad: 0

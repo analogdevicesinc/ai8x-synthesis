@@ -1,16 +1,17 @@
+---
 arch: test
 dataset: test_chan1024-1024
 
 layers:
-- pad: 1
-  out_offset: 0x2000
-  processors: 0x0000000000000007
-  quantization: 4
-  output_shift: -3
-  op: conv2d
-- pad: 1
-  out_offset: 0x4000
-  processors: 0xffffffffffffffff
-  quantization: 4
-  output_shift: -3
-  op: conv2d
+  - pad: 1
+    out_offset: 0x2000
+    processors: 0x0000000000000007
+    quantization: 4
+    output_shift: -3
+    op: conv2d
+  - pad: 1
+    out_offset: 0x4000
+    processors: 0xffffffffffffffff
+    quantization: 4
+    output_shift: -3
+    op: conv2d

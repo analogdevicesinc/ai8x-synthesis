@@ -1,12 +1,13 @@
+---
 arch: test
 dataset: test_eltwise-pool
 
 layers:
-- pad: 0
-  out_offset: 0x2000
-  processors: 0x00000000000000ff
-  data_format: HWC
-  op: add
-  max_pool: 2
-  pool_stride: 2
-  pool_first: False
+  - pad: 0
+    out_offset: 0x2000
+    processors: 0x00000000000000ff
+    data_format: HWC
+    op: add
+    max_pool: 2
+    pool_stride: 2
+    pool_first: false

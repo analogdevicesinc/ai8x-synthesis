@@ -5,28 +5,28 @@ arch: test
 dataset: test_maxkern-maxproc
 
 layers:
-- pad: 1
-  activate: None
-  in_offset: 0x8000
-  out_offset: 0x4000
-  processors: 0x0001000100010001
-  data_format: HWC
-  op: conv2d
-- pad: 1
-  activate: None
-  out_offset: 0x0
-  processors: 0xffffffffffffffff
-  op: conv2d
-  output_shift: -6
-- pad: 1
-  activate: None
-  out_offset: 0x4000
-  processors: 0xffffffffffffffff
-  output_shift: -4
-  op: conv2d
-- pad: 1
-  activate: None
-  out_offset: 0x0
-  processors: 0xffffffffffffffff
-  output_shift: -4
-  op: conv2d
+  - pad: 1
+    activate: None
+    in_offset: 0x8000
+    out_offset: 0x4000
+    processors: 0x0001000100010001
+    data_format: HWC
+    op: conv2d
+  - pad: 1
+    activate: None
+    out_offset: 0x0
+    processors: 0xffffffffffffffff
+    op: conv2d
+    output_shift: -6
+  - pad: 1
+    activate: None
+    out_offset: 0x4000
+    processors: 0xffffffffffffffff
+    output_shift: -4
+    op: conv2d
+  - pad: 1
+    activate: None
+    out_offset: 0x0
+    processors: 0xffffffffffffffff
+    output_shift: -4
+    op: conv2d

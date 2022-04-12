@@ -1,13 +1,14 @@
+---
 # HME Test Network
 
 arch: test
 dataset: test_flatten-fc-quant-small
 
 layers:
-- flatten: true
-  out_offset: 0x4000
-  processors: 0x0000000000000003
-  operation: fc
-  quantization: 4
-  activation: None
-  output_shift: -2
+  - flatten: true
+    out_offset: 0x4000
+    processors: 0x0000000000000003
+    operation: fc
+    quantization: 4
+    activation: None
+    output_shift: -2

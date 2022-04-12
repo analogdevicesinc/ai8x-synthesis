@@ -1,11 +1,12 @@
+---
 arch: test
 dataset: test_widein
 
 layers:
-- pad: 0
-  out_offset: 0x2000
-  processors: 0x000000ffffffffff
-  data_format: HWC
-  quantization: 4
-  output_shift: -3
-  op: conv2d
+  - pad: 0
+    out_offset: 0x2000
+    processors: 0x000000ffffffffff
+    data_format: HWC
+    quantization: 4
+    output_shift: -3
+    op: conv2d

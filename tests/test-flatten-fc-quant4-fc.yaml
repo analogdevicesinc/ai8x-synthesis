@@ -1,42 +1,43 @@
+---
 # HME Test Network
 
 arch: test
 dataset: test_flatten-fc-quant-fc
 
 layers:
-- out_offset: 0x4000
-  processors: 0x0000000000000001
-  operation: conv2d  # conv1()
-  kernel_size: 3x3
-  stride: 1
-  pad: 1
-  activation: ReLU
-- out_offset: 0x0000
-  processors: 0x00000000ffffffff
-  operation: passthrough  # max_pool1()
-  max_pool: 2
-  pool_stride: 2
-- out_offset: 0x4000
-  processors: 0x00000000ffffffff
-  operation: conv2d  # conv2()
-  kernel_size: 3x3
-  stride: 1
-  pad: 1
-  activation: ReLU
-- out_offset: 0x0000
-  processors: 0xffffffffffffffff
-  operation: passthrough  # max_pool2()
-  pool_stride: 2
-  max_pool: 2
-- flatten: true
-  out_offset: 0x4000
-  processors: 0xffffffffffffffff
-  operation: fc  # fc1()
-  stride: 1
-  quantization: 4
-  activation: ReLU
-- out_offset: 0x0000
-  processors: 0xffffffffffffffff
-  operation: fc  # out()
-  stride: 1
-  activation: None
+  - out_offset: 0x4000
+    processors: 0x0000000000000001
+    operation: conv2d  # conv1()
+    kernel_size: 3x3
+    stride: 1
+    pad: 1
+    activation: ReLU
+  - out_offset: 0x0000
+    processors: 0x00000000ffffffff
+    operation: passthrough  # max_pool1()
+    max_pool: 2
+    pool_stride: 2
+  - out_offset: 0x4000
+    processors: 0x00000000ffffffff
+    operation: conv2d  # conv2()
+    kernel_size: 3x3
+    stride: 1
+    pad: 1
+    activation: ReLU
+  - out_offset: 0x0000
+    processors: 0xffffffffffffffff
+    operation: passthrough  # max_pool2()
+    pool_stride: 2
+    max_pool: 2
+  - flatten: true
+    out_offset: 0x4000
+    processors: 0xffffffffffffffff
+    operation: fc  # fc1()
+    stride: 1
+    quantization: 4
+    activation: ReLU
+  - out_offset: 0x0000
+    processors: 0xffffffffffffffff
+    operation: fc  # out()
+    stride: 1
+    activation: None
