@@ -160,6 +160,7 @@ def load(
                     b = code_buffer if synthesize is None else code_buffer[:state.synthesize_words]
                     apb.output_define(b, f'SAMPLE_INPUT_{ch}', '0x%08x', 8,
                                       weights=False)
+                    apb.inc_writes(len(b))
                 if state.riscv_flash:
                     apb.output(rv.RISCV_FLASH)
                 if not fixed_input:
@@ -275,6 +276,7 @@ def load(
                     if not fixed_input:
                         b = buf if synthesize is None else buf[:state.synthesize_words]
                         apb.output_define(b, f'SAMPLE_INPUT_{proc}', '0x%08x', 8, weights=False)
+                        apb.inc_writes(len(b))
                     if state.riscv_flash:
                         apb.output(rv.RISCV_FLASH)
                     if not fixed_input:
@@ -434,6 +436,7 @@ def loadfifo(
             if state.riscv_flash:
                 apb.output(rv.RISCV_FLASH)
             apb.output(f'static const uint32_t input_{c}[] = SAMPLE_INPUT_{c};\n')
+            apb.inc_writes(len(b))
 
         apb.function_header(dest='wrapper', prefix='', function='load_input',
                             return_type='void')

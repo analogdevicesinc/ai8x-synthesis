@@ -534,7 +534,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.c_filename = args.c_filename
     state.calcx4 = args.calcx4
     state.clock_trim = args.clock_trim
-    state.compact_data = args.compact_data and not args.rtl_preload
+    state.compact_data = args.compact_data
     state.compact_weights = args.compact_weights
     state.debug = args.debug
     state.debug_computation = args.debug_computation

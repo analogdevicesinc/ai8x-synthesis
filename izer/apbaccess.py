@@ -290,6 +290,15 @@ class APB():
         """
         raise NotImplementedError
 
+    def inc_writes(
+            self,
+            count,
+    ):
+        """
+        Increase write count by `count`.
+        """
+        self.writes += count
+
     def write_data(
             self,
             addr,
@@ -952,6 +961,7 @@ class APBBlockLevel(APB):
         self.memfile.write(f'@{self.foffs:04x} {addr:08x}\n')
         self.memfile.write(f'@{self.foffs+1:04x} {val:08x}\n')
         self.foffs += 2
+        self.writes += 1
 
     def verify(
             self,
@@ -1093,6 +1103,7 @@ class APBTopLevel(APB):
                                        f'{indent}while (((*((volatile uint32_t *) '
                                        f'0x{addr + tc.dev.FIFO_STAT*4:08x})'
                                        f' & {1 << fifo})) != 0); // Wait for FIFO {fifo}\n')
+                    self.reads += 1
                 self.memfile.write(f'{indent}*((volatile uint32_t *) '
                                    f'0x{addr + tc.dev.FIFO_REG*4 + fifo*4:08x}) = '
                                    f'{val};{comment}\n')
@@ -1104,6 +1115,7 @@ class APBTopLevel(APB):
                                        f'{indent}while (((*((volatile uint32_t *) '
                                        f'0x{addr + tc.dev.FAST_FIFO_SR*4:08x})'
                                        f' & 2)) != 0); // Wait for FIFO\n')
+                    self.reads += 1
                 self.memfile.write(f'{indent}*((volatile uint32_t *) '
                                    f'0x{addr + tc.dev.FAST_FIFO_DR*4:08x}) = '
                                    f'{val};{comment}\n')
