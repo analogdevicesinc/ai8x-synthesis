@@ -8,8 +8,10 @@
 """
 Copy assets
 """
+import json
 import os
 import shutil
+from pathlib import Path
 
 from . import state
 from . import tornadocnn as tc
@@ -118,92 +120,80 @@ def from_template(
                             os.path.join(target, test_path))
 
 
-def vscode(
-    out_stem: str,
-    out_branch: str,
-    part_num: str = "",
-    board: str = "",
-    elf_file: str = "",
-    defines: str = "",
-    i_paths: str = "",
-    v_paths: str = "",
+def parse_json(filename):
+    """
+    Utility function for parsing values from a json file into an all-caps keyed dictionary.
+    This is used by the VS Code project generator to load default function arguments.
+    """
+    f = open(filename, "r", encoding="UTF-8")
+    d = json.load(f)
+
+    # Convert key values to uppercase for easier template parsing
+    keys = list(d.keys())  # Keys are changing on the fly, so can't use a view object
+    for k in keys:
+        d[k.upper()] = d.pop(k)
+
+    return d
+
+
+# Load default argument values from the default settings.json file
+# These settings are suitable for most use-cases.
+defaults = parse_json(Path("assets").joinpath("vscode", "defaults", "settings.json"))
+
+
+def vscmxm(
+    out_path: str,
+    target: str,
+    board: str,
+    program_file: str = defaults["PROGRAM_FILE"],
+    symbol_file: str = defaults["SYMBOL_FILE"],
+    m4_ocd_interface_file: str = defaults["M4_OCD_INTERFACE_FILE"],
+    m4_ocd_target_file: str = defaults["M4_OCD_TARGET_FILE"],
+    rv_ocd_interface_file: str = defaults["RV_OCD_INTERFACE_FILE"],
+    rv_ocd_target_file: str = defaults["RV_OCD_TARGET_FILE"],
+    defines: list = defaults["C_CPP.DEFAULT.DEFINES"],
+    i_paths: list = defaults["C_CPP.DEFAULT.INCLUDEPATH"],
+    v_paths: list = defaults["C_CPP.DEFAULT.BROWSE.PATH"],
+    v_arm_gcc: str = defaults["V_ARM_GCC"],
+    v_xpack_gcc: str = defaults["V_XPACK_GCC"],
+    ocd_path: str = defaults["OCD_PATH"],
+    arm_gcc_path: str = defaults["ARM_GCC_PATH"],
+    xpack_gcc_path: str = defaults["XPACK_GCC_PATH"],
+    make_path: str = defaults["MAKE_PATH"]
 ):
     """
-    Generates vscode project files from a template, and places
-    the contents of the template folder `assets/vscode` in `out_stem/out_branch`.
-    Optional arguments will load from the global state unless overridden.
-
-    Parameters:
-        out_stem:  Output root directory.
-        out_branch:  Output sub-directory.
-        (optional) part_num:  Target part number.  Ex: MAX78000
-        (optional) board:  Target board, case sensitive.  Ex:  EvKit_V1, FTHR_RevA, etc.
-        (optional) elf_file:  Sets the name of the output file.  Ex:  hello_world.elf
-        (optional) i_paths:  Space-separated include paths the C/C++ parser should use.
-        (optional) defines:  Space-separated compiler definitions the C/C++ parser should use.
-        (optional) v_paths:  Space-separated additional browse paths the C/C++ parser should use.
-
-    Returns:
-        Nothing
+    Generates Visual Studio Code project files from the VSCode-Maxim project.
     """
 
-    template_dir = os.path.join("assets", "vscode")  # Where to find the VS Code template directory
-    template_prefix = "template"  # Filenames beginning with this will have substitution
+    template_dir = Path("assets").joinpath("vscode", "template").resolve()
+    # Where to find the VS Code template directory relative to this script
 
-    # Load defaults from global state...
-    # ---
-    if part_num == "":
-        assert tc.dev is not None
-        part_num = tc.dev.partnum
+    template_prefix = "template"
+    # Filenames beginning with this will have substitution
 
-    if board == "":
-        board = state.board_name
-
-    if elf_file == "":
-        if state.riscv:
-            # RISC-V projects will look for ...-combined.elf
-            elf_file = "${config:proj_name}-combined.elf"
-        else:
-            # Default is project name (which defaults to folder name in template)
-            elf_file = "${config:proj_name}.elf"
-
-    if defines == "":
-        defines = state.defines
-
-    if i_paths == "":
-        i_paths = state.eclipse_includes  # TODO: rename state var to 'includes'?
-
-    if v_paths == "":
-        pass  # TODO: Support adding browse paths on command line
-    # ---
+    if not template_dir.exists():
+        raise Exception(f"Failed to find project template folder '{template_dir}'.")
 
     tmp = []  # Work-horse list, linter be nice
-    # Parse defines...
-    # ---
-    tmp = defines.split(" ")
+    # Parse compiler definitions...
+    if defines != []:
+        tmp = defines
+        tmp = list(map(lambda s: s.strip("-D"), tmp))  # VS Code doesn't want -D
+        tmp = list(map(lambda s: f"\"{s}\"", tmp))  # Surround with quotes
+        defines_parsed = ",\n        ".join(tmp)  # csv, newline, and tab (w/ spaces) alignment
 
-    if state.defines_arm != "":
-        # Split & append Arm defines
-        tmp += state.defines_arm.split(" ")
-
-    if state.riscv and state.defines_riscv != "":
-        # Split & append risc-v defines
-        tmp += state.defines_arm.split(" ")
-
-    tmp = list(map(lambda s: s.strip("-D"), tmp))  # VS Code doesn't want -D
-    tmp = list(map(lambda s: f"\"{s}\"", tmp))  # Surround with quotes
-    defines_parsed = ",\n\t\t\t\t".join(tmp)  # csv, newline, and tab alignment
-    # ---
+    else:
+        defines_parsed = ""
 
     # Parse include paths...
-    tmp = i_paths.split(" ")  # Space-separated
+    tmp = i_paths
     tmp = list(map(lambda s: f"\"{s}\"", tmp))  # Surround with quotes
-    i_paths_parsed = ",\n\t\t\t\t".join(tmp)  # csv, newline, and tab alignment
+    i_paths_parsed = ",\n        ".join(tmp).replace(target, "${config:target}").replace("\\", "/")
 
     # Parse browse paths...
-    tmp = v_paths.split(" ")  # Space-separated
+    tmp = v_paths
     tmp = list(map(lambda s: f"\"{s}\"", tmp))  # Surround with quotes
-    v_paths_parsed = ",\n\t\t\t\t\t".join(tmp)  # csv, newline, and tab alignment
+    v_paths_parsed = ",\n        ".join(tmp).replace(target, "${config:target}").replace("\\", "/")
 
     # Create template...
     for directory, _, files in sorted(os.walk(template_dir)):
@@ -211,18 +201,17 @@ def vscode(
         # but excluding '.' and '..'), yields a 3-tuple (dirpath, dirnames, filenames)
 
         # Get current directory relative to root
-        rel_dir = os.path.relpath(directory, template_dir)
+        rel_dir = Path(directory).relative_to(Path(template_dir))
 
         # Figure out whether we're in a subfolder of the template directory,
         # and form output path accordingly.
-        out_path = ""
-        if rel_dir != '.':
+        if rel_dir != Path('.'):
             # We're in a sub-folder.  Replicate this folder in the output directory
-            out_path = os.path.join(os.path.join(out_stem, out_branch), rel_dir)
+            out_path = Path(out_path).joinpath(rel_dir).as_posix()
             os.makedirs(out_path, exist_ok=True)
         else:
-            # We're in the root template folder.
-            out_path = os.path.join(out_stem, out_branch)
+            # We're in the root template folder, no need to create a directory.
+            pass
 
         # Any files to copy?
         for file in sorted(files):
@@ -230,46 +219,36 @@ def vscode(
             if file.startswith(template_prefix):
 
                 # There is a template file to copy.  Perform string substitution in output file.
-                out_loc = os.path.join(out_path, file[len(template_prefix):])
-                with open(os.path.join(directory, file), mode='r', encoding='utf-8') as in_file, \
-                        open(out_loc, 'w+', encoding='utf-8') as out_file:
+                out_loc = Path(out_path).joinpath(file[len(template_prefix):])  # Remove prefix
+                template = Path(directory).joinpath(file)
+                with open(template, 'r', encoding="UTF-8") as in_file, \
+                        open(out_loc, "w+", encoding="UTF-8") as out_file:
                     for line in in_file.readlines():
                         out_file.write(
-                            line.replace("##__TARGET_UC__##", part_num.upper()).
-                            replace("##__TARGET_LC__##", f"{part_num.lower()}.cfg").
+                            line.replace("##__TARGET__##", target.upper()).
                             replace("##__BOARD__##", board).
-                            replace("##__ELF_FILE__##", elf_file).
-                            replace("##__OCD_INTERFACE__##", "cmsis-dap.cfg").
-                            replace("\"##__ADDITIONAL_INCLUDES__##\"", i_paths_parsed).
+                            replace("##__PROGRAM_FILE__##", program_file).
+                            replace("##__SYMBOL_FILE__##", symbol_file).
+                            replace("##__M4_OCD_INTERFACE_FILE__##", m4_ocd_interface_file).
+                            replace("##__M4_OCD_TARGET_FILE__##", m4_ocd_target_file).
+                            replace("##__RV_OCD_INTERFACE_FILE__##", rv_ocd_interface_file).
+                            replace("##__RV_OCD_TARGET_FILE__##", rv_ocd_target_file).
+                            replace("\"##__I_PATHS__##\"", i_paths_parsed).
                             replace("\"##__DEFINES__##\"", defines_parsed).
-                            replace("\"##__ADDITIONAL_SOURCES__##\"", v_paths_parsed)
+                            replace("\"##__V_PATHS__##\"", v_paths_parsed).
+                            replace("##__V_ARM_GCC__##", v_arm_gcc).
+                            replace("##__V_XPACK_GCC__##", v_xpack_gcc).
+                            replace("##__OCD_PATH__##", ocd_path).
+                            replace("##__ARM_GCC_PATH__##", arm_gcc_path).
+                            replace("##__XPACK_GCC_PATH__##", xpack_gcc_path).
+                            replace("##__MAKE_PATH__##", make_path)
                         )
 
-                        # Template notes:
-                        # The template replacements should only have to touch
-                        # 'settings.json'.  The other .vscode files should load from
-                        # settings.json unless there's an extreme circumstance requiring a
-                        # hard over-write.
-
-                        # - ##__TARGET_UC__## Sets the target micro.  This needs to be uppercase,
-                        # since the SDK file-paths use uppercase
-                        # - ##__TARGET_LC__## Sets the target OCD config file.  This needs to be
-                        # lowercase, since the .cfg files are lowercase in the SDK
-                        # - ##__BOARD__## Sets the target board.  This needs to exist in the BSP
-                        # directory of the SDK and is case-sensitive.
-                        # Ex:  EvKit_V1, FTHR_RevA, etc.
-                        # - ##__ELF_FILE__## sets the output filename.  Include the .elf extension.
-                        # - ##__OCD_INTERFACE__## Sets the OCD interface file to use.
-                        # Defaults to cmsis-dap.cfg
-                        # - ##__ADDITIONAL_INCLUDES__## sets additional include paths for C/C++
-                        # parser.  This should be comma + new-line separated.
-                        # - ##__DEFINES__## sets compiler definitions used by the C/C++ parser.
-                        # This should be comma + new-line separated.  This has no effect on the
-                        # build system, it's just for intellisense.
-                        # - ##__ADDITIONAL_SOURCES__## sets additional browse paths for C/C++
-                        # parser (ie. where to find .c files).  Again, no effect on build system,
-                        # just for intellisense.  This should be comma + new-line separated.
+                os.chmod(out_loc, 0o764)
+                # print(f"Wrote {os.path.basename(out_loc)}")  # Uncomment to debug
 
             else:
                 # There is a non-template file to copy
                 shutil.copy(os.path.join(directory, file), out_path)
+                os.chmod(out_path, 0o764)
+                # print(f"Wrote {os.path.basename(file)}") # Uncomment to debug
