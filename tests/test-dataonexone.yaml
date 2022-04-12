@@ -1,8 +1,9 @@
+---
 arch: test
 dataset: test_11x1x1
 
 layers:
-- out_offset: 0x2000
-  processors: 0x00000000000007ff
-  pad: 1
-  op: conv2d
+  - out_offset: 0x2000
+    processors: 0x00000000000007ff
+    pad: 1
+    op: conv2d

@@ -1,12 +1,13 @@
+---
 # Test depthwise convolution
 
 arch: test
 dataset: test_depthwise17x5x7
 
 layers:
-- out_offset: 0x2000
-  processors: 0x000001ffff000000
-  output_processors: 0x000000001ffff000
-  operation: conv2d
-  kernel_size: 3x3
-  groups: 17
+  - out_offset: 0x2000
+    processors: 0x000001ffff000000
+    output_processors: 0x000000001ffff000
+    operation: conv2d
+    kernel_size: 3x3
+    groups: 17

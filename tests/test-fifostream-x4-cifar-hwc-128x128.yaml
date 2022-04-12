@@ -1,3 +1,4 @@
+---
 # CHW (big data) configuration for CIFAR-10
 # Note: This does not work past the third layer due to lack of weight memory
 # Used for testing the CHW input with gaps
@@ -7,37 +8,37 @@ dataset: likecifar-128x128
 
 # Define layer parameters in order of the layer sequence
 layers:
-- pad: 1
-  activate: ReLU
-  out_offset: 0x1000
-  processors: 0x0000000000000007
-  data_format: HWC
-  streaming: true
-  op: conv2d
-- max_pool: 2
-  pool_stride: 2
-  pad: 1
-  activate: ReLU
-  out_offset: 0x2000
-  processors: 0x0fffffffffffffff
-  streaming: true
-  op: conv2d
-  calcx4: True
-- max_pool: 2
-  pool_stride: 2
-  pad: 1
-  activate: ReLU
-  out_offset: 0x3000
-  processors: 0x0fffffffffffffff
-  streaming: true
-  op: conv2d
-  calcx4: True
-- avg_pool: 2
-  pool_stride: 2
-  pad: 1
-  activate: ReLU
-  out_offset: 0x4000
-  processors: 0x00ffffffffffffff
-  streaming: true
-  op: conv2d
-  calcx4: True
+  - pad: 1
+    activate: ReLU
+    out_offset: 0x1000
+    processors: 0x0000000000000007
+    data_format: HWC
+    streaming: true
+    op: conv2d
+  - max_pool: 2
+    pool_stride: 2
+    pad: 1
+    activate: ReLU
+    out_offset: 0x2000
+    processors: 0x0fffffffffffffff
+    streaming: true
+    op: conv2d
+    calcx4: true
+  - max_pool: 2
+    pool_stride: 2
+    pad: 1
+    activate: ReLU
+    out_offset: 0x3000
+    processors: 0x0fffffffffffffff
+    streaming: true
+    op: conv2d
+    calcx4: true
+  - avg_pool: 2
+    pool_stride: 2
+    pad: 1
+    activate: ReLU
+    out_offset: 0x4000
+    processors: 0x00ffffffffffffff
+    streaming: true
+    op: conv2d
+    calcx4: true

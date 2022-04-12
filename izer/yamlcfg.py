@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -12,7 +12,7 @@ import yamllint
 import yamllint.config
 import yamllint.linter
 
-from . import devices, op
+from . import devices, names, op, state
 from . import tornadocnn as tc
 from .eprint import eprint, wprint
 
@@ -26,6 +26,7 @@ class UniqueKeyLoader(yaml.Loader):
     Throw an error when encountering duplicate YAML keys.
     """
     def construct_mapping(self, node, deep=False):
+        """Construct a key/value mapping"""
         if not isinstance(node, yaml.MappingNode):
             raise yaml.constructor.ConstructorError(
                 None, None,
@@ -82,14 +83,14 @@ def parse(
     with open(config_file, mode='r', encoding='utf-8') as cfg_file:
         cfg = yaml.load(cfg_file, Loader=UniqueKeyLoader)
 
-    cfg_set = set(cfg) - set(['bias', 'dataset', 'layers',
+    cfg_set = set(cfg) - set(['bias', 'dataset', 'layers', 'unload',
                               'output_map', 'arch', 'weights', 'snoop'])
     if bool(cfg_set):
         eprint(f'Configuration file {config_file} contains unknown key(s): {cfg_set}.')
 
     if 'layers' not in cfg or 'arch' not in cfg or 'dataset' not in cfg:
         eprint(f'Configuration file {config_file} does not contain '
-               f'`layers`, `arch`, or `dataset`.')
+               '`layers`, `arch`, or `dataset`.')
 
     # These are initialized with 'None'. Use this to see whether a layer was configured,
     # will be auto-initialized to previous layer's value or a default.
@@ -136,6 +137,9 @@ def parse(
     readahead = [False] * tc.dev.MAX_LAYERS
     pool_dilation = [[1, 1]] * tc.dev.MAX_LAYERS
     tcalc = [None] * tc.dev.MAX_LAYERS
+    output_layer = [False] * tc.dev.MAX_LAYERS
+    unload_custom = []
+    layer_name = [None] * tc.dev.MAX_LAYERS
 
     sequence = 0
     skip = skip_layers
@@ -153,8 +157,8 @@ def parse(
                                  'output_shift', 'pool_first', 'processors', 'pad', 'quantization',
                                  'next_sequence', 'snoop_sequence', 'simulated_sequence',
                                  'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
-                                 'bias_group', 'bias_quadrant', 'calcx4', 'readahead',
-                                 'pool_dilation', 'output_pad', 'tcalc'])
+                                 'bias_group', 'bias_quadrant', 'calcx4', 'readahead', 'name',
+                                 'pool_dilation', 'output_pad', 'tcalc', 'read_gap', 'output'])
         if bool(cfg_set):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`: '
                    f'{cfg_set}.')
@@ -237,11 +241,17 @@ def parse(
         if 'in_channels' in ll:
             input_chan[sequence] = ll['in_channels']
         if 'in_dim' in ll:
-            if isinstance(ll['in_dim'], list) and len(ll['in_dim']) > 2:
-                error_exit('`in_dim` must not exceed two dimensions', sequence)
-            input_dim[sequence] = ll['in_dim']
-        if 'in_skip' in ll:
-            input_skip[sequence] = ll['in_skip']
+            val = ll['in_dim']
+            if isinstance(val, int):
+                val = [val, 1]
+            else:
+                if not isinstance(val, list) or len(val) > 2:
+                    error_exit('`in_dim` must be an integer or list not exceeding two dimensions',
+                               sequence)
+            input_dim[sequence] = val
+        if 'in_skip' in ll or 'read_gap' in ll:
+            key = 'in_skip' if 'in_skip' in ll else 'read_gap'
+            input_skip[sequence] = ll[key]
         if 'in_channel_skip' in ll:
             input_chan_skip[sequence] = ll['in_channel_skip']
         if 'in_offset' in ll:
@@ -264,6 +274,8 @@ def parse(
                 activation[sequence] = None
             else:
                 error_exit(f'Unknown value "{ll[key]}" for `{key}`', sequence)
+            if state.ignore_activation:
+                activation[sequence] = None
 
         if 'convolution' in ll or 'operation' in ll or 'op' in ll or 'operator' in ll:
             key = 'convolution' if 'convolution' in ll else \
@@ -429,24 +441,32 @@ def parse(
                 error_exit(f'Unsupported value `{val}` for `flatten`', sequence)
 
         if 'in_sequences' in ll:
-            in_sequences[sequence] = ll['in_sequences']
-            if not isinstance(in_sequences[sequence], list):
-                in_sequences[sequence] = [in_sequences[sequence]]
-            in_sequences[sequence] = [x - skip_layers for x in in_sequences[sequence]]
+            val = ll['in_sequences']
+            if not isinstance(val, list):
+                val = [val]
+            in_sequences[sequence] = [
+                x - skip_layers if not isinstance(x, str) else x for x in val
+            ]
 
         if 'next_sequence' in ll:
-            if isinstance(ll['next_sequence'], str) \
-               and ll['next_sequence'].lower() == 'stop':
-                next_sequence[sequence] = -1
+            val = ll['next_sequence']
+            if isinstance(val, str):
+                val = val.lower()
+                if val == 'stop':
+                    val = -1
+                next_sequence[sequence] = val
             else:
-                next_sequence[sequence] = ll['next_sequence'] - skip_layers
+                next_sequence[sequence] = val - skip_layers
 
         if 'simulated_sequence' in ll:
-            if isinstance(ll['simulated_sequence'], str) \
-               and ll['simulated_sequence'].lower() == 'stop':
-                simulated_sequence[sequence] = -1
+            val = ll['simulated_sequence']
+            if isinstance(val, str):
+                val = val.lower()
+                if val == 'stop':
+                    val = -1
+                simulated_sequence[sequence] = val
             else:
-                simulated_sequence[sequence] = ll['simulated_sequence'] - skip_layers
+                simulated_sequence[sequence] = val - skip_layers
 
         if 'snoop_sequence' in ll:
             snoop_sequence[sequence] = ll['snoop_sequence'] - skip_layers
@@ -511,6 +531,21 @@ def parse(
         elif operator[sequence] == op.CONVTRANSPOSE2D:
             output_padding[sequence] = [1, 1]
 
+        if 'output' in ll:
+            val = ll['output']
+            try:
+                output_layer[sequence] = bool(val)
+            except ValueError:
+                error_exit(f'Unsupported value `{val}` for `output`', sequence)
+
+        if 'name' in ll:
+            val = ll['name']
+            if names.find_layer(layer_name, sequence, val.lower(), 'name', False) is not None:
+                error_exit(f'Duplicate layer name {val} for `name`', sequence)
+            if val.lower() in ['stop', 'input']:
+                error_exit(f'Using reserved name {val} for `name`', sequence)
+            layer_name[sequence] = val
+
         # Fix up values for 1D convolution or no convolution
         if operator[sequence] == op.CONV1D:
             padding[sequence][1] = 0
@@ -571,8 +606,25 @@ def parse(
             del pool_dilation[ll]
             del output_padding[ll]
             del tcalc[ll]
+            del output_layer[ll]
 
     for ll, _ in enumerate(operator):
+        # Convert string layer names to sequences
+        if isinstance(next_sequence[ll], str):
+            next_sequence[ll] = names.find_layer(layer_name, ll, next_sequence[ll],
+                                                 'next_sequence')
+        if isinstance(simulated_sequence[ll], str):
+            simulated_sequence[ll] = names.find_layer(layer_name, ll, simulated_sequence[ll],
+                                                      'simulated_sequence')
+        if in_sequences[ll] is not None:
+            new_in_sequences = []
+            for _, e in enumerate(in_sequences[ll]):
+                if isinstance(e, str):
+                    new_in_sequences.append(names.find_layer(layer_name, ll, e, 'in_sequences'))
+                else:
+                    new_in_sequences.append(e)
+            in_sequences[ll] = new_in_sequences
+
         # Warn when using default pool stride of 1, 1
         if pool_stride[ll][0] is None:
             if pooling_enabled[ll]:
@@ -583,48 +635,85 @@ def parse(
         if not pool_first[ll] and (operands[ll] == 1 or pool[ll][0] == 1 and pool[ll][1] == 1):
             error_exit('`pool_first: False` requires both pooling and element-wise operations', ll)
 
+    if 'unload' in cfg:
+        for ll in cfg['unload']:
+            cfg_set = set(ll)
+
+            if bool(cfg_set - set(['processors', 'dim', 'offset', 'width',
+                                   'write_gap', 'channels'])):
+                eprint(f'Configuration file {config_file} contains unknown key(s) for `unload`.')
+
+            if 'processors' not in cfg_set or 'dim' not in cfg_set or 'channels' not in cfg_set \
+               or 'offset' not in cfg_set:
+                eprint(f'`unload` sequence in configuration file {config_file} does not contain '
+                       '`processors`, `channels`, `dim`, or `offset`.')
+
+            unload_proc = ll['processors']
+            if isinstance(unload_proc, str):
+                try:
+                    unload_proc = int(unload_proc.replace('.', '').replace('_', ''), 16)
+                except ValueError:
+                    pass
+            val = ll['dim']
+            unload_dim = val if isinstance(val, list) else [val, 1]
+            unload_channels = ll['channels']
+            unload_offset = ll['offset']
+            unload_width = ll['width'] if 'with' in ll else 8
+            unload_write_gap = ll['write_gap'] if 'write_gap' in ll else 0
+
+            unload_custom.append({
+                'proc': unload_proc,
+                'dim': (unload_channels, unload_dim[0], unload_dim[1]),
+                'offset': unload_offset,
+                'width': unload_width,
+                'write_gap': unload_write_gap,
+            })
+
     settings = {}
-    settings['processor_map'] = processor_map
-    settings['padding'] = padding
-    settings['pool'] = pool
-    settings['pooling_enabled'] = pooling_enabled
-    settings['pool_stride'] = pool_stride
-    settings['input_chan'] = input_chan
+    settings['activation'] = activation
+    settings['average'] = average
+    settings['bias_group_map'] = bias_group_map
+    settings['bias_quantization'] = bias_quantization
+    settings['big_data'] = big_data
+    settings['bypass'] = bypass
+    settings['calcx4'] = calcx4
+    settings['conv_groups'] = conv_groups
+    settings['dilation'] = dilation
+    settings['eltwise'] = eltwise
+    settings['flatten'] = flatten
+    settings['in_sequences'] = in_sequences
     settings['input_chan_skip'] = input_chan_skip
-    settings['input_skip'] = input_skip
+    settings['input_chan'] = input_chan
     settings['input_dim'] = input_dim
     settings['input_offset'] = input_offset
-    settings['output_chan'] = output_chan
-    settings['output_offset'] = output_offset
-    settings['average'] = average
-    settings['activation'] = activation
-    settings['big_data'] = big_data
-    settings['quantization'] = quantization
-    settings['bias_quantization'] = bias_quantization
-    settings['output_shift'] = output_shift
-    settings['output_processor_map'] = output_map
-    settings['output_width'] = output_width
-    settings['operator'] = operator
-    settings['dilation'] = dilation
+    settings['input_skip'] = input_skip
     settings['kernel_size'] = kernel_size
-    settings['stride'] = stride
-    settings['streaming'] = streaming
-    settings['flatten'] = flatten
-    settings['operands'] = operands
-    settings['eltwise'] = eltwise
-    settings['pool_first'] = pool_first
-    settings['in_sequences'] = in_sequences
+    settings['layer_name'] = layer_name
     settings['next_sequence'] = next_sequence
+    settings['operands'] = operands
+    settings['operator'] = operator
+    settings['output_chan'] = output_chan
+    settings['output_layer'] = output_layer
+    settings['output_offset'] = output_offset
+    settings['output_padding'] = output_padding
+    settings['output_processor_map'] = output_map
+    settings['output_shift'] = output_shift
+    settings['output_width'] = output_width
+    settings['padding'] = padding
+    settings['pool_dilation'] = pool_dilation
+    settings['pool_first'] = pool_first
+    settings['pool_stride'] = pool_stride
+    settings['pool'] = pool
+    settings['pooling_enabled'] = pooling_enabled
+    settings['processor_map'] = processor_map
+    settings['quantization'] = quantization
+    settings['readahead'] = readahead
     settings['simulated_sequence'] = simulated_sequence
     settings['snoop_sequence'] = snoop_sequence
-    settings['conv_groups'] = conv_groups
-    settings['write_gap'] = write_gap
-    settings['bypass'] = bypass
-    settings['bias_group_map'] = bias_group_map
-    settings['calcx4'] = calcx4
-    settings['readahead'] = readahead
-    settings['pool_dilation'] = pool_dilation
-    settings['output_padding'] = output_padding
+    settings['streaming'] = streaming
+    settings['stride'] = stride
     settings['tcalc'] = tcalc
+    settings['unload_custom'] = unload_custom if len(unload_custom) > 0 else None
+    settings['write_gap'] = write_gap
 
     return cfg, len(processor_map), settings

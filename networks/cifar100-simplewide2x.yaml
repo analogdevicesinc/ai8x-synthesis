@@ -1,3 +1,4 @@
+---
 # HWC (little data) configuration for CIFAR-100
 # 2x Wider Simple Model
 
@@ -5,98 +6,98 @@ arch: ai85simplenetwide2x
 dataset: CIFAR100
 
 layers:
-- out_offset: 0x2000
-  processors: 0x0000000000000007 #1
-  operation: conv2d
-  kernel_size: 3x3
-  pad: 1
-  activate: ReLU
-  data_format: HWC
-- out_offset: 0x0000
-  processors: 0x000000000ffffff0 #2
-  operation: conv2d
-  kernel_size: 3x3
-  pad: 1
-  activate: ReLU
-- out_offset: 0x2000
-  processors: 0x0ffffffff0000000 #3
-  operation: conv2d
-  kernel_size: 3x3
-  pad: 1
-  activate: ReLU
-- out_offset: 0x0000
-  processors: 0x00000000ffffffff #4
-  operation: conv2d
-  kernel_size: 3x3
-  pad: 1
-  activate: ReLU
-- max_pool: 2
-  pool_stride: 2
-  pad: 1
-  operation: conv2d
-  kernel_size: 3x3
-  activate: ReLU
-  out_offset: 0x2000
-  processors: 0xffffffff00000000 #5
-- out_offset: 0x0000
-  processors: 0x00000000ffffffff #6
-  operation: conv2d
-  kernel_size: 3x3
-  pad: 1
-  activate: ReLU
-- out_offset: 0x2000
-  processors: 0xffffffff00000000 #7
-  operation: conv2d
-  kernel_size: 3x3
-  pad: 1
-  activate: ReLU
-- max_pool: 2
-  pool_stride: 2
-  pad: 1
-  operation: conv2d
-  kernel_size: 3x3
-  activate: ReLU
-  out_offset: 0x0000
-  processors: 0xffffffffffffffff #8
-- out_offset: 0x2000
-  processors: 0xffffffffffffffff #9
-  operation: conv2d
-  kernel_size: 3x3
-  pad: 1
-  activate: ReLU
-- max_pool: 2
-  pool_stride: 2
-  pad: 1
-  operation: conv2d
-  kernel_size: 3x3
-  activate: ReLU
-  out_offset: 0x0000
-  processors: 0xffffffffffffffff #10
-- max_pool: 2
-  pool_stride: 2
-  pad: 0
-  operation: conv2d
-  kernel_size: 1x1
-  activate: ReLU
-  out_offset: 0x2000
-  processors: 0xffffffffffffffff #11
-- out_offset: 0x0000
-  processors: 0xffffffffffffffff #12
-  operation: conv2d
-  kernel_size: 1x1
-  pad: 0
-  activate: ReLU
-- max_pool: 2
-  pool_stride: 2
-  pad: 1
-  operation: conv2d
-  kernel_size: 3x3
-  activate: ReLU
-  out_offset: 0x2000
-  processors: 0xffffffffffffffff #13
-- out_offset: 0x0000
-  processors: 0xffffffffffffffff #14
-  operation: conv2d
-  kernel_size: 1x1
-  pad: 0
-  output_width: 32
+  - out_offset: 0x2000
+    processors: 0x0000000000000007  # 1
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    data_format: HWC
+  - out_offset: 0x0000
+    processors: 0x000000000ffffff0  # 2
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+  - out_offset: 0x2000
+    processors: 0x0ffffffff0000000  # 3
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+  - out_offset: 0x0000
+    processors: 0x00000000ffffffff  # 4
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+  - max_pool: 2
+    pool_stride: 2
+    pad: 1
+    operation: conv2d
+    kernel_size: 3x3
+    activate: ReLU
+    out_offset: 0x2000
+    processors: 0xffffffff00000000  # 5
+  - out_offset: 0x0000
+    processors: 0x00000000ffffffff  # 6
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+  - out_offset: 0x2000
+    processors: 0xffffffff00000000  # 7
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+  - max_pool: 2
+    pool_stride: 2
+    pad: 1
+    operation: conv2d
+    kernel_size: 3x3
+    activate: ReLU
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff  # 8
+  - out_offset: 0x2000
+    processors: 0xffffffffffffffff  # 9
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+  - max_pool: 2
+    pool_stride: 2
+    pad: 1
+    operation: conv2d
+    kernel_size: 3x3
+    activate: ReLU
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff  # 10
+  - max_pool: 2
+    pool_stride: 2
+    pad: 0
+    operation: conv2d
+    kernel_size: 1x1
+    activate: ReLU
+    out_offset: 0x2000
+    processors: 0xffffffffffffffff  # 11
+  - out_offset: 0x0000
+    processors: 0xffffffffffffffff  # 12
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
+  - max_pool: 2
+    pool_stride: 2
+    pad: 1
+    operation: conv2d
+    kernel_size: 3x3
+    activate: ReLU
+    out_offset: 0x2000
+    processors: 0xffffffffffffffff  # 13
+  - out_offset: 0x0000
+    processors: 0xffffffffffffffff  # 14
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    output_width: 32

@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -12,10 +12,10 @@ from typing import Optional, TextIO
 
 import numpy as np
 
-from . import state, toplevel
+from . import datamem, state, toplevel
 from . import tornadocnn as tc
 from . import unload
-from .eprint import eprint, wprint
+from .eprint import wprint
 
 READ_TIME_NS = 230
 WRITE_TIME_NS = 280
@@ -80,7 +80,7 @@ class APB():
         self.data = 0
         self.num = 0
         self.data_offs = 0
-        self.mem = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
+        self.mem = datamem.allocate()
         self.writes = 0
         self.reads = 0
         self.verify_listdata = []
@@ -91,9 +91,14 @@ class APB():
             if not (state.compact_weights
                     or state.mexpress and state.rtl_preload
                     or state.verify_kernels and state.rtl_preload):
-                self.kernel_mem = [[[[] for mem in range(tc.dev.MASK_INSTANCES)]
-                                    for proc in range(tc.dev.P_NUMPRO)]
-                                   for group in range(tc.dev.P_NUMGROUPS)]
+                self.kernel_mem = np.empty(
+                    (tc.dev.P_NUMGROUPS, tc.dev.P_NUMPRO, tc.dev.MASK_INSTANCES),
+                    dtype=list,
+                )
+                for i in range(tc.dev.P_NUMGROUPS):
+                    for j in range(tc.dev.P_NUMPRO):
+                        for k in range(tc.dev.MASK_INSTANCES):
+                            self.kernel_mem[i][j][k] = []
 
         if embedded_arm or embedded_code:
             return
@@ -135,7 +140,7 @@ class APB():
                                 for (addr, val) in self.data_mem[group][proc][mem]:
                                     f.write(f'@{addr:04x} {val}\n')
 
-        if self.kernel_mem is not None and state.new_kernel_loader:
+        if self.kernel_mem is not None and not state.rtl_preload:
             # Build a list of sequential kernel "chunks" so the loader code can use compact
             # memcpy instructions of streaming copy
             input_list = []
@@ -216,7 +221,7 @@ class APB():
                 kl.append(0)  # EOF
                 self.output_define(kl, 'KERNELS', '0x%08x', 8)
 
-        if self.kernel_mem is not None and not state.new_kernel_loader:
+        if self.kernel_mem is not None and state.rtl_preload:
             try:
                 target_dir = target_dir = os.path.join(base_directory, test_name, 'masks')
                 os.makedirs(target_dir, exist_ok=False)
@@ -294,7 +299,7 @@ class APB():
             no_verify=False,
             fifo=None,
             base=None,
-    ):  # pylint: disable=unused-argument
+    ):
         """
         Write address `addr` and data `val` to the output file.
         if `no_verify` is `True`, do not check the result of the write operation, even if
@@ -332,7 +337,7 @@ class APB():
             rv=False,
             api=False,
             data=False,
-    ):  # pylint: disable=unused-argument
+    ):
         """
         Verify that memory at address `addr` contains data `val`.
         """
@@ -565,7 +570,7 @@ class APB():
                                        (tc.dev.MASK_WIDTH_LARGE - tc.dev.MASK_WIDTH_SMALL)
                                        // tc.dev.MASK_INSTANCES_EACH)
                     mem += tc.dev.MASK_INSTANCES_EACH
-                if not state.new_kernel_loader:
+                if state.rtl_preload:
                     if size != 1:
                         val = f'{k[0] & 0xff:02x}_{k[1] & 0xff:02x}{k[2] & 0xff:02x}' \
                             f'{k[3] & 0xff:02x}{k[4] & 0xff:02x}_{k[5] & 0xff:02x}' \
@@ -606,16 +611,6 @@ class APB():
                 self.verify(addr+8, 0, api=True)
             self.verify(addr+12, 0, api=True)
 
-    def check_overwrite(
-            self,
-            offs,
-    ):
-        """
-        Check whether we're overwriting location `offs`.
-        """
-        if self.mem[offs >> 2]:
-            eprint(f'Overwriting location {offs:08x}', error=not state.no_error_stop)
-
     def write_byte_flush(
             self,
             offs,
@@ -630,9 +625,8 @@ class APB():
         """
         if self.num > 0:
             woffs = self.data_offs - self.num
-            self.check_overwrite(woffs)
+            datamem.store(self.mem, woffs, (-1, 0, 0, 0), check_overwrite=True)
             self.write_data(woffs, self.data, comment, fifo=fifo)
-            self.mem[woffs >> 2] = True
             self.num = 0
             self.data = 0
         self.data_offs = offs
@@ -735,9 +729,9 @@ class APB():
 
     def softmax_layer(  # pylint: disable=no-self-use
             self,
-            *args,
-            **kwargs,
-    ):  # pylint: disable=unused-argument
+            *args,  # pylint: disable=unused-argument
+            **kwargs,  # pylint: disable=unused-argument
+    ):
         """
         Write the call to the fully connected layer for the given `weights` and
         `bias`. The `bias` argument can be `None`.
@@ -747,14 +741,15 @@ class APB():
 
     def unload(  # pylint: disable=no-self-use
             self,
+            *,
+            output_layer,
             processor_map,
             input_shape,
-            output_offset=0,
-            out_expand=1,
-            out_expand_thresh=64,
-            output_width=8,
-            mlator=False,
-            write_gap=0,
+            output_offset,
+            out_expand,
+            out_expand_thresh,
+            output_width,
+            write_gap,
     ):  # pylint: disable=unused-argument
         """
         Write the unload function. The layer to unload has the shape `input_shape`,
@@ -778,7 +773,7 @@ class APB():
             overwrite_ok=False,
             mlator=False,
             write_gap=0,
-            final_layer=0,
+            unload_layer=False,
     ):
         """
         Write a verification function. The layer to unload has the shape `input_shape`,
@@ -800,7 +795,7 @@ class APB():
             mlator=mlator,
             stream=self.memfile,
             write_gap=write_gap,
-            final_layer=final_layer,
+            unload_layer=unload_layer,
             embedded=self.embedded_code,
             test_name=self.test_name,
         )
@@ -1093,7 +1088,9 @@ class APBTopLevel(APB):
             if not self.fast_fifo:
                 addr = state.apb_base + tc.dev.C_FIFO_BASE
                 if fifo_wait:
-                    self.memfile.write(f'{indent}while (((*((volatile uint32_t *) '
+                    self.memfile.write(f'{indent}// Remove the following line if there is no risk '
+                                       'that the source would overrun the FIFO:\n'
+                                       f'{indent}while (((*((volatile uint32_t *) '
                                        f'0x{addr + tc.dev.FIFO_STAT*4:08x})'
                                        f' & {1 << fifo})) != 0); // Wait for FIFO {fifo}\n')
                 self.memfile.write(f'{indent}*((volatile uint32_t *) '
@@ -1102,7 +1099,9 @@ class APBTopLevel(APB):
             else:
                 addr = tc.dev.FAST_FIFO_BASE
                 if fifo_wait:
-                    self.memfile.write(f'{indent}while (((*((volatile uint32_t *) '
+                    self.memfile.write(f'{indent}// Remove the following line if there is no risk '
+                                       'that the source would overrun the FIFO:\n'
+                                       f'{indent}while (((*((volatile uint32_t *) '
                                        f'0x{addr + tc.dev.FAST_FIFO_SR*4:08x})'
                                        f' & 2)) != 0); // Wait for FIFO\n')
                 self.memfile.write(f'{indent}*((volatile uint32_t *) '
@@ -1342,27 +1341,30 @@ class APBTopLevel(APB):
 
     def unload(
             self,
-            processor_map,
-            input_shape,
-            output_offset=0,
-            out_expand=1,
-            out_expand_thresh=64,
-            output_width=8,
-            mlator=False,
-            write_gap=0,
-    ):
-        """
-        Write the unload function. The layer to unload has the shape `input_shape`,
-        and the optional `output_offset` argument can shift the output.
-        """
-        unload.unload(
-            self.apifile or self.memfile,
+            *,
+            output_layer,
             processor_map,
             input_shape,
             output_offset,
             out_expand,
             out_expand_thresh,
             output_width,
+            write_gap,
+    ):
+        """
+        Write the unload function. The layer to unload has the shape `input_shape`,
+        and the optional `output_offset` argument can shift the output.
+        """
+        unload.unload(
+            memfile=self.apifile or self.memfile,
+            output_layer=output_layer,
+            processor_map=processor_map,
+            input_shape=input_shape,
+            out_offset=output_offset,
+            out_expand=out_expand,
+            out_expand_thresh=out_expand_thresh,
+            output_width=output_width,
+            write_gap=write_gap,
         )
 
     def output_define(

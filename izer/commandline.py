@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -12,6 +12,7 @@ import argparse
 from . import camera, state
 from .devices import device
 from .eprint import wprint
+from .tornadocnn import MAX_MAX_LAYERS
 
 
 def get_parser() -> argparse.Namespace:
@@ -115,10 +116,11 @@ def get_parser() -> argparse.Namespace:
                             "(default: 8)")
     group.add_argument('--softmax', action='store_true', default=False,
                        help="add software softmax function (default: false)")
-    group.add_argument('--unload', action='store_true', default=None,
-                       help="enable use of cnn_unload() function (default)")
-    group.add_argument('--no-unload', dest='unload', action='store_false',
-                       help="disable use of cnn_unload() function (default: enabled)")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('--unload', action='store_true', default=None,
+                        help="enable use of cnn_unload() function (default)")
+    mgroup.add_argument('--no-unload', dest='unload', action='store_false',
+                        help="disable use of cnn_unload() function (default: enabled)")
     group.add_argument('--no-kat', dest='generate_kat', action='store_false', default=True,
                        help="disable known-answer test generation (KAT) (default: enabled)")
     group.add_argument('--boost', metavar='S', default=None,
@@ -138,6 +140,9 @@ def get_parser() -> argparse.Namespace:
     group.add_argument('--switch-delay', dest='enable_delay', type=int, metavar='N', default=None,
                        help="set delay in msec after cnn_enable() for load switches (default: 0"
                             " on MAX78000, 10 on MAX78002)")
+    group.add_argument('--output-width', type=int, default=None,
+                       choices=[8, 32],
+                       help="override `output_width` for the final layer (default: use YAML)")
 
     # File names
     group = parser.add_argument_group('File names')
@@ -169,6 +174,9 @@ def get_parser() -> argparse.Namespace:
     group.add_argument('--fast-fifo-quad', action='store_true', default=False,
                        help="use fast FIFO in quad fanout mode (implies --fast-fifo; "
                             "default: false)")
+    group.add_argument('--no-fifo-wait', dest='fifo_wait', action='store_false', default=True,
+                       help="do not check the FIFO for available space (requires matching source "
+                            "speed to inference, default: False)")
     group.add_argument('--fifo-go', action='store_true', default=False,
                        help="start processing before first FIFO push (default: false)")
     group.add_argument('--slow-load', type=int, metavar='N', default=0,
@@ -204,14 +212,16 @@ def get_parser() -> argparse.Namespace:
                        help="redirect stdout to log file (default)")
     group.add_argument('--no-log', dest='log', action='store_false',
                        help="do not redirect stdout to log file (default: false)")
+    group.add_argument('--no-progress', dest='display_progress', action='store_false',
+                       default=True, help="do not display progress bars (default: show)")
     group.add_argument('--log-intermediate', action='store_true', default=False,
                        help="log weights/data between layers to .mem files (default: false)")
     group.add_argument('--log-pooling', action='store_true', default=False,
                        help="log unpooled and pooled data between layers in CSV format "
                             "(default: false)")
-    group.add_argument('--log-last-only', '--verbose-all',
+    group.add_argument('--short-log', '--log-last-only', '--verbose-all',
                        action='store_false', dest='verbose_all', default=True,
-                       help="log data for last layer only (default: all layers)")
+                       help="log data for output layers only (default: all layers)")
     group.add_argument('--log-filename', default='log.txt', metavar='S',
                        help="log file name (default: 'log.txt')")
     group.add_argument('-D', '--debug', action='store_true', default=False,
@@ -265,6 +275,8 @@ def get_parser() -> argparse.Namespace:
                        help="ignore certain hardware limits (default: False)")
     group.add_argument('--ignore-bn', action='store_true', default=False,
                        help="ignore BatchNorm weights in checkpoint file (default: False)")
+    group.add_argument('--ignore-activation', action='store_true', default=False,
+                       help="ignore activations in YAML file (default: False)")
     group.add_argument('--no-greedy-kernel', action='store_false', dest='greedy_kernel_allocator',
                        default=True,
                        help="do not use greedy kernel memory allocator (default: use)")
@@ -273,6 +285,12 @@ def get_parser() -> argparse.Namespace:
                         default=None, help="use new kernel loader (default on MAX78002)")
     mgroup.add_argument('--old-kernel-loader', dest='new_kernel_loader', action='store_false',
                         default=None, help="use old kernel loader (default on MAX78000)")
+    group.add_argument('--weight-input', metavar='S', default=None,
+                       help="weight input file name (development only, "
+                            "default: 'tests/weight_test_dataset.npy')")
+    group.add_argument('--bias-input', metavar='S', default=None,
+                       help="bias input file name (development only, "
+                            "default: 'tests/bias_dataset.npy')")
 
     # RTL sim
     group = parser.add_argument_group('RTL simulation')
@@ -342,9 +360,10 @@ def get_parser() -> argparse.Namespace:
                        help="ignore all 'streaming' layer directives (default: false)")
     group.add_argument('--allow-streaming', action='store_true', default=False,
                        help="allow streaming without use of a FIFO (default: false)")
-    group.add_argument('--no-bias', metavar='LIST', default=None,
-                       help="comma-separated list of layers where bias values will be ignored "
-                            "(default: None)")
+    group.add_argument('--no-bias', metavar='[LIST]', nargs='?',
+                       const=list(range(MAX_MAX_LAYERS)),
+                       help="comma-separated list of layers where bias values will be ignored, "
+                            "or no argument for all layers (default: None)")
     group.add_argument('--streaming-layers', metavar='LIST', default=None,
                        help="comma-separated list of additional streaming layers "
                             "(default: None)")
@@ -427,10 +446,13 @@ def get_parser() -> argparse.Namespace:
         args.no_bias = []
     else:
         try:
-            args.no_bias = [int(s) for s in args.no_bias.split(',')]
+            if isinstance(args.no_bias, list):
+                args.no_bias = [int(s) for s in args.no_bias]
+            else:
+                args.no_bias = [int(s) for s in args.no_bias.split(',')]
         except ValueError as exc:
             raise ValueError('ERROR: Argument `--no-bias` must be a comma-separated '
-                             'list of integers only') from exc
+                             'list of integers only, or no argument') from exc
 
     if args.clock_trim is not None:
         clock_trim_error = False
@@ -523,6 +545,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.defines = args.define
     state.defines_arm = args.define_default_arm
     state.defines_riscv = args.define_default_riscv
+    state.display_progress = args.display_progress
     state.eclipse_includes = args.eclipse_includes
     state.eclipse_openocd_args = args.eclipse_openocd_args
     state.eclipse_variables = args.eclipse_variables
@@ -533,10 +556,12 @@ def set_state(args: argparse.Namespace) -> None:
     state.fast_fifo_quad = args.fast_fifo_quad
     state.fifo = args.fifo
     state.fifo_go = args.fifo_go
+    state.fifo_wait = args.fifo_wait
     state.fixed_input = args.fixed_input
     state.forever = args.forever and args.embedded_code
     state.generate_kat = args.generate_kat
     state.greedy_kernel_allocator = args.greedy_kernel_allocator
+    state.ignore_activation = args.ignore_activation
     state.ignore_bias_groups = args.ignore_bias_groups
     state.ignore_bn = args.ignore_bn
     state.ignore_hw_limits = args.ignore_hw_limits

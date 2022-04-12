@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -14,12 +14,14 @@ import sys
 
 import numpy as np
 
-from izer import apbaccess, assets, compute, kbias, kernels, load, op, rtlsim, state, stats
+from izer import (apbaccess, assets, compute, console, datamem, kbias, kernels, load, op, rtlsim,
+                  state, stats)
 from izer import tornadocnn as tc
 from izer.eprint import eprint, nprint, wprint
+from izer.names import layer_pfx, layer_str
 from izer.simulate import (conv1d_layer, conv2d_layer, convtranspose2d_layer, eltwise_layer,
                            passthrough_layer, pooling_layer, print_data, show_data)
-from izer.utils import ffs, fls, overlap, popcount
+from izer.utils import ffs, fls, overlap, plural, popcount
 
 from . import backend
 
@@ -57,6 +59,7 @@ class Backend(backend.Backend):
         eltwise = state.eltwise
         embedded_code = state.embedded_code
         ext_rdy = state.ext_rdy
+        avgpool_reset_layer = state.avgpool_reset_layer
         fast_fifo = state.fast_fifo
         fast_fifo_quad = state.fast_fifo_quad
         fifo = state.fifo
@@ -94,7 +97,10 @@ class Backend(backend.Backend):
         out_offset = state.out_offset
         output_chan = state.output_channels
         output_dim = state.output_dim
+        output_size = list(zip(output_chan, (output_dim[x][0] for x in range(len(output_dim))),
+                                            (output_dim[x][1] for x in range(len(output_dim)))))
         output_filename = state.output_filename
+        output_layer = state.output_layer
         output_padding = state.output_padding
         output_processor_map = state.output_processor_map
         output_shift = state.output_shift
@@ -172,6 +178,11 @@ class Backend(backend.Backend):
         out_ignore = [0] * layers
         out_pad = [0] * layers
 
+        hw_add_layers = [0] * layers
+        sum_hw_layers = 0
+
+        all_outputs_map = None
+
         terminating_layer = final_layer
         for i, s in enumerate(simulated_sequence):
             if s == -1:
@@ -182,35 +193,35 @@ class Backend(backend.Backend):
             state.rtl_preload = False
 
         if start_layer > 0 and not tc.dev.SUPPORT_LINK_LAYER:
-            eprint("`--start-layer` is not supported on this device.")
+            eprint('`--start-layer` is not supported on this device.')
 
         if start_layer > tc.dev.MAX_START_LAYER:
-            eprint(f"`--start-layer` is set to {start_layer}, but the device only supports "
-                   f"a maximum of {tc.dev.MAX_START_LAYER}.")
+            eprint(f'`--start-layer` is set to {start_layer}, but the device only supports '
+                   f'a maximum of {tc.dev.MAX_START_LAYER}.')
 
         if link_layer and not tc.dev.SUPPORT_LINK_LAYER:
-            eprint("`--link-layer` is not supported on this device.")
+            eprint('`--link-layer` is not supported on this device.')
 
         if any(rd_ahead) and not tc.dev.SUPPORT_READ_AHEAD:
-            eprint("`readahead` is not supported on this device.")
+            eprint('`readahead` is not supported on this device.')
 
         if any(calcx4) and not tc.dev.SUPPORT_CALCX4:
-            eprint("`calcx4` is not supported on this device.")
+            eprint('`calcx4` is not supported on this device.')
 
         if state.pipeline and not tc.dev.SUPPORT_PIPELINE:
-            eprint("`--pipeline` is not supported on this device.")
+            eprint('`--pipeline` is not supported on this device.')
 
         if state.pll and not tc.dev.SUPPORT_PLL:
-            eprint("`--pll` is not supported on this device.")
+            eprint('`--pll` is not supported on this device.')
 
         if state.fifo_go and not tc.dev.SUPPORT_FIFO_GO:
-            eprint("`--fifo-go` is not supported on this device.")
+            eprint('`--fifo-go` is not supported on this device.')
 
         if snoop is not None and not tc.dev.SUPPORT_SNOOP:
-            eprint("`snoop` is not supported on this device.")
+            eprint('`snoop` is not supported on this device.')
 
         if oneshot and not tc.dev.SUPPORT_ONESHOT:
-            eprint("`--one-shot` is not supported on this device.")
+            eprint('`--one-shot` is not supported on this device.')
 
         if state.pipeline is None:
             state.pipeline = tc.dev.SUPPORT_PIPELINE
@@ -260,21 +271,21 @@ class Backend(backend.Backend):
 
             if input_chan[start_layer] > 16 \
                or big_data[start_layer] and input_chan[start_layer] > 4:
-                eprint("Using the FIFO is restricted to a maximum of 4 input channels (CHW) or "
-                       f"16 channels (HWC); this test is using {input_chan[start_layer]} "
-                       "channels.")
+                eprint('Using the FIFO is restricted to a maximum of 4 input channels (CHW) or '
+                       f'16 channels (HWC); this input is using {input_chan[start_layer]} '
+                       'channels.')
             if big_data[start_layer] and processor_map[start_layer] & ~0x0001000100010001 != 0 \
                or not big_data[start_layer] \
                and processor_map[start_layer] & ~0x000f000f000f000f != 0:
-                eprint("The FIFO is restricted to processors 0, 16, 32, 48 (CHW) or "
-                       "0-3, 16-19, 32-35, 48-51 (HWC).")
+                eprint('The FIFO is restricted to processors 0, 16, 32, 48 (CHW) or '
+                       '0-3, 16-19, 32-35, 48-51 (HWC).')
             if fast_fifo:
                 if big_data[start_layer] and input_chan[start_layer] > 1:
-                    eprint("Fast FIFO supports only a single CHW input channel; "
-                           f"this test is using {input_chan[start_layer]} channels.")
+                    eprint('Fast FIFO supports only a single CHW input channel; '
+                           f'this test is using {input_chan[start_layer]} channels.')
                 elif not big_data[start_layer] and input_chan[start_layer] > 4:
-                    eprint("Fast FIFO supports up to four HWC input channels; "
-                           f"this test is using {input_chan[start_layer]} channels.")
+                    eprint('Fast FIFO supports up to four HWC input channels; '
+                           f'this test is using {input_chan[start_layer]} channels.')
                 if processor_map[start_layer] != 1 and processor_map[start_layer] & 0x0e == 0:
                     fifo_group = False
                 if output_width[start_layer] != 8:
@@ -286,14 +297,16 @@ class Backend(backend.Backend):
         if any(streaming) and start_layer != 0:
             eprint('`--start_layer` must be 0 when using streaming.')
 
-        for ll in range(min(tc.dev.MAX_STREAM_LAYERS, layers)):
+        for ll in range(min(tc.dev.MAX_STREAM_LAYERS + 1, layers)):
             if next_sequence[ll] != -1 and next_sequence[ll] != ll + 1 and streaming[ll]:
-                eprint(f'`next_sequence` must be {ll+1} when using streaming in layer {ll}. '
-                       f'Currently configured: {next_sequence[ll]}')
+                eprint(f'{layer_pfx(ll)}`next_sequence` must be {layer_str(ll+1)} when '
+                       f'using streaming. Currently configured: {layer_str(next_sequence[ll])}')
 
-            if tc.dev.EMULATE_1X1_STREAMING and streaming[ll] and kernel_size[ll] == [1, 1] \
-               and operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D]:
-                nprint(f'Layer {ll}: Using 3x3 kernel hardware for 1x1 streaming layer.')
+            if tc.dev.EMULATE_1X1_STREAMING and kernel_size[ll] == [1, 1] \
+               and operator[ll] in [op.CONV2D, op.CONVTRANSPOSE2D] \
+               and (streaming[ll] or prev_sequence[ll] >= 0 and streaming[prev_sequence[ll]]):
+                nprint(f'{layer_pfx(ll)}Using 3x3 kernel hardware for layer with 1x1 kernel due '
+                       'to streaming.')
                 # Create 3x3 weights from 1x1 weights and emulate using 3x3 kernels
                 weight33 = np.zeros((kernel[ll].shape[0], 3, 3), dtype=np.int64)
                 weight33[:, 1, 1] = kernel[ll][:, 0, 0]
@@ -306,7 +319,13 @@ class Backend(backend.Backend):
             if not tc.dev.SUPPORT_STREAM_NONPAD_FINAL and streaming[ll] \
                and (next_sequence[ll] == -1 or not streaming[next_sequence[ll]]) \
                and (padding[ll][0] == 0 or padding[ll][1] == 0):
-                eprint(f'Padding for the final streaming layer (layer {ll}) must not be zero.')
+                eprint(f'{layer_pfx(ll)}Padding for the final streaming layer must not '
+                       'be zero.')
+
+            if not tc.dev.SUPPORT_STREAMING_PASSTHROUGH \
+               and operator[ll] == op.NONE and streaming[ll]:
+                eprint(f'{layer_pfx(ll)}Passthrough operations are not supported for streaming '
+                       'layers.')
 
         if state.mlator and (output_dim[terminating_layer][0]
                              * output_dim[terminating_layer][1] < 4
@@ -344,7 +363,18 @@ class Backend(backend.Backend):
         binary_quantization = any(quantization[ll] == -1 for ll in range(first_layer_used, layers))
         # Check we're not using binary weights on devices that don't support it
         if binary_quantization and not tc.dev.SUPPORT_BINARY_WEIGHTS:
-            eprint("Binary weights (-1/+1) are not supported on this device.")
+            eprint('Binary weights (-1/+1) are not supported on this device.')
+
+        # Account for extra transparently inserted hardware layers
+        for ll in range(0, layers):
+            if avgpool_reset_layer[ll]:
+                sum_hw_layers += 1
+            hw_add_layers[ll] = sum_hw_layers
+
+        if repeat_layers * (final_layer + sum_hw_layers) > tc.dev.MAX_LAYERS:
+            rep = '' if repeat_layers == 1 else f'When repeating {repeat_layers} times, '
+            eprint(f'{rep}The adjusted layer count ({final_layer + sum_hw_layers}) '
+                   f'exceeds the device maximum ({tc.dev.MAX_LAYERS}).')
 
         hw_operator = operator.copy()
         hw_input_dim = copy.deepcopy(input_dim)
@@ -357,25 +387,25 @@ class Backend(backend.Backend):
         # used, and calculate input and output expansion
         for ll in range(first_layer_used, layers):
             if quantization[ll] == 1 and binary_quantization:
-                eprint(f"Cannot combine binary quantization in layer {ll} with "
-                       "1-bit quantization.")
+                eprint(f'{layer_pfx(ll)}Cannot combine binary quantization with '
+                       '1-bit quantization.')
             if output_shift[ll] is None:
                 output_shift[ll] = 0 if not bypass[ll] else 7  # Set default
 
             if output_shift[ll] < -15 or output_shift[ll] > 15:
                 implicit_shift = 8 - abs(quantization[ll]) if not bypass[ll] else 0
-                eprint(f"Layer {ll} with {abs(quantization[ll])}-bit weight quantization supports "
-                       f"an output_shift range of [{-15 - implicit_shift}, "
-                       f"+{15 - implicit_shift}]. The specified value of output_shift is "
-                       f"{output_shift[ll] - implicit_shift} which exceeds the system limits.")
+                eprint(f'{layer_pfx(ll)}{abs(quantization[ll])}-bit weight '
+                       f'quantization supports an output_shift range of [{-15 - implicit_shift}, '
+                       f'+{15 - implicit_shift}]. The specified value of output_shift is '
+                       f'{output_shift[ll] - implicit_shift} which exceeds the system limits.')
 
             if big_data[ll]:
                 p = processor_map[ll] >> (ffs(processor_map[ll]) & ~(tc.dev.P_SHARED-1))
                 while p:
                     if popcount(p & (tc.dev.P_SHARED-1)) > 1:
-                        eprint(f"Layer {ll} uses CHW input format, but multiple channels "
-                               "share the same memory instance. Modify the processor map for "
-                               f"layer {ll}.")
+                        eprint(f'{layer_pfx(ll)}CHW input format, but multiple '
+                               'channels share the same memory instance. Modify the processor '
+                               'map.')
                     p >>= tc.dev.P_SHARED
 
             out_expand[ll] = (output_chan[ll] + tc.dev.MAX_PROC-1) // tc.dev.MAX_PROC
@@ -401,7 +431,8 @@ class Backend(backend.Backend):
             in_size = input_dim[ll][0] * input_dim[ll][1] * in_expand[ll] * operands[ll] \
                 * (1 if big_data[ll] else 4)
             if not streaming[ll] and in_size + in_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
-                eprint(f'Layer {ll}: {1 if big_data[ll] else 4} channels/word {input_dim[ll][0]}x'
+                eprint(f'{layer_pfx(ll)}{1 if big_data[ll] else 4} '
+                       f'channel{"s" if not big_data[ll] else ""}/word {input_dim[ll][0]}x'
                        f'{input_dim[ll][1]} input (size {in_size}) '
                        f'with input offset 0x{in_offset[ll]:04x} and expansion {in_expand[ll]}x '
                        f'exceeds data memory instance size of {tc.dev.INSTANCE_WIDTH*16}.')
@@ -430,19 +461,32 @@ class Backend(backend.Backend):
                 stride_str[ll] = f'{stride[ll][0]}'
 
                 if operands[ll] > 1:
-                    eprint('Layer {ll}: Element-wise operations cannot be combined with Conv1d.')
+                    eprint(f'{layer_pfx(ll)}Element-wise operations cannot be '
+                           'combined with Conv1d.')
 
                 if not tc.dev.SUPPORT_MULTIPASS_PADDED_CONV1D and padding[ll][0] > 0 \
                    and in_expand[ll] > 1:
-                    eprint(f'Layer {ll}: This device does not support padded Conv1d with input '
-                           'expansion > 1.', error=not state.ignore_hw_limits)
+                    eprint(f'{layer_pfx(ll)}This device does not support padded Conv1d '
+                           'with input expansion > 1.', error=not state.ignore_hw_limits)
+
+            if operator[ll] == op.NONE and next_sequence[ll] != -1 \
+               and operator[next_sequence[ll]] == op.NONE \
+               and not any(ll in c if c is not None else False for c in in_sequences):
+                nprint(f'{layer_pfx(ll)}Passthrough layer is followed by passthrough '
+                       f'layer {layer_str(next_sequence[ll])}. '
+                       'These layers could potentially be combined.')
+                if operands[ll] > 0 and pool[ll][0] == 1 and pool[ll][1] == 1 \
+                   and (pool[next_sequence[ll]][0] > 1 or pool[next_sequence[ll]][1] > 1) \
+                   and operands[next_sequence[ll]] == 1:
+                    nprint('Use `pool_first: False` to combine element-wise and pooling layers '
+                           'where pooling is executed after the element-wise operation.')
 
             if dilation[ll][0] > 1:
                 if operator[ll] != op.CONV1D:
-                    eprint(f'Layer {ll}: `dilation` > 1 is supported for Conv1d only.')
+                    eprint(f'{layer_pfx(ll)}`dilation` > 1 is supported for Conv1d only.')
 
                 if kernel_size[ll][0] == 1:
-                    eprint(f'Layer {ll}: Kernel length must be greater than 1 to use '
+                    eprint(f'{layer_pfx(ll)}Kernel length must be greater than 1 to use '
                            '`dilation` > 1.')
 
                 if (kernel_size[ll][0] - 1) * dilation[ll][0] < 9:
@@ -457,20 +501,20 @@ class Backend(backend.Backend):
                 elif kernel_size[ll][0] <= tc.dev.MAX_DILATION_1D_KERNEL:
                     # Use Conv2d
                     if pool[ll][0] != 1:
-                        eprint(f'Layer {ll}: Pooling must be 1 to use `dilation` > 4.')
+                        eprint(f'{layer_pfx(ll)}Pooling must be 1 to use `dilation` > 4.')
                     if padding[ll][0] > tc.dev.MAX_DILATION_1D_PAD:
-                        eprint(f'Layer {ll}: Padding must be {tc.dev.MAX_DILATION_1D_PAD} '
-                               'or smaller to use `dilation` > 4.')
+                        eprint(f'{layer_pfx(ll)}Padding must be '
+                               f'{tc.dev.MAX_DILATION_1D_PAD} or smaller to use `dilation` > 4.')
                     if operands[ll] != 1:
-                        eprint(f'Layer {ll}: Operands must be 1 to use `dilation` > 4.')
+                        eprint(f'{layer_pfx(ll)}Operands must be 1 to use `dilation` > 4.')
                     if bypass[ll] or flatten[ll] or rd_ahead[ll] or streaming[ll]:
-                        eprint(f'Layer {ll}: `bypass`, `flatten`, `rd_ahead`, `streaming` '
-                               'must be False to use `dilation` > 4.')
+                        eprint(f'{layer_pfx(ll)}`bypass`, `flatten`, `rd_ahead`, '
+                               '`streaming` must be False to use `dilation` > 4.')
                     if dilation[ll][0] > tc.dev.MAX_DILATION_1D:
-                        eprint(f'Layer {ll}: `dilation` must be {tc.dev.MAX_DILATION_1D} '
-                               'or smaller for Conv1d operations.')
+                        eprint(f'{layer_pfx(ll)}`dilation` must be '
+                               f'{tc.dev.MAX_DILATION_1D} or smaller for Conv1d operations.')
 
-                    nprint(f'Layer {ll}: Using Conv2d hardware for dilated Conv1d.')
+                    nprint(f'{layer_pfx(ll)}Using Conv2d hardware for dilated Conv1d.')
                     # Use the Conv1d hardware with 1 pad on 'dilation' columns using 3x3 kernels
                     hw_operator[ll] = op.CONV2D
                     hw_input_dim[ll][0] = (input_dim[ll][0] + dilation[ll][0] - 1) \
@@ -499,17 +543,18 @@ class Backend(backend.Backend):
                     hw_kernel[ll] = k.reshape(-1, k.shape[2], k.shape[3])
 
                     if out_offset[ll] < out_ignore[ll]:
-                        eprint(f'Layer {ll}: `out_offset` used with dilation of {dilation[ll][0]} '
-                               f'must be at least {out_ignore[ll]:04x}.')
+                        eprint(f'{layer_pfx(ll)}`out_offset` used with dilation of '
+                               f'{dilation[ll][0]} must be at least {out_ignore[ll]:04x}.')
                 else:
-                    eprint(f'Layer {ll}: Kernel length must be {tc.dev.MAX_DILATION_1D_KERNEL} '
-                           f'or smaller to use `dilation` of {dilation[ll][0]}.')
+                    eprint(f'{layer_pfx(ll)}Kernel length must be '
+                           f'{tc.dev.MAX_DILATION_1D_KERNEL} or smaller to use `dilation` of '
+                           f'{dilation[ll][0]}.')
 
             out_size = (output_dim[ll][0] * output_dim[ll][1] + out_pad[ll]) * out_expand[ll] \
                 * 4 * output_width[ll] // 8
             if (not streaming[ll] or ll == terminating_layer) \
                and out_size + out_offset[ll] > tc.dev.INSTANCE_WIDTH*16:
-                eprint(f'Layer {ll}: HWC (4 channels/word) '
+                eprint(f'{layer_pfx(ll)}HWC (4 channels/word) '
                        f'{output_width[ll]}-bit {output_dim[ll][0]}x'
                        f'{output_dim[ll][1]} output (size {out_size}) '
                        f'with output offset 0x{out_offset[ll]:04x} and expansion '
@@ -518,16 +563,18 @@ class Backend(backend.Backend):
 
             if hw_operator[ll] == op.NONE:
                 if activation[ll] is not None:
-                    eprint(f'Layer {ll}: Pass-through layers must not use activation.')
+                    eprint(f'{layer_pfx(ll)}Pass-through layers must not use activation.')
                 if padding[ll][0] != 0 or padding[ll][1] != 0:
-                    eprint(f'Layer {ll}: Padding must be zero for passthrough layers.')
+                    eprint(f'{layer_pfx(ll)}Padding must be zero for passthrough layers.')
                 if output_shift[ll] != 0 and output_shift[ll] is not None:
-                    eprint(f'Layer {ll}: `output_shift` must be zero for passthrough layers.')
+                    eprint(f'{layer_pfx(ll)}`output_shift` must be zero for passthrough '
+                           'layers.')
                 if (pool[ll][0] > 1 or pool[ll][1] > 1) \
                    and in_expand[ll] > tc.dev.MAX_POOL_PASSES \
                    and (hw_pooled_dim[ll][0] > 1 or hw_pooled_dim[ll][1] > 1):
-                    eprint(f'Layer {ll}: pooling in passthrough layer uses {in_expand[ll]} '
-                           f'passes, which exceeds the maximum of {tc.dev.MAX_POOL_PASSES} '
+                    eprint(f'{layer_pfx(ll)}pooling in passthrough layer uses '
+                           f'{in_expand[ll]} {plural(in_expand[ll], "pass", "es")}, '
+                           f'which exceeds the maximum of {tc.dev.MAX_POOL_PASSES} '
                            'on this device.')
 
                 tram_max[ll] = 1
@@ -540,12 +587,13 @@ class Backend(backend.Backend):
                     )
                     if hw_padding[ll][0] not in tc.dev.SUPPORTED_X2D_PADS \
                        or hw_padding[ll][1] not in tc.dev.SUPPORTED_X2D_PADS:
-                        eprint(f'Layer {ll}: The selected padding ({padding[ll]}) for '
+                        eprint(f'{layer_pfx(ll)}The selected padding ({padding[ll]}) for '
                                'ConvTranspose2d is not supported on this device.')
                     if output_padding[ll][0] not in tc.dev.SUPPORTED_X2D_OUTPUT_PADS \
                        or output_padding[ll][1] not in tc.dev.SUPPORTED_X2D_OUTPUT_PADS:
-                        eprint(f'Layer {ll}: The selected output padding ({output_padding[ll]}) '
-                               'for ConvTranspose2d is not supported on this device.')
+                        eprint(f'{layer_pfx(ll)}The selected output padding '
+                               f'({output_padding[ll]}) for ConvTranspose2d is not supported '
+                               'on this device.')
                     tram_max[ll] = max(0, (hw_pooled_dim[ll][1] - 1) * stride[ll][1] + 1
                                        + output_padding[ll][1] + 2 * hw_padding[ll][1]
                                        - hw_kernel_size[ll][1]) + 1
@@ -555,50 +603,85 @@ class Backend(backend.Backend):
 
             if hw_operator[ll] != op.CONVTRANSPOSE2D and (output_padding[ll][0] != 0
                                                           or output_padding[ll][1] != 0):
-                eprint(f'Layer {ll}: Output padding must be 0 for this operator.')
+                eprint(f'{layer_pfx(ll)}Output padding must be 0 for this operator.')
 
             if input_chan[ll] % conv_groups[ll] != 0 or output_chan[ll] % conv_groups[ll] != 0:
-                eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) does not divide'
-                       f' the input channels ({input_chan[ll]}) or'
-                       f' output channels ({output_chan[ll]}).')
+                eprint(f'{layer_pfx(ll)}convolution groups ({conv_groups[ll]}) does not '
+                       f'divide the input channels ({input_chan[ll]}) or '
+                       f'output channels ({output_chan[ll]}).')
 
             if flatten[ll] and hw_operator[ll] == op.NONE:
-                eprint(f'Layer {ll}: `flatten` is not compatible with passthrough layers.')
+                eprint(f'{layer_pfx(ll)}`flatten` is not compatible with passthrough '
+                       'layers.')
 
             if flatten[ll] and (pool[ll][0] > 1 or pool[ll][1] > 1):
-                eprint(f'Layer {ll}: `flatten` is not compatible with pooling.')
+                eprint(f'{layer_pfx(ll)}`flatten` is not compatible with pooling.')
 
             if flatten[ll] and streaming[ll]:
-                eprint(f'Layer {ll}: `flatten` is not compatible with streaming.')
+                eprint(f'{layer_pfx(ll)}`flatten` is not compatible with streaming.')
 
             if conv_groups[ll] > 1:
                 if not tc.dev.SUPPORT_DEPTHWISE:
-                    eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) > 1 are not '
+                    eprint(f'{layer_pfx(ll)}Convolution groups ({conv_groups[ll]}) > 1 are not '
                            f' supported on this device.')
                 if conv_groups[ll] != input_chan[ll] or conv_groups[ll] != output_chan[ll]:
-                    eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) must be equal to '
-                           f'the number of input channels ({input_chan[ll]}), and output '
+                    eprint(f'{layer_pfx(ll)}Convolution groups ({conv_groups[ll]}) must be equal '
+                           f'to the number of input channels ({input_chan[ll]}), and output '
                            f'channels ({output_chan[ll]}) must be equal to input channels.')
                 if flatten[ll]:
-                    eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) > 1 are not '
+                    eprint(f'{layer_pfx(ll)}Convolution groups ({conv_groups[ll]}) > 1 are not '
                            'supported when flattening.')
                 if bias_group_map[ll] is not None:
-                    eprint(f'Layer {ll}: `bias_group` is not supported for depth-wise layers.')
+                    eprint(f'{layer_pfx(ll)}`bias_group` is not supported for depth-wise layers.')
                 # if output_width[ll] != 8:
-                #     eprint(f'Layer {ll}: convolution groups ({conv_groups[ll]}) > 1 are not'
+                #     eprint(f'{layer_pfx(ll)}convolution groups ({conv_groups[ll]}) > 1 are not'
                 #            f' supported when using `wide` output.')
 
             if input_skip[ll] != 0 and not tc.dev.SUPPORT_MULTIPASS_STRIDE:
-                eprint(f'Layer {ll}: `in_skip` must be 0 for this device.')
+                eprint(f'{layer_pfx(ll)}`read_gap` must be 0 for this device.')
+            if input_skip[ll] != 0 and in_expand[ll] > 1 \
+               and not tc.dev.SUPPORT_MULTIPASS_READ_STRIDE:
+                eprint(f'{layer_pfx(ll)}`read_gap` must be 0 when using more than 64 channels or '
+                       'multi-pass on this device.')
 
             # Conv1d pool_dilation
             if pool_dilation[ll][0] < 1 or pool_dilation[ll][1] < 1 \
                or pool_dilation[ll][0] > tc.dev.MAX_POOL_DILATION \
                or pool_dilation[ll][1] > tc.dev.MAX_POOL_DILATION:
-                eprint(f'Layer {ll}: `pool_dilation` values must be 1 or greater, and '
+                eprint(f'{layer_pfx(ll)}`pool_dilation` values must be 1 or greater, and '
                        f'{tc.dev.MAX_POOL_DILATION} or smaller on this device.')
 
             if in_sequences[ll] is not None:
+                or_map = 0
+                and_map = ~or_map
+                for i, lt in enumerate(in_sequences[ll]):
+                    emap = processor_map[0] if lt == -1 else output_processor_map[lt]
+                    or_map |= emap
+                    and_map &= emap
+                if or_map != processor_map[ll]:
+                    wprint(f'{layer_pfx(ll)}The combination of the `in_sequences` '
+                           '`output_processor_map`s does not combine to `processor_map`.')
+                if and_map != processor_map[ll]:
+                    # Concatenate channels sequentially
+                    if and_map != 0:
+                        wprint(f'{layer_pfx(ll)}Channel concatenation has `output_processor_map` '
+                               f'overlap for `in_sequences` {in_sequences[ll]}.')
+                    for i, lt in enumerate(in_sequences[ll]):
+                        if lt != -1 and in_offset[ll] != out_offset[lt]:
+                            wprint(f'{layer_pfx(ll)}`in_offset` (0x{in_offset[ll]:04x}, for '
+                                   f'input #{i}) does not match `out_offset` '
+                                   f'(0x{out_offset[lt]:04x}) for layer {layer_str(lt)}.')
+                else:
+                    # Channel-wise concatenation or element-wise or interleaved concatenation
+                    offs = 0
+                    for i, lt in enumerate(in_sequences[ll]):
+                        if lt != -1 and in_offset[ll] + 4 * i != out_offset[lt] \
+                           and in_offset[ll] + offs != out_offset[lt]:
+                            wprint(f'{layer_pfx(ll)}`in_offset` (0x{in_offset[ll]:04x}, for '
+                                   f'input #{i}) does not match `out_offset` '
+                                   f'(0x{out_offset[lt]:04x}) for layer {layer_str(lt)}.')
+                        offs += 4 * output_dim[lt][0] * output_dim[lt][1]
+
                 if operands[ll] == 1:  # cat
                     if write_gap[ll] == 0:
                         min_proc = -1
@@ -609,15 +692,15 @@ class Backend(backend.Backend):
                             last_proc = fls(processor_map[0]) if lt == -1 \
                                 else fls(output_processor_map[lt])
                             if first_proc < min_proc:
-                                wprint(f'Layer {ll}: In `in_sequences` {in_sequences[ll]}, '
+                                wprint(f'{layer_pfx(ll)}In `in_sequences` {in_sequences[ll]}, '
                                        'an earlier layer in the sequence uses a higher first '
-                                       f'processor ({min_proc}) than layer {lt} which uses '
-                                       f'processor {first_proc}.')
+                                       f'processor ({min_proc}) than layer {layer_str(lt)} which '
+                                       f'uses processor {first_proc}.')
                             if last_proc < max_proc:
-                                wprint(f'Layer {ll}: In `in_sequences` {in_sequences[ll]}, '
+                                wprint(f'{layer_pfx(ll)}In `in_sequences` {in_sequences[ll]}, '
                                        'an earlier layer in the sequence uses a higher last '
-                                       f'processor ({max_proc}) than layer {lt} which uses '
-                                       f'processor {last_proc}.')
+                                       f'processor ({max_proc}) than layer {layer_str(lt)} which '
+                                       f'uses processor {last_proc}.')
                             min_proc = first_proc
                             max_proc = last_proc
                 else:  # eltwise
@@ -625,10 +708,10 @@ class Backend(backend.Backend):
                     for _, lt in enumerate(in_sequences[ll]):
                         emap = processor_map[0] if lt == -1 else output_processor_map[lt]
                         if eltwise_proc_map not in (0, emap):
-                            eprint(f'Layer {ll}: In `in_sequences` {in_sequences[ll]}, '
+                            eprint(f'{layer_pfx(ll)}In `in_sequences` {in_sequences[ll]}, '
                                    'an earlier layer in the sequence uses a different output '
-                                   f'processor map (0x{eltwise_proc_map:016x}) than layer {lt} '
-                                   f'which uses 0x{emap:016x}.')
+                                   f'processor map (0x{eltwise_proc_map:016x}) than layer '
+                                   f'{layer_str(lt)} which uses 0x{emap:016x}.')
                         eltwise_proc_map = emap
 
                 # Merge the output of all processors of all input sequence members
@@ -637,7 +720,7 @@ class Backend(backend.Backend):
                     emap |= processor_map[0] if lt == -1 else output_processor_map[lt]
                 # Check that all out input processors have data from somewhere in the merged map
                 if processor_map[ll] & emap != processor_map[ll]:
-                    wprint(f'Layer {ll}: The processor map {processor_map[ll]:016x} specifies '
+                    wprint(f'{layer_pfx(ll)}The processor map {processor_map[ll]:016x} specifies '
                            'processors that have no data from any of the input sequences '
                            f'{in_sequences[ll]}.')
 
@@ -675,7 +758,7 @@ class Backend(backend.Backend):
             if not overwrite:
                 eprint('The target folder', target_dir, 'exists. Use --overwrite to proceed.')
             else:
-                wprint('--overwrite specified, writing to', target_dir, 'even though it exists.')
+                nprint('--overwrite specified, writing to', target_dir, 'even though it exists.')
 
         # Redirect stdout?
         if log:
@@ -724,35 +807,43 @@ class Backend(backend.Backend):
         # Calculate the groups needed, and groups and processors used overall
         processors_used = 0
         group_map = [None] * layers
-        broadcast_mode = [None] * layers
+        broadcast_mode = [False] * layers
         emulate_eltwise = [False] * layers
         for ll in range(first_layer_used, layers):
             bits = processor_map[ll]
             processors_used |= bits
+            fl = ' (before flattening)' if flatten[ll] else ''
 
             if input_chan[ll] > tc.dev.MAX_CHANNELS:
-                eprint(f'Layer {ll} is configured for {input_chan[ll]} input channels, which '
+                eprint(f'{layer_pfx(ll)}Configured for {input_chan[ll]} input channels{fl}, which '
                        f'exceeds the system maximum of {tc.dev.MAX_CHANNELS}.')
             if output_chan[ll] > tc.dev.MAX_CHANNELS:
-                eprint(f'Layer {ll} is configured for {output_chan[ll]} output channels, which '
+                eprint(f'{layer_pfx(ll)}Configured for {output_chan[ll]} output channels, which '
                        f'exceeds the system maximum of {tc.dev.MAX_CHANNELS}.')
             if (ll != start_layer or not fast_fifo_quad) \
                and popcount(processor_map[ll]) != in_expand_thresh[ll]:
-                eprint(f'Layer {ll} has {input_chan[ll]} input channels using {in_expand[ll]} '
-                       f'passes, and {operands[ll]} operands ({in_expand_thresh[ll]} processors '
+                eprint(f'{layer_pfx(ll)}{input_chan[ll]} input '
+                       f'{plural(input_chan[ll], "channel")}{fl} '
+                       f'using {in_expand[ll]} {plural(in_expand[ll], "pass", "es")}, '
+                       f'and {operands[ll]} {plural(operands[ll], "operand")} '
+                       f'({in_expand_thresh[ll]} processors '
                        f'per pass), but the enabled processor map 0x{processor_map[ll]:016x} '
                        f'has {popcount(processor_map[ll])} bits instead of the '
                        f'expected number of {in_expand_thresh[ll]}.')
             if ll == start_layer and fast_fifo_quad \
                and popcount(processor_map_0) != in_expand_thresh[ll]:
-                eprint(f'Layer {ll} has {input_chan[ll]} input channels using {in_expand[ll]} '
-                       f'passes ({in_expand_thresh[ll]} processors per pass), but the '
+                eprint(f'{layer_pfx(ll)}{input_chan[ll]} input '
+                       f'{plural(input_chan[ll], "channel")}{fl} '
+                       f'using {in_expand[ll]} {plural(in_expand[ll], "pass", "es")} '
+                       f'({in_expand_thresh[ll]} processors per pass), but the '
                        f'enabled processor map 0x{processor_map[ll]:016x} '
                        f'has {popcount(processor_map[ll])} bits instead of the '
                        f'expected number of {in_expand_thresh[ll]}.')
             if popcount(output_processor_map[ll]) != out_expand_thresh[ll]:
-                eprint(f'Layer {ll} has {output_chan[ll]} output channels using {out_expand[ll]} '
-                       f'passes ({out_expand_thresh[ll]} processors per pass), but the '
+                eprint(f'{layer_pfx(ll)}{output_chan[ll]} output '
+                       f'{plural(output_chan[ll], "channel")} using {out_expand[ll]} '
+                       f'{plural(out_expand[ll], "pass", "es")} '
+                       f'({out_expand_thresh[ll]} processors per pass), but the '
                        f'processor output map 0x{output_processor_map[ll]:016x} '
                        f'has {popcount(output_processor_map[ll])} bits instead of the '
                        f'expected number of {out_expand_thresh[ll]}.')
@@ -773,8 +864,8 @@ class Backend(backend.Backend):
                     if out_pro != 0:
                         out_pro >>= ffs(out_pro)
                     if out_pro != in_pro:
-                        eprint(f'Layer {ll} is a pass-through layer. The output processors must '
-                               'be a packed version of the input processors for each x16. '
+                        eprint(f'{layer_pfx(ll)}The output processors for a pass-through layer '
+                               'must be a packed version of the input processors for each x16. '
                                f'Configured are: input {processor_map[ll]:016x}, output '
                                f'{output_processor_map[ll]:016x}.')
 
@@ -782,34 +873,33 @@ class Backend(backend.Backend):
             # depthwise convolutions
             if conv_groups[ll] > 1:
                 if ffs(output_processor_map[ll]) % tc.dev.P_SHARED != 0:
-                    eprint(f'Layer {ll} is a depth-wise convolution. Output processors '
+                    eprint(f'{layer_pfx(ll)}Output processors for depth-wise convolutions '
                            'must be aligned to a multiple of 4. Configured for this layer: '
                            f'{output_processor_map[ll]:016x}.')
                 if ffs(processor_map[ll]) % tc.dev.P_SHARED != 0 \
                    and (processor_map[ll] >> ffs(processor_map[ll])) // 2**tc.dev.P_NUMPRO > 0:
-                    eprint(f'Layer {ll} is a depth-wise convolution. When spanning groups, '
+                    eprint(f'{layer_pfx(ll)}When spanning groups for depth-wise convolutions, '
                            'processors must be aligned to a multiple of 4. Configured for this '
                            f'layer: {processor_map[ll]:016x}.')
-                if processor_map[ll] != output_processor_map[ll]:
-                    wprint(f'Layer {ll}: depth-wise convolution moves data across processors. '
-                           f'This has a performance impact. Input {processor_map[ll]:016x}, '
-                           f'output {output_processor_map[ll]:016x}.')
-                    broadcast_mode[ll] = False
-                else:
+                if processor_map[ll] == output_processor_map[ll]:
                     broadcast_mode[ll] = True
+                else:
+                    nprint(f'{layer_pfx(ll)}depth-wise convolution moves data across processors. '
+                           f'This has a performance impact. Input 0x{processor_map[ll]:016x}, '
+                           f'output 0x{output_processor_map[ll]:016x}.')
 
             # Block certain element-wise operations when not using passthrough mode
             if tc.dev.EMULATE_ELTWISE_MP and operands[ll] > 1 and in_expand[ll] > 1 \
                and operands[ll] * in_expand[ll] != operands[ll] + in_expand[ll]:
                 if hw_operator[ll] != op.NONE or pool[ll][0] > 1 or pool[ll][1] > 1 \
                    or pool_stride[ll][0] > 1 or pool_stride[ll][1] > 1:
-                    eprint(f'The element-wise operation in layer {ll} exceeds a multi-pass of 2 '
+                    eprint(f'{layer_pfx(ll)}The element-wise operation exceeds a multi-pass of 2 '
                            'and therefore does not support pooling or convolution.')
                 emulate_eltwise[ll] = True
 
             # Warn if hidden layers use channel count that is not divisible by 4
             if ll != start_layer and input_chan[ll] % 4 != 0:
-                nprint(f'Layer {ll} uses an input channel count ({input_chan[ll]}) that is not '
+                nprint(f'{layer_pfx(ll)}The input channel count ({input_chan[ll]}) is not '
                        'a multiple of 4. Best energy performance is achieved with multiples of 4.')
 
         groups_used = []
@@ -825,7 +915,7 @@ class Backend(backend.Backend):
             if bias_group_map[ll] is not None:
                 for _, e in enumerate(bias_group_map[ll]):
                     if e not in groups_used:
-                        eprint(f'Layer {ll}: `bias_quadrant` references the unused quadrant {e}. '
+                        eprint(f'{layer_pfx(ll)}`bias_quadrant` references unused quadrant {e}. '
                                f'Used x16 groups for this network are: {groups_used}.',
                                error=not ignore_bias_groups)
 
@@ -903,18 +993,22 @@ class Backend(backend.Backend):
 
             # Human readable description of test
             apb.output(f'// Configuring {repeat_layers * layers} '
-                       f'layer{"s" if repeat_layers * layers > 1 else ""}:\n', embedded_code)
+                       f'{plural(repeat_layers * layers, "layer")}\n'
+                       f'// Input data: {"CHW" if big_data[first_layer_used] else "HWC"}\n',
+                       embedded_code)
 
             for r in range(repeat_layers):
                 for ll in range(first_layer_used, layers):
-                    flatten_str = "" if not flatten[ll] else \
-                        f"flattened to {input_chan[ll]*input_dim[ll][0]*input_dim[ll][1]}x1x1, "
+                    flatten_str = '' if not flatten[ll] else \
+                        f' flattened to {input_chan[ll]*input_dim[ll][0]*input_dim[ll][1]}x1x1'
                     apb.output(f'// Layer {r * layers + ll}: '
                                f'{str(operands[ll])+"x" if operands[ll] > 1 else ""}'
-                               f'{input_chan[ll]}x{input_dim_str[ll]} ('
-                               f'{"streaming " if streaming[ll] else ""}{flatten_str}'
-                               f'{"CHW data)" if big_data[ll] else "HWC data)"}, ',
+                               f'{input_chan[ll]}x{input_dim_str[ll]}'
+                               f'{"streaming " if streaming[ll] else ""}{flatten_str}, ',
                                embedded_code)
+                    if not pool_first[ll] and operands[ll] > 1:
+                        apb.output(f'{operands[ll]}-element {op.string(eltwise[ll], elt=True)}, ',
+                                   embedded_code)
                     if pool[ll][0] > 1 or pool[ll][1] > 1:
                         apb.output(f'{"avg" if pool_average[ll] else "max"} pool {pool_str[ll]} '
                                    f'with stride {pool_stride_str[ll]}', embedded_code)
@@ -922,12 +1016,16 @@ class Backend(backend.Backend):
                             apb.output(f' and dilation {pool_dilation_str[ll]}', embedded_code)
                     else:
                         apb.output('no pooling', embedded_code)
+                    if pool_first[ll] and operands[ll] > 1:
+                        apb.output(f', {operands[ll]}-element {op.string(eltwise[ll], elt=True)}',
+                                   embedded_code)
                     if hw_operator[ll] != op.NONE:
-                        conv_str = f', {op.string(operator[ll])} with kernel size ' \
-                                   f'{kernel_size_str[ll]}, ' \
-                                   f'stride {stride_str[ll]}, ' \
-                                   f'pad {padding_str[ll]}, ' \
-                                   f'{op.act_string(activation[ll])}, '
+                        conv_str = f', {op.string(operator[ll])}'
+                        if operator[ll] != op.LINEAR:
+                            conv_str += f' with kernel size {kernel_size_str[ll]}, ' \
+                                        f'stride {stride_str[ll]}, ' \
+                                        f'pad {padding_str[ll]}'
+                        conv_str += f', {op.act_string(activation[ll])}, '
                         if dilation[ll][0] > 1 or dilation[ll][1] > 1:
                             conv_str += f'dilation {dilation_str[ll]}, '
                     else:
@@ -1004,6 +1102,7 @@ class Backend(backend.Backend):
                     processor_map,
                     output_processor_map,
                     out_expand,
+                    out_expand_thresh,
                     list(set().union(groups_used)),
                     flatten,
                 )
@@ -1107,7 +1206,8 @@ class Backend(backend.Backend):
                     apb.write_ctl(group, tc.dev.REG_SRAM, 0x40e,
                                   comment=' // SRAM control')
                 # Number of layers and start layer
-                val = (repeat_layers * final_layer) | (start_layer << 8)
+                val = (repeat_layers * (final_layer + sum_hw_layers)) \
+                    | ((start_layer + hw_add_layers[start_layer]) << 8)
                 apb.write_ctl(group, tc.dev.REG_LCNT_MAX, val,
                               comment=' // Layer count')
 
@@ -1206,6 +1306,7 @@ class Backend(backend.Backend):
                     processor_map,
                     output_processor_map,
                     out_expand,
+                    out_expand_thresh,
                     list(set().union(groups_used)),
                     flatten,
                 )
@@ -1241,7 +1342,7 @@ class Backend(backend.Backend):
                 print(f'Input dimensions    = {input_dim}')
                 print(f'Flatten             = {flatten}')
                 if any(s > 0 for s in input_skip):
-                    print(f'Input skip          = {input_skip}')
+                    print(f'Input read gap      = {input_skip}')
                 if any(s > 0 for s in input_channel_skip):
                     print(f'Input channel skip  = {input_channel_skip}')
                 print(f'Input expansion     = {in_expand}')
@@ -1262,6 +1363,8 @@ class Backend(backend.Backend):
 
                 print(f'Output channels     = {output_chan}')
                 print(f'Output dimensions   = {output_dim}')
+                if any(s > 0 for s in write_gap):
+                    print(f'Output write gap    = {write_gap}')
                 print(f'Output expansion    = {out_expand}')
                 print(f'Expansion threshold = {out_expand_thresh}')
                 print(f'Output shift        = {output_shift}')
@@ -1281,9 +1384,9 @@ class Backend(backend.Backend):
                 print('Activation          = [',
                       ', '.join(op.act_string(k) if k is not None
                                 else 'no' for k in activation), ']', sep='',)
-                print(f'Kernel offset       = {kern_offs}')
-                print(f'Kernel length       = {kern_len}')
-                print(f'Kernel count        = {kern_count}')
+                print(f'Kernel offset       = {kern_offs.tolist()}')
+                print(f'Kernel length       = {kern_len.tolist()}')
+                print(f'Kernel count        = {kern_count.tolist()}')
                 print(f'Kernel dimensions   = {kernel_size}')
                 if any(h != 1 or w != 1 for h, w in dilation):
                     print(f'Dilation            = {dilation}')
@@ -1306,6 +1409,7 @@ class Backend(backend.Backend):
             # Configure per-layer control registers
             for r in range(repeat_layers):
                 for ll in range(first_layer_used, layers):
+                    hw_layer = r * (layers + sum_hw_layers) + ll + hw_add_layers[ll]
 
                     local_source = False
                     for _, group in enumerate(groups_used):
@@ -1365,7 +1469,11 @@ class Backend(backend.Backend):
                                      * output_width[ll] + 7) // 8 - 1
                                 )
 
-                    for _, group in enumerate(groups_used):
+                    for gindex, group in enumerate(groups_used):
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            # Insert small single-quadrant passthrough layer
+                            apb.output('  // Average pool accumulator reset layer and\n',
+                                       embedded_code)
                         apb.output(f'  // Layer {r * layers + ll} quadrant {group}\n',
                                    embedded_code)
 
@@ -1381,36 +1489,44 @@ class Backend(backend.Backend):
                                 if ll != layers - 1:  # Don't set stop bit unless required
                                     val = 1 << 8
                             elif lt != ll + 1:
-                                val = 1 << 7 | lt
+                                val = 1 << 7 | lt + hw_add_layers[lt]
                             elif snoop_sequence[ll] is not None:
                                 lt = snoop_sequence[ll]
                                 assert lt >= 0
-                                val = 1 << 7 | lt
-                            if lt != -1:
+                                val = 1 << 7 | lt + hw_add_layers[lt]
+                            if lt != -1 and gindex == 0:
                                 if in_sequences[lt] is not None and ll in in_sequences[lt] \
                                    and operands[lt] == 1:
                                     ll_index = in_sequences[lt].index(ll)
                                     ll_offset = out_offset[ll] - ll_index * write_gap[ll] * 4
-                                    if in_offset[lt] != ll_offset:
-                                        wprint(f'Layer {ll}: The input offset of the next '
-                                               f'sequence (layer {lt}, 0x{in_offset[lt]:04x}) '
-                                               "does not match the current layer's output "
-                                               f'(offset 0x{out_offset[ll]:04x} - write gap '
-                                               f'{write_gap[ll]} * sequence position '
-                                               f'{ll_index} * 4 = 0x{ll_offset:04x}).')
-                                    if input_chan[lt] != output_chan[ll] \
-                                       * len(in_sequences[lt]) \
-                                       or input_dim[lt] != output_dim[ll]:
-                                        wprint(f'Layer {ll}: The input dimensions of the next '
-                                               f'sequence (layer {lt}, '
+                                    offs = 0
+                                    for _, e in enumerate(in_sequences[lt][:ll_index]):
+                                        offs += output_dim[e][0] * output_dim[e][1]
+                                    if in_offset[lt] != ll_offset \
+                                       and out_offset[ll] != offs * 4:
+                                        wprint(f'{layer_pfx(ll)}The input offset '
+                                               f'0x{in_offset[lt]:04x} of the next sequence '
+                                               f'(layer {layer_str(lt)}) does not match the '
+                                               'current layer\'s output offset '
+                                               f'0x{out_offset[ll]:04x}, write gap '
+                                               f'{write_gap[ll]}, input #{ll_index}.')
+                                    pix = sum(output_dim[e][0] * output_dim[e][1]
+                                              for e in in_sequences[lt])
+                                    if (
+                                        (input_chan[lt] != output_chan[ll] * len(in_sequences[lt])
+                                         or input_dim[lt] != output_dim[ll])
+                                        and (input_chan[lt] != output_chan[ll]
+                                             or input_dim[lt][0] * input_dim[lt][1] != pix)
+                                    ):
+                                        wprint(f'{layer_pfx(ll)}The input dimensions of the next '
+                                               f'sequence (layer {layer_str(lt)}, '
                                                f'{len(in_sequences[lt])} inputs, '
                                                f'{input_chan[lt]}x{input_dim_str[lt]}) do '
-                                               "not match the current layer's output "
-                                               "dimensions "
+                                               "not match the current layer's output dimensions "
                                                f'({output_chan[ll]}x{output_dim_str[ll]}).')
 
                         if hasattr(tc.dev, 'LREG_NXTLYR'):
-                            apb.write_lreg(group, r * layers + ll, tc.dev.LREG_NXTLYR, val,
+                            apb.write_lreg(group, hw_layer, tc.dev.LREG_NXTLYR, val,
                                            comment=' // Next Layer')
 
                         # Configure row count
@@ -1454,7 +1570,9 @@ class Backend(backend.Backend):
                             assert val + 2*hw_padding[ll][0] < 2**tc.dev.MAX_CNT_BITS
                             val |= hw_padding[ll][0] << tc.dev.PAD_CNT_OFFS
                             val += 2*hw_padding[ll][0]
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_RCNT, val,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_RCNT, 1 << 16)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_RCNT, val,
                                        comment=' // Rows')
 
                         # Configure column count (evaluates to 0 for 1D convolutions)
@@ -1475,7 +1593,9 @@ class Backend(backend.Backend):
                             assert val + 2 * hw_padding[ll][1] < 2**tc.dev.MAX_CNT_BITS
                             val |= hw_padding[ll][1] << tc.dev.PAD_CNT_OFFS
                             val += 2 * hw_padding[ll][1]
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_CCNT, val,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_CCNT, 1 << 16)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_CCNT, val,
                                        comment=' // Columns')
 
                         # Configure pooling row count
@@ -1483,7 +1603,7 @@ class Backend(backend.Backend):
                         assert val < 2**4
                         if hasattr(tc.dev, 'CNT_INC_OFFS'):
                             val |= pool_dilation[ll][0] - 1 << tc.dev.CNT_INC_OFFS
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PRCNT, val,
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_PRCNT, val,
                                        comment=' // Pooling rows')
 
                         # Configure pooling column count
@@ -1491,7 +1611,7 @@ class Backend(backend.Backend):
                         assert val < 2**4
                         if hasattr(tc.dev, 'CNT_INC_OFFS'):
                             val |= pool_dilation[ll][1] - 1 << tc.dev.CNT_INC_OFFS
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_PCCNT, val,
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_PCCNT, val,
                                        comment=' // Pooling columns')
 
                         # Configure pooling stride count
@@ -1505,7 +1625,9 @@ class Backend(backend.Backend):
                         if hasattr(tc.dev, 'MP_STRIDE_OFFS'):  # Multipass stride
                             val |= pool_stride[ll][0] * operands[ll] * in_expand[ll] \
                                 * (input_skip[ll] + 1) << tc.dev.MP_STRIDE_OFFS
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STRIDE, val,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_STRIDE, 0x10)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_STRIDE, val,
                                        comment=' // Stride')
 
                         val = (out_offset[ll] - out_ignore[ll]) // 4
@@ -1549,7 +1671,9 @@ class Backend(backend.Backend):
                                    & ~(tc.dev.P_SHARED-1)
                             val |= (instance + group * tc.dev.P_SHARED) * tc.dev.INSTANCE_SIZE
                         assert val < 2**tc.dev.MAX_PTR_BITS
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_BASE, val,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_WPTR_BASE, val)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_WPTR_BASE, val,
                                        comment=' // SRAM write ptr')
 
                         # Write Pointer Timeslot Offset Register
@@ -1567,26 +1691,31 @@ class Backend(backend.Backend):
                             else:
                                 val = tc.dev.INSTANCE_SIZE
                         assert val < 2**tc.dev.MAX_PTR_BITS
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_TOFFS, val,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_WPTR_TOFFS, val)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_WPTR_TOFFS, val,
                                        comment=' // Write ptr time slot offs')
 
                         if hw_operator[ll] != op.NONE:
                             # [15:0] Write Pointer Mask Offset Register
                             val = 1 << tc.dev.WRITE_PTR_SHIFT
-                            apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_MOFFS, val,
+                            apb.write_lreg(group, hw_layer, tc.dev.LREG_WPTR_MOFFS, val,
                                            comment=' // Write ptr mask offs')
 
                         # [15:0] Write Pointer Multi-Pass Channel Offset Register
                         val = 0
                         if out_expand[ll] > 1:
                             val = (output_width[ll] // 8) * (write_gap[ll] + 1)
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_WPTR_CHOFFS, val,
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_WPTR_CHOFFS, val,
                                        comment=' // Write ptr multi-pass channel offs')
 
                         # Configure sram read ptr count -- read ptr is local
                         # Source address must match write pointer of previous layer (minus global
                         # offset)
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_RPTR_BASE,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_RPTR_BASE,
+                                           in_offset[ll] // 4)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_RPTR_BASE,
                                        in_offset[ll] // 4,
                                        comment=' // SRAM read ptr')
 
@@ -1637,7 +1766,9 @@ class Backend(backend.Backend):
                         if bypass[ll]:
                             val |= 1 << 30
 
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_LCTL, val,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_LCTL, 0x920)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_LCTL, val,
                                        comment=' // Layer control')
 
                         flatten_prod = 0
@@ -1652,7 +1783,7 @@ class Backend(backend.Backend):
                             in_exp = in_expand[ll] - 1
 
                         if in_exp >= 2**4:
-                            eprint(f'Layer {ll}: Input expansion of {in_exp+1} exceeds device '
+                            eprint(f'{layer_pfx(ll)}Input expansion of {in_exp+1} exceeds device '
                                    f'limit of {2**4}.')
 
                         quant = abs(quantization[ll]) if not bypass[ll] else 8
@@ -1666,7 +1797,7 @@ class Backend(backend.Backend):
                         assert wptr_skip < 2**tc.dev.MAX_WPTRINC_BITS
                         val |= wptr_skip << 4
 
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_LCTL2, val,
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_LCTL2, val,
                                        comment=' // Layer control 2')
 
                         # Configure mask start and end addresses
@@ -1697,15 +1828,15 @@ class Backend(backend.Backend):
                             if hw_operator[ll] != op.NONE:
                                 assert koffs < 2**19
                                 assert kl + koffs < 2**19
-                                apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT1,
+                                apb.write_lreg(group, hw_layer, tc.dev.LREG_MCNT1,
                                                kl + koffs,
                                                comment=' // Mask count')
-                                apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT2, koffs,
+                                apb.write_lreg(group, hw_layer, tc.dev.LREG_MCNT2, koffs,
                                                comment=' // Mask offset')
                             else:
                                 val = (out_expand[ll] - 1) * 8
                                 assert val < 2**19
-                                apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT2, val,
+                                apb.write_lreg(group, hw_layer, tc.dev.LREG_MCNT2, val,
                                                comment=' // Mask offset')
                         else:
                             if hw_operator[ll] != op.NONE:
@@ -1720,7 +1851,7 @@ class Backend(backend.Backend):
                             else:
                                 val = (out_expand[ll] - 1) * 8
                                 assert val < 2**16
-                            apb.write_lreg(group, r * layers + ll, tc.dev.LREG_MCNT, val,
+                            apb.write_lreg(group, hw_layer, tc.dev.LREG_MCNT, val,
                                            comment=' // Mask offset and count')
 
                         if hasattr(tc.dev, 'LREG_OCHAN'):
@@ -1734,7 +1865,7 @@ class Backend(backend.Backend):
                                 val = (tscnt_max + 1) * in_expand[ll] - 1
                             else:
                                 val = tscnt_max
-                            apb.write_lreg(group, r * layers + ll, tc.dev.LREG_OCHAN, val,
+                            apb.write_lreg(group, hw_layer, tc.dev.LREG_OCHAN, val,
                                            comment=' // Output channel count')
 
                         val = tscnt_max
@@ -1757,7 +1888,9 @@ class Backend(backend.Backend):
                         assert 0 <= oned_sad < 2**4
                         val |= oned_sad << 4
 
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_ONED, val,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_ONED, 0x100)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_ONED, val,
                                        comment=' // 1D')
 
                         # Configure tram pointer max
@@ -1779,7 +1912,7 @@ class Backend(backend.Backend):
                                 val += prev_max
                                 assert val < 2**16
                                 val |= prev_max << 16
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_TPTR, val,
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_TPTR, val,
                                        comment=' // TRAM ptr max')
 
                         # Compensate for the smaller weights by adjusting the output shift
@@ -1820,6 +1953,14 @@ class Backend(backend.Backend):
                             assert offs < 2**12
                             val |= 1 << 12 | offs
 
+                        if not tc.dev.SUPPORT_MULTIPASS_ELTWISE_CONV_BIAS \
+                           and group == bias_group[ll] \
+                           and operator[ll] != op.NONE \
+                           and operands[ll] > 1:
+                            eprint(f'{layer_pfx(ll)}On this device, multi-pass element-wise '
+                                   'operations must be in a separate layer from convolutions with '
+                                   'bias.')
+
                         if hw_operator[ll] == op.NONE:
                             if operands[ll] == 1:
                                 val |= 3 << 24
@@ -1843,14 +1984,15 @@ class Backend(backend.Backend):
 
                             if not tc.dev.SUPPORT_MULTIPASS_X4_PARTIALQUAD \
                                and out_expand[ll] > 1 and tc.dev.MAX_PROC != 64:
-                                eprint(f'Layer {ll}: This device does not support `calcx4` with '
-                                       'multi-pass when writing to fewer than 4 quadrants.',
+                                eprint(f'{layer_pfx(ll)}This device does not support `calcx4` '
+                                       'with multi-pass when writing to fewer than 4 quadrants.',
                                        error=not state.ignore_hw_limits)
 
                         if tcalc[ll]:
                             val |= 1 << 31
-
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_POST, val,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_POST, 0x03000000)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_POST, val,
                                        comment=' // Post processing register')
 
                         # Configure mask and processor enables
@@ -1858,7 +2000,9 @@ class Backend(backend.Backend):
                         val = (processor_map[ll] >> group*tc.dev.P_NUMPRO) % 2**tc.dev.P_NUMPRO
                         if hw_operator[ll] != op.NONE and not bypass[ll]:
                             val = val << 16 | val  # Mask enables
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_ENA, val,
+                        if avgpool_reset_layer[ll] and group == groups_used[0]:
+                            apb.write_lreg(group, hw_layer - 1, tc.dev.LREG_ENA, 1)
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_ENA, val,
                                        comment=' // Mask and processor enables')
 
                         delta1 = delta2 = stream_start = invol = 0
@@ -1949,13 +2093,18 @@ class Backend(backend.Backend):
                             elif ll == start_layer and fifo:
                                 if streaming[ll]:
                                     # =IF(AND(Stride=1,Row_Pool=1),Col_Inc,
-                                    #     (((Row_Inc-1)*(Cols+(Pad*2)))+Col_Inc))
+                                    #     ((((Row_Inc)*(Cols+(Pad*2)))
+                                    #                       +(Pad+(2*Col_Inc)))*Elementwise) +
+                                    #      (Read_Ahead*Stride))
                                     if pool_stride[ll][0] == 1 and pool[ll][0] == 1:
                                         stream_start = col_inc
                                     else:
-                                        stream_start = (row_inc - 1) * \
-                                            (hw_input_dim[ll][1]
-                                             + 2 * hw_padding[ll][1]) + col_inc
+                                        stream_start = (
+                                            row_inc * (hw_input_dim[ll][1] + hw_padding[ll][1] * 2)
+                                            + (hw_padding[ll][1] + 2 * col_inc)
+                                        ) * operands[ll]
+                                        if rd_ahead[ll]:
+                                            stream_start += pool_stride[ll][1]
                                 else:  # fifo only
                                     stream_start = hw_input_dim[ll][0] * hw_input_dim[ll][1]
                                 stream_start_hwc = stream_start
@@ -2010,13 +2159,14 @@ class Backend(backend.Backend):
                                     if override_delta1 is not None:
                                         delta1 = override_delta1
                                     else:
-                                        # =(Stride*Elementwise)-1
-                                        delta1 = pool_stride[ll][1] * operands[ll] - 1
+                                        # =IF(AND(Stride=1,Row_Pool=1),(Stride*Elementwise)-1,
+                                        #     (Stride*Elementwise))
+                                        delta1 = pool_stride[ll][1] * operands[ll]
+                                        if pool_stride[ll][0] == 1 and pool[ll][0] == 1:
+                                            delta1 -= 1
                                         if big_data[ll]:
                                             # =(ROUNDUP(Delta1_0/4,0))
                                             delta1 = (delta1 + 3) // 4
-                                        if pipeline and delta1 > 0:
-                                            delta1 += 1
 
                                     if override_delta2 is not None:
                                         delta2 = override_delta2
@@ -2082,15 +2232,15 @@ class Backend(backend.Backend):
                         val = stream_start
                         if state.fifo_go and ll == start_layer:
                             val |= 1 << 25
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM1, val,
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_STREAM1, val,
                                        comment=' // Stream processing start')
 
                         assert invol < 2**4, \
-                            f'Layer {ll} invol ({invol:04x}) exceeds supported range.'
+                            f'{layer_pfx(ll)}invol ({invol:04x}) exceeds supported range.'
                         assert delta1 < 2**5
                         assert delta2 < 2**tc.dev.MAX_DSVAL2_BITS
                         val = delta2 << 16 | delta1 << 4 | invol
-                        apb.write_lreg(group, r * layers + ll, tc.dev.LREG_STREAM2, val,
+                        apb.write_lreg(group, hw_layer, tc.dev.LREG_STREAM2, val,
                                        comment=' // Stream processing delta')
 
                         if fifo and streaming[ll]:
@@ -2110,8 +2260,10 @@ class Backend(backend.Backend):
                             else:
                                 # MAX78002 - Buffer
                                 if ll == start_layer:
-                                    # =Prefill0 + Col_Inc
-                                    val = stream_start_hwc + col_inc
+                                    # =Prefill0 + ((Stride - 1) * (Cols + (Pad * 2))) + Col_Inc
+                                    val = stream_start_hwc + col_inc \
+                                        + (pool_stride[ll][1] - 1) * (hw_input_dim[ll][1]
+                                                                      + hw_padding[ll][1] * 2)
                                     if big_data[ll]:
                                         # =Buffer0*4*Stride
                                         val *= pool_stride[ll][1] * 4
@@ -2131,31 +2283,33 @@ class Backend(backend.Backend):
                             assert val < 2**tc.dev.MAX_FBUF_BITS
 
                             # Check rollover vs available data memory
-                            if in_offset[ll] < out_offset[ll] - out_ignore[ll]:
-                                if in_offset[ll] + val * 4 >= out_offset[ll] - out_ignore[ll]:
-                                    eprint(f'Layer {ll}: Overlapping input and output: '
-                                           f'in_offset 0x{in_offset[ll]:08x} + '
-                                           f'rollover 0x{val:08x} * 4 >= '
-                                           f'out_offset 0x{out_offset[ll]:08x} - '
-                                           f'out_ignore 0x{out_ignore[ll]:08x}.',
-                                           error=not no_error_stop)
-                            else:
-                                if out_offset[ll] + val * 4 >= in_offset[ll]:
-                                    eprint(f'Layer {ll}: Overlapping input and output: '
-                                           f'out_offset 0x{out_offset[ll]:08x} + '
-                                           f'rollover 0x{val:08x} * 4 >= '
-                                           f'in_offset 0x{in_offset[ll]:08x}.',
-                                           error=not no_error_stop)
-                                if ll == terminating_layer:
-                                    osize = output_dim[ll][0] * output_dim[ll][1] + out_pad[ll]
-                                    if out_offset[ll] + osize * out_expand[ll] * 4 >= \
-                                       in_offset[ll]:
-                                        eprint(f'Layer {ll}: Overlapping input and output: '
+                            if output_processor_map[ll] & processor_map[ll] != 0:  # Any overlap?
+                                if in_offset[ll] < out_offset[ll] - out_ignore[ll]:
+                                    if in_offset[ll] + val * 4 >= out_offset[ll] - out_ignore[ll]:
+                                        eprint(f'{layer_pfx(ll)}Overlapping input and output: '
+                                               f'in_offset 0x{in_offset[ll]:08x} + '
+                                               f'rollover 0x{val:08x} * 4 >= '
+                                               f'out_offset 0x{out_offset[ll]:08x} - '
+                                               f'out_ignore 0x{out_ignore[ll]:08x}.',
+                                               error=not no_error_stop)
+                                else:
+                                    if out_offset[ll] + val * 4 >= in_offset[ll]:
+                                        eprint(f'{layer_pfx(ll)}Overlapping input and output: '
                                                f'out_offset 0x{out_offset[ll]:08x} + '
-                                               f'output of size {osize} ({output_dim_str[ll]}) '
-                                               f'* {out_expand[ll]} * 4 >= '
+                                               f'rollover 0x{val:08x} * 4 >= '
                                                f'in_offset 0x{in_offset[ll]:08x}.',
                                                error=not no_error_stop)
+                                    if ll == terminating_layer:
+                                        osize = output_dim[ll][0] * output_dim[ll][1] + out_pad[ll]
+                                        if out_offset[ll] + osize * out_expand[ll] * 4 >= \
+                                           in_offset[ll]:
+                                            eprint(f'{layer_pfx(ll)}Overlapping input and output: '
+                                                   f'out_offset 0x{out_offset[ll]:08x} + '
+                                                   f'output of size {osize} '
+                                                   f'({output_dim_str[ll]}) '
+                                                   f'* {out_expand[ll]} * 4 >= '
+                                                   f'in_offset 0x{in_offset[ll]:08x}.',
+                                                   error=not no_error_stop)
                             if in_offset[ll] + val * 4 >= tc.dev.INSTANCE_WIDTH \
                                * tc.dev.P_SHARED * 4:
                                 eprint('Input plus rollover exceeds instance size: '
@@ -2176,20 +2330,20 @@ class Backend(backend.Backend):
                                     continue
                                 if stream_buf[pl][2] & dmap != 0 \
                                    and overlap(stream_buf[ll], stream_buf[pl]):
-                                    eprint(f'Streaming buffer for layer {ll} '
+                                    eprint(f'{layer_pfx(ll)}Streaming buffer '
                                            f'({stream_buf[ll][0]:04x}-{stream_buf[ll][1]:04x}, '
                                            f'processors {processor_map[ll]:016x}) '
-                                           f'overlaps layer {pl} '
+                                           f'overlaps layer {layer_str(pl)} '
                                            f'({stream_buf[pl][0]:04x}-{stream_buf[pl][1]:04x}, ',
                                            f'processors {processor_map[pl]:016x}).',
                                            error=not overwrite_ok)
                                 if rd_ahead[ll] \
                                    and tc.dev.datainstance_from_offs(stream_buf[ll][0]) \
                                    == tc.dev.datainstance_from_offs(stream_buf[pl][0]):
-                                    eprint(f'Layer {ll}: In streaming mode with read-ahead, all '
-                                           'streaming read-ahead layers must use separate memory '
-                                           f'instances. Layer {ll} conflicts with layer {pl}; '
-                                           'both use instance '
+                                    eprint(f'{layer_pfx(ll)}In streaming mode with read-ahead, '
+                                           'all streaming read-ahead layers must use separate '
+                                           'memory instances. The layer conflicts with layer '
+                                           f'{layer_str(pl)}; both use instance '
                                            f'{tc.dev.datainstance_from_offs(stream_buf[pl][0])}.')
 
                             if ll == final_layer or not streaming[next_sequence[ll]]:
@@ -2202,16 +2356,16 @@ class Backend(backend.Backend):
                                                    + (output_dim[ll][0] * output_dim[ll][1]
                                                       + out_pad[ll]) * 4
                                                    * output_width[ll] // 8), stream_buf[pl]):
-                                        eprint(f'Output for layer {ll} '
+                                        eprint(f'{layer_pfx(ll)}The output '
                                                f'({out_offset[ll]:04x}-{stream_buf[ll][1]:04x}, '
                                                'output processors '
-                                               f'{output_processor_map[ll]:016x}) '
-                                               f'overlaps streaming buffer for layer {pl} '
+                                               f'{output_processor_map[ll]:016x}) overlaps '
+                                               f'streaming buffer for layer {layer_str(pl)} '
                                                f'({stream_buf[pl][0]:04x}-{stream_buf[pl][1]:04x}'
                                                f', processors {processor_map[pl]:016x}).',
                                                error=not overwrite_ok)
 
-                            apb.write_lreg(group, r * layers + ll, tc.dev.LREG_FMAX, val,
+                            apb.write_lreg(group, hw_layer, tc.dev.LREG_FMAX, val,
                                            comment=' // Rollover')
 
                         # In read-ahead mode, ensure that input and output use separate
@@ -2232,7 +2386,7 @@ class Backend(backend.Backend):
                             )
                             if in_instance[0] == out_instance[0] \
                                or in_instance[1] == out_instance[1]:
-                                eprint(f'Layer {ll}: Input and output cannot use the same data '
+                                eprint(f'{layer_pfx(ll)}Input and output cannot use the same data '
                                        'memory instances in read-ahead mode. '
                                        f'in_offset: {in_offset[ll]:04x}/instance(s) '
                                        f'{in_instance}, out_offset: {out_offset[ll]:04x}/'
@@ -2255,7 +2409,7 @@ class Backend(backend.Backend):
                             for reg in range(tc.dev.MAX_LREG+1):
                                 if reg == tc.dev.LREG_RFU:  # Register 2 not implemented
                                     continue
-                                apb.write_lreg(group, r * layers + ll, reg, 0,
+                                apb.write_lreg(group, hw_layer, reg, 0,
                                                force_write=True,
                                                comment=f' // Zero unused layer {ll} registers')
                     if hasattr(tc.dev, 'MIN_STREAM_LREG'):
@@ -2263,7 +2417,7 @@ class Backend(backend.Backend):
                             for _, group in enumerate(groups_used):
                                 for reg in range(tc.dev.MIN_STREAM_LREG, tc.dev.MAX_STREAM_LREG+1,
                                                  tc.dev.MAX_STREAM_LAYERS):
-                                    apb.write_lreg(group, r * layers + ll, reg, 0,
+                                    apb.write_lreg(group, hw_layer, reg, 0,
                                                    force_write=True,
                                                    comment=f' // Zero unused layer {ll} registers')
 
@@ -2444,7 +2598,7 @@ class Backend(backend.Backend):
             if state.snoop_loop:
                 for _, group in enumerate(groups_used):
                     apb.output('\n', embedded_code)
-                    apb.write_lreg(group, r * layers + ll, tc.dev.LREG_NXTLYR, 0x80,
+                    apb.write_lreg(group, hw_layer, tc.dev.LREG_NXTLYR, 0x80,
                                    force_write=True, comment=' // Link Layer')
                     apb.write_ctl(group, tc.dev.REG_SNP1_HIT, 0, force_write=True,
                                   comment=' // Clear match hit accumulator')
@@ -2564,263 +2718,331 @@ class Backend(backend.Backend):
 
             return data
 
+        # The data_buf list contains the output of each layer, with the exception of the
+        # first element which is the input to layer 0 (so everything is shifted right by one):
+        # data_buf[0]: Input to layer 0
+        # data_buf[1]: Output of layer 0
+        # data_buf[2]: Output of layer 1
+        # data_buf[ll + 1]: Output of layer ll
+        data_buf = [None] * (layers + 1)
         ll = start_layer
-        data_buf = [data]
-        # Compute layer-by-layer output and chain results into input
-        while ll < layers:
-            compute.debug_open(ll, base_directory, test_name, log_filename)
+        data_buf[ll] = data
 
-            # Concatenate input data if needed
-            if in_sequences[ll] is not None:
-                if len(in_sequences[ll]) > 1:
-                    try:
-                        data = np.concatenate([data_buf[i + 1] for i in in_sequences[ll]], axis=0)
-                    except ValueError as err:
-                        eprint('Error in input data concatenation layer:', err)
+        with console.Progress(start=True) as progress:
+            task = progress.add_task(description='Creating network... ', total=layers)
+            # Compute layer-by-layer output and chain results into input
+            while ll < layers:
+                progress.update(task, completed=ll)
+                compute.debug_open(ll, base_directory, test_name, log_filename)
+
+                # Concatenate input data if needed
+                if in_sequences[ll] is not None:
+                    if len(in_sequences[ll]) > 1:
+                        err_concat = None
+                        try:
+                            data = np.concatenate([data_buf[i + 1] for i in in_sequences[ll]],
+                                                  axis=0)
+                        except ValueError as err:
+                            err_concat = err
+                        if err_concat is not None:
+                            try:
+                                data = np.hstack(
+                                    [data_buf[i + 1].reshape(data_buf[i + 1].shape[0], -1)
+                                     for i in in_sequences[ll]]
+                                ).reshape(data_buf[in_sequences[ll][0] + 1].shape[0],
+                                          input_dim[ll][0], input_dim[ll][1])
+                            except ValueError as err:
+                                eprint(f'{layer_pfx(ll)}Input data concatenation unsuccessful: ',
+                                       err_concat, err)
+                    else:
+                        data = data_buf[in_sequences[ll][0] + 1]
                 else:
-                    data = data_buf[in_sequences[ll][0] + 1]
-            else:
-                data = data_buf[-1]
+                    data = data_buf[ll]
 
-            # Split data into multiple inputs if needed
-            if operands[ll] > 1:
-                if ll == start_layer and legacy_test:
-                    data = np.array(np.split(data, operands[ll], axis=0))
-                elif legacy_test:
-                    d = np.empty((operands[ll],
-                                  data.shape[0], data.shape[1], data.shape[2] // operands[ll]),
-                                 dtype=np.int64)
-                    for i in range(operands[ll]):
-                        d[i, :, :, :] = data[:, :, i::operands[ll]]
-                    data = d
+                # Split data into multiple inputs if needed
+                if operands[ll] > 1:
+                    if ll == start_layer and legacy_test:
+                        data = np.array(np.split(data, operands[ll], axis=0))
+                    elif legacy_test:
+                        d = np.empty((operands[ll],
+                                      data.shape[0], data.shape[1], data.shape[2] // operands[ll]),
+                                     dtype=np.int64)
+                        for i in range(operands[ll]):
+                            d[i, :, :, :] = data[:, :, i::operands[ll]]
+                        data = d
+                    else:
+                        data = np.array(np.split(data, operands[ll], axis=0))
                 else:
-                    data = np.array(np.split(data, operands[ll], axis=0))
-            else:
-                data = np.expand_dims(data, 0)
+                    data = np.expand_dims(data, 0)
 
-            in_chan = input_chan[ll]
+                in_chan = input_chan[ll]
 
-            # Drop input channels?
-            if reshape_inputs:
-                if input_channel_skip[ll] > 0:
-                    data = np.delete(data, np.s_[:input_channel_skip[ll]], axis=1)
-                data = np.delete(data, np.s_[in_chan:], axis=1)
+                # Drop input channels?
+                if reshape_inputs:
+                    if input_channel_skip[ll] > 0:
+                        data = np.delete(data, np.s_[:input_channel_skip[ll]], axis=1)
+                    data = np.delete(data, np.s_[in_chan:], axis=1)
 
-            show_data(
-                ll,
-                data.shape,
-                data,
-                expand=in_expand[ll],
-                expand_thresh=in_expand_thresh[ll],
-                operation=operator[ll],
-                operands=operands[ll],
-            )
-
-            # Run in-flight element-wise operations first?
-            if operands[ll] > 1 and not pool_first[ll]:
-                data = np.expand_dims(run_eltwise(data, ll), 0)
-
-            # Allow 1D <-> 2D and 2D W/L conversions
-            if operator[ll] == op.CONV1D:
-                assert input_dim[ll][1] == 1
-                data = data.reshape(data.shape[0], -1, input_dim[ll][0])
-            else:
-                data = data.reshape(data.shape[0], -1, input_dim[ll][0], input_dim[ll][1])
-
-            # In-flight pooling
-            data, out_size = pooling_layer(
-                ll,
-                data[0].shape,
-                pool[ll],
-                pool_stride[ll],
-                pool_average[ll],
-                data,
-                dilation=pool_dilation[ll],
-                expand=in_expand[ll],
-                expand_thresh=in_expand_thresh[ll],
-                operation=operator[ll],
-                operands=data.shape[0],
-                rounding=avg_pool_rounding,
-                debug_data=None if not log_pooling else os.path.join(base_directory, test_name),
-            )
-
-            if operator[ll] == op.CONV1D:
-                if out_size[0] != in_chan \
-                   or out_size[1] != pooled_dim[ll][0] or pooled_dim[ll][1] != 1:
-                    eprint(f'Input dimensions do not match in layer {ll}. '
-                           f'Expected: {in_chan}x{pooled_dim[ll][0]}, '
-                           f'got {out_size[0]}x{out_size[1]}.')
-            else:
-                if out_size[0] != in_chan \
-                   or out_size[1] != pooled_dim[ll][0] or out_size[2] != pooled_dim[ll][1]:
-                    eprint(f'Input dimensions do not match in layer {ll}. '
-                           f'Expected: {in_chan}x{pooled_dim[ll][0]}x{pooled_dim[ll][1]}, '
-                           f'got {out_size[0]}x{out_size[1]}x{out_size[2]}.')
-
-            if operands[ll] > 1 and pool_first[ll]:
-                data = run_eltwise(data, ll)
-            else:
-                data = np.squeeze(data, axis=0)
-
-            # Convolution or passthrough
-            if operator[ll] in [op.CONV2D, op.LINEAR]:
-                if flatten[ll]:
-                    in_chan *= pooled_dim[ll][0] * pooled_dim[ll][1]
-                    data = data.reshape(in_chan, 1, 1)
-                    if verbose:
-                        print_data(
-                            verbose,
-                            f'FLATTEN TO {in_chan}x1x1',
-                            data,
-                            data.shape,
-                            1,
-                            in_chan,
-                        )
-
-                if not bypass[ll]:
-                    k = kernel[ll].reshape(
-                            output_chan[ll],
-                            in_chan // conv_groups[ll],
-                            kernel_size[ll][0],
-                            kernel_size[ll][1],
-                        )
-                else:
-                    k = np.full(
-                            (output_chan[ll], in_chan, kernel_size[ll][0], kernel_size[ll][0]),
-                            1,
-                            dtype=np.int64,
-                        )
-
-                out_buf, out_size = conv2d_layer(
-                    ll,
-                    data.shape,
-                    kernel_size[ll],
-                    output_shift[ll],
-                    output_chan[ll],
-                    padding[ll],
-                    dilation[ll],
-                    stride[ll],
-                    activation[ll],
-                    k,
-                    bias[ll],
-                    data,
-                    output_width=output_width[ll],
-                    groups=conv_groups[ll],
-                    bypass=bypass[ll],
-                )
-            elif operator[ll] == op.CONVTRANSPOSE2D:
-                if not bypass[ll]:
-                    k = kernel[ll].reshape(
-                            output_chan[ll],
-                            in_chan // conv_groups[ll],
-                            kernel_size[ll][0],
-                            kernel_size[ll][1],
-                        )
-                else:
-                    k = np.full(
-                            (output_chan[ll], in_chan, kernel_size[ll][0], kernel_size[ll][0]),
-                            1,
-                            dtype=np.int64,
-                        )
-
-                out_buf, out_size = convtranspose2d_layer(
-                    ll,
-                    data.shape,
-                    kernel_size[ll],
-                    output_shift[ll],
-                    output_chan[ll],
-                    padding[ll],
-                    dilation[ll],
-                    stride[ll],
-                    output_padding[ll],
-                    activation[ll],
-                    k,
-                    bias[ll],
-                    data,
-                    output_width=output_width[ll],
-                    groups=conv_groups[ll],
-                    bypass=bypass[ll],
-                )
-            elif operator[ll] == op.CONV1D:
-                if not bypass[ll]:
-                    k = kernel[ll].reshape(
-                            output_chan[ll],
-                            input_chan[ll] // conv_groups[ll],
-                            kernel_size[ll][0],
-                        )
-                else:
-                    k = np.full(
-                            (output_chan[ll], input_chan[ll], kernel_size[ll][0],),
-                            1,
-                            dtype=np.int64,
-                        )
-
-                out_buf, out_size = conv1d_layer(
-                    ll,
-                    data.shape,
-                    kernel_size[ll][0],
-                    output_shift[ll],
-                    output_chan[ll],
-                    padding[ll][0],
-                    dilation[ll][0],
-                    stride[ll][0],
-                    activation[ll],
-                    k,
-                    bias[ll],
-                    data,
-                    output_width=output_width[ll],
-                    groups=conv_groups[ll],
-                    bypass=bypass[ll],
-                )
-            elif operator[ll] == op.NONE:  # '0'D (pooling only or passthrough)
-                out_buf, out_size = passthrough_layer(
+                show_data(
                     ll,
                     data.shape,
                     data,
+                    expand=in_expand[ll],
+                    expand_thresh=in_expand_thresh[ll],
+                    operation=operator[ll],
+                    operands=operands[ll],
                 )
-            else:
-                eprint(f'Unknown operator `{op.string(operator[ll])}`.')
 
-            assert out_size[0] == output_chan[ll] \
-                and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
+                # Run in-flight element-wise operations first?
+                if operands[ll] > 1 and not pool_first[ll]:
+                    data = np.expand_dims(run_eltwise(data, ll), 0)
 
-            # Write .mem file for output or create the C check_output() function to
-            # verify the output
-            out_map = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
-            if block_mode:
-                if ll == terminating_layer:
-                    filename = output_filename + '.mem'  # Final output
+                # Allow 1D <-> 2D and 2D W/L conversions
+                if operator[ll] == op.CONV1D:
+                    assert input_dim[ll][1] == 1
+                    data = data.reshape(data.shape[0], -1, input_dim[ll][0])
                 else:
-                    filename = f'{output_filename}-{ll}.mem'  # Intermediate output
-                filemode = 'w'
-            else:
-                if ll == terminating_layer:
-                    filename = c_filename + ('_riscv' if riscv else '') + '.c'  # Final output
-                else:
-                    filename = None  # Intermediate output - used for layer overwrite check
-                filemode = 'a'
+                    data = data.reshape(data.shape[0], -1, input_dim[ll][0], input_dim[ll][1])
 
-            try:
-                if filename:
-                    memfile = open(os.path.join(base_directory, test_name, filename),
-                                   mode=filemode, encoding='utf-8')
-                else:
-                    memfile = None
-                apb.set_memfile(memfile)
+                # In-flight pooling
+                data, out_size = pooling_layer(
+                    ll,
+                    data[0].shape,
+                    pool[ll],
+                    pool_stride[ll],
+                    pool_average[ll],
+                    data,
+                    dilation=pool_dilation[ll],
+                    expand=in_expand[ll],
+                    expand_thresh=in_expand_thresh[ll],
+                    operation=operator[ll],
+                    operands=data.shape[0],
+                    rounding=avg_pool_rounding,
+                    debug_data=None if not log_pooling else os.path.join(base_directory,
+                                                                         test_name),
+                )
 
-                if state.generate_kat:
-                    apb.output(f'// Expected output of layer {ll} for {test_name} '
-                               'given the sample input (known-answer test)\n'
-                               '// Delete this function for production code\n')
-                    if sampleoutput_header is not None:
-                        apb.output('static const uint32_t sample_output[] = SAMPLE_OUTPUT;\n')
-                    apb.function_header(dest='wrapper', prefix='', function='check_output')
-                    if ll == terminating_layer and mlator \
-                       and not state.mlator_noverify and not embedded_code:
+                if operator[ll] == op.CONV1D:
+                    if out_size[0] != in_chan \
+                       or out_size[1] != pooled_dim[ll][0] or pooled_dim[ll][1] != 1:
+                        eprint(f'{layer_pfx(ll)}Input dimensions do not match. '
+                               f'Expected: {in_chan}x{pooled_dim[ll][0]}, '
+                               f'got {out_size[0]}x{out_size[1]}.')
+                else:
+                    if out_size[0] != in_chan \
+                       or out_size[1] != pooled_dim[ll][0] or out_size[2] != pooled_dim[ll][1]:
+                        eprint(f'{layer_pfx(ll)}Input dimensions do not match. '
+                               f'Expected: {in_chan}x{pooled_dim[ll][0]}x{pooled_dim[ll][1]}, '
+                               f'got {out_size[0]}x{out_size[1]}x{out_size[2]}.')
+
+                if operands[ll] > 1 and pool_first[ll]:
+                    data = run_eltwise(data, ll)
+                else:
+                    data = np.squeeze(data, axis=0)
+
+                # Convolution or passthrough
+                if operator[ll] in [op.CONV2D, op.LINEAR]:
+                    if flatten[ll]:
+                        in_chan *= pooled_dim[ll][0] * pooled_dim[ll][1]
+                        data = data.reshape(in_chan, 1, 1)
+                        if verbose:
+                            print_data(
+                                verbose,
+                                f'FLATTEN TO {in_chan}x1x1',
+                                data,
+                                data.shape,
+                                1,
+                                in_chan,
+                            )
+
+                    if not bypass[ll]:
+                        k = kernel[ll].reshape(
+                                output_chan[ll],
+                                in_chan // conv_groups[ll],
+                                kernel_size[ll][0],
+                                kernel_size[ll][1],
+                            )
+                    else:
+                        k = np.full(
+                                (output_chan[ll], in_chan, kernel_size[ll][0], kernel_size[ll][0]),
+                                1,
+                                dtype=np.int64,
+                            )
+
+                    out_buf, out_size = conv2d_layer(
+                        ll,
+                        data.shape,
+                        kernel_size[ll],
+                        output_shift[ll],
+                        output_chan[ll],
+                        padding[ll],
+                        dilation[ll],
+                        stride[ll],
+                        activation[ll],
+                        k,
+                        bias[ll],
+                        data,
+                        output_width=output_width[ll],
+                        groups=conv_groups[ll],
+                        bypass=bypass[ll],
+                    )
+                elif operator[ll] == op.CONVTRANSPOSE2D:
+                    if not bypass[ll]:
+                        k = kernel[ll].reshape(
+                                output_chan[ll],
+                                in_chan // conv_groups[ll],
+                                kernel_size[ll][0],
+                                kernel_size[ll][1],
+                            )
+                    else:
+                        k = np.full(
+                                (output_chan[ll], in_chan, kernel_size[ll][0], kernel_size[ll][0]),
+                                1,
+                                dtype=np.int64,
+                            )
+
+                    out_buf, out_size = convtranspose2d_layer(
+                        ll,
+                        data.shape,
+                        kernel_size[ll],
+                        output_shift[ll],
+                        output_chan[ll],
+                        padding[ll],
+                        dilation[ll],
+                        stride[ll],
+                        output_padding[ll],
+                        activation[ll],
+                        k,
+                        bias[ll],
+                        data,
+                        output_width=output_width[ll],
+                        groups=conv_groups[ll],
+                        bypass=bypass[ll],
+                    )
+                elif operator[ll] == op.CONV1D:
+                    if not bypass[ll]:
+                        k = kernel[ll].reshape(
+                                output_chan[ll],
+                                input_chan[ll] // conv_groups[ll],
+                                kernel_size[ll][0],
+                            )
+                    else:
+                        k = np.full(
+                                (output_chan[ll], input_chan[ll], kernel_size[ll][0],),
+                                1,
+                                dtype=np.int64,
+                            )
+
+                    out_buf, out_size = conv1d_layer(
+                        ll,
+                        data.shape,
+                        kernel_size[ll][0],
+                        output_shift[ll],
+                        output_chan[ll],
+                        padding[ll][0],
+                        dilation[ll][0],
+                        stride[ll][0],
+                        activation[ll],
+                        k,
+                        bias[ll],
+                        data,
+                        output_width=output_width[ll],
+                        groups=conv_groups[ll],
+                        bypass=bypass[ll],
+                    )
+                elif operator[ll] == op.NONE:  # '0'D (pooling only or passthrough)
+                    out_buf, out_size = passthrough_layer(
+                        ll,
+                        data.shape,
+                        data,
+                    )
+                else:
+                    eprint(f'Unknown operator `{op.string(operator[ll])}`.')
+
+                assert out_size[0] == output_chan[ll] \
+                    and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
+                assert out_size[0] == output_size[ll][0] \
+                    and out_size[1] == output_size[ll][1] and out_size[2] == output_size[ll][2]
+
+                # Write .mem file for output or create the C check_output() function to
+                # verify the output
+                out_map = datamem.allocate()
+                if block_mode:
+                    if ll == terminating_layer:
+                        filename = output_filename + '.mem'  # Final output
+                    else:
+                        filename = f'{output_filename}-{ll}.mem'  # Intermediate output
+                    filemode = 'w'
+                else:
+                    if output_layer[ll]:
+                        filename = c_filename + ('_riscv' if riscv else '') + '.c'  # Final output
+                    else:
+                        filename = None  # Intermediate output - used for layer overwrite check
+                    filemode = 'a'
+
+                try:
+                    if filename:
+                        memfile = open(os.path.join(base_directory, test_name, filename),
+                                       mode=filemode, encoding='utf-8')
+                    else:
+                        memfile = None
+                    apb.set_memfile(memfile)
+
+                    if state.generate_kat:
+                        if output_layer[ll] and mlator \
+                           and not state.mlator_noverify and not embedded_code:
+                            apb.verify_unload(
+                                ll,
+                                in_map,
+                                None,
+                                out_buf,
+                                output_processor_map[ll],
+                                out_size,
+                                out_offset[ll],
+                                out_expand[ll],
+                                out_expand_thresh[ll],
+                                output_width[ll],
+                                overwrite_ok or streaming[ll],
+                                mlator=False,
+                                write_gap=write_gap[ll],
+                                unload_layer=output_layer[ll],
+                            )
+                        if log_intermediate:
+                            filename2 = f'{output_filename}-{ll}.mem'  # Intermediate output
+                            memfile2 = open(os.path.join(base_directory, test_name, filename2),
+                                            mode='w', encoding='utf-8')
+                            apb2 = apbaccess.apbwriter(
+                                memfile2,
+                                verify_writes=False,
+                                embedded_code=False,
+                                write_zero_registers=True,
+                                master=groups_used[0] if oneshot > 0 or stopstart else False,
+                                riscv=None,
+                                fast_fifo=False,
+                                input_chan=input_chan[start_layer],
+                                debug_mem=True,
+                                test_name=test_name,
+                            )
+                            out_map2 = datamem.allocate()
+                            apb2.verify_unload(
+                                ll,
+                                in_map,
+                                out_map2,
+                                out_buf,
+                                output_processor_map[ll],
+                                out_size,
+                                out_offset[ll],
+                                out_expand[ll],
+                                out_expand_thresh[ll],
+                                output_width[ll],
+                                overwrite_ok or streaming[ll],
+                                mlator=mlator and output_layer[ll],
+                                write_gap=write_gap[ll],
+                            )
                         apb.verify_unload(
                             ll,
                             in_map,
-                            None,
+                            out_map,
                             out_buf,
                             output_processor_map[ll],
                             out_size,
@@ -2828,109 +3050,98 @@ class Backend(backend.Backend):
                             out_expand[ll],
                             out_expand_thresh[ll],
                             output_width[ll],
-                            overwrite_ok or streaming[ll],
-                            mlator=False,
+                            overwrite_ok or (streaming[ll] if ll != start_layer
+                                             else (streaming[ll] and fifo)),
+                            mlator=mlator and output_layer[ll],
                             write_gap=write_gap[ll],
-                            final_layer=terminating_layer,
+                            unload_layer=output_layer[ll],
                         )
-                    if log_intermediate:
-                        filename2 = f'{output_filename}-{ll}.mem'  # Intermediate output
-                        memfile2 = open(os.path.join(base_directory, test_name, filename2),
-                                        mode='w', encoding='utf-8')
-                        apb2 = apbaccess.apbwriter(
-                            memfile2,
-                            verify_writes=False,
-                            embedded_code=False,
-                            write_zero_registers=True,
-                            master=groups_used[0] if oneshot > 0 or stopstart else False,
-                            riscv=None,
-                            fast_fifo=False,
-                            input_chan=input_chan[start_layer],
-                            debug_mem=True,
-                            test_name=test_name,
-                        )
-                        out_map2 = [None] * tc.dev.C_GROUP_OFFS * tc.dev.P_NUMGROUPS
-                        apb2.verify_unload(
-                            ll,
-                            in_map,
-                            out_map2,
-                            out_buf,
-                            output_processor_map[ll],
-                            out_size,
-                            out_offset[ll],
-                            out_expand[ll],
-                            out_expand_thresh[ll],
-                            output_width[ll],
-                            overwrite_ok or streaming[ll],
-                            mlator=mlator if ll == terminating_layer else False,
-                            write_gap=write_gap[ll],
-                        )
-                    apb.verify_unload(
-                        ll,
-                        in_map,
-                        out_map,
-                        out_buf,
-                        output_processor_map[ll],
-                        out_size,
-                        out_offset[ll],
-                        out_expand[ll],
-                        out_expand_thresh[ll],
-                        output_width[ll],
-                        overwrite_ok or (streaming[ll] if ll != start_layer
-                                         else (streaming[ll] and fifo)),
-                        mlator=mlator if ll == terminating_layer else False,
-                        write_gap=write_gap[ll],
-                        final_layer=terminating_layer,
-                    )
-                    if debug_snoop:
-                        apb.verify_ctl(group, tc.dev.REG_SNP1_ACC, None, snoop[24],
-                                       comment=' // Verify snoop 1 data accumulator')
-                        apb.verify_ctl(group, tc.dev.REG_SNP1_HIT, None, snoop[25],
-                                       comment=' // Verify snoop 1 match hit accumulator')
-                        apb.verify_ctl(group, tc.dev.REG_SNP1_MAX, None, snoop[26],
-                                       comment=' // Verify snoop 1 match max accumulator')
-                        apb.verify_ctl(group, tc.dev.REG_SNP1_AM, None, snoop[27],
-                                       comment=' // Verify snoop 1 match address register')
-                        apb.verify_ctl(group, tc.dev.REG_SNP2_ACC, None, snoop[28],
-                                       comment=' // Verify snoop 2 data accumulator')
-                        apb.verify_ctl(group, tc.dev.REG_SNP2_HIT, None, snoop[29],
-                                       comment=' // Verify snoop 2 match hit accumulator')
-                        apb.verify_ctl(group, tc.dev.REG_SNP2_MAX, None, snoop[30],
-                                       comment=' // Verify snoop 2 match max accumulator')
-                        apb.verify_ctl(group, tc.dev.REG_SNP2_AM, None, snoop[31],
-                                       comment=' // Verify snoop 2 match address register')
+                        if debug_snoop:
+                            apb.verify_ctl(group, tc.dev.REG_SNP1_ACC, None, snoop[24],
+                                           comment=' // Verify snoop 1 data accumulator')
+                            apb.verify_ctl(group, tc.dev.REG_SNP1_HIT, None, snoop[25],
+                                           comment=' // Verify snoop 1 match hit accumulator')
+                            apb.verify_ctl(group, tc.dev.REG_SNP1_MAX, None, snoop[26],
+                                           comment=' // Verify snoop 1 match max accumulator')
+                            apb.verify_ctl(group, tc.dev.REG_SNP1_AM, None, snoop[27],
+                                           comment=' // Verify snoop 1 match address register')
+                            apb.verify_ctl(group, tc.dev.REG_SNP2_ACC, None, snoop[28],
+                                           comment=' // Verify snoop 2 data accumulator')
+                            apb.verify_ctl(group, tc.dev.REG_SNP2_HIT, None, snoop[29],
+                                           comment=' // Verify snoop 2 match hit accumulator')
+                            apb.verify_ctl(group, tc.dev.REG_SNP2_MAX, None, snoop[30],
+                                           comment=' // Verify snoop 2 match max accumulator')
+                            apb.verify_ctl(group, tc.dev.REG_SNP2_AM, None, snoop[31],
+                                           comment=' // Verify snoop 2 match address register')
+                finally:
+                    if memfile:
+                        memfile.close()
 
-                    apb.verify_unload_finalize()
-                    apb.function_footer(dest='wrapper')  # check_output()
-            finally:
-                if memfile:
-                    memfile.close()
+                if not np.any(out_buf):
+                    wprint(f'{layer_pfx(ll)}All output values for the given sample input are '
+                           'zero. The generated known-answer test for this network may not be '
+                           'meaningful. See the log file for details.')
 
-            if not np.any(out_buf):
-                wprint(f'Layer {ll}: All output values for the given sample input are zero. '
-                       'The generated known-answer test for this network may not be meaningful. '
-                       'See the log file for details.')
+                data_buf[ll + 1] = out_buf.reshape(out_size)
+                if next_sequence[ll] != -1 and streaming[next_sequence[ll]]:
+                    # When streaming, the output should not overwrite the input of prior layers
+                    # since these layers are still needed.
+                    datamem.combine(in_map, out_map)
+                else:
+                    # Else, preserve the output map of all prior layers marked 'output' plus
+                    # the current layer.
+                    if output_layer[ll]:
+                        # Add this output to the map of all output layers
+                        if all_outputs_map is None:
+                            all_outputs_map = out_map
+                        else:
+                            datamem.combine(all_outputs_map, out_map)
+                        # Since this layer is an output layer, in_map is the same
+                        in_map = all_outputs_map
+                    else:
+                        # Take the map of all previous output layers, and add this layer to in_map
+                        if all_outputs_map is None:
+                            in_map = out_map
+                        else:
+                            in_map = np.array(all_outputs_map, copy=True)
+                            datamem.combine(in_map, out_map)
 
-            data_buf.append(out_buf.reshape(out_size))
-            if next_sequence[ll] != -1 and streaming[next_sequence[ll]]:
-                # When streaming, the output should not overwrite the input of prior layers since
-                # these layers are still needed.
-                in_map = [a if a is not None else b for a, b, in zip(in_map, out_map)]
+                compute.debug_close()
+
+                if simulated_sequence[ll] is not None:
+                    if simulated_sequence[ll] == -1:
+                        break
+                    ll = simulated_sequence[ll]
+                else:
+                    if next_sequence[ll] == -1:
+                        break
+                    ll = next_sequence[ll]
+            progress.update(task, completed=layers)
+
+        data = data_buf[ll]
+
+        try:
+            if filename:
+                memfile = open(os.path.join(base_directory, test_name, filename),
+                               mode=filemode, encoding='utf-8')
             else:
-                in_map = out_map
+                memfile = None
+            apb.set_memfile(memfile)
 
-            compute.debug_close()
+            if state.generate_kat:
+                l_str = ", ".join([layer_str(i) for i, e in enumerate(output_layer) if e])
+                apb.output(f'// Expected output of layer {l_str} for {test_name} '
+                           'given the sample input (known-answer test)\n'
+                           '// Delete this function for production code\n')
+                if sampleoutput_header is not None:
+                    apb.output('static const uint32_t sample_output[] = SAMPLE_OUTPUT;\n')
+                apb.function_header(dest='wrapper', prefix='', function='check_output')
 
-            if simulated_sequence[ll] is not None:
-                if simulated_sequence[ll] == -1:
-                    break
-                ll = simulated_sequence[ll]
-            else:
-                if next_sequence[ll] == -1:
-                    break
-                ll = next_sequence[ll]
-
-        data = data_buf[-1]
+                apb.verify_unload_finalize()
+                apb.function_footer(dest='wrapper')  # check_output()
+        finally:
+            if memfile:
+                memfile.close()
 
         if not block_mode:
             with open(os.path.join(base_directory, test_name, filename), mode=filemode,
@@ -2939,13 +3150,14 @@ class Backend(backend.Backend):
 
                 if state.softmax or embedded_code and state.unload:
                     apb.unload(
-                        output_processor_map[terminating_layer],
-                        out_size,
-                        out_offset[terminating_layer],
-                        out_expand[terminating_layer],
-                        out_expand_thresh[terminating_layer],
-                        output_width[terminating_layer],
-                        write_gap=write_gap[terminating_layer],
+                        output_layer=output_layer,
+                        processor_map=output_processor_map,
+                        input_shape=output_size,
+                        output_offset=out_offset,
+                        out_expand=out_expand,
+                        out_expand_thresh=out_expand_thresh,
+                        output_width=output_width,
+                        write_gap=write_gap,
                     )
 
                 if state.softmax:

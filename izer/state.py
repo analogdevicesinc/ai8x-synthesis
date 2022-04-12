@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2021 Maxim Integrated Products Inc. All Rights Reserved.
+# Copyright (C) 2021-2022 Maxim Integrated Products Inc. All Rights Reserved.
 #
 # Maxim Integrated Products Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -17,6 +17,7 @@ apb_base: int = 0
 api_filename: str = ''
 auto_input_dim: List[List[int]] = []
 avg_pool_rounding: bool = False
+avgpool_reset_layer: List[bool] = []
 base_directory: str = ''
 bias_group_map: List[Any] = []
 bias: List[Any] = []
@@ -43,6 +44,7 @@ defines_arm: str = ''
 defines_riscv: str = ''
 defines: str = ''
 dilation: List[List[int]] = []
+display_progress: bool = True
 eclipse_includes: str = ''
 eclipse_openocd_args: str = ''
 eclipse_variables: str = ''
@@ -53,6 +55,7 @@ ext_rdy: bool = False
 fast_fifo_quad: bool = False
 fast_fifo: bool = False
 fifo_go: bool = False
+fifo_wait: bool = True
 fifo: bool = False
 final_layer: int = -1
 first_layer_used: int = 0
@@ -61,6 +64,7 @@ flatten: List[bool] = []
 forever: bool = False
 generate_kat: bool = True
 greedy_kernel_allocator: bool = True
+ignore_activation: bool = False
 ignore_bias_groups: bool = False
 ignore_bn: bool = False
 ignore_hw_limits: bool = False
@@ -85,6 +89,7 @@ input_skip: List[int] = []
 input_sync: bool = False
 kernel_format: str = ''
 kernel_size: List[List[int]] = []
+layer_name: List[Optional[int]] = []
 layers: int = 0
 legacy_kernels: bool = False
 legacy_test: bool = False
@@ -111,6 +116,7 @@ output_channels: List[int] = []
 output_dim: List[List[int]] = []
 output_filename: str = ''
 output_is_console: bool = True
+output_layer: List[bool] = []
 output_offset: List[int] = []
 output_padding: List[List[int]] = []
 output_processor_map: List[int] = []
@@ -170,6 +176,7 @@ tcalc: List[bool] = []
 test_dir: str = ''
 timeout: Optional[int] = None
 timer: Optional[int] = None
+unload_custom: Optional[List[List[int]]] = None
 unload: bool = True
 verbose_all: bool = False
 verbose: bool = False

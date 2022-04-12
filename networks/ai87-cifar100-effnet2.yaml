@@ -1,3 +1,4 @@
+---
 # HWC (little data) configuration for CIFAR-100
 # EfficientNet v.2 Model
 
@@ -5,270 +6,289 @@ arch: ai87effnetv2
 dataset: CIFAR100
 
 layers:
-# Layer 0: stem Conv2dReLU(3,32,3x3)
-- out_offset: 0x4000
-  processors: 0x7000000000000000
-  operation: conv2d
-  kernel_size: 3x3
-  max_pool: 2
-  pool_stride: 2
-  pad: 1
-  activate: ReLU
-  data_format: HWC
+  # Layer 0: stem Conv2dReLU(3,32,3x3)
+  - out_offset: 0x4000
+    processors: 0x7000000000000000
+    operation: conv2d
+    kernel_size: 3x3
+    max_pool: 2
+    pool_stride: 2
+    pad: 1
+    activate: ReLU
+    data_format: HWC
 
-# MBConv 1
-# Layer 1: project Conv2d(32,16,1x1)
-- out_offset: 0x0000
-  processors: 0x0ffffffff0000000
-  operation: conv2d
-  kernel_size: 1x1
-  pad: 0
+  # MBConv 1
+  # Layer 1: project Conv2d(32,16,1x1)
+  - out_offset: 0x0000
+    processors: 0x0ffffffff0000000
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
 
-# MBConv 2
-# Layer 2: expand Conv2dReLU(16,64,3x3)
-- out_offset: 0x4000
-  processors: 0x000000000000ffff
-  operation: conv2d
-  kernel_size: 3x3
-  pad: 1
-  activate: ReLU
+  # MBConv 2
+  # Layer 2: expand Conv2dReLU(16,64,3x3)
+  - out_offset: 0x4000
+    processors: 0x000000000000ffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
 
-# Layer 3: project Conv2d(64,32,1x1)
-- out_offset: 0x0000
-  processors: 0xffffffffffffffff
-  operation: conv2d
-  kernel_size: 1x1
-  pad: 0
+  # Layer 3: project Conv2d(64,32,1x1)
+  - out_offset: 0x0000
+    processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    name: l3
 
-# MBConv 3
-# Layer 4: Residual-1, re-form data with gap
-- out_offset: 0x4000
-  processors: 0x00000000ffffffff
-  output_processors: 0x00000000ffffffff
-  operation: passthrough
-  write_gap: 1
+  # MBConv 3
+  # Layer 4: Residual-1, re-form data with gap
+  - out_offset: 0x4000
+    processors: 0x00000000ffffffff
+    output_processors: 0x00000000ffffffff
+    operation: passthrough
+    write_gap: 1
+    name: res00
 
-# Layer 5: expand Conv2dReLU(32,128,3x3)
-- in_offset: 0x0000
-  out_offset: 0x8000
-  processors: 0x00000000ffffffff
-  operation: conv2d
-  kernel_size: 3x3
-  pad: 1
-  activate: ReLU
+  # Layer 5: expand Conv2dReLU(32,128,3x3)
+  - in_offset: 0x0000
+    in_sequences: l3
+    out_offset: 0x8000
+    processors: 0x00000000ffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
 
-# Layer 6: project Conv2d(128,32,1x1)
-- in_offset: 0x8000
-  out_offset: 0x4004
-  processors: 0xffffffffffffffff
-  operation: conv2d
-  kernel_size: 1x1
-  pad: 0
-  write_gap: 1
+  # Layer 6: project Conv2d(128,32,1x1)
+  - out_offset: 0x4004
+    processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    write_gap: 1
+    name: res01
 
-# MBConv 4
-# Layer 7: expand Conv2dReLU(32,128,3x3)
-- in_sequences: [4, 6]
-  in_offset: 0x4000
-  out_offset: 0x0000
-  processors: 0x00000000ffffffff
-  operation: conv2d
-  kernel_size: 3x3
-  pad: 1
-  activate: ReLU
-  eltwise: add # Add Residual-1
+  # MBConv 4
+  # Layer 7: expand Conv2dReLU(32,128,3x3)
+  - in_sequences: [res00, res01]
+    in_offset: 0x4000
+    out_offset: 0x0000
+    processors: 0x00000000ffffffff
+    operation: none
+    eltwise: add  # Add Residual-1
 
-# Layer 8: project Conv2d(128,48,1x1)
-- out_offset: 0x4000
-  processors: 0xffffffffffffffff
-  operation: conv2d
-  kernel_size: 1x1
-  pad: 0
+  - out_offset: 0x8000
+    processors: 0x00000000ffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
 
-# MBConv 5
-# Layer 9: Residual-2, re-form data with gap
-- out_offset: 0x0000
-  processors: 0x0000ffffffffffff
-  output_processors: 0x0000ffffffffffff
-  operation: passthrough
-  write_gap: 1
+  # Layer 8: project Conv2d(128,48,1x1)
+  - out_offset: 0x4000
+    processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    name: l8
 
-# Layer 10: expand Conv2dReLU(48,192,3x3)
-- in_offset: 0x4000
-  out_offset: 0x8000
-  processors: 0x0000ffffffffffff
-  operation: conv2d
-  kernel_size: 3x3
-  pad: 1
-  activate: ReLU
+  # MBConv 5
+  # Layer 9: Residual-2, re-form data with gap
+  - out_offset: 0x0000
+    processors: 0x0000ffffffffffff
+    output_processors: 0x0000ffffffffffff
+    operation: passthrough
+    write_gap: 1
+    name: res10
 
-# Layer 11: project Conv2d(192,48,1x1)
-- in_offset: 0x8000
-  out_offset: 0x0004
-  processors: 0xffffffffffffffff
-  operation: conv2d
-  kernel_size: 1x1
-  pad: 0
-  write_gap: 1
+  # Layer 10: expand Conv2dReLU(48,192,3x3)
+  - in_offset: 0x4000
+    in_sequences: l8
+    out_offset: 0x8000
+    processors: 0x0000ffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
 
-# MBConv 6
-# Layer 12: expand Conv2dReLU(48,192,1x1)
-- in_sequences: [9, 11]
-  in_offset: 0x0000
-  out_offset: 0x4000
-  processors: 0x0000ffffffffffff
-  operation: conv2d
-  kernel_size: 1x1
-  pad: 0
-  activate: ReLU
-  eltwise: add # Add Residual-2
+  # Layer 11: project Conv2d(192,48,1x1)
+  - out_offset: 0x0004
+    processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    write_gap: 1
+    name: res11
 
-# Layer 13: depthwise Conv2dReLU(192,192,3x3)
-- out_offset: 0x0000
-  processors: 0xffffffffffffffff
-  operation: conv2d
-  kernel_size: 3x3
-  groups: 192
-  pad: 1
-  activate: ReLU
+  # MBConv 6
+  # Layer 12: expand Conv2dReLU(48,192,1x1)
+  - in_sequences: [res10, res11]
+    in_offset: 0x0000
+    out_offset: 0x4000
+    processors: 0x0000ffffffffffff
+    operation: none
+    eltwise: add  # Add Residual-2
 
-# Layer 14: project Conv2d(192,96,1x1)
-- out_offset: 0x4000
-  processors: 0xffffffffffffffff
-  operation: conv2d
-  kernel_size: 1x1
-  pad: 0
+  - out_offset: 0x8000
+    processors: 0x0000ffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
 
-# MBConv 7
-# Layer 15: Residual-3, re-form data with gap
-- out_offset: 0x0000
-  processors: 0x0000ffffffffffff
-  output_processors: 0x0000ffffffffffff
-  operation: passthrough
-  write_gap: 1
+  # Layer 13: depthwise Conv2dReLU(192,192,3x3)
+  - out_offset: 0x0000
+    processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    groups: 192
+    pad: 1
+    activate: ReLU
 
-# Layer 16: expand Conv2dReLU(96,384,1x1)
-- in_offset: 0x4000
-  out_offset: 0x8000
-  processors: 0x0000ffffffffffff
-  operation: conv2d
-  kernel_size: 1x1
-  pad: 0
-  activate: ReLU
+  # Layer 14: project Conv2d(192,96,1x1)
+  - out_offset: 0x4000
+    processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    name: l14
 
-# Layer 17: depthwise Conv2dReLU(384,384,3x3)
-- in_offset: 0x8000
-  out_offset: 0x4000
-  processors: 0xffffffffffffffff
-  operation: conv2d
-  kernel_size: 3x3
-  groups: 384
-  pad: 1
-  activate: ReLU
+  # MBConv 7
+  # Layer 15: Residual-3, re-form data with gap
+  - out_offset: 0x0000
+    processors: 0x0000ffffffffffff
+    output_processors: 0x0000ffffffffffff
+    operation: passthrough
+    write_gap: 1
+    name: res20
 
-# Layer 18: project Conv2d(384,96,1x1)
-- in_offset: 0x4000
-  out_offset: 0x0004
-  processors: 0xffffffffffffffff
-  operation: conv2d
-  kernel_size: 1x1
-  pad: 0
-  write_gap: 1
+  # Layer 16: expand Conv2dReLU(96,384,1x1)
+  - in_offset: 0x4000
+    in_sequences: l14
+    out_offset: 0x8000
+    processors: 0x0000ffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
 
-# Layer 19: Add Residual-3
-- in_sequences: [15, 18]
-  in_offset: 0x0000
-  out_offset: 0x4000
-  processors: 0x0000ffffffffffff
-  operation: none
-  eltwise: add # Add Residual-3
+  # Layer 17: depthwise Conv2dReLU(384,384,3x3)
+  - out_offset: 0x4000
+    processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    groups: 384
+    pad: 1
+    activate: ReLU
 
-# MBConv 8
-# Layer 20: expand Conv2dReLU(96,384,1x1)
-- out_offset: 0x8000
-  processors: 0x0000ffffffffffff
-  operation: conv2d
-  kernel_size: 1x1
-  pad: 0
-  activate: ReLU
+  # Layer 18: project Conv2d(384,96,1x1)
+  - out_offset: 0x0004
+    processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    write_gap: 1
+    name: res21
 
-# Layer 21: depthwise Conv2dReLU(384,384,3x3)
-- out_offset: 0x0000
-  processors: 0xffffffffffffffff
-  operation: conv2d
-  kernel_size: 3x3
-  groups: 384
-  pad: 1
-  activate: ReLU
+  # Layer 19: Add Residual-3
+  - in_sequences: [res20, res21]
+    in_offset: 0x0000
+    out_offset: 0x4000
+    processors: 0x0000ffffffffffff
+    operation: none
+    eltwise: add  # Add Residual-3
 
-# Layer 22: project Conv2d(384,128,1x1)
-- out_offset: 0x4000
-  processors: 0xffffffffffffffff
-  operation: conv2d
-  kernel_size: 1x1
-  pad: 0
+  # MBConv 8
+  # Layer 20: expand Conv2dReLU(96,384,1x1)
+  - out_offset: 0x8000
+    processors: 0x0000ffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
 
-# MBConv 9
-# Layer 23: Residual-4, re-form data with gap
-- out_offset: 0x0000
-  processors: 0xffffffffffffffff
-  output_processors: 0xffffffffffffffff
-  operation: passthrough
-  write_gap: 1
+  # Layer 21: depthwise Conv2dReLU(384,384,3x3)
+  - out_offset: 0x0000
+    processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    groups: 384
+    pad: 1
+    activate: ReLU
 
-# Layer 24: expand Conv2dReLU(128,512,1x1)
-- in_offset: 0x4000
-  out_offset: 0x8000
-  processors: 0xffffffffffffffff
-  operation: conv2d
-  kernel_size: 1x1
-  pad: 0
-  activate: ReLU
+  # Layer 22: project Conv2d(384,128,1x1)
+  - out_offset: 0x4000
+    processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    name: l22
 
-# Layer 25: depthwise Conv2dReLU(512,512,3x3)
-- in_offset: 0x8000
-  out_offset: 0x4000
-  processors: 0xffffffffffffffff
-  operation: conv2d
-  kernel_size: 3x3
-  groups: 512
-  pad: 1
-  activate: ReLU
+  # MBConv 9
+  # Layer 23: Residual-4, re-form data with gap
+  - out_offset: 0x0000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: passthrough
+    write_gap: 1
+    name: res30
 
-# Layer 26: project Conv2d(512,128,1x1)
-- out_offset: 0x0004
-  processors: 0xffffffffffffffff
-  operation: conv2d
-  kernel_size: 1x1
-  pad: 0
-  write_gap: 1
+  # Layer 24: expand Conv2dReLU(128,512,1x1)
+  - in_offset: 0x4000
+    in_sequences: l22
+    out_offset: 0x8000
+    processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
 
-# Layer 27: Add Residual-4
-- in_sequences: [23, 26]
-  in_offset: 0x0000
-  out_offset: 0x4000
-  processors: 0xffffffffffffffff
-  operation: none
-  eltwise: add # Add Residual-4
+  # Layer 25: depthwise Conv2dReLU(512,512,3x3)
+  - out_offset: 0x4000
+    processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    groups: 512
+    pad: 1
+    activate: ReLU
 
-# Layer 28: Stem-Conv2dReLU(128,1024,1x1)
-- out_offset: 0x8000
-  processors: 0xffffffffffffffff
-  operation: conv2d
-  kernel_size: 1x1
-  pad: 0
-  activate: ReLU
+  # Layer 26: project Conv2d(512,128,1x1)
+  - out_offset: 0x0004
+    processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    write_gap: 1
+    name: res31
 
-# Layer 29: AvgPool2d((16, 16))
-- avg_pool: 16
-  pool_stride: [16, 16]
-  operation: none
-  out_offset: 0x0000
-  processors: 0xffffffffffffffff
+  # Layer 27: Add Residual-4
+  - in_sequences: [res30, res31]
+    in_offset: 0x0000
+    out_offset: 0x4000
+    processors: 0xffffffffffffffff
+    operation: none
+    eltwise: add  # Add Residual-4
 
-# Layer 30: Linear
-- flatten: true
-  out_offset: 0x4000
-  processors: 0xffffffffffffffff
-  operation: MLP
-  output_width: 32
+  # Layer 28: Head-Conv2dReLU(128,1024,1x1)
+  - out_offset: 0x8000
+    processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
+
+  # Layer 29: AvgPool2d((16, 16))
+  - avg_pool: 16
+    pool_stride: [16, 16]
+    operation: none
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff
+
+  # Layer 30: Linear
+  # No flatten needed, input is already 1x1
+  - out_offset: 0x4000
+    processors: 0xffffffffffffffff
+    operation: MLP
+    output_width: 32

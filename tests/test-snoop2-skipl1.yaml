@@ -1,3 +1,4 @@
+---
 arch: test
 dataset: test_snoop-skip
 snoop: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x249007,
@@ -5,33 +6,33 @@ snoop: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x249007,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 layers:
-- op: none
-  processors: 0x0000000000000007
-  out_offset: 0x2000
-- out_offset: 0x4000
-  processors: 0x0000000000000007
-  operation: conv2d
-  kernel_size: 3x3
-  activation: none
-  output_shift: -1
-  snoop_sequence: 4
-  simulated_sequence: 4
-- out_offset: 0x2000
-  processors: 0xffffffffffffffff
-  operation: conv2d
-  kernel_size: 1x1
-  activation: none
-  quantization: binary
-  conv_groups: 64
-  pad: 0
-- op: none
-  processors: 0xffffffffffffffff
-  out_offset: 0x4000
-- out_offset: 0x0
-  processors: 0xffffffffffffffff
-  operation: conv2d
-  kernel_size: 1x1
-  activation: none
-  quantization: binary
-  conv_groups: 64
-  pad: 0
+  - op: none
+    processors: 0x0000000000000007
+    out_offset: 0x2000
+  - out_offset: 0x4000
+    processors: 0x0000000000000007
+    operation: conv2d
+    kernel_size: 3x3
+    activation: none
+    output_shift: -1
+    snoop_sequence: 4
+    simulated_sequence: 4
+  - out_offset: 0x2000
+    processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    activation: none
+    quantization: binary
+    conv_groups: 64
+    pad: 0
+  - op: none
+    processors: 0xffffffffffffffff
+    out_offset: 0x4000
+  - out_offset: 0x0
+    processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    activation: none
+    quantization: binary
+    conv_groups: 64
+    pad: 0

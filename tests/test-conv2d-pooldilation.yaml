@@ -1,15 +1,16 @@
+---
 # Test convolution with pooling dilation
 
 arch: test
 dataset: test_dilation2a
 
 layers:
-- out_offset: 0x2000
-  processors: 0x0000000000000003
-  operation: conv2d
-  kernel_size: 3x3
-  stride: 1
-  pad: 1
-  pool_dilation: 2
-  pool_stride: 1
-  max_pool: 2
+  - out_offset: 0x2000
+    processors: 0x0000000000000003
+    operation: conv2d
+    kernel_size: 3x3
+    stride: 1
+    pad: 1
+    pool_dilation: 2
+    pool_stride: 1
+    max_pool: 2

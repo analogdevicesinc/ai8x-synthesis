@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -14,7 +14,7 @@ from . import tornadocnn as tc
 
 COPYRIGHT = \
     '/*******************************************************************************\n' \
-    '* Copyright (C) 2019-2021 Maxim Integrated Products, Inc., All rights Reserved.\n' \
+    '* Copyright (C) 2019-2022 Maxim Integrated Products, Inc., All rights Reserved.\n' \
     '*\n' \
     '* This software is protected by copyright laws of the United States and\n' \
     '* of foreign countries. This material may also be protected by patent laws\n' \
@@ -115,6 +115,12 @@ def header(
                       '#include "pcif.c"\n')
     if embedded_code:
         memfile.write('#include "cnn.h"\n')
+    elif not embedded_arm and tc.dev.SUPPORT_PLL:
+        memfile.write('#define ipll_ctrl ito_ctrl\n'
+                      '#define MXC_F_GCR_IPLL_CTRL_EN MXC_F_GCR_ITO_CTRL_EN\n'
+                      '#define MXC_F_GCR_IPLL_CTRL_RDY MXC_F_GCR_ITO_CTRL_RDY\n'
+                      '#define MXC_S_GCR_PCLKDIV_CNNCLKSEL_IPLL MXC_S_GCR_PCLKDIV_CNNCLKSEL_ITO\n')
+
     if main_code:
         if (lib is True or lib is None) and (embedded_code or state.compact_weights):
             memfile.write(f'#include "{state.weight_filename}"\n')
@@ -365,8 +371,8 @@ def main(
             memfile.write(f'  // Switch to {tc.dev.IPO_SPEED} MHz clock\n'
                           '  MXC_SYS_Clock_Select(MXC_SYS_CLOCK_IPO);\n')
             if pll:
-                memfile.write('  MXC_GCR->ito_ctrl |= MXC_F_GCR_ITO_CTRL_EN;'
-                              ' // Enable PLL (ITO)\n')
+                memfile.write('  MXC_GCR->ipll_ctrl |= MXC_F_GCR_IPLL_CTRL_EN;'
+                              ' // Enable IPLL\n')
             memfile.write('  SystemCoreClockUpdate();\n')
         else:
             memfile.write('  icache_enable();\n\n')
@@ -378,8 +384,8 @@ def main(
                 memfile.write('  MXC_GCR->clkctrl |= MXC_F_GCR_CLKCTRL_IPO_EN;'
                               ' // Enable internal primary osc (IPO)\n')
                 if pll:
-                    memfile.write('  MXC_GCR->ito_ctrl |= MXC_F_GCR_ITO_CTRL_EN;'
-                                  ' // Enable PLL (ITO)\n')
+                    memfile.write('  MXC_GCR->ipll_ctrl |= MXC_F_GCR_IPLL_CTRL_EN;'
+                                  ' // Enable IPLL\n')
                 memfile.write('  while ((MXC_GCR->clkctrl & MXC_F_GCR_CLKCTRL_IPO_RDY) == 0) ;'
                               ' // Wait for osc\n'
                               '  MXC_GCR->clkctrl |= MXC_S_GCR_CLKCTRL_SYSCLK_SEL_IPO;'
@@ -532,7 +538,7 @@ def main(
                               f'  // CNN clock: {tc.dev.PLL_SPEED if pll else tc.dev.APB_SPEED} '
                               'MHz div 1\n'
                               '  cnn_enable(MXC_S_GCR_PCLKDIV_CNNCLKSEL_'
-                              f'{"ITO" if pll else "PCLK"}, MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1);\n')
+                              f'{"IPLL" if pll else "PCLK"}, MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1);\n')
                 function_header(apifile, function='enable',
                                 arguments='uint32_t clock_source, uint32_t clock_divider')
 
@@ -548,15 +554,17 @@ def main(
 
             if tc.dev.SUPPORT_PLL:
                 if embedded_code:
-                    mfile.write('  if (clock_source == MXC_S_GCR_PCLKDIV_CNNCLKSEL_ITO)\n  ')
+                    mfile.write('  if (clock_source == MXC_S_GCR_PCLKDIV_CNNCLKSEL_IPLL)\n  ')
                 if embedded_code or pll:
-                    mfile.write('  while ((MXC_GCR->ito_ctrl & MXC_F_GCR_ITO_CTRL_RDY) '
-                                '!= MXC_F_GCR_ITO_CTRL_RDY) ; // Wait for PLL\n\n')
+                    mfile.write('  while ((MXC_GCR->ipll_ctrl & MXC_F_GCR_IPLL_CTRL_RDY) '
+                                '!= MXC_F_GCR_IPLL_CTRL_RDY) ; // Wait for PLL\n\n')
 
             if embedded_code and apifile is not None:
                 mfile.write('  MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
                             '~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | MXC_F_GCR_PCLKDIV_CNNCLKSEL))\n'
                             '                     | clock_divider | clock_source;\n')
+            elif pll:
+                select_clock(mfile, 'IPLL', 'DIV1', 'CNN clock: PLL div 1')
             else:
                 select_clock(mfile, 'PCLK', 'DIV1', 'CNN clock: APB div 1')
 
@@ -612,7 +620,7 @@ def main(
                 memfile.write('  if (cnn_init() != CNN_OK) fail();\n')
             if measure_energy:
                 if pll:
-                    select_clock(memfile, 'ITO', 'DIV1', 'Switch CNN clock to PLL (ITO)')
+                    select_clock(memfile, 'IPLL', 'DIV1', 'Switch CNN clock to IPLL')
 
                 memfile.write('\n  printf("Measuring weight loading...\\n");\n'
                               '  CNN_START;\n'
@@ -718,7 +726,7 @@ def main(
 
         if pll:
             select_clock(memfile, 'PCLK', 'DIV1', 'Switch CNN clock and disable PLL')
-            memfile.write('  MXC_GCR->ito_ctrl &= ~MXC_F_GCR_ITO_CTRL_EN;\n\n')
+            memfile.write('  MXC_GCR->ipll_ctrl &= ~MXC_F_GCR_IPLL_CTRL_EN;\n\n')
 
         if embedded_code and apifile is not None:
             function_header(apifile, function='boost_disable',
@@ -890,9 +898,9 @@ def select_clock(
     """
     if comment != '':
         memfile.write(f'  // {comment}\n')
-    if source == 'ITO':
-        memfile.write('  while ((MXC_GCR->ito_ctrl & MXC_F_GCR_ITO_CTRL_RDY) != '
-                      'MXC_F_GCR_ITO_CTRL_RDY) ;\n')
+    if source == 'IPLL':
+        memfile.write('  while ((MXC_GCR->ipll_ctrl & MXC_F_GCR_IPLL_CTRL_RDY) != '
+                      'MXC_F_GCR_IPLL_CTRL_RDY) ;\n')
     memfile.write('  MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
                   '~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | MXC_F_GCR_PCLKDIV_CNNCLKSEL))\n'
                   f'                     | MXC_S_GCR_PCLKDIV_CNNCLKDIV_{divider} | '

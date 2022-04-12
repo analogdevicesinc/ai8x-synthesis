@@ -1,15 +1,16 @@
+---
 # Test Conv1D
 
 arch: test
 dataset: test_conv1d-6
 
 layers:
-- out_offset: 0x2000
-  processors: 0x0000000000000007
-  operation: conv1d
-  kernel_size: 6
-  max_pool: 3
-  pool_stride: 3
-  pad: 0
-  quantization: 2
-  output_shift: -4
+  - out_offset: 0x2000
+    processors: 0x0000000000000007
+    operation: conv1d
+    kernel_size: 6
+    max_pool: 3
+    pool_stride: 3
+    pad: 0
+    quantization: 2
+    output_shift: -4

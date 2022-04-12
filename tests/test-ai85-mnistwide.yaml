@@ -1,3 +1,4 @@
+---
 # Wide network test / CHW (big data) configuration for MNIST
 
 arch: ai85netwide
@@ -5,30 +6,30 @@ dataset: MNIST
 
 # Define layer parameters in order of the layer sequence
 layers:
-- pad: 1
-  activate: ReLU
-  out_offset: 0x2000
-  processors: 0x0000000000000001
-  data_format: CHW
-  op: conv2d
-- max_pool: 2
-  pool_stride: 2
-  pad: 2
-  activate: ReLU
-  out_offset: 0
-  processors: 0xffffffffffffffff
-  op: conv2d
-- max_pool: 2
-  pool_stride: 2
-  pad: 1
-  activate: ReLU
-  out_offset: 0x2000
-  processors: 0xffffffffffffffff
-  op: conv2d
-- avg_pool: 2
-  pool_stride: 2
-  pad: 1
-  activate: ReLU
-  out_offset: 0
-  processors: 0x0fffffffffffffff
-  op: conv2d
+  - pad: 1
+    activate: ReLU
+    out_offset: 0x2000
+    processors: 0x0000000000000001
+    data_format: CHW
+    op: conv2d
+  - max_pool: 2
+    pool_stride: 2
+    pad: 2
+    activate: ReLU
+    out_offset: 0
+    processors: 0xffffffffffffffff
+    op: conv2d
+  - max_pool: 2
+    pool_stride: 2
+    pad: 1
+    activate: ReLU
+    out_offset: 0x2000
+    processors: 0xffffffffffffffff
+    op: conv2d
+  - avg_pool: 2
+    pool_stride: 2
+    pad: 1
+    activate: ReLU
+    out_offset: 0
+    processors: 0x0fffffffffffffff
+    op: conv2d

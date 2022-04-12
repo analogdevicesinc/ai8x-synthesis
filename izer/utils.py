@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -85,3 +85,12 @@ def overlap(a, b):
         or a[1] >= b[0] and a[1] <= b[1] \
         or b[0] >= a[0] and b[0] <= a[1] \
         or b[1] >= a[0] and b[1] <= a[1]
+
+
+def plural(x, name, multiple='s', singular=''):
+    """
+    Return singular or plural form of variable `name` depending on value `x`.
+    """
+    if x != 1:  # Works for negative, 0, 2, 3, 4...
+        return name + multiple
+    return name + singular

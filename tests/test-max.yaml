@@ -1,12 +1,13 @@
+---
 arch: test
 dataset: test_max
 bias: max
 
 layers:
-- pad: 2
-  out_offset: 0x2000
-  processors: 0xffffffffffffffff
-  data_format: HWC
-  max_pool: 2
-  pool_stride: 2
-  op: conv2d
+  - pad: 2
+    out_offset: 0x2000
+    processors: 0xffffffffffffffff
+    data_format: HWC
+    max_pool: 2
+    pool_stride: 2
+    op: conv2d

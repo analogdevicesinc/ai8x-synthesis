@@ -115,7 +115,7 @@ def test_unload():
     test case for unload()
     """
     tc.dev = tc.get_device(85)
-    np.set_printoptions(threshold=np.inf, linewidth=80,
+    np.set_printoptions(threshold=sys.maxsize, linewidth=80,
                         formatter={'int': lambda x: f'{x:02x}'})
 
     # Create memory image

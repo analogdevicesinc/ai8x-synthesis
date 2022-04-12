@@ -1,0 +1,18 @@
+---
+arch: test
+dataset: test_eltwise
+
+layers:
+  - pad: 0
+    out_offset: 0x2000
+    processors: 0x000000000000000f
+    data_format: HWC
+    op: add
+    avg_pool: 2
+    pool_stride: 2
+    pool_first: false
+  - op: none
+    avg_pool: 2
+    pool_stride: 2
+    out_offset: 0x4000
+    processors: 0x000000000000000f

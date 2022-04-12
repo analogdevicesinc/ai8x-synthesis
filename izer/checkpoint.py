@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -15,6 +15,7 @@ import torch
 from . import op, state
 from . import tornadocnn as tc
 from .eprint import eprint, wprint
+from .names import layer_str
 from .utils import fls
 
 
@@ -157,20 +158,20 @@ def load(
 
             if len(w.shape) == 2:  # MLP
                 if kernel_size[seq][0] != 1 or kernel_size[seq][1] != 1:
-                    eprint(f'The `kernel_size` for the MLP layer {seq} should '
+                    eprint(f'The `kernel_size` for the MLP layer {layer_str(seq)} should '
                            f'be set to 1x1 instead of '
                            f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.', exit_code=None)
                     error_exit = True
             elif len(w.shape) == 3:  # 1D
                 if kernel_size[seq][0] != w.shape[2] or kernel_size[seq][1] != 1:
-                    eprint(f'The `kernel_size` for the 1D layer {seq} should '
+                    eprint(f'The `kernel_size` for the 1D layer {layer_str(seq)} should '
                            f'be set to {w.shape[2]}x1 instead of '
                            f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.', exit_code=None)
                     error_exit = True
             elif len(w.shape) == 4:  # 2D
                 if kernel_size[seq][0] != w.shape[2] \
                    or kernel_size[seq][1] != w.shape[3]:
-                    eprint(f'The `kernel_size` for the 2D layer {seq} should '
+                    eprint(f'The `kernel_size` for the 2D layer {layer_str(seq)} should '
                            f'be set to {w.shape[2]}x{w.shape[3]} instead of '
                            f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.', exit_code=None)
                     error_exit = True
@@ -256,7 +257,7 @@ def load(
     if verbose:
         print(f'Checkpoint for epoch {checkpoint["epoch"]}, model {checkpoint_arch} - '
               'weight and bias data:')
-        print(' InCh OutCh  Weights         Quant Shift  Min  Max   Size '
+        print(' InCh OutCh  Weights         Quant Shift  Min  Max    Size '
               'Key                                       Bias       Quant  Min  Max Size Key')
         for ll in range(layers):
             if ll < len(weights) and weights[ll] is not None:
@@ -272,7 +273,7 @@ def load(
                 print(f'{input_channels[ll]:5} {output_channels[ll]:5}  '
                       f'{weight_shape:15} '
                       f'{quant[ll]:5} {output_shift_shape:5} '
-                      f'{weight_min[ll]:4} {weight_max[ll]:4} {weight_size[ll]:6} '
+                      f'{weight_min[ll]:4} {weight_max[ll]:4} {weight_size[ll]:7} '
                       f'{weight_keys[ll]:41} '
                       f'{bias_shape:10} '
                       f'{bias_quant[ll]:5} {bias_min[ll]:4} {bias_max[ll]:4} {bias_size[ll]:4} '

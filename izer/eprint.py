@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -9,7 +9,7 @@ Print error message to stderr, and stdout as well if needed
 """
 import sys
 
-import colorama
+import rich
 
 from . import state
 
@@ -25,11 +25,11 @@ def eprint(*args, error=True, notice=False, prefix=True, exit_code=1, **kwargs):
         if not state.output_is_console:
             print(pfx, *args, **kwargs)
 
-        ansi_on = colorama.Fore.RED if error else colorama.Fore.YELLOW \
-            if not notice else colorama.Fore.GREEN
-        pfx = ansi_on + pfx + colorama.Style.RESET_ALL
+        color = "red" if error else "yellow" \
+            if not notice else "green"
 
-        print(pfx, *args, file=sys.stderr, **kwargs)
+        rich.print('[' + color + ']' + pfx + '[/' + color + '] ', file=sys.stderr, end='')
+        print(*args, file=sys.stderr, **kwargs)
     else:
         if not state.output_is_console:
             print(*args, **kwargs)

@@ -1,18 +1,19 @@
+---
 arch: test
 dataset: test_mpflatten-256
 
 layers:
-# Layer 0
-- processors: 0x0000000000000007
-  operation: conv2d
-  kernel_size: 3x3
-  pad: 1
-  out_offset: 0x1000
-  data_format: HWC
-# Layer 1
-- processors: 0xffffffffffffffff
-  in_offset: 0x1000
-  out_offset: 0x2000
-  operation: linear
-  flatten: true
-  output_width: 32
+  # Layer 0
+  - processors: 0x0000000000000007
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    out_offset: 0x1000
+    data_format: HWC
+  # Layer 1
+  - processors: 0xffffffffffffffff
+    in_offset: 0x1000
+    out_offset: 0x2000
+    operation: linear
+    flatten: true
+    output_width: 32
