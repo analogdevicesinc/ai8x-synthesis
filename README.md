@@ -632,11 +632,12 @@ The MAX78000/MAX78002 SDK is available as a git submodule of ai8x-synthesis. It 
     * Recommended installation location: `/usr/local/riscv-none-embed-gcc/10.2.0-1.2/`
 
 3. Install GNU Make
+
     * (Linux/macOS) “make” is available on most systems by default. If not, it can be installed via the system package manager.
     * (Windows) Install [MSYS2](https://www.msys2.org/) first, then install “make” using the MSYS2 package manager:
 
       ```shell
-      $ pacman -S --needed make
+      $ pacman -S --needed base filesystem msys2-runtime make
       ```
 
 4. Install packages for OpenOCD. OpenOCD binaries are available in the “openocd” sub-folder of the ai8x-synthesis repository. However, some additional dependencies are required on most systems. See [openocd/Readme.md](openocd/Readme.md) for a list of packages to install, then return here to continue.
