@@ -192,18 +192,18 @@ def vscode(
 
     tmp = list(map(lambda s: s.strip("-D"), tmp))  # VS Code doesn't want -D
     tmp = list(map(lambda s: f"\"{s}\"", tmp))  # Surround with quotes
-    defines_parsed = ",\n\t\t\t\t".join(tmp)  # csv, newline, and tab alignment
+    defines_parsed = ",\n                ".join(tmp)  # csv, newline, and tab alignment
     # ---
 
     # Parse include paths...
     tmp = i_paths.split(" ")  # Space-separated
     tmp = list(map(lambda s: f"\"{s}\"", tmp))  # Surround with quotes
-    i_paths_parsed = ",\n\t\t\t\t".join(tmp)  # csv, newline, and tab alignment
+    i_paths_parsed = ",\n                ".join(tmp)  # csv, newline, and tab alignment
 
     # Parse browse paths...
     tmp = v_paths.split(" ")  # Space-separated
     tmp = list(map(lambda s: f"\"{s}\"", tmp))  # Surround with quotes
-    v_paths_parsed = ",\n\t\t\t\t\t".join(tmp)  # csv, newline, and tab alignment
+    v_paths_parsed = ",\n                    ".join(tmp)  # csv, newline, and tab alignment
 
     # Create template...
     for directory, _, files in sorted(os.walk(template_dir)):
