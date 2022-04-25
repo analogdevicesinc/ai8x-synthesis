@@ -181,7 +181,6 @@ def vscmxm(
         tmp = list(map(lambda s: s.strip("-D"), tmp))  # VS Code doesn't want -D
         tmp = list(map(lambda s: f"\"{s}\"", tmp))  # Surround with quotes
         defines_parsed = ",\n        ".join(tmp)  # csv, newline, and tab (w/ spaces) alignment
-
     else:
         defines_parsed = ""
 
