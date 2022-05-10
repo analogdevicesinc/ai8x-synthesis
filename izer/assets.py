@@ -209,7 +209,7 @@ def vscode(
         # and form output path accordingly.
         if rel_dir != Path('.'):
             # We're in a sub-folder.  Replicate this folder in the output directory
-            out_path = Path(out_path).joinpath(rel_dir).as_posix()
+            out_path = Path(out_path).joinpath(rel_dir)
             os.makedirs(out_path, exist_ok=True)
         else:
             # We're in the root template folder, no need to create a directory.
