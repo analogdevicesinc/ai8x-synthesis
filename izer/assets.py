@@ -9,7 +9,7 @@
 Copy assets
 """
 import json
-import os
+import os, stat
 import shutil
 from pathlib import Path
 
@@ -246,11 +246,11 @@ def vscode(
                             replace("##__MAKE_PATH__##", make_path)
                         )
 
-                os.chmod(out_loc, 0o764)
+                os.chmod(out_loc, stat.S_IRWXU | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
                 # print(f"Wrote {os.path.basename(out_loc)}")  # Uncomment to debug
 
             else:
                 # There is a non-template file to copy
                 shutil.copy(os.path.join(directory, file), out_path)
-                os.chmod(out_path, 0o764)
+                os.chmod(out_loc, stat.S_IRWXU | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
                 # print(f"Wrote {os.path.basename(file)}") # Uncomment to debug
