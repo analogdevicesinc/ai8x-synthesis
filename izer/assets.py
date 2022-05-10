@@ -9,8 +9,9 @@
 Copy assets
 """
 import json
-import os, stat
+import os
 import shutil
+import stat
 from pathlib import Path
 
 from . import state
