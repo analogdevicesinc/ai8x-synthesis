@@ -3237,19 +3237,21 @@ class Backend(backend.Backend):
                 # have any debug symbols.  The M4 and RISC-V
                 # "split" files do have symbols, so we point
                 # the debugger to those and flash the combined file.
-                assets.vscmxm(
-                    base_directory + "/" + test_name,
+                assets.vscode(
+                    base_directory,
+                    test_name,
                     tc.dev.partnum,
                     board_name,
                     program_file="${config:project_name}-combined.elf",
-                    symbol_file="${config:project_name}.elf"
+                    symbol_file="${config:project_name}.elf",
                 )
 
             else:
-                assets.vscmxm(
-                    base_directory + "/" + test_name,
+                assets.vscode(
+                    base_directory,
+                    test_name,
                     tc.dev.partnum,
-                    board_name
+                    board_name,
                 )
 
             assets.from_template('assets', 'device-all', base_directory,

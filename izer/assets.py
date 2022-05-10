@@ -141,8 +141,9 @@ def parse_json(filename):
 defaults = parse_json(Path("assets").joinpath("vscode", "defaults", "settings.json"))
 
 
-def vscmxm(
-    out_path: str,
+def vscode(
+    out_root: str,
+    out_stem: str,
     target: str,
     board: str,
     program_file: str = defaults["PROGRAM_FILE"],
@@ -164,6 +165,8 @@ def vscmxm(
     """
     Generates Visual Studio Code project files from the VSCode-Maxim project.
     """
+
+    out_path = Path(out_root).joinpath(out_stem)
 
     template_dir = Path("assets").joinpath("vscode", "template").resolve()
     # Where to find the VS Code template directory relative to this script
