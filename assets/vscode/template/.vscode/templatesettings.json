@@ -1,0 +1,48 @@
+{
+    "terminal.integrated.env.windows": {
+        "Path":"${config:OCD_path};${config:ARM_GCC_path}/bin;${config:xPack_GCC_path}/bin;${config:Make_path};${env:PATH}",
+        "MAXIM_PATH":"${config:MAXIM_PATH}"
+    },
+    "terminal.integrated.defaultProfile.windows": "Command Prompt",
+    
+    "terminal.integrated.env.linux": {
+        "PATH":"${config:OCD_path}:${config:ARM_GCC_path}/bin:${config:xPack_GCC_path}/bin:${env:PATH}",
+        "MAXIM_PATH":"${config:MAXIM_PATH}"
+    },
+    "terminal.integrated.env.osx": {
+        "PATH":"${config:OCD_path}/bin:${config:ARM_GCC_path}/bin:${config:xPack_GCC_path}/bin:${env:PATH}",
+        "MAXIM_PATH":"${config:MAXIM_PATH}"
+    },
+    
+    "target":"##__TARGET__##",
+    "board":"##__BOARD__##",
+
+    "project_name":"${workspaceFolderBasename}",
+
+    "program_file":"##__PROGRAM_FILE__##",
+    "symbol_file":"##__SYMBOL_FILE__##",
+
+    "M4_OCD_interface_file":"##__M4_OCD_INTERFACE_FILE__##",
+    "M4_OCD_target_file":"##__M4_OCD_TARGET_FILE__##",
+    "RV_OCD_interface_file":"##__RV_OCD_INTERFACE_FILE__##",
+    "RV_OCD_target_file":"##__RV_OCD_TARGET_FILE__##",
+
+    "v_Arm_GCC":"##__V_ARM_GCC__##",
+    "v_xPack_GCC":"##__V_XPACK_GCC__##",
+
+    "OCD_path":"##__OCD_PATH__##",
+    "ARM_GCC_path":"##__ARM_GCC_PATH__##",
+    "xPack_GCC_path":"##__XPACK_GCC_PATH__##",
+    "Make_path":"##__MAKE_PATH__##",
+
+    "C_Cpp.default.includePath": [
+        "##__I_PATHS__##"
+    ],
+    "C_Cpp.default.browse.path": [
+        "##__V_PATHS__##"
+    ],
+    "C_Cpp.default.defines": [
+        "##__DEFINES__##"
+    ]
+}
+

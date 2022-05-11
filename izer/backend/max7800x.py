@@ -3230,15 +3230,29 @@ class Backend(backend.Backend):
                                      test_name, board_name)
             assets.from_template('assets', 'eclipse', base_directory, test_name, board_name)
 
-            if not riscv:
-                # FIXME: As of 12-8-2021 the combined elf format used in the RISC-V projects
-                # is not compatible with OpenOCD flashing.
-                # Skip VSCode generation for RISC-V projects until this is resolved.
+            # Generate VS Code project files
+            if riscv:
+                # RISC-V projects need some slight tweaking.
+                # The combined .elf file that is created doesn't
+                # have any debug symbols.  The M4 and RISC-V
+                # "split" files do have symbols, so we point
+                # the debugger to those and flash the combined file.
                 assets.vscode(
                     base_directory,
                     test_name,
-                    board=board_name
-                )  # Create VS Code project template
+                    tc.dev.partnum,
+                    board_name,
+                    program_file="${config:project_name}-combined.elf",
+                    symbol_file="${config:project_name}.elf",
+                )
+
+            else:
+                assets.vscode(
+                    base_directory,
+                    test_name,
+                    tc.dev.partnum,
+                    board_name,
+                )
 
             assets.from_template('assets', 'device-all', base_directory,
                                  test_name, board_name, insert=insert)
