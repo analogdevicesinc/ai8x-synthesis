@@ -253,5 +253,5 @@ def vscode(
             else:
                 # There is a non-template file to copy
                 shutil.copy(os.path.join(directory, file), out_path)
-                os.chmod(out_loc, stat.S_IRWXU | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
+                os.chmod(out_path, stat.S_IRWXU | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
                 # print(f"Wrote {os.path.basename(file)}") # Uncomment to debug
