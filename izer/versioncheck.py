@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2021-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -37,15 +37,19 @@ def check_repo(
         wprint('Cannot check for updates - no local repository.')
         return False
 
-    localrepo = git.Repo.init(folder)
-    active_branch = localrepo.active_branch
-    if verbose:
-        print('Active branch:', active_branch, "(dirty)" if localrepo.is_dirty() else "")
+    try:
+        localrepo = git.Repo.init(folder)
+        active_branch = localrepo.active_branch
+        if verbose:
+            print('Active branch:', active_branch, "(dirty)" if localrepo.is_dirty() else "")
 
-    localhead = localrepo.head.commit.hexsha
-    localdate = datetime.datetime.utcfromtimestamp(localrepo.head.commit.committed_date)
-    if verbose:
-        print('LOCAL ', localhead, localdate)
+        localhead = localrepo.head.commit.hexsha
+        localdate = datetime.datetime.utcfromtimestamp(localrepo.head.commit.committed_date)
+        if verbose:
+            print('LOCAL ', localhead, localdate)
+    except ValueError as exc:
+        wprint('Cannot check for updates from GitHub -', str(exc))
+        return False
 
     retval = False
     g = github.Github()
