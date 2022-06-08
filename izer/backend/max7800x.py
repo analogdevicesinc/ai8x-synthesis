@@ -1004,7 +1004,7 @@ class Backend(backend.Backend):
                     apb.output(f'// Layer {r * layers + ll}: '
                                f'{str(operands[ll])+"x" if operands[ll] > 1 else ""}'
                                f'{input_chan[ll]}x{input_dim_str[ll]}'
-                               f'{"streaming " if streaming[ll] else ""}{flatten_str}, ',
+                               f'{" streaming" if streaming[ll] else ""}{flatten_str}, ',
                                embedded_code)
                     if not pool_first[ll] and operands[ll] > 1:
                         apb.output(f'{operands[ll]}-element {op.string(eltwise[ll], elt=True)}, ',
