@@ -130,13 +130,12 @@ def get_parser() -> argparse.Namespace:
                        help="set starting layer (default: 0)")
     group.add_argument('--no-wfi', dest='wfi', action='store_false', default=True,
                        help="do not use _WFI() (default: _WFI() is used)")
-    mgroup = group.add_mutually_exclusive_group()
-    mgroup.add_argument('--timer', type=int, metavar='N',
-                        help="use timer to time the inference (default: off, supply timer number)")
+    group.add_argument('--timer', type=int, metavar='N',
+                       help="use timer to time the inference (default: off, supply timer number)")
     group.add_argument('--no-timer', action='store_true', default=False,
                        help="ignore --timer argument(s)")
-    mgroup.add_argument('--energy', action='store_true', default=False,
-                        help="insert instrumentation code for energy measurement")
+    group.add_argument('--energy', action='store_true', default=False,
+                       help="insert instrumentation code for energy measurement")
     group.add_argument('--switch-delay', dest='enable_delay', type=int, metavar='N', default=None,
                        help="set delay in msec after cnn_enable() for load switches (default: 0"
                             " on MAX78000, 10 on MAX78002)")
@@ -510,6 +509,11 @@ def get_parser() -> argparse.Namespace:
         args.define_default_riscv = "-D" + " -D".join(args.define_default_riscv.split(' '))
 
     if args.no_timer:
+        args.timer = None
+
+    if args.timer is not None and args.energy:
+        wprint('`--timer` is ignored when using `--energy`. Remove the `--timer` argument or '
+               'add `--no-timer` to suppress this message.')
         args.timer = None
 
     return args
