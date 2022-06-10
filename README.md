@@ -2147,9 +2147,9 @@ The following table describes the most important command line arguments for `ai8
 | `--board-name`           | Set the target board (default: `EvKit_V1`)                   | `--board-name FTHR_RevA`        |
 | *Code generation*        |                                                              |                                 |
 | `--overwrite`            | Produce output even when the target directory exists (default: abort) |                        |
-| `--compact-data`         | Use *memcpy* to load input data in order to save code space  |                                 |
 | `--compact-weights`      | Use *memcpy* to load weights in order to save code space     |                                 |
-| `--mexpress`             | Use faster kernel loading                                    |                                 |
+| `--mexpress`             | Use faster kernel loading (default)                          |                                 |
+| `--no-mexpress` | Use alternate kernel loading (slower) | |
 | `--mlator`               | Use hardware to swap output bytes (useful for large multi-channel outputs) |                   |
 | `--softmax`              | Add software Softmax functions to generated code             |                                 |
 | `--boost`                | Turn on a port pin to boost the CNN supply                   | `--boost 2.5`                   |
@@ -2269,7 +2269,7 @@ layers:
 To generate an embedded MAX78000 demo in the `demos/ai85-mnist/` folder, use the following command line:
 
 ```shell
-(ai8x-synthesize) $ python ai8xize.py --verbose --test-dir demos --prefix ai85-mnist --checkpoint-file trained/ai85-mnist.pth.tar --config-file networks/mnist-chw-ai85.yaml --device MAX78000 --compact-data --mexpress --softmax
+(ai8x-synthesize) $ python ai8xize.py --verbose --test-dir demos --prefix ai85-mnist --checkpoint-file trained/ai85-mnist.pth.tar --config-file networks/mnist-chw-ai85.yaml --device MAX78000 --compact-data --softmax
 ```
 
 *Note: For MAX78002, substitute MAX78002 as the `--device`.*
@@ -2967,7 +2967,7 @@ Perform minimum accelerator initialization so it can be configured or restarted.
 Configure the accelerator for the given network.
 
 `int cnn_load_weights(void);`
-Load the accelerator weights. `cnn_init()` must be called before loading weights after reset or wake from sleep. *Note that the physical weight memories are 72-bit wide. When `--mexpress` mode is enabled, the weight data is written in a sequence of 32-bit writes, containing the “packed” weight values. When `--mexpress` is disabled, each weight memory is written in four 32-bit memory writes, with zero-padded data.*
+Load the accelerator weights. `cnn_init()` must be called before loading weights after reset or wake from sleep. *Note that the physical weight memories are 72-bit wide. When `--mexpress` mode is enabled (default), the weight data is written in a sequence of 32-bit writes, containing the “packed” weight values. When using `--no-mexpress`, each weight memory is written in four 32-bit memory writes, with zero-padded data.*
 
 `int cnn_verify_weights(void);`
 Verify the accelerator weights (used for debug only).
