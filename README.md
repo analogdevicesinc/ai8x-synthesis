@@ -1,6 +1,6 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-June 2, 2022
+June 10, 2022
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
@@ -106,7 +106,7 @@ When going beyond simple models, model training does not work well without CUDA 
 
 * There is a PyTorch pre-release with ROCm acceleration for certain AMD GPUs on Linux ([see blog entry](https://pytorch.org/blog/pytorch-for-amd-rocm-platform-now-available-as-python-package/)), but this is not currently covered by the installation instructions in this document, and it is not supported.
 
-* At this time, there is neither CUDA nor ROCm nor Neural Engine support on macOS, and therefore no hardware acceleration (there is a pre-release version of PyTorch with M1 acceleration, and M1 acceleration will be supported in a future release of these tools).
+* At this time, there is neither CUDA nor ROCm nor Neural Engine support on macOS, and therefore no hardware acceleration (there is a pre-release version of PyTorch with M1 acceleration on macOS 12.3 or later, and M1 acceleration will be supported in a future release of these tools).
 
 * PyTorch does not include CUDA support for aarch64/arm64 systems. *Rebuilding PyTorch from source is not covered by this document.*
 
@@ -2156,6 +2156,9 @@ The following table describes the most important command line arguments for `ai8
 | `--timer`                | Insert code to time the inference using a timer              | `--timer 0`                     |
 | `--no-wfi`               | Do not use WFI (wait for interrupt) instructions when waiting for CNN completion |                                 |
 | `--define` | Additional preprocessor defines | `--define "FAST GOOD"` |
+| *MAX78002* |  |  |
+| `--no-pipeline` | **MAX78002 only**: Disable the pipeline and run the CNN on the slower APB clock. This reduces power consumption, but increases inference time and in most cases overall energy usage. |  |
+| `--max-speed` | **MAX78002 only:** In pipeline mode, load weights and input data on the PLL clock divided by 1 instead of divided by 4. This is approximately 50% faster, but uses 200% of the energy compared to the default settings. |  |
 | *File names*             |                                                              |                                 |
 | `--c-filename`           | Main C file name base (default: main.c)                      | `--c-filename main.c`           |
 | `--api-filename`         | API C file name (default: cnn.c)                             | `--api-filename cnn.c`          |

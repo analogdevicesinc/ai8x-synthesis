@@ -230,6 +230,9 @@ class Backend(backend.Backend):
         if state.pll is None:
             state.pll = pipeline
 
+        if not state.balance_power and not state.pll:
+            eprint('`--max-speed` requires `--pll` or `--pipeline`.')
+
         if zero_sram or pretend_zero_sram:
             # Clear every seventh kernel so we can test the BIST
             for i, _ in enumerate(kernel):

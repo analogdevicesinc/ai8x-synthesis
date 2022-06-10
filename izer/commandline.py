@@ -56,6 +56,12 @@ def get_parser() -> argparse.Namespace:
                         help="enable PLL (default: automatic)")
     mgroup.add_argument('--no-pll', action='store_false', dest='pll',
                         help="disable PLL (default: automatic)")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('--balance-speed', action='store_true', default=True,
+                        help="balance data and weight loading speed and power (default: True)")
+    mgroup.add_argument('--max-speed', action='store_false', dest='balance_speed',
+                        help="load data and weights as fast as possible (MAX78002 only, "
+                             "requires --pll, default: False)")
     group.add_argument('--config-file', required=True, metavar='S',
                        help="YAML configuration file containing layer configuration")
     group.add_argument('--checkpoint-file', metavar='S',
@@ -531,6 +537,7 @@ def set_state(args: argparse.Namespace) -> None:
         state.apb_base = args.apb_base
     state.api_filename = args.api_filename
     state.avg_pool_rounding = args.avg_pool_rounding
+    state.balance_power = args.balance_speed
     state.base_directory = args.test_dir
     state.block_mode = not args.top_level
     state.board_name = args.board_name
