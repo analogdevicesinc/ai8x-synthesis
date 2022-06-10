@@ -523,6 +523,8 @@ class DevAI87(Dev):
     C_PAD = 2
 
     # PLL Speed in MHz
+    IPO_SPEED = 120
+    APB_SPEED = IPO_SPEED // 2
     PLL_SPEED = 200
 
     DEFAULT_SWITCH_DELAY = 10
