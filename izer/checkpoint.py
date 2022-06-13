@@ -70,6 +70,8 @@ def load(
         if arch and checkpoint_arch.lower() != arch.lower():
             eprint(f"Network architecture of configuration file ({arch}) does not match "
                    f"network architecture of checkpoint file ({checkpoint_arch}).")
+    if 'epoch' not in checkpoint:
+        eprint("No `epoch` in checkpoint file.")
 
     checkpoint_state = checkpoint['state_dict']
     layers = 0
