@@ -56,6 +56,12 @@ def get_parser() -> argparse.Namespace:
                         help="enable PLL (default: automatic)")
     mgroup.add_argument('--no-pll', action='store_false', dest='pll',
                         help="disable PLL (default: automatic)")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('--balance-speed', action='store_true', default=True,
+                        help="balance data and weight loading speed and power (default: True)")
+    mgroup.add_argument('--max-speed', action='store_false', dest='balance_speed',
+                        help="load data and weights as fast as possible (MAX78002 only, "
+                             "requires --pll, default: False)")
     group.add_argument('--config-file', required=True, metavar='S',
                        help="YAML configuration file containing layer configuration")
     group.add_argument('--checkpoint-file', metavar='S',
@@ -97,12 +103,19 @@ def get_parser() -> argparse.Namespace:
     group = parser.add_argument_group('Code generation')
     group.add_argument('--overwrite', action='store_true', default=False,
                        help="overwrite destination if it exists (default: abort)")
-    group.add_argument('--compact-data', action='store_true', default=False,
-                       help="use memcpy() to load input data in order to save code space")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('--compact-data', action='store_true', default=True,
+                        help="use memcpy() to load input data in order to save code space "
+                             "(default)")
+    mgroup.add_argument('--no-compact-data', action='store_false', dest='compact_data',
+                        help="inline input data loader (default: false)")
     group.add_argument('--compact-weights', action='store_true', default=False,
                        help="use memcpy() to load weights in order to save code space")
-    group.add_argument('--mexpress', action='store_true', default=False,
-                       help="use express kernel loading (default: false)")
+    mgroup = group.add_mutually_exclusive_group()
+    mgroup.add_argument('--mexpress', action='store_true', default=True,
+                        help="use express kernel loading (default: true)")
+    mgroup.add_argument('--no-mexpress', action='store_false', dest='mexpress',
+                        help="disable express kernel loading")
     group.add_argument('--mlator', action='store_true', default=False,
                        help="use hardware to swap output bytes (default: false)")
     group.add_argument('--unroll-mlator', type=int, metavar='N', default=8,
@@ -280,10 +293,10 @@ def get_parser() -> argparse.Namespace:
                        default=True,
                        help="do not use greedy kernel memory allocator (default: use)")
     mgroup = group.add_mutually_exclusive_group()
-    mgroup.add_argument('--new-kernel-loader', action='store_true',
-                        default=None, help="use new kernel loader (default on MAX78002)")
+    mgroup.add_argument('--new-kernel-loader', action='store_true', default=True,
+                        help="use new kernel loader (default)")
     mgroup.add_argument('--old-kernel-loader', dest='new_kernel_loader', action='store_false',
-                        default=None, help="use old kernel loader (default on MAX78000)")
+                        default=None, help="use alternate old kernel loader")
     group.add_argument('--weight-input', metavar='S', default=None,
                        help="weight input file name (development only, "
                             "default: 'tests/weight_test_dataset.npy')")
@@ -531,6 +544,7 @@ def set_state(args: argparse.Namespace) -> None:
         state.apb_base = args.apb_base
     state.api_filename = args.api_filename
     state.avg_pool_rounding = args.avg_pool_rounding
+    state.balance_power = args.balance_speed
     state.base_directory = args.test_dir
     state.block_mode = not args.top_level
     state.board_name = args.board_name

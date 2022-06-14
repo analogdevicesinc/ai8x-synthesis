@@ -288,6 +288,8 @@ def main(
     debugwait = state.debug_wait
     measure_energy = state.measure_energy
     pll = state.pll
+    clock_switch = pll and state.balance_power
+    clock_speed = f'PLL ({tc.dev.PLL_SPEED} MHz)' if pll else f'APB ({tc.dev.APB_SPEED} MHz)'
     sleep = state.sleep
     softmax = state.softmax
     input_csv = state.input_csv is not None and main_code
@@ -531,14 +533,15 @@ def main(
                     memfile.write('  MXC_Delay(SEC(1));\n')
                 else:
                     memfile.write('  MXC_TMR_Delay(MXC_TMR0, 1000000);\n')
-                memfile.write('  SYS_COMPLETE;\n')
+                memfile.write('  SYS_COMPLETE;\n\n')
 
             if embedded_code and apifile is not None:
+                cdiv = '4' if clock_switch else '1'
                 memfile.write('  // Enable peripheral, enable CNN interrupt, turn on CNN clock\n'
-                              f'  // CNN clock: {tc.dev.PLL_SPEED if pll else tc.dev.APB_SPEED} '
-                              'MHz div 1\n'
+                              f'  // CNN clock: {clock_speed} div {cdiv}\n'
                               '  cnn_enable(MXC_S_GCR_PCLKDIV_CNNCLKSEL_'
-                              f'{"IPLL" if pll else "PCLK"}, MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1);\n')
+                              f'{"IPLL" if pll else "PCLK"}, '
+                              f'MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV{cdiv});\n')
                 function_header(apifile, function='enable',
                                 arguments='uint32_t clock_source, uint32_t clock_divider')
 
@@ -563,10 +566,9 @@ def main(
                 mfile.write('  MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
                             '~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | MXC_F_GCR_PCLKDIV_CNNCLKSEL))\n'
                             '                     | clock_divider | clock_source;\n')
-            elif pll:
-                select_clock(mfile, 'IPLL', 'DIV1', 'CNN clock: PLL div 1')
             else:
-                select_clock(mfile, 'PCLK', 'DIV1', 'CNN clock: APB div 1')
+                select_clock(mfile, 'IPLL' if pll else 'PCLK', 'DIV1',
+                             f'CNN clock: {clock_speed} div 1')
 
             mfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CNN); '
                         '// Enable CNN clock\n\n')
@@ -619,9 +621,6 @@ def main(
             else:
                 memfile.write('  if (cnn_init() != CNN_OK) fail();\n')
             if measure_energy:
-                if pll:
-                    select_clock(memfile, 'IPLL', 'DIV1', 'Switch CNN clock to IPLL')
-
                 memfile.write('\n  printf("Measuring weight loading...\\n");\n'
                               '  CNN_START;\n'
                               '  for (i = 0; i < 100; i++)\n'
@@ -646,6 +645,9 @@ def main(
             if not measure_energy:
                 if not fifo:
                     memfile.write('  load_input(); // Load data input\n')
+                if clock_switch:
+                    select_clock(memfile, 'IPLL', 'DIV1', f'CNN clock: {clock_speed} div 1',
+                                 pll_wait=False)
                 memfile.write('  cnn_start(); // Start CNN processing\n')
                 if fifo:
                     memfile.write('  load_input(); // Load data input via FIFO\n')
@@ -690,6 +692,9 @@ def main(
                           '  for (i = 0; i < 100; i++) {\n')
             if not fifo:
                 memfile.write('    load_input(); // Load data input\n')
+            if clock_switch:
+                select_clock(memfile, 'IPLL', 'DIV1', f'CNN clock: {clock_speed} div 1',
+                             pll_wait=False)
             memfile.write('    cnn_start(); // Run inference\n')
             if fifo:
                 memfile.write('    load_input(); // Load data input via FIFO\n')
@@ -703,6 +708,9 @@ def main(
                     memfile.write('      asm volatile("wfi"); // Wait for CNN\n')
             else:
                 memfile.write('    while (cnn_time == 0); // Spin wait\n')
+            if clock_switch:
+                select_clock(memfile, 'IPLL', 'DIV4', f'CNN clock: {clock_speed} div 4',
+                             pll_wait=False)
             memfile.write('  }\n'
                           '  CNN_COMPLETE;\n\n')
 
@@ -724,8 +732,9 @@ def main(
                 memfile.write('    cnn_wait();\n')
             memfile.write('  }\n\n')
 
-        if pll:
-            select_clock(memfile, 'PCLK', 'DIV1', 'Switch CNN clock and disable PLL')
+        if clock_switch:
+            select_clock(memfile, 'PCLK', 'DIV1',
+                         f'Switch CNN clock to APB ({tc.dev.APB_SPEED} MHz) and disable PLL')
             memfile.write('  MXC_GCR->ipll_ctrl &= ~MXC_F_GCR_IPLL_CTRL_EN;\n\n')
 
         if embedded_code and apifile is not None:
@@ -892,13 +901,14 @@ def select_clock(
         source: str,
         divider: int,
         comment: str = '',
+        pll_wait: bool = True,
 ) -> None:
     """
     Switch clock source and divider.
     """
     if comment != '':
         memfile.write(f'  // {comment}\n')
-    if source == 'IPLL':
+    if source == 'IPLL' and pll_wait:
         memfile.write('  while ((MXC_GCR->ipll_ctrl & MXC_F_GCR_IPLL_CTRL_RDY) != '
                       'MXC_F_GCR_IPLL_CTRL_RDY) ;\n')
     memfile.write('  MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
