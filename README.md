@@ -2728,7 +2728,7 @@ In order to achieve this, a layer must be inserted that does nothing else but re
 ...
 layers:
   ...
-  # Layer 1
+  # Layer I
   - out_offset: 0x0000
     processors: 0x0ffff00000000000
     operation: conv2d
@@ -2736,14 +2736,15 @@ layers:
     pad: 1
     activate: ReLU
   
-  # Layer 2 - re-format data with gap
+  # Layer II - re-format data with gap
   - out_offset: 0x2000
     processors: 0x00000000000fffff
     output_processors: 0x00000000000fffff
     operation: passthrough
     write_gap: 1
+    name: layerII
   
-  # Layer 3
+  # Layer III
   - in_offset: 0x0000
     out_offset: 0x2004
     processors: 0x00000000000fffff
@@ -2752,9 +2753,10 @@ layers:
     pad: 1
     activate: ReLU
     write_gap: 1
+    name: layerIII
   
-  # Layer 4 - Residual
-  - in_sequences: [2, 3]
+  # Layer IV - Residual
+  - in_sequences: [layerII, layerIII]
     in_offset: 0x2000
     out_offset: 0x0000
     processors: 0x00000000000fffff
