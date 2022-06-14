@@ -888,7 +888,7 @@ def c_define(
     prefix, formatting = fmt.split('%')
     memfile.write(f'#define {define_name} {{ \\\n  ')
     for i, e in enumerate(array):
-        memfile.write(f'{prefix}{e:{formatting}}')
+        memfile.write(f'{prefix}{e & 0xffffffff:{formatting}}')
         if i + 1 < len(array):
             memfile.write(', ')
             if (i + 1) % columns == 0:
