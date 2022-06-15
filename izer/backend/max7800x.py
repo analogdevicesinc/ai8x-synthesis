@@ -227,8 +227,8 @@ class Backend(backend.Backend):
             state.pipeline = tc.dev.SUPPORT_PIPELINE
         pipeline = state.pipeline  # Cache
 
-        if state.pll is None:
-            state.pll = pipeline
+        if state.pll is None and tc.dev.SUPPORT_PLL:
+            state.pll = True
 
         if not state.balance_power and not state.pll:
             eprint('`--max-speed` requires `--pll` or `--pipeline`.')

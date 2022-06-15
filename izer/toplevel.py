@@ -288,7 +288,8 @@ def main(
     debugwait = state.debug_wait
     measure_energy = state.measure_energy
     pll = state.pll
-    clock_switch = pll and state.balance_power
+    pipeline = state.pipeline
+    clock_switch = pll and pipeline and state.balance_power
     clock_speed = f'PLL ({tc.dev.PLL_SPEED} MHz)' if pll else f'APB ({tc.dev.APB_SPEED} MHz)'
     sleep = state.sleep
     softmax = state.softmax
@@ -527,7 +528,7 @@ def main(
                 memfile.write('  cnn_disable(); // Disable clock and power to CNN\n'
                               '  // Enable primary clock\n'
                               '  MXC_SYS_ClockSourceEnable(MXC_SYS_CLOCK_IPO);\n\n'
-                              '  printf("Measuring system base power...\\n");\n'
+                              '  printf("Measuring system base (idle) power...\\n");\n'
                               '  SYS_START;\n')
                 if not riscv:
                     memfile.write('  MXC_Delay(SEC(1));\n')
@@ -536,7 +537,7 @@ def main(
                 memfile.write('  SYS_COMPLETE;\n\n')
 
             if embedded_code and apifile is not None:
-                cdiv = '4' if clock_switch else '1'
+                cdiv = '4' if pll and state.balance_power else '1'
                 memfile.write('  // Enable peripheral, enable CNN interrupt, turn on CNN clock\n'
                               f'  // CNN clock: {clock_speed} div {cdiv}\n'
                               '  cnn_enable(MXC_S_GCR_PCLKDIV_CNNCLKSEL_'
@@ -694,7 +695,7 @@ def main(
                 memfile.write('    load_input(); // Load data input\n')
             if clock_switch:
                 select_clock(memfile, 'IPLL', 'DIV1', f'CNN clock: {clock_speed} div 1',
-                             pll_wait=False)
+                             pll_wait=False, prefix='  ')
             memfile.write('    cnn_start(); // Run inference\n')
             if fifo:
                 memfile.write('    load_input(); // Load data input via FIFO\n')
@@ -710,7 +711,7 @@ def main(
                 memfile.write('    while (cnn_time == 0); // Spin wait\n')
             if clock_switch:
                 select_clock(memfile, 'IPLL', 'DIV4', f'CNN clock: {clock_speed} div 4',
-                             pll_wait=False)
+                             pll_wait=False, prefix='  ')
             memfile.write('  }\n'
                           '  CNN_COMPLETE;\n\n')
 
@@ -733,9 +734,9 @@ def main(
             memfile.write('  }\n\n')
 
         if clock_switch:
-            select_clock(memfile, 'PCLK', 'DIV1',
-                         f'Switch CNN clock to APB ({tc.dev.APB_SPEED} MHz) and disable PLL')
-            memfile.write('  MXC_GCR->ipll_ctrl &= ~MXC_F_GCR_IPLL_CTRL_EN;\n\n')
+            select_clock(memfile, 'IPLL', 'DIV4',
+                         f'Switch CNN clock to {clock_speed} div 4\n',
+                         pll_wait=False)
 
         if embedded_code and apifile is not None:
             function_header(apifile, function='boost_disable',
@@ -792,6 +793,9 @@ def main(
 
             if embedded_code and apifile is not None:
                 function_footer(apifile)  # disable()
+            if pll:
+                memfile.write('  MXC_GCR->ipll_ctrl &= ~MXC_F_GCR_IPLL_CTRL_EN; '
+                              '// Disable IPLL\n\n')
 
         if not forever:
             if softmax:
@@ -902,16 +906,17 @@ def select_clock(
         divider: int,
         comment: str = '',
         pll_wait: bool = True,
+        prefix: str = '',
 ) -> None:
     """
     Switch clock source and divider.
     """
     if comment != '':
-        memfile.write(f'  // {comment}\n')
+        memfile.write(f'{prefix}  // {comment}\n')
     if source == 'IPLL' and pll_wait:
-        memfile.write('  while ((MXC_GCR->ipll_ctrl & MXC_F_GCR_IPLL_CTRL_RDY) != '
+        memfile.write(f'{prefix}  while ((MXC_GCR->ipll_ctrl & MXC_F_GCR_IPLL_CTRL_RDY) != '
                       'MXC_F_GCR_IPLL_CTRL_RDY) ;\n')
-    memfile.write('  MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
+    memfile.write(f'{prefix}  MXC_GCR->pclkdiv = (MXC_GCR->pclkdiv & '
                   '~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | MXC_F_GCR_PCLKDIV_CNNCLKSEL))\n'
-                  f'                     | MXC_S_GCR_PCLKDIV_CNNCLKDIV_{divider} | '
+                  f'{prefix}                     | MXC_S_GCR_PCLKDIV_CNNCLKDIV_{divider} | '
                   f'MXC_S_GCR_PCLKDIV_CNNCLKSEL_{source};\n')
