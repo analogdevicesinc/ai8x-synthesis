@@ -416,7 +416,7 @@ class DevAI87(Dev):
     AON_CTL = 1024
 
     READY_SEL = 0
-    PIPELINE_READY_SEL = 3
+    PIPELINE_READY_SEL = 0
     FIFO_READY_SEL = 0
     AON_READY_SEL = 0
 
