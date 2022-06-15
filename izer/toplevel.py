@@ -528,7 +528,7 @@ def main(
                 memfile.write('  cnn_disable(); // Disable clock and power to CNN\n'
                               '  // Enable primary clock\n'
                               '  MXC_SYS_ClockSourceEnable(MXC_SYS_CLOCK_IPO);\n\n'
-                              '  printf("Measuring system base power...\\n");\n'
+                              '  printf("Measuring system base (idle) power...\\n");\n'
                               '  SYS_START;\n')
                 if not riscv:
                     memfile.write('  MXC_Delay(SEC(1));\n')
