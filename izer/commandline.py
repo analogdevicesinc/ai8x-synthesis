@@ -54,14 +54,14 @@ def get_parser() -> argparse.Namespace:
     mgroup = group.add_mutually_exclusive_group()
     mgroup.add_argument('--pll', action='store_true', default=None,
                         help="enable PLL (default: automatic)")
-    mgroup.add_argument('--no-pll', action='store_false', dest='pll',
+    mgroup.add_argument('--no-pll', '--apb', action='store_false', dest='pll',
                         help="disable PLL (default: automatic)")
     mgroup = group.add_mutually_exclusive_group()
     mgroup.add_argument('--balance-speed', action='store_true', default=True,
-                        help="balance data and weight loading speed and power (default: True)")
+                        help="balance data and weight loading speed and power (default: true)")
     mgroup.add_argument('--max-speed', action='store_false', dest='balance_speed',
                         help="load data and weights as fast as possible (MAX78002 only, "
-                             "requires --pll, default: False)")
+                             "requires --pll, default: false)")
     group.add_argument('--config-file', required=True, metavar='S',
                        help="YAML configuration file containing layer configuration")
     group.add_argument('--checkpoint-file', metavar='S',
@@ -188,7 +188,7 @@ def get_parser() -> argparse.Namespace:
                             "default: false)")
     group.add_argument('--no-fifo-wait', dest='fifo_wait', action='store_false', default=True,
                        help="do not check the FIFO for available space (requires matching source "
-                            "speed to inference, default: False)")
+                            "speed to inference, default: false)")
     group.add_argument('--fifo-go', action='store_true', default=False,
                        help="start processing before first FIFO push (default: false)")
     group.add_argument('--slow-load', type=int, metavar='N', default=0,
@@ -282,13 +282,13 @@ def get_parser() -> argparse.Namespace:
     group.add_argument('--debug-snoop', action='store_true', default=False,
                        help="insert snoop register debug code (default: False)")
     group.add_argument('--snoop-loop', action='store_true', default=False,
-                       help="insert snoop loop (default: False)")
+                       help="insert snoop loop (default: false)")
     group.add_argument('--ignore-hw-limits', action='store_true', default=False,
-                       help="ignore certain hardware limits (default: False)")
+                       help="ignore certain hardware limits (default: false)")
     group.add_argument('--ignore-bn', action='store_true', default=False,
-                       help="ignore BatchNorm weights in checkpoint file (default: False)")
+                       help="ignore BatchNorm weights in checkpoint file (default: false)")
     group.add_argument('--ignore-activation', action='store_true', default=False,
-                       help="ignore activations in YAML file (default: False)")
+                       help="ignore activations in YAML file (default: false)")
     group.add_argument('--no-greedy-kernel', action='store_false', dest='greedy_kernel_allocator',
                        default=True,
                        help="do not use greedy kernel memory allocator (default: use)")

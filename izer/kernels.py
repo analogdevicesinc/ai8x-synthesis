@@ -100,7 +100,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     kernel_map = np.full((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE),
                          fill_value=_INVALID_VALUE, dtype=np.int64)
     kernels_used = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE), dtype=np.int64)
-    kernel_data = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE, 9), dtype=np.int8)
+    kernel_data = np.zeros((tc.dev.MAX_PROC, tc.dev.MASK_WIDTH_LARGE, 9), dtype=np.uint8)
     # There are four 32-bit words per 9-byte kernel.
     # The value map is initialized with zeros so we can later ignore unused entries and use
     # memcpy() on initialized and uninitialized data.
@@ -438,6 +438,8 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                     kernel_map[p][col] = ll
 
                 assert kernels_used[p][col] <= 8
+                assert isinstance(b, np.int64), f'Kernel is type {type(b)} instead of numpy.int64'
+                assert 0 <= b <= 255, f'Trying to add kernel value {b}'
                 kernel_data[p][col][8 - kernels_used[p][col]] = b & 0xff
                 kernels_used[p][col] += 1
 
@@ -457,7 +459,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                 col_target, col_bytes = divmod(start_col * ksize * in_exp, 9)
                 # Pad out the leftovers
                 for _ in range(col_bytes // qfactor):  # FIXME for quantization
-                    col_target = add_kernel_data(ll, p, col_target, 0)
+                    col_target = add_kernel_data(ll, p, col_target, np.int64(0))
 
                 out_range = out_expand[ll] if conv_groups[ll] == 1 else 1
                 for expand in range(out_range):
@@ -506,8 +508,10 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                                 & (2**abs(quantization[ll])-1)
                                             if not flatten[ll]:
                                                 k |= this_kern << (i * abs(quantization[ll]))
-                                            else:
+                                            elif len(k) > 0:
                                                 k = np.append(k, this_kern)
+                                            else:
+                                                k = this_kern
                                         n += 1
                                     mask >>= 1
                                 if debug:
@@ -525,8 +529,8 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                             ),
                                         )
                                     for i in range(0, len(k) // qfactor):
-                                        e = 0
-                                        for j in range(qfactor):
+                                        e = k[i * qfactor]
+                                        for j in range(1, qfactor):
                                             e |= k[i * qfactor + j] << (j * abs(quantization[ll]))
                                         col_target = add_kernel_data(ll, p, col_target, e)
                                 else:
@@ -536,7 +540,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
 
                             else:  # When expanding, need to pad with zero kernels if needed
                                 for _ in range(ksize // qfactor):
-                                    col_target = add_kernel_data(ll, p, col_target, 0)
+                                    col_target = add_kernel_data(ll, p, col_target, np.int64(0))
 
                         # Consume kernels
                         if not flatten[ll]:
@@ -552,7 +556,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                    and kernels_used[p][kern_offs[ll] + col_target] > 0:  # Partials
                     col_target += 1
                 while col_target - start_col < kern_len[ll]:
-                    col_target = add_kernel_data(ll, p, col_target, 0)
+                    col_target = add_kernel_data(ll, p, col_target, np.int64(0))
                 if flatten[ll]:
                     kern_len[ll] = col_target
                 elif not state.new_kernel_loader:
