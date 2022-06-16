@@ -171,10 +171,13 @@ def header(
             memfile.write('  // Acknowledge interrupt to all quadrants\n')
             for _, group in enumerate(groups):
                 addr = tc.dev.APB_BASE + tc.ctl_addr(group, tc.dev.REG_CTL)
+                memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ')
                 if oneshot > 0 and not tc.dev.REQUIRE_ONESHOT_CLEAR:
-                    memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ~(1<<12);\n')
+                    memfile.write('~(1<<12);\n')
+                elif any(state.streaming):
+                    memfile.write('~((1<<12) | (1<<14) | 1);\n')
                 else:
-                    memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ~((1<<12) | 1);\n')
+                    memfile.write('~((1<<12) | 1);\n')
             memfile.write('\n')
             if embedded_code and not state.measure_energy:
                 memfile.write('  CNN_COMPLETE; // Signal that processing is complete\n')
@@ -627,12 +630,18 @@ def main(
                               '  for (i = 0; i < 100; i++)\n'
                               '    cnn_load_weights(); // Load kernels\n'
                               '  CNN_COMPLETE;\n\n'
-                              '  printf("Measuring input loading...\\n");\n'
-                              '  MXC_TMR_Delay(MXC_TMR0, 500000);\n'
-                              '  CNN_START;\n'
-                              '  for (i = 0; i < 100; i++)\n'
-                              '    load_input(); // Load data input\n'
-                              '  CNN_COMPLETE;\n\n')
+                              '  MXC_TMR_Delay(MXC_TMR0, 500000);\n')
+                if not fifo:
+                    memfile.write('  printf("Measuring input loading...\\n");\n'
+                                  '  CNN_START;\n'
+                                  '  for (i = 0; i < 100; i++)\n'
+                                  '    load_input(); // Load data input\n'
+                                  '  CNN_COMPLETE;\n\n')
+                else:
+                    memfile.write('  printf("Skipping input loading (using FIFO)...\\n");\n'
+                                  '  CNN_START;\n'
+                                  '  MXC_TMR_Delay(MXC_TMR0, 10); // Dummy delay displays as 0\n'
+                                  '  CNN_COMPLETE;\n\n')
             else:
                 memfile.write('  cnn_load_weights(); // Load kernels\n')
             if state.verify_kernels:
@@ -687,8 +696,8 @@ def main(
             else:
                 memfile.write('  cnn_wait();\n\n')
         else:
-            memfile.write('  printf("Measuring input load + inference...\\n");\n'
-                          '  MXC_TMR_Delay(MXC_TMR0, 500000);\n'
+            memfile.write('  MXC_TMR_Delay(MXC_TMR0, 500000);\n'
+                          '  printf("Measuring input load + inference...\\n");\n'
                           '  CNN_START; // Allow capture of processing time\n'
                           '  for (i = 0; i < 100; i++) {\n')
             if not fifo:
