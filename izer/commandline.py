@@ -444,6 +444,8 @@ def get_parser() -> argparse.Namespace:
         args.embedded_code = False
     if args.embedded_code is None:
         args.embedded_code = True
+    if not args.embedded_code:
+        args.softmax = False
 
     if not args.c_filename:
         args.c_filename = 'main' if args.embedded_code else 'test'
