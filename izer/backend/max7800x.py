@@ -2241,7 +2241,9 @@ class Backend(backend.Backend):
                         assert invol < 2**4, \
                             f'{layer_pfx(ll)}invol ({invol:04x}) exceeds supported range.'
                         assert delta1 < 2**5
-                        assert delta2 < 2**tc.dev.MAX_DSVAL2_BITS
+                        if delta2 >= 2**tc.dev.MAX_DSVAL2_BITS:
+                            eprint(f'Layer {ll}: delta2 ({delta2}) exceeds device maximum ({2**tc.dev.MAX_DSVAL2_BITS}). '
+                                   'Reduce pooling.')
                         val = delta2 << 16 | delta1 << 4 | invol
                         apb.write_lreg(group, hw_layer, tc.dev.LREG_STREAM2, val,
                                        comment=' // Stream processing delta')
