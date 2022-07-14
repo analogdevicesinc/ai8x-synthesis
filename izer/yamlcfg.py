@@ -14,7 +14,7 @@ import yamllint.linter
 
 from . import devices, names, op, state
 from . import tornadocnn as tc
-from .eprint import eprint, wprint
+from .eprint import eprint, nprint, wprint
 
 DEFAULT_2D_KERNEL = [3, 3]
 DEFAULT_1D_KERNEL = [9, 1]
@@ -321,6 +321,11 @@ def parse(
                 error_exit(f'Unknown value "{ll[key]}" for `{key}`', sequence)
         else:
             wprint('Defaulting to `op: Conv2d` for '
+                   f'layer sequence {sequence} in YAML configuration.')
+
+        if operator[sequence] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D, op.LINEAR] \
+           and not ('activate' in ll or 'activation' in ll):
+            nprint(f'Defaulting to "no activation" for {conv} in '
                    f'layer sequence {sequence} in YAML configuration.')
 
         if 'pad' in ll:

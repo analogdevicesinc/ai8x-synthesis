@@ -10,6 +10,7 @@ layers:
     pad: 1
     out_offset: 0x1000
     data_format: HWC
+    activation: None
   # Layer 1
   - avg_pool: [5, 3]
     pool_stride: 1

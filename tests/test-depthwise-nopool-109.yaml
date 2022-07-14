@@ -15,3 +15,4 @@ layers:
     groups: 109
     max_pool: 3
     pool_stride: 2
+    activation: None

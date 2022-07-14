@@ -101,3 +101,4 @@ layers:
     kernel_size: 1x1
     pad: 0
     output_width: 32
+    activate: None
