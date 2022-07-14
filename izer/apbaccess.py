@@ -488,6 +488,7 @@ class APB():
             reg,
             val,
             force_write=False,
+            no_verify=False,
             comment='',
     ):
         """
@@ -500,7 +501,7 @@ class APB():
             comment += ' *'
         addr = tc.lreg_addr(group, reg, layer)
         if force_write or val != 0 or self.write_zero_regs:
-            self.write(addr, val, comment)
+            self.write(addr, val, no_verify=no_verify, comment=comment)
         if state.verbose:
             print(f'L{layer} G{group} R{reg:02} ({addr:08x}): {val:08x}{comment}')
 
