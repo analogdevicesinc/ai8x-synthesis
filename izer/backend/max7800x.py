@@ -886,7 +886,7 @@ class Backend(backend.Backend):
                            f'layer: {processor_map[ll]:016x}.')
                 if processor_map[ll] == output_processor_map[ll]:
                     broadcast_mode[ll] = True
-                else:
+                elif state.energy_warning:
                     nprint(f'{layer_pfx(ll)}depth-wise convolution moves data across processors. '
                            f'This has a performance impact. Input 0x{processor_map[ll]:016x}, '
                            f'output 0x{output_processor_map[ll]:016x}.')
@@ -901,7 +901,7 @@ class Backend(backend.Backend):
                 emulate_eltwise[ll] = True
 
             # Warn if hidden layers use channel count that is not divisible by 4
-            if ll != start_layer and input_chan[ll] % 4 != 0:
+            if ll != start_layer and input_chan[ll] % 4 != 0 and state.energy_warning:
                 nprint(f'{layer_pfx(ll)}The input channel count ({input_chan[ll]}) is not '
                        'a multiple of 4. Best energy performance is achieved with multiples of 4.')
 
