@@ -13,8 +13,10 @@ layers:
     max_pool: 2
     pool_stride: 1
     op: conv2d
+    activate: None
   - pad: 1
     out_offset: 0x800
     processors: 0x000000000007fff0
     streaming: true
     op: conv2d
+    activate: None

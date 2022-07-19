@@ -13,6 +13,7 @@ layers:
     streaming: true
     quantization: 2
     output_shift: -6
+    activate: None
   - max_pool: 2
     pool_stride: 2
     pad: 0
@@ -23,6 +24,7 @@ layers:
     calcx4: true
     quantization: 2
     output_shift: -6
+    activate: None
   - avg_pool: 2
     pool_stride: 2
     pad: 0
@@ -34,3 +36,4 @@ layers:
     calcx4: true
     quantization: 2
     output_shift: -7
+    activate: None

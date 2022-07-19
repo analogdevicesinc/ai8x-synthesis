@@ -8,6 +8,7 @@ layers:
     data_format: HWC
     pad: 1
     op: conv2d
+    activate: None
   - out_offset: 0x2000
     in_dim: [20, 10]
     processors: 0x00000000000000ff

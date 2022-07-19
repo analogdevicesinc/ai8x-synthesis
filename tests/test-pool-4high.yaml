@@ -12,3 +12,4 @@ layers:
     out_offset: 0x6000
     processors: 0x00000000ffffffff
     op: conv2d
+    activate: None

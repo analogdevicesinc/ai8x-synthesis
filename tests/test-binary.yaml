@@ -13,3 +13,4 @@ layers:
     op: conv2d
     quantization: binary
     output_shift: -2
+    activate: None

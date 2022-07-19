@@ -28,6 +28,7 @@ layers:
     operation: Conv2d
     kernel_size: 1x1
     pad: 0
+    activate: None
   # Layer 3: Bottleneck-1, n=0, conv1. in 8ch, out 48 ch
   - processors: 0x00000000000000ff
     output_processors: 0x0000ffffffffffff
@@ -54,6 +55,7 @@ layers:
     operation: Conv2d
     kernel_size: 1x1
     pad: 0
+    activate: None
   # Layer 6: Bottleneck-1, n=1, conv1. in 12 ch, out 72 ch
   - processors: 0x0000000000000fff
     output_processors: 0x0000000fffffffff
@@ -79,6 +81,7 @@ layers:
     kernel_size: 1x1
     pad: 0
     write_gap: 1
+    activate: None
   # Layer 9: Bottleneck-1, n=1, Reform input layer
   - in_offset: 0x4000
     out_offset: 0x0004
@@ -117,6 +120,7 @@ layers:
     operation: Conv2d
     kernel_size: 1x1
     pad: 0
+    activate: None
   # Layer 14: Bottleneck-2, n=1, conv1. in 16 ch, out 96 ch
   - processors: 0x000000000000ffff
     output_processors: 0x0000ffffffffffff
@@ -142,6 +146,7 @@ layers:
     kernel_size: 1x1
     pad: 0
     write_gap: 1
+    activate: None
   # Layer 17: Bottleneck-2, n=1, Reform input layer
   - in_offset: 0x4000
     out_offset: 0x0004
@@ -181,6 +186,7 @@ layers:
     kernel_size: 1x1
     pad: 0
     write_gap: 1
+    activate: None
   # Layer 22: Bottleneck-2, n=2, Reform input layer
   - in_offset: 0x4000
     out_offset: 0x0004
@@ -219,6 +225,7 @@ layers:
     operation: Conv2d
     kernel_size: 1x1
     pad: 0
+    activate: None
   # Layer 27: Bottleneck-3, n=1, conv1. in 32 ch, out 192 ch
   - processors: 0x00000000ffffffff
     output_processors: 0xffffffffffffffff
@@ -244,6 +251,7 @@ layers:
     kernel_size: 1x1
     pad: 0
     write_gap: 1
+    activate: None
   # Layer 30: Bottleneck-3, n=1, Reform input layer
   - in_offset: 0x4000
     out_offset: 0x0004
@@ -283,6 +291,7 @@ layers:
     kernel_size: 1x1
     pad: 0
     write_gap: 1
+    activate: None
   # Layer 35: Bottleneck-3, n=2, Reform input layer
   - in_offset: 0x4000
     out_offset: 0x0004
@@ -322,6 +331,7 @@ layers:
     kernel_size: 1x1
     pad: 0
     write_gap: 1
+    activate: None
   # Layer 40: Bottleneck-3, n=3, Reform input layer
   - in_offset: 0x4000
     out_offset: 0x0004
@@ -358,6 +368,7 @@ layers:
     operation: Conv2d
     kernel_size: 1x1
     pad: 0
+    activate: None
   # Layer 45: Bottleneck-4, n=1, conv1. in 48 ch, out 288 ch
   - processors: 0x0000ffffffffffff
     output_processors: 0x0fffffffffffffff
@@ -383,6 +394,7 @@ layers:
     kernel_size: 1x1
     pad: 0
     write_gap: 1
+    activate: None
   # Layer 48: Bottleneck-4, n=1, Reform input layer
   - in_offset: 0x4000
     out_offset: 0x0004
@@ -422,6 +434,7 @@ layers:
     kernel_size: 1x1
     pad: 0
     write_gap: 1
+    activate: None
   # Layer 53: Bottleneck-4, n=2, Reform input layer
   - in_offset: 0x4000
     out_offset: 0x0004
@@ -458,6 +471,7 @@ layers:
     operation: Conv2d
     kernel_size: 1x1
     pad: 0
+    activate: None
   # Layer 58: Bottleneck-5, n=1, conv1. in 80 ch, out 480 ch
   - processors: 0x000000ffffffffff
     output_processors: 0x0fffffffffffffff
@@ -483,6 +497,7 @@ layers:
     kernel_size: 1x1
     pad: 0
     write_gap: 1
+    activate: None
   # Layer 61: Bottleneck-5, n=1, Reform input layer
   - in_offset: 0x4000
     out_offset: 0x0004
@@ -522,6 +537,7 @@ layers:
     kernel_size: 1x1
     pad: 0
     write_gap: 1
+    activate: None
   # Layer 66: Bottleneck-5, n=2, Reform input layer
   - in_offset: 0x4000
     out_offset: 0x0004
@@ -560,6 +576,7 @@ layers:
     operation: Conv2d
     kernel_size: 1x1
     pad: 0
+    activate: None
   # Layer 71: post-stage in 160 ch, out 640 ch
   - processors: 0x00ffffffffffffff
     output_processors: 0xffffffffffffffff

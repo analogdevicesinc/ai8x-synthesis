@@ -46,7 +46,7 @@ class UniqueKeyLoader(yaml.Loader):
             # check for duplicate keys
             if key in mapping:
                 eprint(f'Found duplicate key {key} '
-                       f'while constructing a mapping{node.start_mark}')
+                       f'while constructing a mapping {node.start_mark}')
             value = self.construct_object(value_node, deep=deep)
             mapping[key] = value
 
@@ -249,6 +249,8 @@ def parse(
                     error_exit('`in_dim` must be an integer or list not exceeding two dimensions',
                                sequence)
             input_dim[sequence] = val
+        if 'in_skip' in ll and 'read_gap' in ll:
+            error_exit('Duplicate key for `in_skip`/`read_gap`', sequence)
         if 'in_skip' in ll or 'read_gap' in ll:
             key = 'in_skip' if 'in_skip' in ll else 'read_gap'
             input_skip[sequence] = ll[key]
@@ -264,6 +266,8 @@ def parse(
             wprint('Defaulting to `out_offset = 0` for '
                    f'layer sequence {sequence} in YAML configuration.')
 
+        if 'activate' in ll and 'activation' in ll:
+            error_exit('Duplicate key for `activation`/`activate`', sequence)
         if 'activate' in ll or 'activation' in ll:
             key = 'activate' if 'activate' in ll else 'activation'
             if ll[key].lower() == 'relu':
@@ -277,6 +281,13 @@ def parse(
             if state.ignore_activation:
                 activation[sequence] = None
 
+        if 'convolution' in ll and 'operation' in ll \
+           or 'convolution' in ll and 'operator' in ll \
+           or 'convolution' in ll and 'op' in ll \
+           or 'operation' in ll and 'operator' in ll \
+           or 'operation' in ll and 'op' in ll \
+           or 'operator' in ll and 'op' in ll:
+            error_exit('Duplicate key for `convolution`/`operation`/`operator`/`op`', sequence)
         if 'convolution' in ll or 'operation' in ll or 'op' in ll or 'operator' in ll:
             key = 'convolution' if 'convolution' in ll else \
                   'operation' if 'operation' in ll else \
@@ -476,6 +487,8 @@ def parse(
         if 'snoop_sequence' in ll:
             snoop_sequence[sequence] = ll['snoop_sequence'] - skip_layers
 
+        if 'conv_groups' in ll and 'groups' in ll:
+            error_exit('Duplicate key for `conv_groups`/`groups`', sequence)
         if 'conv_groups' in ll or 'groups' in ll:
             key = 'conv_groups' if 'conv_groups' in ll else 'groups'
             conv_groups[sequence] = ll[key]
@@ -490,6 +503,8 @@ def parse(
             except ValueError:
                 error_exit(f'Unsupported value `{val}` for `bypass`', sequence)
 
+        if 'bias_group' in ll and 'bias_quadrant' in ll:
+            error_exit('Duplicate key for `bias_quadrant`/`bias_group`', sequence)
         if 'bias_group' in ll or 'bias_quadrant' in ll:
             key = 'bias_quadrant' if 'bias_quadrant' in ll else 'bias_group'
             val = ll[key]

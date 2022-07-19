@@ -23,3 +23,4 @@ layers:
     quantization: 2
     output_shift: -8
     op: conv2d
+    activate: None

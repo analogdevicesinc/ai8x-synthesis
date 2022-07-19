@@ -15,6 +15,7 @@ layers:
     max_pool: 3
     pool_stride: 2
     quantization: 4
+    activate: None
   - out_offset: 0x0
     processors: 0xffffffffffffff00
     operation: conv2d
@@ -23,6 +24,7 @@ layers:
     groups: 111
     max_pool: 1
     pool_stride: 2
+    activate: None
   - out_offset: 0x4000
     processors: 0xffffffffffffff00
     operation: conv2d
@@ -32,3 +34,4 @@ layers:
     max_pool: 2
     pool_stride: 1
     quantization: 2
+    activate: None

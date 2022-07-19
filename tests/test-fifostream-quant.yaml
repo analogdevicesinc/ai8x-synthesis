@@ -12,9 +12,11 @@ layers:
     streaming: true
     op: conv2d
     quantization: 4
+    activate: None
   - pad: 1
     out_offset: 0x800
     processors: 0x0000000000007fff
     streaming: true
     op: conv2d
     quantization: 2
+    activate: None

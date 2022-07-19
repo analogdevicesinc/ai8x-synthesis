@@ -12,6 +12,7 @@ layers:
     streaming: true
     output_shift: -2
     op: conv2d
+    activate: None
   - max_pool: 4
     pool_stride: 4
     pad: 1
@@ -20,6 +21,7 @@ layers:
     streaming: true
     output_shift: -6
     op: conv2d
+    activate: None
   - max_pool: 4
     pool_stride: 4
     pad: 1
@@ -28,3 +30,4 @@ layers:
     streaming: true
     output_shift: -2
     op: conv2d
+    activate: None

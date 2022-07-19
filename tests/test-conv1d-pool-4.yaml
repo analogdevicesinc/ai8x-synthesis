@@ -12,3 +12,4 @@ layers:
     max_pool: 4
     pool_stride: 2
     pad: 2
+    activate: None

@@ -8,3 +8,4 @@ layers:
     out_offset: 0x2000
     processors: 0xffffffffffffffff
     op: conv2d
+    activate: None
