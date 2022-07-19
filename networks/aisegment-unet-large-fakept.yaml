@@ -79,6 +79,7 @@ layers:
     pad: 0
     write_gap: 1
     in_sequences: [5]
+    activate: None
   # Layer 8: upconv3
   - in_offset: 0x6000
     out_offset: 0x4000

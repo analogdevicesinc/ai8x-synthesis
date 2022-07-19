@@ -11,3 +11,4 @@ layers:
     stride: 1
     pad: 1
     dilation: 4
+    activation: None

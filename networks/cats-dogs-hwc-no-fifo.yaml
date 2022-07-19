@@ -50,3 +50,4 @@ layers:
     out_offset: 0x1000
     output_width: 32
     processors: 0x000000000000ffff
+    activate: None

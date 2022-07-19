@@ -11,3 +11,4 @@ layers:
     output_width: 32
     pad: 2
     output_pad: 1
+    activation: None

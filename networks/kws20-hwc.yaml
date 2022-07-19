@@ -64,3 +64,4 @@ layers:
     processors: 0x000000000000007f
     operation: MLP
     output_width: 32
+    activate: None

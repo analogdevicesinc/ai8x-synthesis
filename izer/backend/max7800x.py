@@ -886,7 +886,7 @@ class Backend(backend.Backend):
                            f'layer: {processor_map[ll]:016x}.')
                 if processor_map[ll] == output_processor_map[ll]:
                     broadcast_mode[ll] = True
-                else:
+                elif state.energy_warning:
                     nprint(f'{layer_pfx(ll)}depth-wise convolution moves data across processors. '
                            f'This has a performance impact. Input 0x{processor_map[ll]:016x}, '
                            f'output 0x{output_processor_map[ll]:016x}.')
@@ -901,7 +901,7 @@ class Backend(backend.Backend):
                 emulate_eltwise[ll] = True
 
             # Warn if hidden layers use channel count that is not divisible by 4
-            if ll != start_layer and input_chan[ll] % 4 != 0:
+            if ll != start_layer and input_chan[ll] % 4 != 0 and state.energy_warning:
                 nprint(f'{layer_pfx(ll)}The input channel count ({input_chan[ll]}) is not '
                        'a multiple of 4. Best energy performance is achieved with multiples of 4.')
 
@@ -2241,7 +2241,9 @@ class Backend(backend.Backend):
                         assert invol < 2**4, \
                             f'{layer_pfx(ll)}invol ({invol:04x}) exceeds supported range.'
                         assert delta1 < 2**5
-                        assert delta2 < 2**tc.dev.MAX_DSVAL2_BITS
+                        if delta2 >= 2**tc.dev.MAX_DSVAL2_BITS:
+                            eprint(f'Layer {ll}: delta2 ({delta2}) exceeds device maximum '
+                                   f'({2**tc.dev.MAX_DSVAL2_BITS}). Reduce pooling.')
                         val = delta2 << 16 | delta1 << 4 | invol
                         apb.write_lreg(group, hw_layer, tc.dev.LREG_STREAM2, val,
                                        comment=' // Stream processing delta')
@@ -2369,6 +2371,7 @@ class Backend(backend.Backend):
                                                error=not overwrite_ok)
 
                             apb.write_lreg(group, hw_layer, tc.dev.LREG_FMAX, val,
+                                           no_verify=not tc.dev.SUPPORT_ROLLOVER_READ,
                                            comment=' // Rollover')
 
                         # In read-ahead mode, ensure that input and output use separate

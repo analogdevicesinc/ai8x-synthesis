@@ -651,7 +651,11 @@ def main(
                 memfile.write('  cnn_load_bias();\n')
             else:
                 memfile.write('  cnn_load_bias(); // Not used in this network\n')
-            memfile.write('  cnn_configure(); // Configure state machine\n')
+            if state.verify_writes:
+                memfile.write('  if (cnn_configure() != CNN_OK) fail(); '
+                              '// Configure state machine\n')
+            else:
+                memfile.write('  cnn_configure(); // Configure state machine\n')
             if not measure_energy:
                 if not fifo:
                     memfile.write('  load_input(); // Load data input\n')

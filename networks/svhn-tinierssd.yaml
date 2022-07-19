@@ -40,7 +40,7 @@ layers:
     pool_stride: 2
 
   # Layer 3: backbone_conv4
-  - out_offset: 0x0000 #1600
+  - out_offset: 0x0000  # 1600
     in_offset: 0x1000
     processors: 0xffffffffffffffff
     output_processors: 0xffffffffffffffff
@@ -50,7 +50,7 @@ layers:
     activate: ReLU
 
   # Layer 4: backbone_conv5
-  - out_offset: 0x1600 #1600+600 = 1C00
+  - out_offset: 0x1600  # 1600+600 = 1C00
     in_offset: 0x0000
     processors: 0xffffffffffffffff
     output_processors: 0xffffffffffffffff
@@ -62,7 +62,7 @@ layers:
     pool_stride: 2
 
   # Layer 5: backbone_conv6
-  - out_offset: 0x2000 #1600
+  - out_offset: 0x2000  # 1600
     in_offset: 0x1600
     processors: 0xffffffffffffffff
     output_processors: 0xffffffffffffffff
@@ -72,7 +72,7 @@ layers:
     activate: ReLU
 
   # Layer 6: backbone_conv7
-  - out_offset: 0x4000 #1600
+  - out_offset: 0x4000  # 1600
     in_offset: 0x2000
     processors: 0xffffffffffffffff
     output_processors: 0xffffffffffffffff
@@ -83,7 +83,7 @@ layers:
 
   # Layer 7: backbone_conv8
   - name: backbone_conv8
-    out_offset: 0x1600 #1C00
+    out_offset: 0x1600  # 1C00
     in_offset: 0x4000
     processors: 0xffffffffffffffff
     output_processors: 0x00000000ffffffff
@@ -94,7 +94,7 @@ layers:
 
   # Layer 8: backbone_conv9
   - name: backbone_conv9
-    out_offset: 0x1C00 #1E00
+    out_offset: 0x1C00  # 1E00
     in_offset: 0x1600
     processors: 0x00000000ffffffff
     output_processors: 0xffffffff00000000
@@ -107,7 +107,7 @@ layers:
 
   # Layer 9: backbone_conv10
   - name: backbone_conv10
-    out_offset: 0x1E00 #1F00
+    out_offset: 0x1E00  # 1F00
     in_offset: 0x1C00
     processors: 0xffffffff00000000
     output_processors: 0x00000000ffffffff
@@ -143,7 +143,7 @@ layers:
     pool_stride: 2
 
   # Layer 12: loc_conv8
-  - out_offset: 0x3000 #510
+  - out_offset: 0x3000  # 510
     in_offset: 0x1600
     processors: 0x00000000ffffffff
     output_processors: 0x000000000000ffff
@@ -152,9 +152,10 @@ layers:
     pad: 1
     in_sequences: backbone_conv8
     output: true
+    activate: None
 
   # Layer 13: loc_conv9
-  - out_offset: 0x3510 #144 = 2654
+  - out_offset: 0x3510  # 144 = 2654
     in_offset: 0x1C00
     processors: 0xffffffff00000000
     output_processors: 0x000000000000ffff
@@ -163,6 +164,7 @@ layers:
     pad: 1
     in_sequences: backbone_conv9
     output: true
+    activate: None
 
   # Layer 14: loc_conv10
   - out_offset: 0x3654
@@ -174,6 +176,7 @@ layers:
     pad: 1
     in_sequences: backbone_conv10
     output: true
+    activate: None
 
   # Layer 15: loc_conv12_2
   - out_offset: 0x3694
@@ -185,9 +188,10 @@ layers:
     pad: 1
     in_sequences: conv12_2
     output: true
+    activate: None
 
   # Layer 16: cl_conv8
-  - out_offset: 0x3000 #510
+  - out_offset: 0x3000  # 510
     in_offset: 0x1600
     processors: 0x00000000ffffffff
     output_processors: 0xfffffffffff00000
@@ -196,9 +200,10 @@ layers:
     pad: 1
     in_sequences: backbone_conv8
     output: true
+    activate: None
 
   # Layer 17: cl_conv9
-  - out_offset: 0x3510 #144 = 2654
+  - out_offset: 0x3510  # 144 = 2654
     in_offset: 0x1C00
     processors: 0xffffffff00000000
     output_processors: 0xfffffffffff00000
@@ -207,6 +212,7 @@ layers:
     pad: 1
     in_sequences: backbone_conv9
     output: true
+    activate: None
 
   # Layer 18: cl_conv10
   - out_offset: 0x3654
@@ -218,6 +224,7 @@ layers:
     pad: 1
     in_sequences: backbone_conv10
     output: true
+    activate: None
 
   # Layer 19: cl_conv12_2
   - out_offset: 0x3694
@@ -229,3 +236,4 @@ layers:
     pad: 1
     in_sequences: conv12_2
     output: true
+    activate: None

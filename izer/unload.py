@@ -63,7 +63,7 @@ def unload(
 
     assert not state.block_mode or not mlator
 
-    mlator_warning_shown = False
+    mlator_warning_shown = not state.mlator_warning
 
     # If 'unload' is specified in the YAML file, create synthetic versions of
     # output_layer[], output_width[], input_shape[], processor_map[], out_expand[],

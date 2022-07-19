@@ -289,6 +289,10 @@ def get_parser() -> argparse.Namespace:
                        help="ignore BatchNorm weights in checkpoint file (default: false)")
     group.add_argument('--ignore-activation', action='store_true', default=False,
                        help="ignore activations in YAML file (default: false)")
+    group.add_argument('--ignore-energy-warning', action='store_true', default=False,
+                       help="do not show energy and performance hints (default: show)")
+    group.add_argument('--ignore-mlator-warning', action='store_true', default=False,
+                       help="do not show mlator hints (default: show)")
     group.add_argument('--no-greedy-kernel', action='store_false', dest='greedy_kernel_allocator',
                        default=True,
                        help="do not use greedy kernel memory allocator (default: use)")
@@ -444,6 +448,8 @@ def get_parser() -> argparse.Namespace:
         args.embedded_code = False
     if args.embedded_code is None:
         args.embedded_code = True
+    if not args.embedded_code:
+        args.softmax = False
 
     if not args.c_filename:
         args.c_filename = 'main' if args.embedded_code else 'test'
@@ -570,6 +576,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.eclipse_variables = args.eclipse_variables
     state.embedded_code = args.embedded_code
     state.enable_delay = args.enable_delay
+    state.energy_warning = not args.ignore_energy_warning
     state.ext_rdy = args.ext_rdy
     state.fast_fifo = args.fast_fifo
     state.fast_fifo_quad = args.fast_fifo_quad
@@ -610,6 +617,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.mlator = args.mlator
     state.mlator_chunk = args.unroll_mlator
     state.mlator_noverify = args.mlator_noverify
+    state.mlator_warning = not args.ignore_mlator_warning
     state.narrow_chunk = args.unroll_8bit
     state.new_kernel_loader = args.new_kernel_loader
     state.no_error_stop = args.no_error_stop

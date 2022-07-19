@@ -369,3 +369,4 @@ layers:
     avg_pool: 14
     pool_stride: [14, 14]
     name: l33
+    activate: none

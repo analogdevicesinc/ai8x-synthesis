@@ -58,3 +58,4 @@ layers:
     output_width: 32
     processors: 0x000000003fffffff
     bias_group: 0
+    activation: None
