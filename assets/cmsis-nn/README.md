@@ -25,7 +25,7 @@ There are additional files in the `assets/cmsis-nn` folder of ai8x-synthesis. Th
 To generate C code, use the special “CMSIS-NN” device (instead of MAX78000 or MAX78002). For example, to generate a CIFAR-10 demo for CMSIS-NN, run:
 
 ```shell
-(ai8x-synthesis) $ ./ai8xize.py -e --verbose --top-level cnn -L --test-dir rtldev/cmsis-demos --prefix cifar-10 --checkpoint-file trained/ai85-cifar10.pth.tar --config-file networks/cifar10-hwc-ai85.yaml --device CMSIS-NN --display-checkpoint
+(ai8x-synthesis) $ python ai8xize.py --verbose --test-dir rtldev/cmsis-demos --prefix cifar-10 --checkpoint-file trained/ai85-cifar10.pth.tar --config-file networks/cifar10-hwc-ai85.yaml --device CMSIS-NN --display-checkpoint
 ```
 
 This is very similar to generating code for MAX78000 (see `gen-demos-max7800.sh`).

@@ -169,7 +169,7 @@ class Backend(backend.Backend):
 
             # Pre-define data memory loader.
             d = data.transpose((1, 2, 0)).flatten()  # CHW -> HWC
-            toplevel.c_define(sampledata_header, d, 'INPUT_DATA', '%d', 16)
+            toplevel.c_define(sampledata_header, d, 'INPUT_DATA', fmt='%d', columns=16, size=8)
             input_size = d.size
             c_file.write('static const q7_t input_data[] = INPUT_DATA;\n')
             c_file.write(f'static const q{output_width[-1]-1}_t output_data[] = OUTPUT_DATA; '
@@ -203,14 +203,15 @@ class Backend(backend.Backend):
                                     kernel_size[ll][0], kernel_size[ll][1])). \
                             transpose((0, 2, 3, 1)). \
                             flatten()
-                    toplevel.c_define(weight_header, w, f'WEIGHTS_{ll}', '%d', 16)
+                    toplevel.c_define(weight_header, w, f'WEIGHTS_{ll}', fmt='%d', columns=16,
+                                      size=8)
                     if bias[ll] is not None:
                         b = bias[ll].flatten()
                     else:
                         # We need empty bias values (the Arm code needs them both for rounding of
                         # the shifted output, and it does not like NULL bias pointers)
                         b = np.zeros(output_chan[ll], dtype=np.int64)
-                    toplevel.c_define(weight_header, b, f'BIAS_{ll}', '%d', 16)
+                    toplevel.c_define(weight_header, b, f'BIAS_{ll}', fmt='%d', columns=16, size=8)
             c_file.write('\n')
 
             for ll in range(layers):
@@ -606,7 +607,8 @@ class Backend(backend.Backend):
                          '  int output_size;\n\n'
                          f'  cnn_run(input_data, {input_size}, &output, &output_size);\n\n')
 
-            toplevel.c_define(sampledata_header, data_cmsis, 'OUTPUT_DATA', '%d', 16)
+            toplevel.c_define(sampledata_header, data_cmsis, 'OUTPUT_DATA', fmt='%d', columns=16,
+                              size=8)
             c_file.write('  if (memcmp(output_data, output, output_size) == 0)\n'
                          '    printf("*** PASS ***\\n\\n");\n'
                          '  else\n'
