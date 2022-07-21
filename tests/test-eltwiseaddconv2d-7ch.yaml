@@ -9,3 +9,4 @@ layers:
     data_format: HWC
     op: conv2d
     eltwise: add
+    activate: None

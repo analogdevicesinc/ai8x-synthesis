@@ -65,6 +65,7 @@ layers:
     kernel_size: 1x1
     out_offset: 0x2000
     processors: 0xffffffffffffffff
+    activate: None
   - avg_pool: [5, 3]
     pool_stride: 1
     operation: None

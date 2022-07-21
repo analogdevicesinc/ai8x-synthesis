@@ -11,11 +11,13 @@ layers:
     kernel_size: 3x3
     pad: 2
     groups: 127
+    activate: None
   - out_offset: 0x0
     processors: 0xffffffffffffffff
     operation: conv2d
     kernel_size: 1x1
     pad: 0
+    activate: None
   - out_offset: 0x4000
     processors: 0x7fffffffffffffff
     operation: conv2d
@@ -23,3 +25,4 @@ layers:
     pad: 0
     groups: 63
     output_processors: 0x7fffffffffffffff
+    activate: None

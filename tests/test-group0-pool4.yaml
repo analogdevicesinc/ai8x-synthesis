@@ -15,9 +15,11 @@ layers:
     out_offset: 0x4000
     processors: 0x000000000000ffff
     op: conv2d
+    activate: None
   - max_pool: 4
     pool_stride: 4
     pad: 1
     out_offset: 0x6000
     processors: 0x000000000000ffff
     op: conv2d
+    activate: None

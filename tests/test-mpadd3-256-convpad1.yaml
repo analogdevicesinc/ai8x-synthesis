@@ -11,6 +11,7 @@ layers:
     pad: 0
     out_offset: 0x1000
     data_format: HWC
+    activate: None
   # Layer 1
   - processors: 0xffffffffffffffff
     output_processors: 0xffffffffffffffff
@@ -22,6 +23,7 @@ layers:
     in_sequences: [0]
     write_gap: 2
     quantization: 4
+    activate: None
   # Layer 2
   - processors: 0xffffffffffffffff
     output_processors: 0xffffffffffffffff
@@ -33,6 +35,7 @@ layers:
     in_sequences: [0]
     write_gap: 2
     quantization: 4
+    activate: None
   # Layer 3
   - processors: 0xffffffffffffffff
     output_processors: 0xffffffffffffffff
@@ -44,6 +47,7 @@ layers:
     in_sequences: [0]
     write_gap: 2
     quantization: 4
+    activate: None
   # Layer 4
   - processors: 0xffffffffffffffff
     in_offset: 0x2000
@@ -54,3 +58,4 @@ layers:
     operands: 3
     pad: 1
     in_sequences: [1, 2, 3]
+    activate: None

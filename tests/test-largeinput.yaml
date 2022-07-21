@@ -11,3 +11,4 @@ layers:
     op: conv2d
     pool_stride: 2
     max_pool: 2
+    activate: None

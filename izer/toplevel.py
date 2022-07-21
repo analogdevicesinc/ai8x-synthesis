@@ -895,6 +895,7 @@ def c_define(
         define_name: str,
         fmt: str,
         columns: int = 8,
+        size: int = 32,
 ) -> None:
     """
     Write a #define to `memfile` for array `array` to `define_name`, using format `fmt` and
@@ -905,7 +906,10 @@ def c_define(
     prefix, formatting = fmt.split('%')
     memfile.write(f'#define {define_name} {{ \\\n  ')
     for i, e in enumerate(array):
-        memfile.write(f'{prefix}{e & 0xffffffff:{formatting}}')
+        if size == 8:
+            memfile.write(f'{prefix}{e:{formatting}}')
+        else:
+            memfile.write(f'{prefix}{e & 0xffffffff:{formatting}}')
         if i + 1 < len(array):
             memfile.write(', ')
             if (i + 1) % columns == 0:

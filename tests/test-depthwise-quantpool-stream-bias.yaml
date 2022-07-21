@@ -16,6 +16,7 @@ layers:
     pool_stride: 1
     quantization: 4
     streaming: true
+    activate: None
   - out_offset: 0x8000
     processors: 0x0000f000f000f000f
     operation: conv2d
@@ -24,6 +25,7 @@ layers:
     max_pool: 1
     pool_stride: 2
     streaming: true
+    activate: None
   - out_offset: 0xc000
     processors: 0xffffffffffffff00
     output_processors: 0xffffffffffffff00
@@ -35,3 +37,4 @@ layers:
     pool_stride: 1
     quantization: 2
     streaming: true
+    activate: None

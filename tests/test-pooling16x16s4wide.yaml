@@ -13,3 +13,4 @@ layers:
     pool_stride: 4
     output_width: 32
     op: conv2d
+    activate: None

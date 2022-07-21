@@ -9,6 +9,7 @@ layers:
     data_format: HWC
     op: Conv2d
     streaming: true
+    activate: None
   - max_pool: 2
     pool_stride: 2
     pad: 0
@@ -18,6 +19,7 @@ layers:
     streaming: true
     readahead: true
     calcx4: true
+    activate: None
   - avg_pool: 2
     pool_stride: 2
     pad: 0
@@ -27,6 +29,7 @@ layers:
     streaming: true
     readahead: true
     calcx4: true
+    activate: None
   - pad: 0
     out_offset: 0x10000
     processors: 0xffffffffffffffff
@@ -34,3 +37,4 @@ layers:
     streaming: true
     readahead: true
     calcx4: true
+    activate: None

@@ -11,3 +11,4 @@ layers:
     kernel_size: 3
     groups: 2
     pad: 0
+    activate: None

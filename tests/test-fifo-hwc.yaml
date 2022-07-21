@@ -11,3 +11,4 @@ layers:
     data_format: HWC
     op: conv2d
     kernel_size: 1x1
+    activate: None

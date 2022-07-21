@@ -14,3 +14,4 @@ layers:
     pad: 1
     quantization: 1
     output_shift: -4
+    activate: None
