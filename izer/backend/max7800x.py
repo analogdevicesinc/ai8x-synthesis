@@ -7,6 +7,8 @@
 """
 Backend for MAX7800X embedded code generation and RTL simulations
 """
+from typing import List, Tuple
+
 import copy
 import hashlib
 import os
@@ -14,8 +16,8 @@ import sys
 
 import numpy as np
 
-from izer import (apbaccess, assets, compute, console, datamem, kbias, kernels, load, op, rtlsim,
-                  state, stats)
+from izer import (apbaccess, assets, compute, console, datamem, kbias, kernels, latency, load, op,
+                  rtlsim, state, stats)
 from izer import tornadocnn as tc
 from izer.eprint import eprint, nprint, wprint
 from izer.names import layer_pfx, layer_str
@@ -162,6 +164,7 @@ class Backend(backend.Backend):
         in_expand_thresh = [0] * layers
         out_expand_thresh = [0] * layers
         tram_max = [0] * layers
+        timeslots = [1] * layers
         hw_padding = padding.copy()
 
         input_dim_str = [None] * layers
@@ -179,6 +182,7 @@ class Backend(backend.Backend):
         out_pad = [0] * layers
 
         hw_add_layers = [0] * layers
+        hw_flatten = [False] * layers
         sum_hw_layers = 0
 
         all_outputs_map = None
@@ -405,6 +409,7 @@ class Backend(backend.Backend):
         hw_operator = operator.copy()
         hw_input_dim = copy.deepcopy(input_dim)
         hw_pooled_dim = copy.deepcopy(pooled_dim)
+        hw_output_dim = copy.deepcopy(output_dim)
         hw_kernel_size = copy.deepcopy(kernel_size)
         hw_kernel = copy.deepcopy(kernel)
         hw_dilation = copy.deepcopy(dilation)
@@ -552,6 +557,7 @@ class Backend(backend.Backend):
                         // dilation[ll][0]
                     hw_input_dim[ll][1] = dilation[ll][0]
                     hw_pooled_dim[ll] = hw_input_dim[ll]
+                    hw_output_dim[ll] = hw_pooled_dim[ll]
                     hw_padding[ll] = [1, 1]
                     hw_kernel_size[ll] = [3, 3]
                     hw_dilation[ll] = [1, 1]
@@ -1143,38 +1149,8 @@ class Backend(backend.Backend):
             # Initialize CNN registers
 
             if verbose:
-                # startup, lat = stats.calc_latency(
-                #     streaming,
-                #     layers,
-                #     eltwise,
-                #     pool,
-                #     pooled_dim,
-                #     in_expand,
-                #     output_chan,
-                #     output_dim,
-                #     input_dim,
-                #     padding,
-                #     kernel_size,
-                # )
-                # print('\nEstimated latency:')
-                # print('------------------')
-                # if lat is None:
-                #     print('N/A')
-                # else:
-                #     total = startup
-                #     print(f'Startup{startup:14,}')
-                #     for k in range(first_layer_used, layers):
-                #         total += lat[k][0]
-                #         print(f'Layer {k:<3}{lat[k][0]:12,}', end='')
-                #         if debug_latency:
-                #             print('', lat[k][1])
-                #         else:
-                #             print('')
-                #     print('           ==========')
-                #     print(f'Total{total:16,} cycles')
-
-                print('\nGlobal registers:')
-                print('-----------------')
+                print('\nGlobal registers:\n'
+                      '-----------------')
 
             if tc.dev.REQUIRE_REG_CLEAR:
                 val = 0 if not tc.dev.SUPPORT_PIPELINE or pipeline else 1 << 5
@@ -1499,6 +1475,9 @@ class Backend(backend.Backend):
                                               % 2**tc.dev.P_NUMPRO)
                                      * output_width[ll] + 7) // 8 - 1
                                 )
+                    timeslots[ll] = tscnt_max + 1
+                    if flatten[ll]:
+                        timeslots[ll] *= hw_pooled_dim[ll][0] * hw_pooled_dim[ll][1]
 
                     for gindex, group in enumerate(groups_used):
                         if avgpool_reset_layer[ll] and group == groups_used[0]:
@@ -2002,6 +1981,7 @@ class Backend(backend.Backend):
                             val |= 1 << 26
 
                         if flatten_prod >= 2**4:
+                            hw_flatten[ll] = True
                             val |= 1 << 27 | (flatten_prod >> 4) << 18  # flatten_ena, xpmp_cnt
 
                         if hw_operator[ll] == op.CONVTRANSPOSE2D:
@@ -2720,6 +2700,7 @@ class Backend(backend.Backend):
         # ----------------------------------------------------------------------------------------
 
         in_map = apb.get_mem()
+        latency_data: List[Tuple[int, str, str]] = [(1, 'Startup', '')]
 
         if verbose:
             print('')
@@ -2767,6 +2748,43 @@ class Backend(backend.Backend):
             # Compute layer-by-layer output and chain results into input
             while ll < layers:
                 progress.update(task, completed=ll)
+
+                if verbose and tc.dev.SUPPORT_LATENCY_CALC:
+                    if not flatten[ll]:
+                        hw_in_dim = hw_input_dim[ll]
+                        hw_in_chan = input_chan[ll]
+                        hw_out_chan = kern_count[ll] // in_expand[ll]
+                        hw_out_dim = hw_output_dim[ll]
+                    else:
+                        hw_in_dim = (hw_input_dim[ll][0] * pool[ll][0],
+                                     hw_input_dim[ll][1] * pool[ll][1])
+                        hw_in_chan = input_chan[ll]
+                        hw_out_chan = kern_count[ll] \
+                            // (in_expand[ll] * hw_pooled_dim[ll][0] * hw_pooled_dim[ll][1])
+                        hw_out_dim = (hw_output_dim[ll][0] * hw_pooled_dim[ll][0],
+                                      hw_output_dim[ll][1] * hw_pooled_dim[ll][1])
+                    layer_lat, layer_comment = latency.calculate(
+                        input_chan=hw_in_chan,
+                        input_dim=hw_in_dim,
+                        pool=pool[ll],
+                        pool_stride=pool_stride[ll],
+                        pooled_dim=hw_pooled_dim[ll] if operator[ll] != op.CONVTRANSPOSE2D
+                        else (hw_pooled_dim[ll][0] * stride[ll][0],
+                              hw_pooled_dim[ll][1] * stride[ll][1]),
+                        multipass=in_expand[ll],
+                        output_chan=hw_out_chan if hw_operator[ll] != op.NONE else output_chan[ll],
+                        output_dim=hw_out_dim,
+                        kernel_size=hw_kernel_size[ll],
+                        padding=hw_padding[ll],
+                        num_elements=operands[ll],
+                        pool_first=pool_first[ll],
+                        passthrough=hw_operator[ll] == op.NONE,
+                        pass_out_chan=timeslots[ll],
+                        flatten=hw_flatten[ll],
+                        streaming=streaming[ll],
+                    )
+                    latency_data.append((layer_lat, f'Layer {layer_str(ll)}', layer_comment))
+
                 compute.debug_open(ll, base_directory, test_name, log_filename)
 
                 # Concatenate input data if needed
@@ -3178,6 +3196,35 @@ class Backend(backend.Backend):
         finally:
             if memfile:
                 memfile.close()
+
+        # ----------------------------------------------------------------------------------------
+        if verbose and tc.dev.SUPPORT_LATENCY_CALC:
+            print('ESTIMATED LATENCY')
+            total = 0
+            lat_unknown = False
+            for layer_lat, layer_name, layer_comment in latency_data:
+                total += layer_lat
+                if layer_lat > 0:
+                    layer_lat_str = f'{layer_lat:18,}'
+                else:
+                    layer_lat_str = '                 ?'
+                    lat_unknown = True
+                print(f'{layer_name:9}{layer_lat_str}')
+                if state.debug_latency and layer_comment != '':
+                    print(f'\n{layer_comment}')
+            total_str = f'{total:22,}'
+            if lat_unknown:
+                total_str += ' + ?'
+            print('                 ==========\n'
+                  f'Total{total_str} cycles\n')
+
+            if not embedded_code and not block_mode:
+                rtlsim.write_latency(
+                    test_name,
+                    total,
+                    [x for x, _, _ in latency_data],
+                )
+        # ----------------------------------------------------------------------------------------
 
         if not block_mode:
             with open(os.path.join(base_directory, test_name, filename), mode=filemode,

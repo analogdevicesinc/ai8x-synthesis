@@ -9,7 +9,7 @@ Statistics for the pure Python computation modules
 """
 import operator
 from functools import reduce
-from typing import List, Optional, Tuple
+from typing import Optional
 
 from . import state
 from . import tornadocnn as tc
@@ -137,57 +137,3 @@ def summary(
               f'({bmem_used * 100.0 / bmem:.0f}%)\n'
 
     return rv
-
-
-def calc_latency(
-        streaming,
-        layers,
-        eltwise,
-        pool,
-        pooled_dim,
-        in_expand,
-        output_chan,
-        output_dim,
-        input_dim,  # pylint: disable=unused-argument
-        padding,
-        kernel_size,  # pylint: disable=unused-argument
-        debug=False,  # pylint: disable=unused-argument
-) -> Tuple[Optional[int], Optional[List]]:
-    """
-    Returns estimated latencies (in cycles) for startup and each layer for a given network setup.
-    The return values are an integer (startup cycles) and a list of tuples
-    (cycles [integer], detailed description [string]).
-    """
-
-    # No support for estimating streaming latency yet
-    if any(streaming):
-        return None, None
-
-    assert tc.dev is not None
-
-    lat = []
-
-    for ll in range(layers):
-        pad = tc.dev.C_PAD * 2 * (  # Pad cycles * (top + left) * 2 (for bottom + right)
-            padding[ll][0] * (2 * padding[ll][1] + pooled_dim[ll][1])
-            + padding[ll][1] * pooled_dim[ll][0]
-        )
-        lk = (eltwise[ll] + 1) * in_expand[ll] * (
-            pool[ll][0] * pool[ll][1] * pooled_dim[ll][0] * pooled_dim[ll][1] + pad
-        ) + output_dim[ll][0] * output_dim[ll][1] * (output_chan[ll] + tc.dev.C_PAD)
-        s = f'Input: eltwise {eltwise[ll] + 1} * in_expand {in_expand[ll]} ' \
-            f'* (pool {pool[ll][0]}x{pool[ll][1]}={pool[ll][0] * pool[ll][1]} * ' \
-            f'pooled_dim {pooled_dim[ll][0]}x{pooled_dim[ll][1]}' \
-            f'={pooled_dim[ll][0] * pooled_dim[ll][1]} + Pad: {tc.dev.C_PAD}*2*' \
-            f'({padding[ll][0]}x({padding[ll][1]}+{padding[ll][1]}+{pooled_dim[ll][1]})=' \
-            f'{padding[ll][0] * (2 * padding[ll][1] + pooled_dim[ll][1])} + ' \
-            f'{padding[ll][1]}x{pooled_dim[ll][0]}={padding[ll][1] * pooled_dim[ll][0]}))=' \
-            f'{pad} + ' \
-            f'TRAM shift: {tc.dev.C_PAD}x{output_dim[ll][0]}x{output_dim[ll][1]}=' \
-            f'{tc.dev.C_PAD * output_dim[ll][0] * output_dim[ll][1]} + ' \
-            f'Output: {output_dim[ll][0]}x{output_dim[ll][1]}x{output_chan[ll]}=' \
-            f'{output_dim[ll][0] * output_dim[ll][1] * output_chan[ll]}'
-
-        lat.append((lk, s))
-
-    return tc.dev.C_START, lat

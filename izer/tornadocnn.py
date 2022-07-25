@@ -46,6 +46,7 @@ class Dev:
     SUPPORT_MULTIPASS_ELTWISE_CONV_BIAS = True
     SUPPORT_STREAMING_PASSTHROUGH = True
     SUPPORT_ROLLOVER_READ = True
+    SUPPORT_LATENCY_CALC = False
     SUPPORT_SIM_PRELOAD = False
     REQUIRE_REG_CLEAR = False
     REQUIRE_SEMA_LPWKEN = False
@@ -309,8 +310,7 @@ class DevAI85(Dev):
     RISCV_SRAM_ORIGIN = 0x2001C000
 
     # Cycles
-    C_START = 4
-    C_PAD = 2
+    SUPPORT_LATENCY_CALC = True
 
     def __str__(self):
         return self.__class__.__name__
@@ -527,10 +527,6 @@ class DevAI87(Dev):
 
     FLASH_SIZE = 0x28000
     RISCV_SRAM_ORIGIN = 0x2005C000
-
-    # Cycles
-    C_START = 4
-    C_PAD = 2
 
     # PLL Speed in MHz
     IPO_SPEED = 120

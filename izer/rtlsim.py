@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -111,7 +111,9 @@ def create_runtest_sv(
                 'real  clk2_time;\n'
                 'logic start_ena;\n'
                 'logic clkena1;\n'
-                'logic clkena2;\n')
+                'logic clkena2;\n'
+                'logic clkena3;\n'
+            )
             if result_output:
                 runfile.write('int   chk_stat;\n')
             runfile.write(
@@ -131,6 +133,7 @@ def create_runtest_sv(
                 '   start_ena  = 0;\n'
                 '   clkena1    = 0;\n'
                 '   clkena2    = 0;\n'
+                '   clkena3    = 0;\n'
                 'end\n\n'
                 'always @(posedge `CNN_ENA) begin\n'
                 '  if (!start_ena) begin\n'
@@ -155,9 +158,6 @@ def create_runtest_sv(
                     runfile.write(f'    dump_cnn_mems_{i};\n')
                 runfile.write(
                     '    close_files;\n'
-                    '    chk_stat = $system({`TARGET_DIR,"/verify-output.py ",`TARGET_DIR});\n'
-                    '    if (chk_stat != 0)\n'
-                    '      error_count++;\n'
                 )
             runfile.write(
                 '  end\n'
@@ -171,10 +171,20 @@ def create_runtest_sv(
                 '    clk2_time = $realtime;\n'
                 '    clkena2   = 0;\n'
                 '    $display("CNN Cycles = %.0f", '
-                '$ceil((end_time - start_time)/(clk2_time - clk1_time)));\n'
+                '$ceil((end_time - start_time)/(clk2_time - clk1_time)) - 1);\n'
+                '    clkena3   = 1;\n'
                 '  end\n'
                 'end\n'
             )
+            if result_output:
+                runfile.write(
+                    '\nalways @(posedge clkena3) begin\n'
+                    '    chk_stat = $system({`TARGET_DIR,"/verify-output.py ",`TARGET_DIR});\n'
+                    '    if (chk_stat != 0)\n'
+                    '      error_count++;\n'
+                    'end\n'
+                )
+
             if state.input_csv is not None:
                 runfile.write(f'\n`define CSV_FILE {{`TARGET_DIR,"/{state.input_csv}"}}\n')
                 runfile.write('`include "pcif_defines_af2.sv"\n')
@@ -310,3 +320,17 @@ def append_regression(
     if not found:
         with open(os.path.join(autogen_dir, autogen_list), mode='a', encoding='utf-8') as listfile:
             listfile.write(f'{testname}\n')
+
+
+def write_latency(test_name: str, total: int, per_layer: List[int]) -> None:
+    """
+    Create a file called latency.txt in the sim directory.
+    """
+    with open(
+        os.path.join(state.base_directory, test_name, 'latency.txt'),
+        mode='w',
+        encoding='utf-8',
+    ) as f:
+        f.write(f'{total}\n')
+        for i in per_layer:
+            f.write(f'{i}\n')
