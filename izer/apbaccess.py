@@ -84,6 +84,7 @@ class APB():
         self.writes = 0
         self.reads = 0
         self.verify_listdata = []
+        self.verify_text = []
 
         self.data_mem = self.kernel_mem = self.output_data_mem = None
 
@@ -801,7 +802,7 @@ class APB():
             output_width,
             overwrite_ok=overwrite_ok,
             mlator=mlator,
-            stream=self.memfile,
+            body=self.verify_text,
             write_gap=write_gap,
             unload_layer=unload_layer,
             embedded=self.embedded_code,
@@ -812,88 +813,92 @@ class APB():
         """
         Finalize the verification function.
         """
-        if len(self.verify_listdata) == 0:
-            return
+        if len(self.verify_listdata) > 0:
+            # Sort by mask, then address
+            data = sorted(self.verify_listdata)
 
-        # Sort by mask, then address
-        data = sorted(self.verify_listdata)
+            rv = data[0][5]
+            action = 'rv = CNN_FAIL;' if rv else 'return CNN_FAIL;'
 
-        rv = data[0][5]
-        action = 'rv = CNN_FAIL;' if rv else 'return CNN_FAIL;'
+            if self.sampleoutput_header is None:
+                for _, (_, addr, mask_str,
+                        val, val_bytes, rv_item, comment) in enumerate(data):
+                    assert rv == rv_item
+                    self.memfile.write(f'  if ((*((volatile uint32_t *) 0x{addr:08x}){mask_str})'
+                                       f' != 0x{val:0{2*val_bytes}x}) {action}{comment}\n')
+            else:
+                # Output is sorted by mask. Group like masks together.
+                max_count = state.max_count
 
-        if self.sampleoutput_header is None:
-            for _, (_, addr, mask_str,
-                    val, val_bytes, rv_item, comment) in enumerate(data):
-                assert rv == rv_item
-                self.memfile.write(f'  if ((*((volatile uint32_t *) 0x{addr:08x}){mask_str})'
-                                   f' != 0x{val:0{2*val_bytes}x}) {action}{comment}\n')
-        else:
-            # Output is sorted by mask. Group like masks together.
-            max_count = state.max_count
+                output_array = []
+                val_array = []
+                output_mask = 0
+                output_addr = 0
+                next_addr = 0
+                cumulative_length = 0
 
-            output_array = []
-            val_array = []
-            output_mask = 0
-            output_addr = 0
-            next_addr = 0
-            cumulative_length = 0
+                for _, (mask_item, addr, _, val, _, rv_item, _) in enumerate(data):
+                    assert rv == rv_item
 
-            for _, (mask_item, addr, _, val, _, rv_item, _) in enumerate(data):
-                assert rv == rv_item
+                    # New mask? Output collected data and start over
+                    if mask_item != output_mask or addr != next_addr:
+                        if len(val_array) > 0:
+                            output_array += [
+                                output_addr,
+                                output_mask,
+                                len(val_array),
+                            ]
+                            output_array += val_array
 
-                # New mask? Output collected data and start over
-                if mask_item != output_mask or addr != next_addr:
-                    if len(val_array) > 0:
-                        output_array += [
-                            output_addr,
-                            output_mask,
-                            len(val_array),
-                        ]
-                        output_array += val_array
+                        # Start new block
+                        val_array = []
+                        output_mask = mask_item
+                        output_addr = next_addr = addr
 
-                    # Start new block
-                    val_array = []
-                    output_mask = mask_item
-                    output_addr = next_addr = addr
+                    # Collect the next value
+                    val_array.append(val)
+                    next_addr += 4
+                    cumulative_length += 1
+                    if max_count is not None and cumulative_length > max_count:
+                        break
 
-                # Collect the next value
-                val_array.append(val)
-                next_addr += 4
-                cumulative_length += 1
-                if max_count is not None and cumulative_length > max_count:
-                    break
+                if len(val_array) > 0:
+                    output_array += [
+                        output_addr,
+                        output_mask if output_mask is not None else 0xffffffff,
+                        len(val_array),
+                    ]
+                    output_array += val_array
+                    output_array.append(0)  # Terminator
 
-            if len(val_array) > 0:
-                output_array += [
-                    output_addr,
-                    output_mask if output_mask is not None else 0xffffffff,
-                    len(val_array),
-                ]
-                output_array += val_array
-                output_array.append(0)  # Terminator
+                # Write to the header file
+                toplevel.c_define(self.sampleoutput_header, output_array, 'SAMPLE_OUTPUT',
+                                  '0x%08x', 8)
 
-            # Write to the header file
-            toplevel.c_define(self.sampleoutput_header, output_array, 'SAMPLE_OUTPUT', '0x%08x', 8)
+                # Write to the function
+                self.memfile.write('  int i;\n'
+                                   '  uint32_t mask, len;\n'
+                                   '  volatile uint32_t *addr;\n'
+                                   '  const uint32_t *ptr = sample_output;\n\n'
+                                   '  while ((addr = (volatile uint32_t *) *ptr++) != 0) {\n'
+                                   '    mask = *ptr++;\n'
+                                   '    len = *ptr++;\n'
+                                   '    for (i = 0; i < len; i++)\n'
+                                   '      if ((*addr++ & mask) != *ptr++) {\n'
+                                   '        printf("Data mismatch (%d/%d) at address 0x%08x: '
+                                   'Expected 0x%08x, read 0x%08x.\\n",\n'
+                                   '               i + 1, len, addr - 1, *(ptr - 1), '
+                                   '*(addr - 1) & mask);\n'
+                                   f'        {action}\n'
+                                   '      }\n'
+                                   '  }\n')
 
-            # Write to the function
-            self.memfile.write('  int i;\n'
-                               '  uint32_t mask, len;\n'
-                               '  volatile uint32_t *addr;\n'
-                               '  const uint32_t *ptr = sample_output;\n\n'
-                               '  while ((addr = (volatile uint32_t *) *ptr++) != 0) {\n'
-                               '    mask = *ptr++;\n'
-                               '    len = *ptr++;\n'
-                               '    for (i = 0; i < len; i++)\n'
-                               '      if ((*addr++ & mask) != *ptr++) {\n'
-                               '        printf("Data mismatch (%d/%d) at address 0x%08x: '
-                               'Expected 0x%08x, read 0x%08x.\\n",\n'
-                               '               i + 1, len, addr - 1, *(ptr - 1), '
-                               '*(addr - 1) & mask);\n'
-                               f'        {action}\n'
-                               '      }\n'
-                               '  }\n')
+            self.verify_listdata = []  # Consume
 
-        self.verify_listdata = []
+        if len(self.verify_text) > 0:
+            for _, e in enumerate(self.verify_text):
+                self.memfile.write(e)
+            self.verify_text = []  # Consume
 
     def output_define(  # pylint: disable=no-self-use
             self,
@@ -1222,10 +1227,13 @@ class APBTopLevel(APB):
         action = 'rv = CNN_FAIL;' if rv else 'return CNN_FAIL;'
 
         if not use_list:
-            mfile = self.apifile or self.memfile if api else self.memfile
-            mfile.write(f'  if ((*((volatile uint32_t *) 0x{addr:08x}){mask_str})'
-                        f' != 0x{val:0{2*val_bytes}x}) '
-                        f'{action}{comment}\n')
+            s = f'  if ((*((volatile uint32_t *) 0x{addr:08x}){mask_str})' \
+                f' != 0x{val:0{2*val_bytes}x}) {action}{comment}\n'
+            if api:
+                mfile = self.apifile or self.memfile
+                mfile.write(s)
+            else:
+                self.verify_text.append(s)
         else:
             self.verify_listdata.append((mask, addr, mask_str, val, val_bytes, rv, comment))
         self.reads += 1
