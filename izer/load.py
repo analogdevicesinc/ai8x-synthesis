@@ -271,7 +271,10 @@ def load(
                     for i, e in enumerate(buffer_list[proc]):
                         apb.output(f'// HWC {input_size[1]}x{input_size[2]}, '
                                    f'channels {e[2]} to {e[3]}\n')
-                        buf[i::in_expand] = e[0]
+                        for j, val in enumerate(e[0]):
+                            target = i * operands + (j // operands) * in_expand * operands \
+                                + j % operands
+                            buf[target] = val
 
                     if not fixed_input:
                         b = buf if synthesize is None else buf[:state.synthesize_words]
