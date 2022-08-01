@@ -46,6 +46,8 @@ def get_parser() -> argparse.Namespace:
                         help="generate RTL sim code instead of embedded code (default: false)")
     mgroup.add_argument('--rtl-preload', action='store_true',
                         help="generate RTL sim code with memory preload (default: false)")
+    group.add_argument('--rtl-preload-weights', action='store_true',
+                       help="generate RTL sim code with weight memory preload (default: false)")
     mgroup = group.add_mutually_exclusive_group()
     mgroup.add_argument('--pipeline', action='store_true', default=None,
                         help="enable pipeline (default: enabled where supported)")
@@ -446,6 +448,10 @@ def get_parser() -> argparse.Namespace:
 
     if args.rtl_preload:
         args.embedded_code = False
+    if args.verify_kernels:
+        args.rtl_preload_weights = False
+    if args.rtl_preload_weights:
+        args.mexpress = False
     if args.embedded_code is None:
         args.embedded_code = True
     if not args.embedded_code:
@@ -645,6 +651,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.riscv_exclusive = args.riscv_exclusive
     state.riscv_flash = args.riscv_flash
     state.rtl_preload = args.rtl_preload
+    state.rtl_preload_weights = args.rtl_preload_weights
     state.runtest_filename = args.runtest_filename
     state.sample_filename = args.sample_filename
     state.simple1b = args.simple1b

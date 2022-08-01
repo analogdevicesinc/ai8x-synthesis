@@ -158,6 +158,7 @@ riscv_exclusive: bool = False
 riscv_flash: bool = False
 riscv: bool = False
 rtl_preload: bool = False
+rtl_preload_weights: bool = False
 runtest_filename: str = ''
 sample_filename: str = ''
 simple1b: bool = False

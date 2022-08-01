@@ -797,7 +797,7 @@ class Backend(backend.Backend):
                 sampleoutput_header = None
         else:
             sampledata_header = sampleoutput_header = None
-        if not block_mode and (embedded_code or compact_weights):
+        if not block_mode and not state.rtl_preload_weights:
             weight_header = \
                 open(
                     os.path.join(base_directory, test_name, weight_filename),
@@ -3187,7 +3187,8 @@ class Backend(backend.Backend):
             sampleoutput_header.close()
         if apifile is not None:
             apifile.close()
-        if state.rtl_preload or result_output or state.new_kernel_loader:
+        if state.rtl_preload or state.rtl_preload_weights \
+           or result_output or state.new_kernel_loader:
             apb.write_mem(base_directory, test_name)
         if weight_header is not None:
             weight_header.close()

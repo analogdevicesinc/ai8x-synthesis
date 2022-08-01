@@ -577,7 +577,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             print('\nKernel map:')
             print_map(layers, kernel_map)
 
-        if state.new_kernel_loader and not state.rtl_preload:
+        if state.new_kernel_loader and not state.rtl_preload_weights:
             apb.output('static const uint32_t kernels[] = KERNELS;\n\n', api)
 
         if verify:
@@ -672,7 +672,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                            // (kernel_size[ll][0] * kernel_size[ll][1] * 8))
                 progress.advance(task)
 
-            if state.new_kernel_loader and not state.rtl_preload:
+            if state.new_kernel_loader and not state.rtl_preload_weights:
                 apb.output('  uint32_t len;\n'
                            '  volatile uint32_t *addr;\n'
                            '  const uint32_t *ptr = kernels;\n'

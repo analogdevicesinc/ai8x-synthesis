@@ -122,7 +122,7 @@ def header(
                       '#define MXC_S_GCR_PCLKDIV_CNNCLKSEL_IPLL MXC_S_GCR_PCLKDIV_CNNCLKSEL_ITO\n')
 
     if main_code:
-        if (lib is True or lib is None) and (embedded_code or state.compact_weights):
+        if (lib is True or lib is None) and not state.rtl_preload_weights:
             memfile.write(f'#include "{state.weight_filename}"\n')
         if not lib and (embedded_code or state.compact_data):
             memfile.write(f'#include "{state.sample_filename}"\n')
