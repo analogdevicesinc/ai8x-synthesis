@@ -79,6 +79,7 @@ class Dev:
     IPO_SPEED = 100
     APB_SPEED = IPO_SPEED // 2
     PLL_SPEED = 0
+    MAX_NO_PIPELINE_SPEED = 50
 
     DEFAULT_SWITCH_DELAY = 0
 

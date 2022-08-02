@@ -224,14 +224,24 @@ class Backend(backend.Backend):
             eprint('`--one-shot` is not supported on this device.')
 
         if state.pipeline is None:
-            state.pipeline = tc.dev.SUPPORT_PIPELINE
+            if not tc.dev.SUPPORT_PIPELINE or state.pll is None:
+                state.pipeline = tc.dev.SUPPORT_PIPELINE
+            else:
+                state.pipeline = state.pll
         pipeline = state.pipeline  # Cache
 
         if state.pll is None and tc.dev.SUPPORT_PLL:
-            state.pll = True
+            # Turn the PLL on if the pipeline is on
+            state.pll = pipeline if tc.dev.SUPPORT_PIPELINE else True
 
         if not state.balance_power and not state.pll:
             eprint('`--max-speed` requires `--pll` or `--pipeline`.')
+
+        clock_speed = tc.dev.PLL_SPEED if state.pll else tc.dev.APB_SPEED
+        if clock_speed > tc.dev.MAX_NO_PIPELINE_SPEED and not pipeline:
+            wprint(f'For a CNN clock speed of {clock_speed} MHz, the pipeline must be enabled.')
+        elif clock_speed <= tc.dev.MAX_NO_PIPELINE_SPEED and pipeline:
+            nprint(f'For a CNN clock speed of {clock_speed} MHz, the pipeline can be disabled.')
 
         if zero_sram or pretend_zero_sram:
             # Clear every seventh kernel so we can test the BIST
