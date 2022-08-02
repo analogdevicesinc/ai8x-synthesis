@@ -8,7 +8,7 @@
 Unload AI8X HWC memory into standard representation.
 """
 import os
-from typing import Optional, List, TextIO
+from typing import List, Optional, TextIO
 
 import numpy as np
 
