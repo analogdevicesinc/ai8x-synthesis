@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -27,7 +27,7 @@ class Backend(backend.Backend):
     Backend for creating a C code CMSIS-NN network
     """
 
-    def create_net(self) -> str:  # pylint: disable=too-many-locals,too-many-branches,no-self-use
+    def create_net(self) -> str:  # pylint: disable=too-many-locals,too-many-branches
         """
         Chain multiple CNN layers, create and save input and output
         """

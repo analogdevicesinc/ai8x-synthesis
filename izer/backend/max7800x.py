@@ -31,7 +31,7 @@ class Backend(backend.Backend):
     Backend for MAX7800X CNN network code generation
     """
 
-    def create_net(self) -> str:  # pylint: disable=too-many-locals,too-many-branches,no-self-use
+    def create_net(self) -> str:  # pylint: disable=too-many-locals,too-many-branches
         """
         Chain multiple CNN layers, create and save input and output
         """

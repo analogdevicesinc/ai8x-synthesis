@@ -687,7 +687,7 @@ class APB():
         else:
             self.memfile.write(comment)
 
-    def copyright_header(  # pylint: disable=no-self-use
+    def copyright_header(
             self,
     ):
         """
@@ -696,7 +696,7 @@ class APB():
         """
         return
 
-    def header(  # pylint: disable=no-self-use
+    def header(
             self,
     ):
         """
@@ -705,7 +705,7 @@ class APB():
         """
         return
 
-    def function_header(  # pylint: disable=no-self-use
+    def function_header(
             self,
             dest='api',  # pylint: disable=unused-argument
             **kwargs,  # pylint: disable=unused-argument
@@ -716,7 +716,7 @@ class APB():
         """
         return
 
-    def function_footer(  # pylint: disable=no-self-use
+    def function_footer(
             self,
             dest='api',  # pylint: disable=unused-argument
             **kwargs,  # pylint: disable=unused-argument
@@ -727,7 +727,7 @@ class APB():
         """
         return
 
-    def main(  # pylint: disable=no-self-use
+    def main(
             self,
     ):
         """
@@ -736,7 +736,7 @@ class APB():
         """
         return
 
-    def softmax_layer(  # pylint: disable=no-self-use
+    def softmax_layer(
             self,
             *args,  # pylint: disable=unused-argument
             **kwargs,  # pylint: disable=unused-argument
@@ -748,7 +748,7 @@ class APB():
         """
         return
 
-    def unload(  # pylint: disable=no-self-use
+    def unload(
             self,
             *,
             output_layer,
@@ -900,7 +900,7 @@ class APB():
                 self.memfile.write(e)
             self.verify_text = []  # Consume
 
-    def output_define(  # pylint: disable=no-self-use
+    def output_define(
             self,
             array,
             define_name,
