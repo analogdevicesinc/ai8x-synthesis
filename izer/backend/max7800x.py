@@ -223,24 +223,27 @@ class Backend(backend.Backend):
         if oneshot and not tc.dev.SUPPORT_ONESHOT:
             eprint('`--one-shot` is not supported on this device.')
 
-        if state.pipeline is None:
-            if not tc.dev.SUPPORT_PIPELINE or state.pll is None:
-                state.pipeline = tc.dev.SUPPORT_PIPELINE
-            else:
-                state.pipeline = state.pll
+        if state.pipeline is None:  # Turn the pipeline on by default
+            state.pipeline = tc.dev.SUPPORT_PIPELINE
         pipeline = state.pipeline  # Cache
 
-        if state.pll is None and tc.dev.SUPPORT_PLL:
-            # Turn the PLL on if the pipeline is on
-            state.pll = pipeline if tc.dev.SUPPORT_PIPELINE else True
+        if state.pll is None:  # Turn the PLL on by default
+            state.pll = tc.dev.SUPPORT_PLL
 
         if not state.balance_power and not state.pll:
             eprint('`--max-speed` requires `--pll` or `--pipeline`.')
 
         clock_speed = tc.dev.PLL_SPEED if state.pll else tc.dev.APB_SPEED
-        if clock_speed > tc.dev.MAX_NO_PIPELINE_SPEED and not pipeline:
+        if state.clock_divider is None:
+            if pipeline:
+                state.clock_divider = 1
+            else:
+                state.clock_divider = (clock_speed + tc.dev.MAX_NO_PIPELINE_SPEED - 1) \
+                    // tc.dev.MAX_NO_PIPELINE_SPEED
+
+        if clock_speed // state.clock_divider > tc.dev.MAX_NO_PIPELINE_SPEED and not pipeline:
             wprint(f'For a CNN clock speed of {clock_speed} MHz, the pipeline must be enabled.')
-        elif clock_speed <= tc.dev.MAX_NO_PIPELINE_SPEED and pipeline:
+        elif clock_speed // state.clock_divider <= tc.dev.MAX_NO_PIPELINE_SPEED and pipeline:
             nprint(f'For a CNN clock speed of {clock_speed} MHz, the pipeline can be disabled.')
 
         if zero_sram or pretend_zero_sram:

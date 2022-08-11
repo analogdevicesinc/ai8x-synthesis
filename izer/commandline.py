@@ -64,6 +64,8 @@ def get_parser() -> argparse.Namespace:
     mgroup.add_argument('--max-speed', action='store_false', dest='balance_speed',
                         help="load data and weights as fast as possible (MAX78002 only, "
                              "requires --pll, default: false)")
+    mgroup.add_argument('--clock-divider', type=int, metavar='N', choices=[1, 2, 4, 8, 16],
+                        help="CNN clock divider (default: 1 or 4, depends on clock source)")
     group.add_argument('--config-file', required=True, metavar='S',
                        help="YAML configuration file containing layer configuration")
     group.add_argument('--checkpoint-file', metavar='S',
@@ -563,6 +565,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.boost = args.boost
     state.c_filename = args.c_filename
     state.calcx4 = args.calcx4
+    state.clock_divider = args.clock_divider
     state.clock_trim = args.clock_trim
     state.compact_data = args.compact_data and \
         (not args.rtl_preload or args.fifo or args.fast_fifo or args.fast_fifo_quad)

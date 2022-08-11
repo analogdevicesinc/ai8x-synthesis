@@ -29,6 +29,7 @@ boost: Optional[List[int]] = None
 bypass: List[bool] = []
 c_filename: str = ''
 calcx4: List[bool] = []
+clock_divider: Optional[int] = None
 clock_trim: Optional[List[int]] = None
 compact_data: bool = False
 compact_weights: bool = False

@@ -407,8 +407,9 @@ def main(
 
                     memfile.write('  MXC_GCR->pclkdiv &= ~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | '
                                   'MXC_F_GCR_PCLKDIV_CNNCLKSEL);\n'
-                                  '  MXC_GCR->pclkdiv |= MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1; '
-                                  '// CNN clock: APB div 1\n')
+                                  '  MXC_GCR->pclkdiv |= MXC_S_GCR_PCLKDIV_'
+                                  f'CNNCLKDIV_DIV{state.clock_divider}; '
+                                  f'// CNN clock: APB div {state.clock_divider}\n')
                     memfile.write('  MXC_GCR->pclkdis0 &= ~MXC_F_GCR_PCLKDIS0_CNN;'
                                   ' // Enable CNN clock\n')
             else:
@@ -540,7 +541,7 @@ def main(
                 memfile.write('  SYS_COMPLETE;\n\n')
 
             if embedded_code and apifile is not None:
-                cdiv = '4' if pll and state.balance_power else '1'
+                cdiv = 4 if pll and state.balance_power else state.clock_divider
                 memfile.write('  // Enable peripheral, enable CNN interrupt, turn on CNN clock\n'
                               f'  // CNN clock: {clock_speed} div {cdiv}\n'
                               '  cnn_enable(MXC_S_GCR_PCLKDIV_CNNCLKSEL_'
@@ -571,8 +572,8 @@ def main(
                             '~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | MXC_F_GCR_PCLKDIV_CNNCLKSEL))\n'
                             '                     | clock_divider | clock_source;\n')
             else:
-                select_clock(mfile, 'IPLL' if pll else 'PCLK', 'DIV1',
-                             f'CNN clock: {clock_speed} div 1')
+                select_clock(mfile, 'IPLL' if pll else 'PCLK', f'DIV{state.clock_divider}',
+                             f'CNN clock: {clock_speed} div {state.clock_divider}')
 
             mfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CNN); '
                         '// Enable CNN clock\n\n')
@@ -660,7 +661,8 @@ def main(
                 if not fifo:
                     memfile.write('  load_input(); // Load data input\n')
                 if clock_switch:
-                    select_clock(memfile, 'IPLL', 'DIV1', f'CNN clock: {clock_speed} div 1',
+                    select_clock(memfile, 'IPLL', f'DIV{state.clock_divider}',
+                                 f'CNN clock: {clock_speed} div {state.clock_divider}',
                                  pll_wait=False)
                 memfile.write('  cnn_start(); // Start CNN processing\n')
                 if fifo:
@@ -707,7 +709,8 @@ def main(
             if not fifo:
                 memfile.write('    load_input(); // Load data input\n')
             if clock_switch:
-                select_clock(memfile, 'IPLL', 'DIV1', f'CNN clock: {clock_speed} div 1',
+                select_clock(memfile, 'IPLL', f'DIV{state.clock_divider}',
+                             f'CNN clock: {clock_speed} div {state.clock_divider}',
                              pll_wait=False, prefix='  ')
             memfile.write('    cnn_start(); // Run inference\n')
             if fifo:
@@ -920,7 +923,7 @@ def c_define(
 def select_clock(
         memfile: TextIO,
         source: str,
-        divider: int,
+        divider: str,
         comment: str = '',
         pll_wait: bool = True,
         prefix: str = '',
