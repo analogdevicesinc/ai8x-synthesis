@@ -1338,7 +1338,7 @@ class APBTopLevel(APB):
             riscv=self.riscv,
             channels=self.input_chan,
             unload=self.embedded_code,
-            load_kernels=self.kernel_mem is None,
+            load_kernels=not state.rtl_preload_weights,
             forever=self.forever,
             fifo=self.fifo,
             groups=self.groups,
