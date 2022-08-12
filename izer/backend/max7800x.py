@@ -513,6 +513,11 @@ class Backend(backend.Backend):
                     nprint('Use `pool_first: False` to combine element-wise and pooling layers '
                            'where pooling is executed after the element-wise operation.')
 
+            if not pool_first[ll] and operands[ll] > tc.dev.MAX_POOL_LAST_ELEMENTS \
+               and (pool[ll][0] > 1 or pool[ll][1] > 1):
+                eprint(f'"pool last" supports a maximum of {tc.dev.MAX_POOL_LAST_ELEMENTS} '
+                       'element-wise operands on this device.')
+
             if dilation[ll][0] > 1:
                 if operator[ll] != op.CONV1D:
                     eprint(f'{layer_pfx(ll)}`dilation` > 1 is supported for Conv1d only.')

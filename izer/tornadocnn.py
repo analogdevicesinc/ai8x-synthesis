@@ -68,6 +68,8 @@ class Dev:
     MAX_POOL_DILATION = 1
     MAX_POOL_PASSES = 1
 
+    MAX_POOL_LAST_ELEMENTS = 2
+
     P_NUMGROUPS = 0
     P_NUMPRO = 0
     P_SHARED = 0
