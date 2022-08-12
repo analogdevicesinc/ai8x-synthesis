@@ -82,6 +82,8 @@ class Dev:
     PLL_SPEED = 0
     MAX_NO_PIPELINE_SPEED = 50
 
+    MAX_CNNCLKDIV = 16
+
     DEFAULT_SWITCH_DELAY = 0
 
     def mask_large(self, proc) -> bool:

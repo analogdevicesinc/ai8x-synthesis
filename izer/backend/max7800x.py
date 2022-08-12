@@ -238,13 +238,25 @@ class Backend(backend.Backend):
             if pipeline:
                 state.clock_divider = 1
             else:
-                state.clock_divider = (clock_speed + tc.dev.MAX_NO_PIPELINE_SPEED - 1) \
+                # Pick smallest working clock divider
+                cdiv = (clock_speed + tc.dev.MAX_NO_PIPELINE_SPEED - 1) \
                     // tc.dev.MAX_NO_PIPELINE_SPEED
+                # Round up to the next power of 2
+                cdiv -= 1
+                cdiv |= cdiv >> 1
+                cdiv |= cdiv >> 2
+                cdiv |= cdiv >> 4
+                cdiv |= cdiv >> 8
+                cdiv += 1
+                state.clock_divider = cdiv
 
         if clock_speed // state.clock_divider > tc.dev.MAX_NO_PIPELINE_SPEED and not pipeline:
             wprint(f'For a CNN clock speed of {clock_speed} MHz, the pipeline must be enabled.')
         elif clock_speed // state.clock_divider <= tc.dev.MAX_NO_PIPELINE_SPEED and pipeline:
             nprint(f'For a CNN clock speed of {clock_speed} MHz, the pipeline can be disabled.')
+        if state.clock_divider > tc.dev.MAX_CNNCLKDIV:
+            nprint(f'The clock divider of {state.clock_divider} exceeds the device maximum '
+                   f'({tc.dev.MAX_CNNCLKDIV}).')
 
         if zero_sram or pretend_zero_sram:
             # Clear every seventh kernel so we can test the BIST
