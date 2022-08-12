@@ -258,6 +258,10 @@ class Backend(backend.Backend):
         if result_output:
             state.max_count = None
 
+        if (state.rtl_preload or state.rtl_preload_weights or state.result_output) \
+           and not tc.dev.SUPPORT_SIM_PRELOAD:
+            eprint('`--rtl-preload` and `--result-output` are not supported on this device.')
+
         if embedded_code and any(calcx4) and not state.new_kernel_loader:
             wprint('Enabling --new-kernel-loader since calcx4 is used.')
             state.new_kernel_loader = True
