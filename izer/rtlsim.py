@@ -135,7 +135,7 @@ def create_runtest_sv(
                 'always @(posedge `CNN_ENA) begin\n'
                 '  if (!start_ena) begin\n'
             )
-            if state.rtl_preload:
+            if state.rtl_preload or state.rtl_preload_weights:
                 for _, i in enumerate(groups_used):
                     runfile.write(f'    load_cnn_mems_{i};\n')
             runfile.write(

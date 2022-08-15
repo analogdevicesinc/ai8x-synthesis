@@ -46,6 +46,8 @@ def get_parser() -> argparse.Namespace:
                         help="generate RTL sim code instead of embedded code (default: false)")
     mgroup.add_argument('--rtl-preload', action='store_true',
                         help="generate RTL sim code with memory preload (default: false)")
+    group.add_argument('--rtl-preload-weights', action='store_true',
+                       help="generate RTL sim code with weight memory preload (default: false)")
     mgroup = group.add_mutually_exclusive_group()
     mgroup.add_argument('--pipeline', action='store_true', default=None,
                         help="enable pipeline (default: enabled where supported)")
@@ -62,6 +64,8 @@ def get_parser() -> argparse.Namespace:
     mgroup.add_argument('--max-speed', action='store_false', dest='balance_speed',
                         help="load data and weights as fast as possible (MAX78002 only, "
                              "requires --pll, default: false)")
+    mgroup.add_argument('--clock-divider', type=int, metavar='N', choices=[1, 2, 4, 8, 16],
+                        help="CNN clock divider (default: 1 or 4, depends on clock source)")
     group.add_argument('--config-file', required=True, metavar='S',
                        help="YAML configuration file containing layer configuration")
     group.add_argument('--checkpoint-file', metavar='S',
@@ -446,6 +450,10 @@ def get_parser() -> argparse.Namespace:
 
     if args.rtl_preload:
         args.embedded_code = False
+    if args.verify_kernels:
+        args.rtl_preload_weights = False
+    if args.rtl_preload_weights:
+        args.mexpress = False
     if args.embedded_code is None:
         args.embedded_code = True
     if not args.embedded_code:
@@ -557,6 +565,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.boost = args.boost
     state.c_filename = args.c_filename
     state.calcx4 = args.calcx4
+    state.clock_divider = args.clock_divider
     state.clock_trim = args.clock_trim
     state.compact_data = args.compact_data and \
         (not args.rtl_preload or args.fifo or args.fast_fifo or args.fast_fifo_quad)
@@ -645,6 +654,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.riscv_exclusive = args.riscv_exclusive
     state.riscv_flash = args.riscv_flash
     state.rtl_preload = args.rtl_preload
+    state.rtl_preload_weights = args.rtl_preload_weights
     state.runtest_filename = args.runtest_filename
     state.sample_filename = args.sample_filename
     state.simple1b = args.simple1b

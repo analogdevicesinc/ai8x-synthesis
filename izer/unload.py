@@ -8,7 +8,7 @@
 Unload AI8X HWC memory into standard representation.
 """
 import os
-from typing import List, TextIO
+from typing import List, Optional, TextIO
 
 import numpy as np
 
@@ -455,14 +455,14 @@ def verify(
         out_offset,
         out_expand,
         out_expand_thresh,
-        output_width=8,
-        overwrite_ok=False,
-        mlator=False,
-        stream=None,
-        write_gap=0,
-        unload_layer=False,
-        embedded=False,
-        test_name=None,
+        output_width: int = 8,
+        overwrite_ok: bool = False,
+        mlator: bool = False,
+        body: Optional[List] = None,
+        write_gap: int = 0,
+        unload_layer: bool = False,
+        embedded: bool = False,
+        test_name: str = '',
 ):
     """
     Verify HWC memory from AI8X, writing C or mem code using the `verify_fn` function.
@@ -475,6 +475,8 @@ def verify(
     When `mlator` is set, use the hardware mechanism to rearrange 4-channel data into single
     channels.
     """
+    assert tc.dev is not None
+
     # Cache for faster access
     apb_base = state.apb_base
     max_count = state.max_count
@@ -625,8 +627,8 @@ def verify(
                                 )
                             offs += out_size
                     count += 1
-                    if count == max_count and stream is not None:
-                        stream.write('  // Truncated further checks...\n')
+                    if count == max_count:
+                        body.append('  // Truncated further checks...\n')
 
                 coffs += 4
                 poffs += 4
@@ -670,29 +672,29 @@ def verify(
 
                         if source != read_addr:
                             if doffs != 0:
-                                stream.write(f'  *((volatile uint32_t *) '
-                                             f'0x{apb_base + ctrl:08x}) = '
-                                             f'0x{tc.dev.READY_SEL << 1 | 1 << 3:08x}; '
-                                             '// Disable mlator\n')
+                                body.append(f'  *((volatile uint32_t *) '
+                                            f'0x{apb_base + ctrl:08x}) = '
+                                            f'0x{tc.dev.READY_SEL << 1 | 1 << 3:08x}; '
+                                            '// Disable mlator\n')
                             # Set wptr to start address
                             w = apb_base + tc.lreg_addr(proc // tc.dev.P_NUMPRO,
                                                         tc.dev.LREG_WPTR_BASE)
-                            stream.write(f'  *((volatile uint32_t *) 0x{w:08x}) = '
-                                         f'0x{source >> 2:08x}; // Set SRAM address\n')
+                            body.append(f'  *((volatile uint32_t *) 0x{w:08x}) = '
+                                        f'0x{source >> 2:08x}; // Set SRAM address\n')
                             # Set wptr_inc to set increment value (default: 1)
                             w = apb_base + tc.lreg_addr(proc // tc.dev.P_NUMPRO,
                                                         tc.dev.LREG_LCTL2)
-                            stream.write(f'  *((volatile uint32_t *) 0x{w:08x}) = '
-                                         f'0x{expand:08x}; // Set pointer increment\n')
+                            body.append(f'  *((volatile uint32_t *) 0x{w:08x}) = '
+                                        f'0x{expand:08x}; // Set pointer increment\n')
                             # Set mlatorld enable bit to load write ptr; select byte 0..3
                             w = tc.dev.READY_SEL << 1 | 1 << 16 | shift << 17 | 1 << 3
-                            stream.write(f'  *((volatile uint32_t *) 0x{apb_base + ctrl:08x}) ='
-                                         f' 0x{w:08x}; '
-                                         f'// Enable mlator, byte {shift}\n')
-                            stream.write('  asm volatile ("" : "=m" (*((volatile uint32_t *) '
-                                         f'0x{apb_base + mlat:08x})) : "r" '
-                                         f'(*((volatile uint32_t *) 0x{apb_base + mlat:08x})));'
-                                         ' // Prime\n')
+                            body.append(f'  *((volatile uint32_t *) 0x{apb_base + ctrl:08x}) ='
+                                        f' 0x{w:08x}; '
+                                        f'// Enable mlator, byte {shift}\n')
+                            body.append('  asm volatile ("" : "=m" (*((volatile uint32_t *) '
+                                        f'0x{apb_base + mlat:08x})) : "r" '
+                                        f'(*((volatile uint32_t *) 0x{apb_base + mlat:08x})));'
+                                        ' // Prime\n')
 
                         num_bytes = min(4, input_shape[2] - col)
                         check_overwrite(
@@ -717,10 +719,10 @@ def verify(
 
                         read_addr = source + 4
                     # Disable mlator
-                    stream.write(f'  *((volatile uint32_t *) '
-                                 f'0x{apb_base + ctrl:08x}) = '
-                                 f'0x{tc.dev.READY_SEL << 1 | 1 << 3:08x}; '
-                                 '// Disable mlator\n')
+                    body.append(f'  *((volatile uint32_t *) '
+                                f'0x{apb_base + ctrl:08x}) = '
+                                f'0x{tc.dev.READY_SEL << 1 | 1 << 3:08x}; '
+                                '// Disable mlator\n')
 
                 this_map >>= 1
                 c += 1

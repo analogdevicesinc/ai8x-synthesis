@@ -31,7 +31,7 @@ class Backend(backend.Backend):
     Backend for MAX7800X CNN network code generation
     """
 
-    def create_net(self) -> str:  # pylint: disable=too-many-locals,too-many-branches,no-self-use
+    def create_net(self) -> str:  # pylint: disable=too-many-locals,too-many-branches
         """
         Chain multiple CNN layers, create and save input and output
         """
@@ -223,15 +223,40 @@ class Backend(backend.Backend):
         if oneshot and not tc.dev.SUPPORT_ONESHOT:
             eprint('`--one-shot` is not supported on this device.')
 
-        if state.pipeline is None:
+        if state.pipeline is None:  # Turn the pipeline on by default
             state.pipeline = tc.dev.SUPPORT_PIPELINE
         pipeline = state.pipeline  # Cache
 
-        if state.pll is None and tc.dev.SUPPORT_PLL:
-            state.pll = True
+        if state.pll is None:  # Turn the PLL on by default
+            state.pll = tc.dev.SUPPORT_PLL
 
         if not state.balance_power and not state.pll:
             eprint('`--max-speed` requires `--pll` or `--pipeline`.')
+
+        clock_speed = tc.dev.PLL_SPEED if state.pll else tc.dev.APB_SPEED
+        if state.clock_divider is None:
+            if pipeline:
+                state.clock_divider = 1
+            else:
+                # Pick smallest working clock divider
+                cdiv = (clock_speed + tc.dev.MAX_NO_PIPELINE_SPEED - 1) \
+                    // tc.dev.MAX_NO_PIPELINE_SPEED
+                # Round up to the next power of 2
+                cdiv -= 1
+                cdiv |= cdiv >> 1
+                cdiv |= cdiv >> 2
+                cdiv |= cdiv >> 4
+                cdiv |= cdiv >> 8
+                cdiv += 1
+                state.clock_divider = cdiv
+
+        if clock_speed // state.clock_divider > tc.dev.MAX_NO_PIPELINE_SPEED and not pipeline:
+            wprint(f'For a CNN clock speed of {clock_speed} MHz, the pipeline must be enabled.')
+        elif clock_speed // state.clock_divider <= tc.dev.MAX_NO_PIPELINE_SPEED and pipeline:
+            nprint(f'For a CNN clock speed of {clock_speed} MHz, the pipeline can be disabled.')
+        if state.clock_divider > tc.dev.MAX_CNNCLKDIV:
+            nprint(f'The clock divider of {state.clock_divider} exceeds the device maximum '
+                   f'({tc.dev.MAX_CNNCLKDIV}).')
 
         if zero_sram or pretend_zero_sram:
             # Clear every seventh kernel so we can test the BIST
@@ -244,6 +269,10 @@ class Backend(backend.Backend):
 
         if result_output:
             state.max_count = None
+
+        if (state.rtl_preload or state.rtl_preload_weights or state.result_output) \
+           and not tc.dev.SUPPORT_SIM_PRELOAD:
+            eprint('`--rtl-preload` and `--result-output` are not supported on this device.')
 
         if embedded_code and any(calcx4) and not state.new_kernel_loader:
             wprint('Enabling --new-kernel-loader since calcx4 is used.')
@@ -483,6 +512,11 @@ class Backend(backend.Backend):
                    and operands[next_sequence[ll]] == 1:
                     nprint('Use `pool_first: False` to combine element-wise and pooling layers '
                            'where pooling is executed after the element-wise operation.')
+
+            if not pool_first[ll] and operands[ll] > tc.dev.MAX_POOL_LAST_ELEMENTS \
+               and (pool[ll][0] > 1 or pool[ll][1] > 1):
+                eprint(f'"pool last" supports a maximum of {tc.dev.MAX_POOL_LAST_ELEMENTS} '
+                       'element-wise operands on this device.')
 
             if dilation[ll][0] > 1:
                 if operator[ll] != op.CONV1D:
@@ -797,7 +831,7 @@ class Backend(backend.Backend):
                 sampleoutput_header = None
         else:
             sampledata_header = sampleoutput_header = None
-        if not block_mode and (embedded_code or compact_weights):
+        if not block_mode and not state.rtl_preload_weights:
             weight_header = \
                 open(
                     os.path.join(base_directory, test_name, weight_filename),
@@ -3187,7 +3221,8 @@ class Backend(backend.Backend):
             sampleoutput_header.close()
         if apifile is not None:
             apifile.close()
-        if state.rtl_preload or result_output or state.new_kernel_loader:
+        if state.rtl_preload or state.rtl_preload_weights \
+           or result_output or state.new_kernel_loader:
             apb.write_mem(base_directory, test_name)
         if weight_header is not None:
             weight_header.close()
