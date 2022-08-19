@@ -186,7 +186,7 @@ class APB():
             # Create a header file of "chunks" (address, length, data)
             if input_list is not None:
                 kl = []
-                for _, (addr, val) in enumerate(input_list):
+                for (addr, val) in input_list:
                     assert len(val) > 0
                     # Address (u32), word length
                     if not state.mexpress:
@@ -821,8 +821,7 @@ class APB():
             action = 'rv = CNN_FAIL;' if rv else 'return CNN_FAIL;'
 
             if self.sampleoutput_header is None:
-                for _, (_, addr, mask_str,
-                        val, val_bytes, rv_item, comment) in enumerate(data):
+                for (_, addr, mask_str, val, val_bytes, rv_item, comment) in data:
                     assert rv == rv_item
                     self.memfile.write(f'  if ((*((volatile uint32_t *) 0x{addr:08x}){mask_str})'
                                        f' != 0x{val:0{2*val_bytes}x}) {action}{comment}\n')
@@ -837,7 +836,7 @@ class APB():
                 next_addr = 0
                 cumulative_length = 0
 
-                for _, (mask_item, addr, _, val, _, rv_item, _) in enumerate(data):
+                for (mask_item, addr, _, val, _, rv_item, _) in data:
                     assert rv == rv_item
 
                     # New mask? Output collected data and start over
@@ -896,7 +895,7 @@ class APB():
             self.verify_listdata = []  # Consume
 
         if len(self.verify_text) > 0:
-            for _, e in enumerate(self.verify_text):
+            for e in self.verify_text:
                 self.memfile.write(e)
             self.verify_text = []  # Consume
 

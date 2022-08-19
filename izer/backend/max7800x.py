@@ -723,7 +723,7 @@ class Backend(backend.Backend):
                     if write_gap[ll] == 0:
                         min_proc = -1
                         max_proc = -1
-                        for _, lt in enumerate(in_sequences[ll]):
+                        for lt in in_sequences[ll]:
                             first_proc = ffs(processor_map[0]) if lt == -1 \
                                 else ffs(output_processor_map[lt])
                             last_proc = fls(processor_map[0]) if lt == -1 \
@@ -742,7 +742,7 @@ class Backend(backend.Backend):
                             max_proc = last_proc
                 else:  # eltwise
                     eltwise_proc_map = 0
-                    for _, lt in enumerate(in_sequences[ll]):
+                    for lt in in_sequences[ll]:
                         emap = processor_map[0] if lt == -1 else output_processor_map[lt]
                         if eltwise_proc_map not in (0, emap):
                             eprint(f'{layer_pfx(ll)}In `in_sequences` {in_sequences[ll]}, '
@@ -753,7 +753,7 @@ class Backend(backend.Backend):
 
                 # Merge the output of all processors of all input sequence members
                 emap = 0
-                for _, lt in enumerate(in_sequences[ll]):
+                for lt in in_sequences[ll]:
                     emap |= processor_map[0] if lt == -1 else output_processor_map[lt]
                 # Check that all out input processors have data from somewhere in the merged map
                 if processor_map[ll] & emap != processor_map[ll]:
@@ -950,7 +950,7 @@ class Backend(backend.Backend):
 
         for ll in range(first_layer_used, layers):
             if bias_group_map[ll] is not None:
-                for _, e in enumerate(bias_group_map[ll]):
+                for e in bias_group_map[ll]:
                     if e not in groups_used:
                         eprint(f'{layer_pfx(ll)}`bias_quadrant` references unused quadrant {e}. '
                                f'Used x16 groups for this network are: {groups_used}.',
@@ -1184,7 +1184,7 @@ class Backend(backend.Backend):
 
             if tc.dev.REQUIRE_REG_CLEAR:
                 val = 0 if not tc.dev.SUPPORT_PIPELINE or pipeline else 1 << 5
-                for _, group in enumerate(groups_used):
+                for group in groups_used:
                     apb.write_ctl(group, tc.dev.REG_CTL, val | 1 << 3 | tc.dev.READY_SEL << 1,
                                   comment=' // Enable clocks', no_verify=True)
             # Reset
@@ -1192,25 +1192,25 @@ class Backend(backend.Backend):
                                comment=' // AON control', force_write=True)
 
             if tc.dev.REQUIRE_REG_CLEAR:
-                for _, group in enumerate(groups_used):
+                for group in groups_used:
                     apb.write_ctl(group, tc.dev.REG_SRAM, 0x40e,
                                   comment=' // SRAM control')
                 bist_clear = tc.dev.BIST_ZERO_BOTH_EX if any(b is not None for b in bias) \
                     else tc.dev.BIST_ZERO_EX
-                for _, group in enumerate(groups_used):
+                for group in groups_used:
                     apb.write_ctl(group, tc.dev.REG_SRAM_TEST, bist_clear,
                                   comment=' // Clear registers', no_verify=True)
-                for _, group in enumerate(groups_used):
+                for group in groups_used:
                     apb.wait_ctl(group, tc.dev.REG_SRAM_TEST,
                                  tc.dev.BIST_ZERO_WAIT, tc.dev.BIST_ZERO_WAIT,
                                  comment=' // Wait for clear')
-                for _, group in enumerate(groups_used):
+                for group in groups_used:
                     apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
                                   comment=' // Reset BIST', force_write=True, no_verify=True)
                 apb.output('\n', embedded_code)
 
             # Configure global control registers for used groups
-            for _, group in enumerate(groups_used):
+            for group in groups_used:
                 if init_tram:
                     # Zero out Tornado RAM
                     if not embedded_code:
@@ -1449,7 +1449,7 @@ class Backend(backend.Backend):
                     hw_layer = r * (layers + sum_hw_layers) + ll + hw_add_layers[ll]
 
                     local_source = False
-                    for _, group in enumerate(groups_used):
+                    for group in groups_used:
                         # Local output must be used:
                         # - for depthwise convolutions
                         # - When parallel processing is enabled (not currently supported), or
@@ -1480,7 +1480,7 @@ class Backend(backend.Backend):
 
                     # For passthrough, determine time slot count (maximum across all used groups)
                     tscnt_max = 0
-                    for _, group in enumerate(groups_used):
+                    for group in groups_used:
                         if hw_operator[ll] == op.NONE:
                             if popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
                                         % 2**tc.dev.P_NUMPRO) != 0:
@@ -1537,7 +1537,7 @@ class Backend(backend.Backend):
                                     ll_index = in_sequences[lt].index(ll)
                                     ll_offset = out_offset[ll] - ll_index * write_gap[ll] * 4
                                     offs = 0
-                                    for _, e in enumerate(in_sequences[lt][:ll_index]):
+                                    for e in in_sequences[lt][:ll_index]:
                                         offs += output_dim[e][0] * output_dim[e][1]
                                     if in_offset[lt] != ll_offset \
                                        and out_offset[ll] != offs * 4:
@@ -2445,7 +2445,7 @@ class Backend(backend.Backend):
             if zero_unused:
                 for r in range(repeat_layers):
                     for ll in range(first_layer_used, layers, tc.dev.MAX_LAYERS):
-                        for _, group in enumerate(groups_used):
+                        for group in groups_used:
                             for reg in range(tc.dev.MAX_LREG+1):
                                 if reg == tc.dev.LREG_RFU:  # Register 2 not implemented
                                     continue
@@ -2454,7 +2454,7 @@ class Backend(backend.Backend):
                                                comment=f' // Zero unused layer {ll} registers')
                     if hasattr(tc.dev, 'MIN_STREAM_LREG'):
                         for ll in range(first_layer_used, layers, tc.dev.MAX_STREAM_LAYERS):
-                            for _, group in enumerate(groups_used):
+                            for group in groups_used:
                                 for reg in range(tc.dev.MIN_STREAM_LREG, tc.dev.MAX_STREAM_LREG+1,
                                                  tc.dev.MAX_STREAM_LAYERS):
                                     apb.write_lreg(group, hw_layer, reg, 0,
@@ -2463,7 +2463,7 @@ class Backend(backend.Backend):
 
             if snoop is not None:
                 apb.output('  // Configure conditional execution\n', embedded_code)
-                for _, group in enumerate(groups_used):
+                for group in groups_used:
                     assert len(snoop) == 32
                     apb.write_ctl(group, tc.dev.REG_SNP1_A1, snoop[0],
                                   comment=' // Address snoop 1 register 1')
@@ -2604,7 +2604,7 @@ class Backend(backend.Backend):
 
             # Enable all needed groups except the first one
             rdy_sel = tc.dev.READY_SEL if not pipeline else tc.dev.PIPELINE_READY_SEL
-            for _, group in enumerate(groups_used):
+            for group in groups_used:
                 # Turn on the FIFO for this group if it's being loaded
                 if fifo and processor_map_0 & 0x0f << group * 16 != 0:
                     fval = 1 << 15
@@ -2630,13 +2630,13 @@ class Backend(backend.Backend):
                 unused_groups = [group for group in list(range(tc.dev.P_NUMGROUPS))
                                  if group not in groups_used]
                 val2 = 0
-                for _, group in enumerate(unused_groups):
+                for group in unused_groups:
                     val2 |= 1 << 12 + group
                 apb.write_fifo_ctl(tc.dev.AON_CTL, val2 | tc.dev.AON_READY_SEL,
                                    comment=' // AON control')
 
             if state.snoop_loop:
-                for _, group in enumerate(groups_used):
+                for group in groups_used:
                     apb.output('\n', embedded_code)
                     apb.write_lreg(group, hw_layer, tc.dev.LREG_NXTLYR, 0x80,
                                    force_write=True, comment=' // Link Layer')
@@ -2656,7 +2656,7 @@ class Backend(backend.Backend):
                                   comment=' // Snoop 1 control register 1')
 
                 apb.output('\n', embedded_code)
-                for _, group in enumerate(groups_used):
+                for group in groups_used:
                     # Turn on the FIFO for this group if it's being loaded
                     if fifo and processor_map_0 & 0x0f << group * 16 != 0:
                         fval = 1 << 15

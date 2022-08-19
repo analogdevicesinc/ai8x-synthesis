@@ -128,7 +128,7 @@ def load(
     kernel_size_onnx = []
 
     initializers = {t.name for t in model.graph.initializer}
-    for _, node in enumerate(model.graph.node):
+    for node in model.graph.node:
 
         if node.op_type in ('Conv', 'Gemm'):
             _inputs, _outputs = get_inouts(node)

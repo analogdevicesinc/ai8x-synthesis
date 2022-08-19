@@ -136,7 +136,7 @@ def create_runtest_sv(
                 '  if (!start_ena) begin\n'
             )
             if state.rtl_preload or state.rtl_preload_weights:
-                for _, i in enumerate(groups_used):
+                for i in groups_used:
                     runfile.write(f'    load_cnn_mems_{i};\n')
             runfile.write(
                 '    start_time  = $realtime;\n'
@@ -151,7 +151,7 @@ def create_runtest_sv(
                 '    clkena1   = 1;\n'
             )
             if result_output:
-                for _, i in enumerate(groups_used):
+                for i in groups_used:
                     runfile.write(f'    dump_cnn_mems_{i};\n')
                 runfile.write(
                     '    close_files;\n'
