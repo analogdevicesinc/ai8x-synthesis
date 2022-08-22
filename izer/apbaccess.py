@@ -222,7 +222,7 @@ class APB():
 
         if self.kernel_mem is not None and state.rtl_preload_weights:
             try:
-                target_dir = target_dir = os.path.join(base_directory, test_name, 'masks')
+                target_dir = os.path.join(base_directory, test_name, 'masks')
                 os.makedirs(target_dir, exist_ok=False)
             except OSError:
                 wprint(target_dir, 'exists')
