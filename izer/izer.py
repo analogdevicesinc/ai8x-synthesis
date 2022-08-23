@@ -212,12 +212,11 @@ def main():
                     else output_channels[in_sequences[ll][0]]
             gap = write_gap[in_sequences[ll][0]]
             chan = output_channels[in_sequences[ll][0]]
-            l_str = ", ".join([layer_str(e) for _, e in enumerate(in_sequences[ll])])
+            l_str = ", ".join([layer_str(e) for e in in_sequences[ll]])
             l_inseq = len(in_sequences[ll])
             for _, e in enumerate(in_sequences[ll], start=1):
                 if chan != output_channels[e]:
-                    ochan_str = ', '.join(str(output_channels[e])
-                                          for _, e in enumerate(in_sequences[ll]))
+                    ochan_str = ', '.join(str(output_channels[e]) for e in in_sequences[ll])
                     eprint(f'{layer_pfx(ll)}`in_sequences` [{l_str}] for the element-wise '
                            'operation includes inputs with non-matching channel counts '
                            f'({ochan_str}).')
@@ -335,7 +334,7 @@ def main():
         streaming = params['streaming'][:layers]
     if args.streaming_layers is not None:
         # Additional (or only) streaming layers from command line
-        for _, e in enumerate(args.streaming_layers):
+        for e in args.streaming_layers:
             streaming[e] = True
     flatten = params['flatten'][:layers]
     eltwise = params['eltwise'][:layers]

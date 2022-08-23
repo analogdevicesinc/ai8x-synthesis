@@ -115,7 +115,7 @@ def convert_checkpoint(input_file, output_file, arguments):
 
     layers = 0
     num_layers = len(params['quantization']) if params else None
-    for _, k in enumerate(checkpoint_state.keys()):
+    for k in checkpoint_state.keys():
         param_levels = k.rsplit(sep='.', maxsplit=2)
         if len(param_levels) == 3:
             layer, operation, parameter = param_levels[0], param_levels[1], param_levels[2]

@@ -638,7 +638,7 @@ def parse(
                                                       'simulated_sequence')
         if in_sequences[ll] is not None:
             new_in_sequences = []
-            for _, e in enumerate(in_sequences[ll]):
+            for e in in_sequences[ll]:
                 if isinstance(e, str):
                     new_in_sequences.append(names.find_layer(layer_name, ll, e, 'in_sequences'))
                 else:

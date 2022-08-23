@@ -312,7 +312,7 @@ def load(
                                 return_type='void')
             apb.output('  // This function loads the sample data input -- '
                        'replace with actual data\n\n')
-            for _, (addr, ch, offs) in enumerate(input_list):
+            for (addr, ch, offs) in input_list:
                 if not fixed_input:
                     apb.output(f'  memcpy32((uint32_t *) 0x{state.apb_base + addr:08x}, '
                                f'input_{ch}, {offs});\n')

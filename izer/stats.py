@@ -130,7 +130,7 @@ def summary(
         if group_bias_max is not None:
             bmem_used = sum(group_bias_max)
         elif bias is not None:
-            bmem_used = sum(len(e) for _, e in enumerate(bias) if e is not None)
+            bmem_used = sum(len(e) for e in bias if e is not None)
         else:
             bmem_used = 0
         rv += f'{sp}Bias memory:   {bmem_used:,} bytes out of {bmem:,} bytes total ' \

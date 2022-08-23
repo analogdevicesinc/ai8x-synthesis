@@ -824,7 +824,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                                 + (p % tc.dev.P_NUMPRO) * tc.dev.MASK_OFFS * 16
                             apb.write(addr + min_col * 4 | 0x01, 0x01)
                             kb = k.view(dtype=">u4")
-                            for _, e in enumerate(kb):
+                            for e in kb:
                                 apb.write(addr, e)
                                 addr += 4
 
