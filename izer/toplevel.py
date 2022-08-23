@@ -169,7 +169,7 @@ def header(
                 function_header(memfile, prefix='', function='CNN_IRQHandler',
                                 return_type='void __attribute__((interrupt("machine")))')
             memfile.write('  // Acknowledge interrupt to all quadrants\n')
-            for _, group in enumerate(groups):
+            for group in groups:
                 addr = tc.dev.APB_BASE + tc.ctl_addr(group, tc.dev.REG_CTL)
                 memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ')
                 if oneshot > 0 and not tc.dev.REQUIRE_ONESHOT_CLEAR:
@@ -302,7 +302,7 @@ def main(
 
     assert groups is not None
     mask = 0
-    for _, group in enumerate(groups):
+    for group in groups:
         mask |= 1 << group
     unmask = ~mask & ((1 << tc.dev.P_NUMGROUPS_ALL) - 1)
 

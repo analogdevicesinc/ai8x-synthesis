@@ -401,7 +401,7 @@ def unload(
                                 out_text += f'{prefix}  val = *addr;\n' \
                                             f'{prefix}  addr {"+" if delta_r >= 0 else "-"}= ' \
                                             f'0x{abs(delta_r) // 4:04x};\n'
-                            for _, shift in enumerate(shift_list):
+                            for shift in shift_list:
                                 if not short_write:
                                     out_text += f'{prefix}  out_buf[offs'
                                     if shift > 0:
