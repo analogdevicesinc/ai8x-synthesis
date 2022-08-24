@@ -802,7 +802,7 @@ def main(
                             '  MXC_SYS_ClockDisable(MXC_SYS_PERIPH_CLOCK_CNN);\n\n')
             mfile.write('  // Disable power to CNN\n')
             mfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
-            mfile.write(f'  MXC_{bbfc}->reg2 = 0xf; // Iso\n')
+            mfile.write(f'  MXC_{bbfc}->reg2 |= 0xf; // Iso\n')
             mfile.write(f'  MXC_{bbfc}->reg0 = 0x0; // Power\n')
             mfile.write(f'  MXC_{bbfc}->reg1 = 0x0; // Mask memory\n')
             mfile.write(f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n')
