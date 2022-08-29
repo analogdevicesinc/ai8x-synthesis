@@ -214,7 +214,7 @@ def main():
             chan = output_channels[in_sequences[ll][0]]
             l_str = ", ".join([layer_str(e) for e in in_sequences[ll]])
             l_inseq = len(in_sequences[ll])
-            for _, e in enumerate(in_sequences[ll], start=1):
+            for e in in_sequences[ll]:
                 if chan != output_channels[e]:
                     ochan_str = ', '.join(str(output_channels[e]) for e in in_sequences[ll])
                     eprint(f'{layer_pfx(ll)}`in_sequences` [{l_str}] for the element-wise '
@@ -446,7 +446,7 @@ def main():
             if in_sequences[ll] is not None:
                 dim = auto_input_dim[0] if in_sequences[ll][0] == -1 \
                     else output_dim[in_sequences[ll][0]]
-                for _, e in enumerate(in_sequences[ll], start=1):
+                for e in in_sequences[ll]:
                     odim = auto_input_dim[0] if e == -1 else output_dim[e]
                     if odim != dim and conf_input_dim[ll] is None:
                         eprint(f'{layer_pfx(ll)}Cannot concatenate outputs of different '

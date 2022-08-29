@@ -308,7 +308,7 @@ def parse(
                 eltwise[sequence] = op.ELTWISE_ADD
                 operands[sequence] = 2
                 padding[sequence] = [0, 0]
-            elif conv == 'or':
+            elif conv in ['or', 'bitwiseor', 'bitwise_or']:
                 operator[sequence] = op.NONE
                 eltwise[sequence] = op.ELTWISE_OR
                 operands[sequence] = 2
@@ -318,7 +318,7 @@ def parse(
                 eltwise[sequence] = op.ELTWISE_SUB
                 operands[sequence] = 2
                 padding[sequence] = [0, 0]
-            elif conv == 'xor':
+            elif conv in ['xor', 'bitwisexor', 'bitwise_xor']:
                 operator[sequence] = op.NONE
                 eltwise[sequence] = op.ELTWISE_XOR
                 operands[sequence] = 2

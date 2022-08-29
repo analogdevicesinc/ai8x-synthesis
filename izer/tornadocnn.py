@@ -177,6 +177,7 @@ class DevAI85(Dev):
     backend = 'max7800x'
     partnum = 'MAX78000'
 
+    SUPPORT_SIM_PRELOAD = True
     SUPPORT_GCFR = True
     APB_BASE = 0x50000000
     MAX_LAYERS = 32
