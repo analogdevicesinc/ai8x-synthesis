@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.7
 ###################################################################################################
-# Copyright (C) 2020-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2020-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -71,7 +71,7 @@ for _, _, fnames in sorted(os.walk('data-expected')):  # type: ignore
                 addr = int(addr[1:], base=16)  # type: ignore
                 val = val.strip().lower()
                 mask = ''
-                for _, m in enumerate(val):  # type: ignore
+                for m in val:  # type: ignore
                     mask += '0' if m == 'x' else 'f'
                 mask = int(mask, base=16)  # type: ignore
                 val = int(val.replace('x', '0'), base=16)  # type: ignore
