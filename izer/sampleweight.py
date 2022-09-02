@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -12,6 +12,7 @@ import os
 import numpy as np
 
 from . import op
+from .eprint import eprint
 from .utils import fls
 
 
@@ -46,6 +47,8 @@ def load(
         fname = os.path.join('tests', f'weights_{dataset}.npy')
     else:
         fname = os.path.join('tests', f'{cfg_weights}.npy')
+    if not os.path.exists(fname):
+        eprint(f'Sample weights file {fname} does not exist!')
     with open(fname, mode='rb') as file:
         print(f'Reading weights from {fname}...')
         try:
@@ -127,6 +130,8 @@ def load_bias(
             fname = filename
         else:
             fname = os.path.join('tests', f'bias_{cfg_bias}.npy')
+        if not os.path.exists(fname):
+            eprint(f'Sample bias file {fname} does not exist!')
         with open(fname, mode='rb') as file:
             print(f'Reading bias from {fname}...')
             try:

@@ -7,6 +7,8 @@
 """
 YAML Configuration Routines
 """
+import os
+
 import yaml
 import yamllint
 import yamllint.config
@@ -73,6 +75,9 @@ def parse(
     print(f'Reading {config_file} to configure network...')
 
     # Run yamllint first
+    if not os.path.exists(config_file):
+        eprint(f'YAML configuration file {config_file} does not exist!')
+
     yaml_config = yamllint.config.YamlLintConfig('extends: relaxed')
     with open(config_file, mode='r', encoding='utf-8') as cfg_file:
         for p in yamllint.linter.run(cfg_file, yaml_config):
