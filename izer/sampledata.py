@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2020-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2020-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -7,6 +7,8 @@
 """
 Contains hard coded sample inputs.
 """
+import os
+
 import numpy as np
 
 from .eprint import eprint
@@ -22,6 +24,8 @@ def get(
     Return a sample input image from the file name `filename` in channel-first format
     (i.e., CL, CHW)
     """
+    if not os.path.exists(filename):
+        eprint(f'Sample data file {filename} does not exist!')
 
     # Load data saved using
     # np.save(os.path.join('tests', f'sample_{dataset}'), data,

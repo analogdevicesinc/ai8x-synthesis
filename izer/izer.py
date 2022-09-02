@@ -538,6 +538,11 @@ def main():
                                2 * padding[ll][0]) // stride[ll][0] + 1,
                               1]
 
+        # No padding when no convolution...
+        if operator[ll] == op.NONE and (padding[ll][0] > 0 or padding[ll][1] > 0):
+            eprint(f'{layer_pfx(ll)}Padding ({padding[ll]}) can only be used with a convolution '
+                   'operation.')
+
         # Prohibit pad greater than or equal to kernel size
         if padding[ll][0] >= kernel_size[ll][0] or padding[ll][1] >= kernel_size[ll][1]:
             eprint(f'{layer_pfx(ll)}Pad size ({padding[ll]}) is greater than or equal to'

@@ -276,8 +276,8 @@ def unload(
                                 out_text += '  asm volatile ("" : "=m" (*mlat) : "r" (*mlat));' \
                                             ' // Prime\n'
 
-                            # FIXME: Do not write more than `num_bytes =
-                            # min(4, input_shape[2] - col)`
+                            # FIXME: Do not write more than
+                            # `num_bytes = min(4, input_shape[2] - col)`
                             if mlator_chunk == 1:
                                 out_text += mlator_write_one('',
                                                              f' // {this_c},{row},{col}-{col+3}',
@@ -535,54 +535,76 @@ def verify(
     out_size = output_width // 8
     width = out_expand * out_size
 
-    if not mlator:
-        for doffs in range(input_shape[1] * input_shape[2]):
-            row, col = divmod(doffs, input_shape[2])
-            this_map = next_layer_map
-            coffs = coffs_start
-            poffs = coffs_start
-            c = 0
-            while c < input_shape[0]:
-                if c % out_expand_thresh == 0:
-                    poffs = coffs_start
-                    this_map = next_layer_map  # Wrap around for AI85 channel expansion
+    for doffs in range(input_shape[1] * input_shape[2]):
+        row, col = divmod(doffs, input_shape[2])
+        this_map = next_layer_map
+        coffs = coffs_start
+        poffs = coffs_start
+        c = 0
+        while c < input_shape[0]:
+            if c % out_expand_thresh == 0:
+                poffs = coffs_start
+                this_map = next_layer_map  # Wrap around for AI85 channel expansion
 
-                this_c = c
-                expand = c // out_expand_thresh  # Channels 64+ handled by processors 0+
-                # Physical offset into instance and group
-                proc = poffs & ~(tc.dev.P_SHARED-1)
+            this_c = c
+            expand = c // out_expand_thresh  # Channels 64+ handled by processors 0+
+            # Physical offset into instance and group
+            proc = poffs & ~(tc.dev.P_SHARED-1)
 
-                # Get four bytes or words either from output or zeros and construct HWC word
-                no_data = True
+            # Get four bytes or words either from output or zeros and construct HWC word
+            no_data = True
+            if out_size == 1:
+                val = 0
+                for _ in range(4):
+                    val >>= 8
+                    if this_map & 1:
+                        no_data = False
+                        if c < input_shape[0]:
+                            val |= (out_buf[c][row][col] & 0xff) << 24
+                        c += 1
+                    this_map >>= 1
+            else:
+                val = [0] * 4
+                for i in range(4):
+                    if this_map & 1:
+                        no_data = False
+                        if c < input_shape[0]:
+                            val[i] = out_buf[c][row][col] & 0xffffffff
+                        c += 1
+                    this_map >>= 1
+
+            # Get the offset of the first output byte/word of 4
+            offs = tc.dev.C_SRAM_BASE + out_offset + \
+                (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
+                  (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
+                 (doffs * width + expand * out_size) * (write_gap + 1)) * 4
+
+            if not no_data:
+                num_bytes = min(c - this_c, input_shape[0] - this_c)
                 if out_size == 1:
-                    val = 0
-                    for _ in range(4):
-                        val >>= 8
-                        if this_map & 1:
-                            no_data = False
-                            if c < input_shape[0]:
-                                val |= (out_buf[c][row][col] & 0xff) << 24
-                            c += 1
-                        this_map >>= 1
+                    check_overwrite(
+                        proc,
+                        offs,
+                        in_map,
+                        out_map,
+                        this_c,
+                        row,
+                        col,
+                    )
+                    if out_map is not None:
+                        datamem.store(out_map, offs, (ll, this_c, row, col))
+                    if not mlator and (max_count is None or count < max_count):
+                        verify_fn(
+                            offs,
+                            val,
+                            rv=False,
+                            comment=f' // {this_c}-{this_c+num_bytes-1},{row},{col}',
+                            num_bytes=num_bytes,
+                            first_proc=ffs(processor_map >> proc) % 4,
+                            data=unload_layer,
+                        )
                 else:
-                    val = [0] * 4
-                    for i in range(4):
-                        if this_map & 1:
-                            no_data = False
-                            if c < input_shape[0]:
-                                val[i] = out_buf[c][row][col] & 0xffffffff
-                            c += 1
-                        this_map >>= 1
-
-                # Get the offset of the first output byte/word of 4
-                offs = tc.dev.C_SRAM_BASE + out_offset + \
-                    (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
-                      (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
-                     (doffs * width + expand * out_size) * (write_gap + 1)) * 4
-
-                if not no_data:
-                    num_bytes = min(c - this_c, input_shape[0] - this_c)
-                    if out_size == 1:
+                    for i in range(min(num_bytes, out_size)):
                         check_overwrite(
                             proc,
                             offs,
@@ -594,45 +616,25 @@ def verify(
                         )
                         if out_map is not None:
                             datamem.store(out_map, offs, (ll, this_c, row, col))
-                        if max_count is None or count < max_count:
+                        if not mlator and (max_count is None or count < max_count):
                             verify_fn(
                                 offs,
-                                val,
+                                val[i],
                                 rv=False,
-                                comment=f' // {row},{col},{this_c}-{this_c+num_bytes-1}',
-                                num_bytes=num_bytes,
-                                first_proc=ffs(processor_map >> proc) % 4,
+                                comment=f' // {this_c+i},{row},{col}',
                                 data=unload_layer,
                             )
-                    else:
-                        for i in range(min(num_bytes, out_size)):
-                            check_overwrite(
-                                proc,
-                                offs,
-                                in_map,
-                                out_map,
-                                this_c,
-                                row,
-                                col,
-                            )
-                            if out_map is not None:
-                                datamem.store(out_map, offs, (ll, this_c, row, col))
-                            if max_count is None or count < max_count:
-                                verify_fn(
-                                    offs,
-                                    val[i],
-                                    rv=False,
-                                    comment=f' // {row},{col},{this_c+i}',
-                                    data=unload_layer,
-                                )
-                            offs += out_size
-                    count += 1
-                    if count == max_count:
-                        body.append('  // Truncated further checks...\n')
+                        offs += out_size
+                count += 1
+                if count == max_count:
+                    body.append('  // Truncated further checks...\n')
 
-                coffs += 4
-                poffs += 4
-    else:  # mlator == True
+            coffs += 4
+            poffs += 4
+
+    if mlator:
+        # This path is used for RTL sims to emit the verification code.
+        # Overwrite checks have already happened above.
         assert out_size == 1
         c = 0
         poffs = coffs_start
@@ -697,22 +699,13 @@ def verify(
                                         ' // Prime\n')
 
                         num_bytes = min(4, input_shape[2] - col)
-                        check_overwrite(
-                            proc,
-                            tc.dev.C_SRAM_BASE + source,
-                            in_map,
-                            out_map,
-                            c,
-                            row,
-                            col,
-                        )
-                        if out_map is not None:
-                            datamem.store(out_map, source, (ll, c, row, col))
+                        # No overwrite checks here since mlator happens on read of the memory,
+                        # not on write TO the memory.
                         verify_fn(
                             mlat,
                             val,
                             rv=False,
-                            comment=f' // {row},{col}-{col+num_bytes-1},{c}',
+                            comment=f' // {c},{row},{col}-{col+num_bytes-1}',
                             num_bytes=num_bytes,
                             data=unload_layer,
                         )

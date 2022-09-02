@@ -64,7 +64,11 @@ def store(arr, offs, val, check_overwrite=False):
     if check_overwrite:
         validate(arr, offs, val)
     (ll, c, row, col) = val
-    arr[idx(offs)] = (ll << 48) | (c << 32) | (row << 16) | col
+    try:
+        arr[idx(offs)] = (ll << 48) | (c << 32) | (row << 16) | col
+    except IndexError:
+        eprint(f'Data memory overflow in layer {ll} for '
+               f'offset 0x{offs:08x}, c={c}, row={row}, col={col}.')
 
 
 def used(arr, offs):
