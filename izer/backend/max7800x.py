@@ -3122,7 +3122,6 @@ class Backend(backend.Backend):
                            'zero. The generated known-answer test for this network may not be '
                            'meaningful. See the log file for details.')
 
-                data_buf[ll + 1] = out_buf.reshape(out_size)
                 if next_sequence[ll] != -1 and streaming[next_sequence[ll]]:
                     # When streaming, the output should not overwrite the input of prior layers
                     # since these layers are still needed.
@@ -3156,6 +3155,9 @@ class Backend(backend.Backend):
                     if next_sequence[ll] == -1:
                         break
                     ll = next_sequence[ll]
+
+                data_buf[ll] = out_buf.reshape(out_size)
+
             progress.update(task, completed=layers)
 
         data = data_buf[ll]
