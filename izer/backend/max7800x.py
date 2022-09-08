@@ -3014,7 +3014,7 @@ class Backend(backend.Backend):
                         filename = f'{output_filename}-{ll}.mem'  # Intermediate output
                     filemode = 'w'
                 else:
-                    if output_layer[ll]:
+                    if output_layer[ll] or ll == terminating_layer:
                         filename = c_filename + ('_riscv' if riscv else '') + '.c'  # Final output
                     else:
                         filename = None  # Intermediate output - used for layer overwrite check
