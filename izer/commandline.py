@@ -297,9 +297,9 @@ def get_parser() -> argparse.Namespace:
                        help="do not show energy and performance hints (default: show)")
     group.add_argument('--ignore-mlator-warning', action='store_true', default=False,
                        help="do not show mlator hints (default: show)")
-    group.add_argument('--no-greedy-kernel', action='store_false', dest='greedy_kernel_allocator',
-                       default=True,
-                       help="do not use greedy kernel memory allocator (default: use)")
+    # group.add_argument('--no-greedy-kernel', action='store_false',
+    #                    dest='greedy_kernel_allocator', default=True,
+    #                    help="do not use greedy kernel memory allocator (default: use)")
     mgroup = group.add_mutually_exclusive_group()
     mgroup.add_argument('--new-kernel-loader', action='store_true', default=True,
                         help="use new kernel loader (default)")
@@ -595,7 +595,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.fixed_input = args.fixed_input
     state.forever = args.forever and args.embedded_code
     state.generate_kat = args.generate_kat
-    state.greedy_kernel_allocator = args.greedy_kernel_allocator
+    # state.greedy_kernel_allocator = args.greedy_kernel_allocator
     state.ignore_activation = args.ignore_activation
     state.ignore_bias_groups = args.ignore_bias_groups
     state.ignore_bn = args.ignore_bn
