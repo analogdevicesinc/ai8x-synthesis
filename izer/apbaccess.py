@@ -139,6 +139,9 @@ class APB():
                                 for (addr, val) in self.data_mem[group][proc][mem]:
                                     f.write(f'@{addr:04x} {val}\n')
 
+        def sort_addr(val):
+            return val[0]
+
         if self.kernel_mem is not None and not state.rtl_preload_weights:
             # Build a list of sequential kernel "chunks" so the loader code can use compact
             # memcpy instructions of streaming copy
@@ -150,7 +153,7 @@ class APB():
                 for proc in range(tc.dev.P_NUMPRO):
                     for mem in range(tc.dev.mask_count(proc)):
                         if self.kernel_mem[group][proc][mem]:
-                            self.kernel_mem[group][proc][mem].sort()
+                            self.kernel_mem[group][proc][mem].sort(key=sort_addr)
                             for (naddr, nval) in self.kernel_mem[group][proc][mem]:
                                 if mem >= tc.dev.MASK_INSTANCES_EACH:
                                     phys_addr = state.apb_base + tc.dev.C_GROUP_OFFS * group \
@@ -230,7 +233,7 @@ class APB():
                 for proc in range(tc.dev.P_NUMPRO):
                     for mem in range(tc.dev.MASK_INSTANCES):
                         if self.kernel_mem[group][proc][mem]:
-                            self.kernel_mem[group][proc][mem].sort()
+                            self.kernel_mem[group][proc][mem].sort(key=sort_addr)
                             with open(
                                 os.path.join(target_dir,
                                              f'MRAM_x16_{group}_proc_{proc}_ram_{mem}.dat'),
