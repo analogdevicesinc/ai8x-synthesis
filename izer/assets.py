@@ -369,16 +369,17 @@ class MakefileMapping(MutableMapping):
     def __len__(self):
         return len(self.d)
 
-def write_mapping(template_file: Path, out_path: Path, mapping: MakefileMapping, overwrite=False, backup=False):
+def write_mapping(template_file: Path, out_path: Path, mapping: MakefileMapping,
+overwrite=False, backup=False):
     """
     Apply a MakefileMapping to 'template_file', then write the converted template to 'out_path'.
 
     Returns True if the file has been written/modified, otherwise returns False.
     """
     template = None
-    with open(template_file, "r") as f:
+    with open(template_file, "r", encoding="utf-8") as f:
         template = f.read()
-        for k, v in mapping.items():
+        for _k, v in mapping.items():
             template = template.replace(v[0], v[1])
             # ^ Mapping values are a tuple.
             # v[0] = template string, v[1] = value to replace the template string with
@@ -397,7 +398,7 @@ def write_mapping(template_file: Path, out_path: Path, mapping: MakefileMapping,
     if write:
         if out_file.exists() and backup:
             shutil.copy(out_file, out_file.parent.joinpath(f"{out_file.name}-backup.mk"))
-        with open(out_file, "w+") as f:
+        with open(out_file, "w+", encoding="utf-8") as f:
             f.write(template)
 
     return write
