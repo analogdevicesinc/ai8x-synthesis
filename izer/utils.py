@@ -7,11 +7,12 @@
 """
 Various small utility functions
 """
-### Used for file hashing utilities
+# Used for file hashing utilities
 import hashlib
 import os
 from pathlib import Path
-###
+#
+
 
 def ffs(x):
     """
@@ -99,6 +100,7 @@ def plural(x, name, multiple='s', singular=''):
         return name + multiple
     return name + singular
 
+
 def hash_sha1(val):
     """
     Return the SHA1 has of a sequence of bytes
@@ -107,11 +109,13 @@ def hash_sha1(val):
         val = bytes(val, encoding="utf-8")
     return hashlib.sha1(val).digest()
 
+
 def hash_file(filepath):
     """
     Return the SHA1 hash of a file's contents
     """
     return hash_sha1(open(Path(filepath), 'rb').read())
+
 
 def hash_folder(folderpath) -> bytes:
     """
@@ -125,9 +129,11 @@ def hash_folder(folderpath) -> bytes:
             file_path = Path(d).joinpath(f)
             relative_path = file_path.relative_to(folderpath)
 
-            result = hash_sha1(result + hash_file(file_path) + bytes(str(relative_path), encoding="utf-8"))
-            
+            result = hash_sha1(result + hash_file(file_path) + bytes(str(relative_path),
+                               encoding="utf-8"))
+
     return result
+
 
 def compare_content(content: str, file: Path) -> bool:
     """
