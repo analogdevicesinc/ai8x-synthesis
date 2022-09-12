@@ -100,30 +100,36 @@ Once a project is opened 4 available build tasks will become available via `Term
 ![Build Tasks Image](https://raw.githubusercontent.com/MaximIntegratedTechSupport/VSCode-Maxim/main/img/buildtasks.JPG)
 
 #### Build
-  * Compiles the code with a `make all` command.
-  * Additional options are passed into Make on the command-line based on the project's settings.json file.
-  * The `./build` directory will be created and will contain the output binary, as well as all intermediary object files.
+
+* Compiles the code with a `make all` command.
+* Additional options are passed into Make on the command-line based on the project's settings.json file.
+* The `./build` directory will be created and will contain the output binary, as well as all intermediary object files.
 
 #### Clean
-  * Cleans the build output, removing the `./build` directory and all of its contents.
+
+* Cleans the build output, removing the `./build` directory and all of its contents.
 
 #### Clean-Periph
-  * This task is the same as 'clean', but it also removes the build output for Maxim's peripheral drivers.
-  * Use this if you would like to recompile the peripheral drivers from source on the next build.
+
+* This task is the same as 'clean', but it also removes the build output for Maxim's peripheral drivers.
+* Use this if you would like to recompile the peripheral drivers from source on the next build.
 
 #### Flash
-  * Launching this task automatically runs the `Build` task first.  Then, it flashes the output binary to the microcontroller.
-  * It uses the GDB `load` and `compare-sections` commands, and handles launching an OpenOCD internally via a pipe connection.
-  * The flashed program will be halted until the microcontroller is reset, power cycled, or a debugger is connected.
-  * A debugger must be connected correctly to use this task.  Refer to the datasheet of your microcontroller's evaluation board for instructions.
+
+* Launching this task automatically runs the `Build` task first.  Then, it flashes the output binary to the microcontroller.
+* It uses the GDB `load` and `compare-sections` commands, and handles launching an OpenOCD internally via a pipe connection.
+* The flashed program will be halted until the microcontroller is reset, power cycled, or a debugger is connected.
+* A debugger must be connected correctly to use this task.  Refer to the datasheet of your microcontroller's evaluation board for instructions.
   
 #### Flash & Run
-  * This is the same as the `Flash` task, but it also will launch execution of the program once flashing is complete.
+
+* This is the same as the `Flash` task, but it also will launch execution of the program once flashing is complete.
   
 #### Erase Flash
-  * Completely erases all of the application code in the flash memory bank.
-  * Once complete, the target microcontroller will be effectively "blank".
-  * This can be useful for recovering from Low-Power (LP) lockouts, bad firmware, etc.
+
+* Completely erases all of the application code in the flash memory bank.
+* Once complete, the target microcontroller will be effectively "blank".
+* This can be useful for recovering from Low-Power (LP) lockouts, bad firmware, etc.
 
 ### Debugging
 
@@ -147,7 +153,7 @@ In general, Maxim's microcontrollers have the following debugger limitations at 
 
 1. Attach your debugger to the SWD port on the target microcontroller.  (Refer to the datasheet of your evaluation board for instructions on connecting a debugger)
 
-2. Flash the program to the microcontroller with the "Flash" [Build Task](#Build-Tasks).  **Flashing does not happen automatically when launching the debugger.**
+2. Flash the program to the microcontroller with the "Flash" [Build Task](#build-tasks).  **Flashing does not happen automatically when launching the debugger.**
 
 3. Launch the debugger with `Run > Start Debugging`, with the shortcut `F5`, or via the `Run and Debug` window (Ctrl + Shift + D) and the green "launch" arrow.  
 
@@ -457,7 +463,7 @@ The project's `Makefile` can be opened to see a full list of available config op
 | `IPATH` | Where to search for header (.h) files | `IPATH+=your/include/path` | **Use the `+=` operator with this option**.  This controls where the Makefile will look for **header** files.  _Unlike_ the `VPATH` option, this is not related to `AUTOSEARCH`.  Individual header files are _not_ ever manually added into the build.  Instead, you only need to specify the _location_ of your header files.
 | `AUTOSEARCH` | Automatically search for source (.c) files | `AUTOSEARCH=0` | Enable or disable the automatic detection of .c files on `VPATH` (enabled by default).  Set to `0` to disable, or `1` to enable.  If autosearch is disabled, source files must be manually added to `SRCS`.
 | `SRCS` | List of source (.c) files to add to the build | `SRCS+=./my/other/source.c` | **Use the `+=` operator with this option**.  All of the files in this list will be added to the build.  If `AUTOSEARCH` is enabled, this is most useful for adding the full absolute path to a singular source file to selectively add to the build.  If `AUTOSEARCH` is disabled, _all_ of the source files for the project must be added to `SRCS`, and they must also all be located on an entry in `VPATH`.  Otherwise, a full path relative to the Makefile must be used.
-| `PROJECT` | Set the output filename | `PROJECT=MyProject` | This controls the output filename of the build.  File extensions should _not_ be set here since the output file format may vary depending on the build recipe.  For VSCode-Maxim, you should use the [project_name](#projectname) advanced config option instead, which sets `PROJECT` on the command-line [Build Tasks](#build-tasks).
+| `PROJECT` | Set the output filename | `PROJECT=MyProject` | This controls the output filename of the build.  File extensions should _not_ be set here since the output file format may vary depending on the build recipe.  For VSCode-Maxim, you should use the [project_name](#project_name) advanced config option instead, which sets `PROJECT` on the command-line [Build Tasks](#build-tasks).
 **Compiler**
 | `MXC_OPTIMIZE_CFLAGS` | Set the optimization level | `MXC_OPTIMIZE_CFLAGS=-O2` | See [Optimize Options](https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html) for more details.  Normal builds will default to `-Og`, which is good for debugging, while release builds will default to `-O2`.
 | `PROJ_CFLAGS` | Add a compiler flag to the build | `PROJ_CFLAGS+=-Wextra`, `PROJ_CFLAGS+=-DMYDEFINE` | Compiler flags can be added with this option, including compiler definitions.  For each value, the same syntax should be used as if the compiler flag was passed in via the command-line.  These can include standard [GCC options](https://gcc.gnu.org/onlinedocs/gcc-10.4.0/gcc/Option-Summary.html#Option-Summary) and/or [ARM-specific](https://gcc.gnu.org/onlinedocs/gcc/ARM-Options.html) options.
