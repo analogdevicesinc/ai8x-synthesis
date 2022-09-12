@@ -149,7 +149,7 @@ def vscode(
     out_stem: str,
     target: str,
     board: str,
-    overwrite = False,
+    overwrite=False,
     program_file: str = defaults["PROGRAM_FILE"],
     symbol_file: str = defaults["SYMBOL_FILE"],
     m4_ocd_interface_file: str = defaults["M4_OCD_INTERFACE_FILE"],
@@ -220,7 +220,6 @@ def vscode(
             # We're in the root template folder, no need to create a directory.
             pass
 
-
         # Any files to copy?
         for file in sorted(files):
 
@@ -284,6 +283,7 @@ def vscode(
 
     return (len(updated) > 0)
 
+
 class MakefileMapping(MutableMapping):
     """
     This class is a modified dictionary that maps template strings (keys) to
@@ -299,7 +299,8 @@ class MakefileMapping(MutableMapping):
             * index 0: The template string
             * index 1: The value to use when replacing the template string
 
-    Ex:  The setter `MakefileMapping["mykey"]="myvalue"` results in a getter for `MakefileMapping["mykey"]` that would return `("##__MYKEY__##", "myvalue")`
+    Ex:  The setter `MakefileMapping["mykey"]="myvalue"` results in a getter 
+    for `MakefileMapping["mykey"]` that would return `("##__MYKEY__##", "myvalue")`
     """
 
     def __init__(self, *args, **kwargs):
@@ -369,8 +370,9 @@ class MakefileMapping(MutableMapping):
     def __len__(self):
         return len(self.d)
 
+
 def write_mapping(template_file: Path, out_path: Path, mapping: MakefileMapping,
-overwrite=False, backup=False):
+                  overwrite=False, backup=False):
     """
     Apply a MakefileMapping to 'template_file', then write the converted template to 'out_path'.
 
@@ -403,29 +405,31 @@ overwrite=False, backup=False):
 
     return write
 
+
 # Default values that will be used in the template if these keyword
 # arguments are not passed to 'create_makefile'
 defaults = dict(
-    vpaths = [".", "src"],
-    ipaths = [".", "include"],
-    autosearch = 1,
-    defines = ["MXC_ASSERT_ENABLE"],
-    float_abi = "softfp",
-    depth = 3,
-    olevel_debug = "g",
-    olevel_release = 2,
-    compiler = "GCC",
-    linkerfile = "$(TARGET_LC).ld",
+    vpaths=[".", "src"],
+    ipaths=[".", "include"],
+    autosearch=1,
+    defines=["MXC_ASSERT_ENABLE"],
+    float_abi="softfp",
+    depth=3,
+    olevel_debug="g",
+    olevel_release=2,
+    compiler="GCC",
+    linkerfile="$(TARGET_LC).ld",
 )
+
 
 def makefile(
     out_root: str,
     out_stem: str,
     target: str,
     board: str,
-    overwrite = False,
-    backup = False,
-    overwrite_projectmk = False,
+    overwrite=False,
+    backup=False,
+    overwrite_projectmk=False,
     **kwargs
 ):
     """
