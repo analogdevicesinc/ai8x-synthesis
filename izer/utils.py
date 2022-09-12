@@ -99,23 +99,33 @@ def plural(x, name, multiple='s', singular=''):
         return name + multiple
     return name + singular
 
-def hash(val):
+def hash_sha1(val):
+    """
+    Return the SHA1 has of a sequence of bytes
+    """
     if not isinstance(val, bytes):
         val = bytes(val, encoding="utf-8")
     return hashlib.sha1(val).digest()
 
 def hash_file(filepath):
-    return hash(open(Path(filepath), 'rb').read())
+    """
+    Return the SHA1 hash of a file's contents
+    """
+    return hash_sha1(open(Path(filepath), 'rb').read())
 
 def hash_folder(folderpath) -> bytes:
+    """
+    Return the SHA1 hash of a folder's contents.  All files are hashed in
+    alphabetical order.
+    """
     folderpath = Path(folderpath)
     result = b''
-    for dir, subdirs, files in os.walk(folderpath):
+    for d, _subdirs, files in os.walk(folderpath):
         for f in sorted(files):
-            file_path = Path(dir).joinpath(f)
+            file_path = Path(d).joinpath(f)
             relative_path = file_path.relative_to(folderpath)
 
-            result = hash(result + hash_file(file_path) + bytes(str(relative_path), encoding="utf-8"))
+            result = hash_sha1(result + hash_file(file_path) + bytes(str(relative_path), encoding="utf-8"))
             
     return result
 
