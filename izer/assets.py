@@ -281,7 +281,7 @@ def vscode(
                         updated.append(out_file)
                     # print(f"Wrote {os.path.basename(file)}") # Uncomment to debug
 
-    return (len(updated) > 0)
+    return len(updated) > 0
 
 
 class MakefileMapping(MutableMapping):
@@ -299,7 +299,7 @@ class MakefileMapping(MutableMapping):
             * index 0: The template string
             * index 1: The value to use when replacing the template string
 
-    Ex:  The setter `MakefileMapping["mykey"]="myvalue"` results in a getter 
+    Ex:  The setter `MakefileMapping["mykey"]="myvalue"` results in a getter
     for `MakefileMapping["mykey"]` that would return `("##__MYKEY__##", "myvalue")`
     """
 
