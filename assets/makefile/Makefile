@@ -223,7 +223,7 @@ MXC_OPTIMIZE_CFLAGS := -O##__OLEVEL_DEBUG__##
 endif
 
 # Set compiler flags
-PROJ_CFLAGS += -Wall # Enable warnings
+PROJ_CFLAGS += -Wall -Wcast-align # Enable warnings
 ##__DEFINES__##
 
 # Set hardware floating point acceleration.
