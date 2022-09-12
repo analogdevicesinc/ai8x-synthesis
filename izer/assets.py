@@ -304,7 +304,7 @@ class MakefileMapping(MutableMapping):
     """
 
     def __init__(self, *args, **kwargs):
-        self.d = dict()
+        self.d = {}
         self.update(dict(*args, **kwargs))
 
     def _form_key(self, key):
