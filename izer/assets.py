@@ -8,11 +8,11 @@
 """
 Copy assets
 """
-from collections.abc import MutableMapping
 import json
 import os
 import shutil
 import stat
+from collections.abc import MutableMapping
 from pathlib import Path
 
 from . import state
