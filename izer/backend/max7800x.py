@@ -3090,11 +3090,11 @@ class Backend(backend.Backend):
                             out_expand[ll],
                             out_expand_thresh[ll],
                             output_width[ll],
-                            overwrite_ok or (streaming[ll] if ll != start_layer
-                                             else (streaming[ll] and fifo)),
+                            overwrite_ok,
                             mlator=mlator and output_layer[ll],
                             write_gap=write_gap[ll],
                             unload_layer=output_layer[ll],
+                            streaming=streaming[ll],
                         )
                         if debug_snoop:
                             apb.verify_ctl(group, tc.dev.REG_SNP1_ACC, None, snoop[24],

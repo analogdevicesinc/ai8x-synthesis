@@ -786,6 +786,7 @@ class APB():
             mlator=False,
             write_gap=0,
             unload_layer=False,
+            streaming=False,
     ):
         """
         Write a verification function. The layer to unload has the shape `input_shape`,
@@ -810,6 +811,7 @@ class APB():
             unload_layer=unload_layer,
             embedded=self.embedded_code,
             test_name=self.test_name,
+            streaming=streaming,
         )
 
     def verify_unload_finalize(self):
