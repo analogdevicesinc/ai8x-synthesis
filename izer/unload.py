@@ -60,10 +60,11 @@ def unload(
     narrow_chunk = state.narrow_chunk if state.embedded_code else 0
     wide_chunk = state.wide_chunk if state.embedded_code else 0
     unload_custom = state.unload_custom
+    mlator_warning = state.mlator_warning
 
     assert not state.block_mode or not mlator
 
-    mlator_warning_shown = not state.mlator_warning
+    mlator_layers = []
 
     # If 'unload' is specified in the YAML file, create synthetic versions of
     # output_layer[], output_width[], input_shape[], processor_map[], out_expand[],
@@ -95,50 +96,48 @@ def unload(
                     min((out_expand_thresh[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1),
                         tc.dev.MAX_PROC)
 
-    o_width = 0
+    o_widths = set()
     for ll, e in enumerate(output_layer):
         if not e:
             continue
 
         lname = layer_pfx(ll) if unload_custom is None else f"Unload sequence #{ll}: "
-        if o_width not in (0, output_width[ll]):
-            eprint(f'{lname}Multiple outputs with different output widths are '
-                   'not supported by this software.')
-        else:
-            o_width = output_width[ll]
+        o_widths.add(output_width[ll])
 
-        # Show only one of these warnings, if any
-        if mlator and o_width != 8 and not mlator_warning_shown:
-            wprint(f'{lname}Ignoring --mlator for 32-bit output.')
-            mlator = False
-            mlator_warning_shown = True
+        if output_width[ll] != 8:
+            if mlator and mlator_warning:
+                wprint(f'{lname}Ignoring --mlator for 32-bit output.')
+        elif input_shape[ll][0] > 1 and input_shape[ll][1] * input_shape[ll][2] % 4 != 0:
+            if mlator and mlator_warning:
+                wprint(f'{lname}Ignoring --mlator for '
+                       f'{input_shape[ll][1]}x{input_shape[ll][2]} frame size '
+                       f'({input_shape[ll][1] * input_shape[ll][2]} bytes) that is '
+                       f'not divisible by 4.')
+        elif input_shape[ll][1] * input_shape[ll][2] < 4:
+            if mlator and mlator_warning:
+                wprint(f'{lname}--mlator should only be used with 4 or more 8-bit outputs '
+                       ' per channel; ignoring.')
+        elif mlator:
+            mlator_layers.append(ll)
+        elif state.embedded_code and mlator_warning:
+            nprint(f'{lname}Use --mlator to optimize cnn_unload() for 8-bit output values.')
 
-        if mlator and input_shape[ll][0] > 1 and input_shape[ll][1] * input_shape[ll][2] % 4 != 0:
-            wprint(f'{lname}Ignoring --mlator for '
-                   f'{input_shape[ll][1]}x{input_shape[ll][2]} frame size '
-                   f'({input_shape[ll][1] * input_shape[ll][2]} bytes) that is '
-                   f'not divisible by 4.')
-            mlator = False
-            mlator_warning_shown = True
-
-        # Don't show the final hint if this layer prevents mlator from being used
-        if not mlator and input_shape[ll][1] * input_shape[ll][2] % 4 != 0:
-            mlator_warning_shown = True
-
-    # If mlator is still True, we might have been able to use it
-    if not mlator and o_width == 8 and state.embedded_code and not mlator_warning_shown:
-        nprint('Use --mlator to optimize cnn_unload() for 8-bit output values.')
-
+    # If ANY output is 8-bit, use the 8-bit unload since there is a chance of non-word aligned
+    # writes.
+    o_width = 32 if 8 not in o_widths else 8
     toplevel.function_header(memfile, function='unload',
                              arguments=f'uint32_t *out_buf{"32" if o_width != 32 else ""}')
     out_text = ''
     need_i = False
     need_offs = False
-    out_size = o_width // 8
     read_addr = None
     write_addr = None
     written = 0
     out_addr = 0
+    out_size = 1
+    have_non_mlator = False
+    first_output = True
+    prev_out_size = 4
 
     for ll, e in enumerate(output_layer):
         if not e:
@@ -146,9 +145,11 @@ def unload(
 
         lname = f"layer {layer_str(ll)}" if unload_custom is None else f"unload sequence #{ll}"
         out_text += f'\n  // Custom unload for this network, {lname}: ' \
-                    f'{o_width}-bit data, shape: {input_shape[ll]}\n'
+                    f'{output_width[ll]}-bit data, shape: {input_shape[ll]}\n'
         if o_width != 32 and input_shape[ll][1] * input_shape[ll][2] != 1:
             need_offs = True
+
+        out_size = output_width[ll] // 8
 
         coffs_start = ffs(processor_map[ll]) & ~(tc.dev.P_SHARED-1)
         coffs = coffs_start
@@ -170,7 +171,8 @@ def unload(
             expand = c // out_expand_thresh[ll]  # Channels 64+ handled by processors 0+
             proc = poffs & ~(tc.dev.P_SHARED-1)
 
-            if not mlator:
+            if ll not in mlator_layers:
+                have_non_mlator = True
                 for doffs in range(input_shape[ll][1] * input_shape[ll][2]):
                     row, col = divmod(doffs, input_shape[ll][2])
                     this_map = next_layer_map
@@ -184,10 +186,15 @@ def unload(
 
                     for shift in range(4):
                         if this_map & 1:
-                            if out_size == 4:
+                            if o_width == 32:  # out_size == 4 (implied)
                                 emit_list.append(offs)
                                 offs += 4
-                            else:  # out_size == 1
+                            elif out_size == 4:  # o_width == 8
+                                emit_list.append((offs + 4 * shift, 0))
+                                emit_list.append((offs + 4 * shift, 1))
+                                emit_list.append((offs + 4 * shift, 2))
+                                emit_list.append((offs + 4 * shift, 3))
+                            else:  # out_size == 1, o_width == 8
                                 emit_list.append((offs, shift))
                             this_c += 1
                         this_map >>= 1
@@ -302,7 +309,10 @@ def unload(
             next_layer_map >>= 4
 
         if len(emit_list) > 0:
-            if out_size == 4:
+            if o_width == 32:
+                if prev_out_size != 4:
+                    # TODO: Resync output pointer
+                    pass
                 idx = 0
                 chunk = max(1, wide_chunk)
                 while idx < len(emit_list):
@@ -347,13 +357,15 @@ def unload(
                         remaining -= loop_runs * chunk
                         out_addr += loop_runs * chunk
                     idx += run + 1
-            else:  # out_size == 1
+            else:  # o_width == 8
                 idx = 0
                 xy_dim = input_shape[ll][1] * input_shape[ll][2]
                 short_write = xy_dim == 1
                 chunk = max(1, narrow_chunk)
                 if not short_write:
-                    out_text += f'  offs = 0x{written:04x};\n'
+                    out_text += '  offs = 0x0000;\n'
+                if not first_output:
+                    out_text += f'  out_buf = ((uint8_t *) out_buf32) + 0x{written:04x};\n'
                 while idx < len(emit_list):
                     # Find how many have the same r/w addresses with different shift,
                     # then how many the same deltas between rs and ws with the same set of shifts.
@@ -426,16 +438,21 @@ def unload(
                     if not short_write and idx < len(emit_list) and shift_count > 1:
                         out_text += f'  offs += 0x{xy_dim * (shift_count - 1):04x};\n'
 
-        written += input_shape[ll][0] * input_shape[ll][1] * input_shape[ll][2]
+        # Always a byte counter
+        written += input_shape[ll][0] * input_shape[ll][1] * input_shape[ll][2] \
+            * output_width[ll] // 8
 
-    if o_width != 32 and not mlator:
+        first_output = False
+        prev_out_size = out_size
+
+    if o_width != 32 and have_non_mlator:
         memfile.write(f'  uint{o_width}_t *out_buf = (uint{o_width}_t *) out_buf32;\n')
         memfile.write('  uint32_t val;\n')
-    if not mlator:
+    if o_width == 32 or have_non_mlator:
         memfile.write('  volatile uint32_t *addr;\n')
-    else:
+    if mlator_layers:
         memfile.write('  volatile uint32_t *mlat, *ctrl;\n')
-    if need_i or mlator and mlator_chunk > 1:
+    if need_i or mlator_layers and mlator_chunk > 1:
         memfile.write('  int i;\n')
     if need_offs:
         memfile.write('  uint32_t offs;\n')
