@@ -3014,7 +3014,7 @@ class Backend(backend.Backend):
                         filename = f'{output_filename}-{ll}.mem'  # Intermediate output
                     filemode = 'w'
                 else:
-                    if output_layer[ll]:
+                    if output_layer[ll] or ll == terminating_layer:
                         filename = c_filename + ('_riscv' if riscv else '') + '.c'  # Final output
                     else:
                         filename = None  # Intermediate output - used for layer overwrite check
@@ -3090,11 +3090,11 @@ class Backend(backend.Backend):
                             out_expand[ll],
                             out_expand_thresh[ll],
                             output_width[ll],
-                            overwrite_ok or (streaming[ll] if ll != start_layer
-                                             else (streaming[ll] and fifo)),
+                            overwrite_ok,
                             mlator=mlator and output_layer[ll],
                             write_gap=write_gap[ll],
                             unload_layer=output_layer[ll],
+                            streaming=streaming[ll],
                         )
                         if debug_snoop:
                             apb.verify_ctl(group, tc.dev.REG_SNP1_ACC, None, snoop[24],
@@ -3122,7 +3122,6 @@ class Backend(backend.Backend):
                            'zero. The generated known-answer test for this network may not be '
                            'meaningful. See the log file for details.')
 
-                data_buf[ll + 1] = out_buf.reshape(out_size)
                 if next_sequence[ll] != -1 and streaming[next_sequence[ll]]:
                     # When streaming, the output should not overwrite the input of prior layers
                     # since these layers are still needed.
@@ -3156,6 +3155,9 @@ class Backend(backend.Backend):
                     if next_sequence[ll] == -1:
                         break
                     ll = next_sequence[ll]
+
+                data_buf[ll] = out_buf.reshape(out_size)
+
             progress.update(task, completed=layers)
 
         data = data_buf[ll]
