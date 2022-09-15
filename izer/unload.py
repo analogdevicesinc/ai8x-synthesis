@@ -463,6 +463,7 @@ def verify(
         unload_layer: bool = False,
         embedded: bool = False,
         test_name: str = '',
+        streaming: bool = False,
 ):
     """
     Verify HWC memory from AI8X, writing C or mem code using the `verify_fn` function.
@@ -582,17 +583,18 @@ def verify(
             if not no_data:
                 num_bytes = min(c - this_c, input_shape[0] - this_c)
                 if out_size == 1:
-                    check_overwrite(
-                        proc,
-                        offs,
-                        in_map,
-                        out_map,
-                        this_c,
-                        row,
-                        col,
-                    )
-                    if out_map is not None:
-                        datamem.store(out_map, offs, (ll, this_c, row, col))
+                    if not streaming:
+                        check_overwrite(
+                            proc,
+                            offs,
+                            in_map,
+                            out_map,
+                            this_c,
+                            row,
+                            col,
+                        )
+                        if out_map is not None:
+                            datamem.store(out_map, offs, (ll, this_c, row, col))
                     if not mlator and (max_count is None or count < max_count):
                         verify_fn(
                             offs,
@@ -605,17 +607,18 @@ def verify(
                         )
                 else:
                     for i in range(min(num_bytes, out_size)):
-                        check_overwrite(
-                            proc,
-                            offs,
-                            in_map,
-                            out_map,
-                            this_c,
-                            row,
-                            col,
-                        )
-                        if out_map is not None:
-                            datamem.store(out_map, offs, (ll, this_c, row, col))
+                        if not streaming:
+                            check_overwrite(
+                                proc,
+                                offs,
+                                in_map,
+                                out_map,
+                                this_c,
+                                row,
+                                col,
+                            )
+                            if out_map is not None:
+                                datamem.store(out_map, offs, (ll, this_c, row, col))
                         if not mlator and (max_count is None or count < max_count):
                             verify_fn(
                                 offs,

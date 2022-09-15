@@ -67,7 +67,7 @@ def store(arr, offs, val, check_overwrite=False):
     try:
         arr[idx(offs)] = (ll << 48) | (c << 32) | (row << 16) | col
     except IndexError:
-        eprint(f'Data memory overflow in layer {ll} for '
+        eprint(f'Data memory overflow in layer {layer_str(ll)} for '
                f'offset 0x{offs:08x}, c={c}, row={row}, col={col}.')
 
 
