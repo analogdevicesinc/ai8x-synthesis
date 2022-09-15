@@ -359,12 +359,6 @@ class Backend(backend.Backend):
                 eprint(f'{layer_pfx(ll)}Passthrough operations are not supported for streaming '
                        'layers.')
 
-        if state.mlator and (output_dim[terminating_layer][0]
-                             * output_dim[terminating_layer][1] < 4
-                             or output_width[terminating_layer] > 8):
-            wprint('--mlator should only be used with 4 or more 8-bit outputs per channel; '
-                   'ignoring.')
-            state.mlator = False
         mlator = state.mlator
 
         if state.softmax and output_width[terminating_layer] == 8:
