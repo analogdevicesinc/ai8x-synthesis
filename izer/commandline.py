@@ -116,7 +116,7 @@ def get_parser() -> argparse.Namespace:
     group.add_argument('--compact-weights', action='store_true', default=False,
                        help="use memcpy() to load weights in order to save code space")
     mgroup = group.add_mutually_exclusive_group()
-    mgroup.add_argument('--mexpress', action='store_true', default=True,
+    mgroup.add_argument('--mexpress', action='store_true', default=None,
                         help="use express kernel loading (default: true)")
     mgroup.add_argument('--no-mexpress', action='store_false', dest='mexpress',
                         help="disable express kernel loading")
@@ -450,7 +450,8 @@ def get_parser() -> argparse.Namespace:
 
     if args.rtl_preload:
         args.embedded_code = False
-    if args.verify_kernels:
+    if args.verify_kernels or (args.verify_writes and args.new_kernel_loader) \
+       or args.mexpress is not None:
         args.rtl_preload_weights = False
     if args.rtl_preload_weights:
         args.mexpress = False
@@ -458,6 +459,11 @@ def get_parser() -> argparse.Namespace:
         args.embedded_code = True
     if not args.embedded_code:
         args.softmax = False
+        args.energy = False
+    if args.mexpress is None:
+        args.mexpress = True
+    if args.mlator:
+        args.result_output = False
 
     if not args.c_filename:
         args.c_filename = 'main' if args.embedded_code else 'test'

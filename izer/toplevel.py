@@ -83,7 +83,7 @@ def header(
                   '#include <stdint.h>\n')
     if embedded_code or state.verify_kernels:
         memfile.write('#include <string.h>\n')
-    if embedded_code:
+    if embedded_code or state.verify_kernels and state.new_kernel_loader:
         memfile.write('#include <stdio.h>\n')
     if not cmsis_nn:
         if embedded_code or embedded_arm:
