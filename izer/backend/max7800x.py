@@ -3273,7 +3273,6 @@ class Backend(backend.Backend):
                     tc.dev.partnum,
                     board_name,
                     overwrite=overwrite,
-                    overwrite_projectmk=overwrite,  # Overwriting project.mk too with --overwrite.
                 )
 
             assets.from_template('assets', 'eclipse', base_directory, test_name, board_name)
