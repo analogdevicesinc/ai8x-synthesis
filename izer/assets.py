@@ -251,9 +251,8 @@ def vscode(
                         replace("##__MAKE_PATH__##", make_path)
 
                 write = True
-                if out_file.exists():
-                    if not overwrite or utils.compare_content(content, out_file):
-                        write = False
+                if out_file.exists() and (not overwrite or utils.compare_content(content, out_file)):
+                    write = False
 
                 if write:
                     with open(out_file, "w+", encoding="UTF-8") as f:
@@ -391,11 +390,10 @@ def write_mapping(template_file: Path, out_path: Path, mapping: MakefileMapping,
         out_file.parent.mkdir()
 
     write = True
-    if out_file.exists():
-        if not overwrite or utils.compare_content(template, out_file):
-            # Don't write the file content is exactly the same,
-            # or if overwrite is not specified but the file exists.
-            write = False
+    if out_file.exists() and (not overwrite or utils.compare_content(template, out_file)):
+        # Don't write the file content is exactly the same,
+        # or if overwrite is not specified but the file exists.
+        write = False
 
     if write:
         if out_file.exists() and backup:
