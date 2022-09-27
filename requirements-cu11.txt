@@ -11,3 +11,5 @@ PyGithub>=1.55
 rich>=11.2.0
 protobuf>=3.20.1,<4.0
 matplotlib>=3.6.0
+https://download.pytorch.org/whl/cu111/torch-1.8.1%2Bcu111-cp38-cp38-linux_x86_64.whl
+https://download.pytorch.org/whl/cu111/torchvision-0.9.1%2Bcu111-cp38-cp38-linux_x86_64.whl
