@@ -32,7 +32,7 @@ def hash_file(filepath):
 def hash_folder(folderpath) -> bytes:
     """
     Return the SHA1 hash of a folder's contents.  All files are hashed in
-    alphabetical order.
+    alphabetical order, but the directories are not.
     """
     folderpath = Path(folderpath)
     result = b''
