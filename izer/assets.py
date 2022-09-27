@@ -201,7 +201,7 @@ def vscode(
     tmp = list(map(lambda s: f"\"{s}\"", tmp))  # Surround with quotes
     v_paths_parsed = ",\n        ".join(tmp).replace(target, "${config:target}").replace("\\", "/")
 
-    updated = []
+    updated = set()
     # Create template...
     for directory, _, files in sorted(os.walk(template_dir)):
         # ^ For each directory in the directory tree rooted at top (including top itself,
@@ -259,7 +259,7 @@ def vscode(
                         f.write(content)
                     os.chmod(out_file, stat.S_IRWXU | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
                     if out_file not in updated:
-                        updated.append(out_file)
+                        updated.add(out_file)
 
                     # print(f"Wrote {os.path.basename(out_loc)}")  # Uncomment to debug
 
@@ -277,10 +277,10 @@ def vscode(
                     shutil.copy(in_file, out_path)
                     os.chmod(out_file, stat.S_IRWXU | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
                     if out_file not in updated:
-                        updated.append(out_file)
+                        updated.add(out_file)
                     # print(f"Wrote {os.path.basename(file)}") # Uncomment to debug
 
-    return len(updated) > 0
+    return updated
 
 
 class MakefileMapping(MutableMapping):
