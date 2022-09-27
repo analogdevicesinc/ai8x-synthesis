@@ -11,7 +11,15 @@
 Utility functions for parsing izer generated sampleoutput.h
 """
 
+
 def twos_compl_to_int(val, nbits, base):
+    """
+    Returns signed integer value for a given value:
+
+    :param val Value in two signed complement form, in string type
+    :param nbits the number of bits val represents
+    :param base base of val
+    """
     i = int(val, base)
     if i >= 2 ** (nbits - 1):
         i -= 2 ** nbits
@@ -19,10 +27,15 @@ def twos_compl_to_int(val, nbits, base):
 
 
 def parse_sampleoutput_to_dictionary(sampleoutput_h_file_path):
+    """
+    Parsed auto generated sampleoutput.h file (genearted by izer).
+    Returns a dictionary with keys of address values of emmory blocks and
+    values as the list of read strings in the file for given address.
+    """
 
     out_dict = {}
 
-    with open(sampleoutput_h_file_path) as f:
+    with open(sampleoutput_h_file_path, encoding="utf-8") as f:
         lines = f.readlines()
 
     data_sample_out = []
@@ -31,14 +44,13 @@ def parse_sampleoutput_to_dictionary(sampleoutput_h_file_path):
         for val in values:
             data_sample_out.append(val.strip())
 
-    addr=None
+    addr = None
     d_len = None
-    mask=None
+    mask = None
 
     for val in data_sample_out:
         if addr is None:
             addr = val
-            
         elif mask is None:
             mask = val
 
@@ -50,18 +62,21 @@ def parse_sampleoutput_to_dictionary(sampleoutput_h_file_path):
         else:
             address_contents.append(val)
             d_to_read -= 1
-            
             if d_to_read == 0:
                 out_dict[addr] = address_contents
 
-                addr=None
+                addr = None
                 d_len = None
-                mask=None
+                mask = None
 
     return out_dict
 
 
 def process_four_channel_data_from_word(word_value):
+    """
+    For 8 bit outputs, izer combines 4 of them and places all into a single memory word.
+    This function seperates out the 4 channels from a given word value.
+    """
 
     ch0 = int(word_value, 16) & int('0x000000ff', 0)
     ch0 = f'{ch0:>08b}'
