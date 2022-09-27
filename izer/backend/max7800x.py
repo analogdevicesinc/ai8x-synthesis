@@ -3267,6 +3267,9 @@ class Backend(backend.Backend):
                 assets.from_template('assets', 'embedded-riscv-ai' + str(device), base_directory,
                                      test_name, board_name)
             else:
+                assets.from_template('assets', 'embedded-ai' + str(device), base_directory,
+                                     test_name, board_name)
+
                 assets.makefile(
                     base_directory,
                     test_name,
