@@ -8,6 +8,7 @@
 Various small utility functions
 """
 
+
 def ffs(x):
     """
     Returns the index, counting from 0, of the least significant set bit in `x`.
