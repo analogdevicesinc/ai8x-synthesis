@@ -12,6 +12,7 @@ and comparisons
 import hashlib
 import os
 from pathlib import Path
+from tempfile import TemporaryFile
 
 def hash_sha1(val):
     """
@@ -58,10 +59,10 @@ def compare_content(content: str, file: Path) -> bool:
     if not file.exists():
         return False
 
-    tmp = file.parent.joinpath("tmp")
-    with open(tmp, "w", encoding='utf-8') as f:
-        f.write(content)
+    tmp = TemporaryFile(mode="w", encoding="utf-8")
+    tmp.write(content)
 
     match = (hash_file(file) == hash_file(tmp))
-    os.remove(tmp)
+    
+    tmp.close()
     return match
