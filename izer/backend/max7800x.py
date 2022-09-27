@@ -3385,7 +3385,7 @@ class Backend(backend.Backend):
                     tc.dev.partnum,
                     board_name,
                     overwrite=overwrite,
-                    overwrite_projectmk=overwrite  # Overwriting project.mk too with --overwrite.
+                    overwrite_projectmk=overwrite,  # Overwriting project.mk too with --overwrite.
                 )
 
             assets.from_template('assets', 'eclipse', base_directory, test_name, board_name)
@@ -3404,7 +3404,7 @@ class Backend(backend.Backend):
                     board_name,
                     program_file="${config:project_name}-combined.elf",
                     symbol_file="${config:project_name}.elf",
-                    overwrite=overwrite
+                    overwrite=overwrite,
                 )
 
             else:
@@ -3413,7 +3413,7 @@ class Backend(backend.Backend):
                     test_name,
                     tc.dev.partnum,
                     board_name,
-                    overwrite=overwrite
+                    overwrite=overwrite,
                 )
 
             assets.from_template('assets', 'device-all', base_directory,
