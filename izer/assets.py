@@ -18,6 +18,7 @@ from pathlib import Path
 from . import state
 from . import tornadocnn as tc
 from . import utils
+from . import hashing
 
 
 def copy(
@@ -251,7 +252,8 @@ def vscode(
                         replace("##__MAKE_PATH__##", make_path)
 
                 write = True
-                if out_file.exists() and (not overwrite or utils.compare_content(content, out_file)):
+                if out_file.exists() and \
+                (not overwrite or hashing.compare_content(content, out_file)):
                     write = False
 
                 if write:
@@ -390,7 +392,8 @@ def write_mapping(template_file: Path, out_path: Path, mapping: MakefileMapping,
         out_file.parent.mkdir()
 
     write = True
-    if out_file.exists() and (not overwrite or utils.compare_content(template, out_file)):
+    if out_file.exists() and \
+        (not overwrite or hashing.compare_content(template, out_file)):
         # Don't write the file content is exactly the same,
         # or if overwrite is not specified but the file exists.
         write = False
