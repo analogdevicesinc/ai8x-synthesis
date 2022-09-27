@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 from tempfile import TemporaryFile
 
+
 def hash_sha1(val):
     """
     Return the SHA1 has of a sequence of bytes
@@ -63,6 +64,6 @@ def compare_content(content: str, file: Path) -> bool:
     tmp.write(content)
 
     match = (hash_file(file) == hash_file(tmp))
-    
+
     tmp.close()
     return match

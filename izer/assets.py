@@ -15,10 +15,8 @@ import stat
 from collections.abc import MutableMapping
 from pathlib import Path
 
-from . import state
+from . import hashing, state
 from . import tornadocnn as tc
-from . import utils
-from . import hashing
 
 
 def copy(
@@ -253,7 +251,7 @@ def vscode(
 
                 write = True
                 if out_file.exists() and \
-                (not overwrite or hashing.compare_content(content, out_file)):
+                        (not overwrite or hashing.compare_content(content, out_file)):
                     write = False
 
                 if write:
@@ -272,7 +270,8 @@ def vscode(
 
                 write = True
                 if out_file.exists():
-                    if not overwrite or (utils.hash_file(in_file) == utils.hash_file(out_file)):
+                    if not overwrite or \
+                            (hashing.hash_file(in_file) == hashing.hash_file(out_file)):
                         write = False
 
                 if write:
@@ -393,7 +392,7 @@ def write_mapping(template_file: Path, out_path: Path, mapping: MakefileMapping,
 
     write = True
     if out_file.exists() and \
-        (not overwrite or hashing.compare_content(template, out_file)):
+            (not overwrite or hashing.compare_content(template, out_file)):
         # Don't write the file content is exactly the same,
         # or if overwrite is not specified but the file exists.
         write = False
