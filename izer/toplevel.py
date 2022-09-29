@@ -310,11 +310,15 @@ def main(
         write_ml_data(memfile, output_width)
         memfile.write('\n')
 
-    if arm_code_wrapper and (embedded_arm or tc.dev.MODERN_SIM):
+    if arm_code_wrapper:
         if not state.wfi:
             memfile.write('static volatile int riscv_done;\n\n')
         function_header(memfile, prefix='', function='WakeISR', return_type='void')
-        memfile.write('  MXC_SEMA->irq0 = MXC_F_SEMA_IRQ0_EN & ~MXC_F_SEMA_IRQ0_CM4_IRQ;\n')
+        if embedded_arm or tc.dev.MODERN_SIM:
+            memfile.write('  MXC_SEMA->irq0 = MXC_F_SEMA_IRQ0_EN & ~MXC_F_SEMA_IRQ0_CM4_IRQ;\n')
+        else:
+            memfile.write('  MXC_SEMA->irqr0 = MXC_S_SEMA_IRQR_IRQEN_EN | '
+                          'MXC_S_SEMA_IRQR_IRQ_CLR;\n')
         if not state.wfi:
             memfile.write('  riscv_done = 1;\n')
         function_footer(memfile, return_value='void')  # WakeISR()
@@ -454,8 +458,11 @@ def main(
                                   '// Exclusive SRAM access for RISC-V (MXC_NBBFC->reg5)\n')
             if embedded_code or embedded_arm or tc.dev.MODERN_SIM:
                 memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_SMPHR); '
-                              '// Enable Sempahore clock\n'
-                              '  MXC_NVIC_SetVector(RISCV_IRQn, WakeISR); // Set wakeup ISR\n')
+                              '// Enable Sempahore clock\n')
+                if not tc.dev.MODERN_SIM:
+                    memfile.write('  MXC_NVIC_SetVector(RISCV_IRQn, WakeISR); // Set wakeup ISR\n')
+                else:
+                    memfile.write('  NVIC_SetVector(RISCV_IRQn, WakeISR); // Set wakeup ISR\n')
                 if (embedded_code or embedded_arm) and debugwait:
                     memfile.write('\n  // DO NOT DELETE THIS LINE:\n'
                                   f'  MXC_Delay(SEC({debugwait})); '
@@ -463,7 +470,8 @@ def main(
                 memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CPU1); '
                               '// Enable RISC-V clock\n')
             else:
-                memfile.write('  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_CPU1; '
+                memfile.write('  NVIC_SetVector(RISCV_IRQn, WakeISR); // Set wakeup ISR\n'
+                              '  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_CPU1; '
                               '// Enable RISC-V clock\n')
         else:
             if (embedded_code or embedded_arm) and debugwait:
@@ -579,8 +587,12 @@ def main(
                         '// Enable CNN clock\n\n')
 
             if not riscv:
-                mfile.write('  MXC_NVIC_SetVector(CNN_IRQn, CNN_ISR); '
-                            '// Set CNN complete vector\n')
+                if not tc.dev.MODERN_SIM:
+                    mfile.write('  MXC_NVIC_SetVector(CNN_IRQn, CNN_ISR); '
+                                '// Set CNN complete vector\n')
+                else:
+                    mfile.write('  NVIC_SetVector(CNN_IRQn, CNN_ISR); '
+                                '// Set CNN complete vector\n')
             else:
                 mfile.write('  // Set CNN complete vector\n'
                             '  __enable_irq();\n'
@@ -855,6 +867,10 @@ def main(
         elif embedded_code or tc.dev.MODERN_SIM:
             memfile.write('\n  // Signal the Cortex-M4\n'
                           '  MXC_SEMA->irq0 = MXC_F_SEMA_IRQ0_EN | MXC_F_SEMA_IRQ0_CM4_IRQ;\n')
+        else:
+            memfile.write('\n  // Signal the Cortex-M4\n'
+                          '  MXC_SEMA->irqr0 = MXC_S_SEMA_IRQR_IRQEN_EN | '
+                          'MXC_S_SEMA_IRQR_IRQ_SET;\n')
 
     if not embedded_code and not embedded_arm:
         memfile.write('\n  pass();')
