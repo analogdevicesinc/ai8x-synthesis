@@ -2763,6 +2763,11 @@ class Backend(backend.Backend):
                             // (in_expand[ll] * hw_pooled_dim[ll][0] * hw_pooled_dim[ll][1])
                         hw_out_dim = (hw_output_dim[ll][0] * hw_pooled_dim[ll][0],
                                       hw_output_dim[ll][1] * hw_pooled_dim[ll][1])
+                    if tc.dev.REQUIRE_2X_MP_PASSTHROUGH and hw_operator[ll] == op.NONE \
+                       and out_expand[ll] > 1 and (pool[ll][0] > 1 or pool[ll][1] > 1):
+                        multipass = 2 * in_expand[ll] - 1
+                    else:
+                        multipass = in_expand[ll]
                     layer_lat, layer_comment = latency.calculate(
                         input_chan=hw_in_chan,
                         input_dim=hw_in_dim,
@@ -2771,7 +2776,7 @@ class Backend(backend.Backend):
                         pooled_dim=hw_pooled_dim[ll] if operator[ll] != op.CONVTRANSPOSE2D
                         else (hw_pooled_dim[ll][0] * stride[ll][0],
                               hw_pooled_dim[ll][1] * stride[ll][1]),
-                        multipass=in_expand[ll],
+                        multipass=multipass,
                         output_chan=hw_out_chan if hw_operator[ll] != op.NONE else output_chan[ll],
                         output_dim=hw_out_dim,
                         kernel_size=hw_kernel_size[ll],
