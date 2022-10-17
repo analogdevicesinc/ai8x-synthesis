@@ -200,8 +200,9 @@ def header(
         addr = state.apb_base + tc.ctl_addr(master, tc.dev.REG_CTL)
 
         function_header(memfile, function='continue')
-        memfile.write('  cnn_time = 0;\n\n'
-                      f'  *((volatile uint32_t *) 0x{addr:08x}) |= 1; '
+        if embedded_code or tc.dev.MODERN_SIM:
+            memfile.write('  cnn_time = 0;\n\n')
+        memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) |= 1; '
                       f'// Re-enable quadrant {master}\n')
         function_footer(memfile)  # continue()
 
@@ -328,8 +329,11 @@ def main(
         function_header(memfile, prefix='', function='_MXC_LP_ClearWakeStatus', return_type='void')
         memfile.write('  /* Write 1 to clear */\n'
                       '  MXC_PWRSEQ->lpwkst0 = 0xFFFFFFFF;\n'
-                      '  MXC_PWRSEQ->lpwkst1 = 0xFFFFFFFF;\n'
-                      '  MXC_PWRSEQ->lppwst  = 0xFFFFFFFF;\n')
+                      '  MXC_PWRSEQ->lpwkst1 = 0xFFFFFFFF;\n')
+        if embedded_code or tc.dev.MODERN_SIM:
+            memfile.write('  MXC_PWRSEQ->lppwst  = 0xFFFFFFFF;\n')
+        else:
+            memfile.write('  MXC_PWRSEQ->lpwkst  = 0xFFFFFFFF;\n')
         function_footer(memfile, return_value='void')  # _MXC_LP_ClearWakeStatus
 
     function_header(memfile, prefix='', function='main')
@@ -470,7 +474,9 @@ def main(
                 memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CPU1); '
                               '// Enable RISC-V clock\n')
             else:
-                memfile.write('  NVIC_SetVector(RISCV_IRQn, WakeISR); // Set wakeup ISR\n'
+                memfile.write('  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_SMPHRD; '
+                              '// Clear semaphore disable\n'
+                              '  NVIC_SetVector(RV32_IRQn, WakeISR); // Set wakeup ISR\n'
                               '  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_CPU1; '
                               '// Enable RISC-V clock\n')
         else:

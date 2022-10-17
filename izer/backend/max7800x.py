@@ -2030,7 +2030,8 @@ class Backend(backend.Backend):
                                     stream_start = hw_input_dim[ll][0] * hw_input_dim[ll][1]
                                     if big_data[ll]:
                                         stream_start = (stream_start + 3) // 4
-                                stream_start *= pool[ll][0]
+                                if override_start is None:
+                                    stream_start *= pool[ll][0]
 
                                 if streaming[ll]:
                                     # Delta 1: This layer's pooling stride
