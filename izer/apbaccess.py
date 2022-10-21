@@ -1350,6 +1350,7 @@ class APBTopLevel(APB):
             output_width=self.output_width,
             bias=self.bias,
             oneshot=self.oneshot,
+            name=self.test_name,
         )
 
     def softmax_layer(

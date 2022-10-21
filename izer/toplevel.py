@@ -275,6 +275,7 @@ def main(
         bias: bool = False,
         load_kernels: bool = True,
         oneshot: int = 0,
+        name: str = '',
 ) -> None:
     """
     Write the main function to `memfile`.
@@ -638,7 +639,7 @@ def main(
             memfile.write('\n')
 
         if embedded_code:
-            memfile.write('  printf("\\n*** CNN Inference Test ***\\n");\n\n')
+            memfile.write(f'  printf("\\n*** CNN Inference Test {name} ***\\n");\n\n')
             if not state.zero_sram:
                 memfile.write('  cnn_init(); // Bring state machine into consistent state\n')
             else:
