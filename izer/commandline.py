@@ -349,7 +349,7 @@ def get_parser() -> argparse.Namespace:
                        help="set base directory name for auto-filing .mem files")
     group.add_argument('--top-level', default='cnn', metavar='S',
                        help="top level name (default: 'cnn', 'None' for block level)")
-    group.add_argument('--queue-name', default='short', metavar='S',
+    group.add_argument('--queue-name', default=None, metavar='S',
                        help="queue name (default: 'short')")
     group.add_argument('--timeout', type=int, metavar='N',
                        help="set RTL sim timeout (units of 1ms, default based on test)")

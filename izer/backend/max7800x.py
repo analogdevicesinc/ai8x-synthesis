@@ -3193,10 +3193,10 @@ class Backend(backend.Backend):
                 memfile.close()
 
         # ----------------------------------------------------------------------------------------
+        total = 0
+        lat_unknown = False
         if verbose and tc.dev.SUPPORT_LATENCY_CALC:
             print('ESTIMATED LATENCY')
-            total = 0
-            lat_unknown = False
             for layer_lat, layer_name, layer_comment in latency_data:
                 total += layer_lat
                 if layer_lat > 0:
@@ -3268,10 +3268,18 @@ class Backend(backend.Backend):
         # Create run_test.sv
         if not embedded_code and not block_mode:
             if not timeout:
-                # If no timeout specified, calculate one based on reads/writes
-                timeout = 10 * (apb.get_time() + rtlsim.GLOBAL_TIME_OFFSET)
+                if total > 0:
+                    # Use cycle count if we have it: ~ 50 * 10-^9 * cycles * 1.25 (or 1.5)
+                    if lat_unknown:
+                        timeout = total * 75 // 1000000
+                    else:
+                        timeout = total * 63 // 1000000
+                else:
+                    # If no timeout specified, calculate one based on reads/writes
+                    timeout = 10 * (apb.get_time() + rtlsim.GLOBAL_TIME_OFFSET)
                 if zero_sram:
                     timeout += 16
+                state.timeout = timeout
             rtlsim.create_runtest_sv(
                 test_name,
                 timeout,

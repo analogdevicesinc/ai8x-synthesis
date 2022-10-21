@@ -302,6 +302,8 @@ def append_regression(
     `top_level` indicates whether to insert another directory level into the output
     path..
     """
+    if queue_name is None:
+        queue_name = 'long' if state.timeout > 50 else 'short'
 
     # Append to regression list?
     if not top_level:
