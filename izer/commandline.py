@@ -159,6 +159,8 @@ def get_parser() -> argparse.Namespace:
     group.add_argument('--output-width', type=int, default=None,
                        choices=[8, 32],
                        help="override `output_width` for the final layer (default: use YAML)")
+    group.add_argument('--no-deduplicate-weights', action='store_true', default=False,
+                       help="do not reuse weights (default: enabled)")
 
     # File names
     group = parser.add_argument_group('File names')
@@ -635,6 +637,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.mlator_warning = not args.ignore_mlator_warning
     state.narrow_chunk = args.unroll_8bit
     state.new_kernel_loader = args.new_kernel_loader
+    state.deduplicate_weights = not args.no_deduplicate_weights
     state.no_error_stop = args.no_error_stop
     state.oneshot = args.one_shot
     state.output_filename = args.output_filename

@@ -42,6 +42,7 @@ debug_new_streaming: bool = False
 debug_snoop: bool = False
 debug_wait: int = 1
 debug: bool = False
+deduplicate_weights: bool = True
 defines_arm: str = ''
 defines_riscv: str = ''
 defines: str = ''

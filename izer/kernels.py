@@ -8,12 +8,15 @@
 Kernel related functions
 """
 import sys
+from typing import List, Optional, Tuple
 
 import numpy as np
 
+import xxhash
+
 from . import console, op, rv, state
 from . import tornadocnn as tc
-from .eprint import eprint, eprint_noprefix, wprint
+from .eprint import eprint, eprint_noprefix, nprint, wprint
 from .names import layer_pfx
 from .utils import ffs, fls, popcount
 
@@ -134,7 +137,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     with console.Progress(start=True) as progress:
         task0 = progress.add_task(description='Arranging weights...', total=layers-start_layer)
         for ll in range(start_layer, layers):
-            if operator[ll] == op.NONE or bypass[ll]:
+            if operator[ll] == op.NONE or bypass[ll] or kernel[ll] is None:
                 assert kern_len[ll] == 0
                 assert kern_offs[ll] == start_offs
                 progress.advance(task0)
@@ -894,3 +897,88 @@ def calcx4_index(k):
     k = (k % 4) * ((tc.dev.MASK_WIDTH_LARGE - tc.dev.MASK_WIDTH_SMALL) // 4) \
         + k // 4
     return k + tc.dev.MASK_WIDTH_SMALL
+
+
+def deduplicate(
+        weights_in: List[np.ndarray],
+        layers: int,
+        quantization: List[int],
+        processor_map: List[int],
+) -> Tuple[List[int], List[Optional[np.ndarray]]]:
+    """
+    Remove duplicates from weights and return list of pointers, and the deduplicated weights
+    """
+    weights_out: List[Optional[np.ndarray]] = []
+    weight_hash: List[Optional[int]] = []
+    weight_ptrs: List[int] = []
+    h3 = xxhash.xxh3_128()
+    n: int = 0
+
+    for ll, w in enumerate(weights_in):
+        if w is None or ll >= layers:  # Empty or past the weights we need
+            weight_hash.append(None)
+            weight_ptrs.append(-1 if w is None else ll)
+            weights_out.append(w)
+            continue
+
+        # In order to deduplicate, the contents must be the same, and the shape, as well
+        # as quantization and processor_map. Contents are first checked using a hash; if the
+        # hash matches, a full compare is done.
+
+        # Generate hash
+        h3.reset()
+        h3.update(w)
+        w_hash: int = h3.intdigest()
+
+        duplicate: bool = False
+        duplicate_idx: int = -1
+        if w_hash in weight_hash:  # OK to use slow operator (max array length is 128)
+            if state.debug:
+                nprint(ll, 'FOUND hash in existing')
+            # Check for collisions (hash matches, but other properties don't)
+            for i, wh in enumerate(weight_hash):
+                if wh == w_hash:
+                    if state.debug:
+                        nprint(ll, 'FOUND hash at index', i, wh)
+                    assert weights_out[i] is not None
+                    if w.shape != weights_in[weight_ptrs[i]].shape:
+                        if state.debug:
+                            nprint('Layer', ll, 'has different shape than layer',
+                                   weight_ptrs[i], ':', w.shape, weights_in[weight_ptrs[i]].shape)
+                    elif quantization[ll] != quantization[weight_ptrs[i]]:
+                        if state.debug:
+                            nprint('Layer', ll, 'has different quantization than layer',
+                                   weight_ptrs[i])
+                    elif processor_map[ll] != processor_map[weight_ptrs[i]]:
+                        if state.debug:
+                            nprint('Layer', ll, 'has different processor_map than layer',
+                                   weight_ptrs[i])
+                    elif not np.array_equal(weights_out[i], w):  # type: ignore
+                        if state.debug:
+                            nprint(ll, 'COLLISION for this hash, continuing to check')
+                    else:
+                        if state.debug:
+                            nprint(ll, 'REMOVING DUPLICATE WEIGHT')
+                        duplicate_idx = i
+                        duplicate = True
+                        break
+
+        i = len(weights_out)
+        if not duplicate:
+            if state.debug:
+                nprint(ll, 'STORING', w_hash)
+            weight_hash.append(w_hash)
+            weight_ptrs.append(i)
+            weights_out.append(w)
+        else:
+            if state.debug:
+                nprint(ll, 'DUPLICATE weight, storing pointer to', duplicate_idx)
+            weight_hash.append(None)
+            weight_ptrs.append(duplicate_idx)
+            weights_out.append(None)
+            n += 1
+
+    if n > 0 and state.verbose:
+        nprint(f'Deduplication eliminated weights for {n} layers')
+
+    return weight_ptrs, weights_out

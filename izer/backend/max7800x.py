@@ -761,6 +761,20 @@ class Backend(backend.Backend):
                            'processors that have no data from any of the input sequences '
                            f'{in_sequences[ll]}.')
 
+        # Deduplicate kernels
+        # Do this here since by now all modifications to the kernels have happened
+        kernel_ptrs: List[int] = []  # Indirection for hw_kernel
+        if state.deduplicate_weights:
+            kernel_ptrs, hw_kernel = kernels.deduplicate(
+                hw_kernel,
+                layers,
+                quantization,
+                processor_map,
+            )
+        else:
+            kernel_ptrs = list(range(len(hw_kernel)))
+        state.weights = hw_kernel
+
         # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
         test_name = prefix
         if not embedded_code:
@@ -1111,7 +1125,7 @@ class Backend(backend.Backend):
                 )
             if not block_mode and (embedded_code or compact_weights):
                 # Pre-define the kernels and bias values
-                kern_offs, kern_len, kern_count, kern_ochan = kernels.load(
+                hw_kern_offs, hw_kern_len, hw_kern_count, hw_kern_ochan = kernels.load(
                     True,
                     apb,
                     layers,
@@ -1286,7 +1300,7 @@ class Backend(backend.Backend):
             apb.function_footer()
 
             if block_mode or not (embedded_code or compact_weights):
-                kern_offs, kern_len, kern_count, kern_ochan = kernels.load(
+                hw_kern_offs, hw_kern_len, hw_kern_count, hw_kern_ochan = kernels.load(
                     embedded_code,
                     apb,
                     layers,
@@ -1324,6 +1338,18 @@ class Backend(backend.Backend):
                     list(set().union(groups_used)),
                     flatten,
                 )
+
+            kern_offs = np.zeros((layers), dtype=np.int64)
+            kern_len = np.zeros((layers), dtype=np.int64)
+            kern_count = np.zeros((layers), dtype=np.int64)
+            kern_ochan = np.zeros((layers), dtype=np.int64)
+            for i, e in enumerate(kernel_ptrs):
+                if i >= layers:
+                    break
+                kern_offs[i] = hw_kern_offs[e]
+                kern_len[i] = hw_kern_len[e]
+                kern_count[i] = hw_kern_count[e]
+                kern_ochan[i] = hw_kern_ochan[e]
 
             if verbose:
                 print('\nGlobal configuration:')
@@ -2921,7 +2947,7 @@ class Backend(backend.Backend):
                             )
 
                     if not bypass[ll]:
-                        k = kernel[ll].reshape(
+                        k = kernel[kernel_ptrs[ll]].reshape(
                                 output_chan[ll],
                                 in_chan // conv_groups[ll],
                                 kernel_size[ll][0],
@@ -2953,7 +2979,7 @@ class Backend(backend.Backend):
                     )
                 elif operator[ll] == op.CONVTRANSPOSE2D:
                     if not bypass[ll]:
-                        k = kernel[ll].reshape(
+                        k = kernel[kernel_ptrs[ll]].reshape(
                                 output_chan[ll],
                                 in_chan // conv_groups[ll],
                                 kernel_size[ll][0],
@@ -2986,7 +3012,7 @@ class Backend(backend.Backend):
                     )
                 elif operator[ll] == op.CONV1D:
                     if not bypass[ll]:
-                        k = kernel[ll].reshape(
+                        k = kernel[kernel_ptrs[ll]].reshape(
                                 output_chan[ll],
                                 input_chan[ll] // conv_groups[ll],
                                 kernel_size[ll][0],
