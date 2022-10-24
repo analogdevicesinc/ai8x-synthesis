@@ -3221,8 +3221,9 @@ class Backend(backend.Backend):
         # ----------------------------------------------------------------------------------------
         total = 0
         lat_unknown = False
-        if verbose and tc.dev.SUPPORT_LATENCY_CALC:
-            print('ESTIMATED LATENCY')
+        if tc.dev.SUPPORT_LATENCY_CALC:
+            if verbose:
+                print('ESTIMATED LATENCY')
             for layer_lat, layer_name, layer_comment in latency_data:
                 total += layer_lat
                 if layer_lat > 0:
@@ -3230,14 +3231,16 @@ class Backend(backend.Backend):
                 else:
                     layer_lat_str = '                 ?'
                     lat_unknown = True
-                print(f'{layer_name:9}{layer_lat_str}')
-                if state.debug_latency and layer_comment != '':
-                    print(f'\n{layer_comment}')
+                if verbose:
+                    print(f'{layer_name:9}{layer_lat_str}')
+                    if state.debug_latency and layer_comment != '':
+                        print(f'\n{layer_comment}')
             total_str = f'{total:22,}'
             if lat_unknown:
                 total_str += ' + ?'
-            print('                 ==========\n'
-                  f'Total{total_str} cycles\n')
+            if verbose:
+                print('                 ==========\n'
+                      f'Total{total_str} cycles\n')
 
             if not (embedded_code or block_mode or any(streaming)):
                 rtlsim.write_latency(
@@ -3300,6 +3303,7 @@ class Backend(backend.Backend):
                         timeout = total * 75 // 1000000
                     else:
                         timeout = total * 63 // 1000000
+                    timeout += 1  # Round up, also takes care of <1
                 else:
                     # If no timeout specified, calculate one based on reads/writes
                     timeout = 10 * (apb.get_time() + rtlsim.GLOBAL_TIME_OFFSET)
