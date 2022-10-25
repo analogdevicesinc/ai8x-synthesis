@@ -904,20 +904,20 @@ def deduplicate(
         layers: int,
         quantization: List[int],
         processor_map: List[int],
-) -> Tuple[List[int], List[Optional[np.ndarray]]]:
+) -> Tuple[List[Optional[int]], List[Optional[np.ndarray]]]:
     """
     Remove duplicates from weights and return list of pointers, and the deduplicated weights
     """
     weights_out: List[Optional[np.ndarray]] = []
     weight_hash: List[Optional[int]] = []
-    weight_ptrs: List[int] = []
+    weight_ptrs: List[Optional[int]] = []
     h3 = xxhash.xxh3_128()
     n: int = 0
 
     for ll, w in enumerate(weights_in):
         if w is None or ll >= layers:  # Empty or past the weights we need
             weight_hash.append(None)
-            weight_ptrs.append(-1 if w is None else ll)
+            weight_ptrs.append(None if w is None else ll)
             weights_out.append(w)
             continue
 
@@ -931,7 +931,7 @@ def deduplicate(
         w_hash: int = h3.intdigest()
 
         duplicate: bool = False
-        duplicate_idx: int = -1
+        duplicate_idx: Optional[int] = None
         if w_hash in weight_hash:  # OK to use slow operator (max array length is 128)
             if state.debug:
                 nprint(ll, 'FOUND hash in existing')
@@ -940,20 +940,23 @@ def deduplicate(
                 if wh == w_hash:
                     if state.debug:
                         nprint(ll, 'FOUND hash at index', i, wh)
-                    assert weights_out[i] is not None
-                    if w.shape != weights_in[weight_ptrs[i]].shape:
+                    weights_out_i = weights_out[i]
+                    assert weights_out_i is not None
+                    weight_ptrs_i = weight_ptrs[i]
+                    assert weight_ptrs_i is not None
+                    if w.shape != weights_in[weight_ptrs_i].shape:
                         if state.debug:
                             nprint('Layer', ll, 'has different shape than layer',
-                                   weight_ptrs[i], ':', w.shape, weights_in[weight_ptrs[i]].shape)
-                    elif quantization[ll] != quantization[weight_ptrs[i]]:
+                                   weight_ptrs_i, ':', w.shape, weights_in[weight_ptrs_i].shape)
+                    elif quantization[ll] != quantization[weight_ptrs_i]:
                         if state.debug:
                             nprint('Layer', ll, 'has different quantization than layer',
-                                   weight_ptrs[i])
-                    elif processor_map[ll] != processor_map[weight_ptrs[i]]:
+                                   weight_ptrs_i)
+                    elif processor_map[ll] != processor_map[weight_ptrs_i]:
                         if state.debug:
                             nprint('Layer', ll, 'has different processor_map than layer',
-                                   weight_ptrs[i])
-                    elif not np.array_equal(weights_out[i], w):  # type: ignore
+                                   weight_ptrs_i)
+                    elif not np.array_equal(weights_out_i, w):
                         if state.debug:
                             nprint(ll, 'COLLISION for this hash, continuing to check')
                     else:

@@ -7,12 +7,11 @@
 """
 Backend for MAX7800X embedded code generation and RTL simulations
 """
-from typing import List, Tuple
-
 import copy
 import hashlib
 import os
 import sys
+from typing import List, Tuple
 
 import numpy as np
 
@@ -1346,10 +1345,11 @@ class Backend(backend.Backend):
             for i, e in enumerate(kernel_ptrs):
                 if i >= layers:
                     break
-                kern_offs[i] = hw_kern_offs[e]
-                kern_len[i] = hw_kern_len[e]
-                kern_count[i] = hw_kern_count[e]
-                kern_ochan[i] = hw_kern_ochan[e]
+                if e is not None:
+                    kern_offs[i] = hw_kern_offs[e]
+                    kern_len[i] = hw_kern_len[e]
+                    kern_count[i] = hw_kern_count[e]
+                    kern_ochan[i] = hw_kern_ochan[e]
 
             if verbose:
                 print('\nGlobal configuration:')
