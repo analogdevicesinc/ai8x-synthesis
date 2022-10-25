@@ -18,7 +18,7 @@ from . import console, op, rv, state
 from . import tornadocnn as tc
 from .eprint import eprint, eprint_noprefix, nprint, wprint
 from .names import layer_pfx
-from .utils import ffs, fls, popcount
+from .utils import ffs, fls, plural, popcount
 
 _INVALID_VALUE = -(2**63)
 _WORDS_PER_KERNEL = 3
@@ -979,6 +979,6 @@ def deduplicate(
             n += 1
 
     if n > 0 and state.verbose:
-        nprint(f'Deduplication eliminated weights for {n} layers')
+        nprint(f'Deduplication eliminated weights for {n} {plural(n, "layer")}')
 
     return weight_ptrs, weights_out

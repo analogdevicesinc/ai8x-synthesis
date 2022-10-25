@@ -3303,7 +3303,7 @@ class Backend(backend.Backend):
                         timeout = total * 75 // 1000000
                     else:
                         timeout = total * 63 // 1000000
-                    timeout += 1  # Round up, also takes care of <1
+                    timeout += 3  # Round up, also takes care of <1
                 else:
                     # If no timeout specified, calculate one based on reads/writes
                     timeout = 10 * (apb.get_time() + rtlsim.GLOBAL_TIME_OFFSET)
