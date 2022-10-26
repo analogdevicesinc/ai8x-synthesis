@@ -7,7 +7,9 @@
 """
 Kernel related functions
 """
+import operator as opr
 import sys
+from functools import reduce
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -913,6 +915,7 @@ def deduplicate(
     weight_ptrs: List[Optional[int]] = []
     h3 = xxhash.xxh3_128()
     n: int = 0
+    saved_weight_bytes: int = 0
 
     for ll, w in enumerate(weights_in):
         if w is None or ll >= layers:  # Empty or past the weights we need
@@ -933,55 +936,35 @@ def deduplicate(
         duplicate: bool = False
         duplicate_idx: Optional[int] = None
         if w_hash in weight_hash:  # OK to use slow operator (max array length is 128)
-            if state.debug:
-                nprint(ll, 'FOUND hash in existing')
             # Check for collisions (hash matches, but other properties don't)
             for i, wh in enumerate(weight_hash):
                 if wh == w_hash:
-                    if state.debug:
-                        nprint(ll, 'FOUND hash at index', i, wh)
                     weights_out_i = weights_out[i]
                     assert weights_out_i is not None
                     weight_ptrs_i = weight_ptrs[i]
                     assert weight_ptrs_i is not None
-                    if w.shape != weights_in[weight_ptrs_i].shape:
-                        if state.debug:
-                            nprint('Layer', ll, 'has different shape than layer',
-                                   weight_ptrs_i, ':', w.shape, weights_in[weight_ptrs_i].shape)
-                    elif quantization[ll] != quantization[weight_ptrs_i]:
-                        if state.debug:
-                            nprint('Layer', ll, 'has different quantization than layer',
-                                   weight_ptrs_i)
-                    elif processor_map[ll] != processor_map[weight_ptrs_i]:
-                        if state.debug:
-                            nprint('Layer', ll, 'has different processor_map than layer',
-                                   weight_ptrs_i)
-                    elif not np.array_equal(weights_out_i, w):
-                        if state.debug:
-                            nprint(ll, 'COLLISION for this hash, continuing to check')
-                    else:
-                        if state.debug:
-                            nprint(ll, 'REMOVING DUPLICATE WEIGHT')
+                    if w.shape == weights_in[weight_ptrs_i].shape \
+                       and quantization[ll] == quantization[weight_ptrs_i] \
+                       and processor_map[ll] == processor_map[weight_ptrs_i] \
+                       and np.array_equal(weights_out_i, w):
                         duplicate_idx = i
                         duplicate = True
                         break
 
         i = len(weights_out)
         if not duplicate:
-            if state.debug:
-                nprint(ll, 'STORING', w_hash)
             weight_hash.append(w_hash)
             weight_ptrs.append(i)
             weights_out.append(w)
         else:
-            if state.debug:
-                nprint(ll, 'DUPLICATE weight, storing pointer to', duplicate_idx)
             weight_hash.append(None)
             weight_ptrs.append(duplicate_idx)
             weights_out.append(None)
             n += 1
+            saved_weight_bytes += reduce(opr.mul, w.shape) * abs(quantization[ll]) // 8
 
     if n > 0 and state.verbose:
-        nprint(f'Deduplication eliminated weights for {n} {plural(n, "layer")}')
+        nprint(f'Deduplication eliminated weights for {n} {plural(n, "layer")} '
+               f'({saved_weight_bytes:,} bytes)')
 
     return weight_ptrs, weights_out
