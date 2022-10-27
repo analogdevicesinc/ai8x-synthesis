@@ -7,20 +7,15 @@
 """
 Kernel related functions
 """
-import operator as opr
 import sys
-from functools import reduce
-from typing import List, Optional, Tuple
 
 import numpy as np
 
-import xxhash
-
 from . import console, op, rv, state
 from . import tornadocnn as tc
-from .eprint import eprint, eprint_noprefix, nprint, wprint
+from .eprint import eprint, eprint_noprefix, wprint
 from .names import layer_pfx
-from .utils import ffs, fls, plural, popcount
+from .utils import ffs, fls, popcount
 
 _INVALID_VALUE = -(2**63)
 _WORDS_PER_KERNEL = 3
@@ -899,72 +894,3 @@ def calcx4_index(k):
     k = (k % 4) * ((tc.dev.MASK_WIDTH_LARGE - tc.dev.MASK_WIDTH_SMALL) // 4) \
         + k // 4
     return k + tc.dev.MASK_WIDTH_SMALL
-
-
-def deduplicate(
-        weights_in: List[np.ndarray],
-        layers: int,
-        quantization: List[int],
-        processor_map: List[int],
-) -> Tuple[List[Optional[int]], List[Optional[np.ndarray]]]:
-    """
-    Remove duplicates from weights and return list of pointers, and the deduplicated weights
-    """
-    weights_out: List[Optional[np.ndarray]] = []
-    weight_hash: List[Optional[int]] = []
-    weight_ptrs: List[Optional[int]] = []
-    h3 = xxhash.xxh3_128()
-    n: int = 0
-    saved_weight_bytes: int = 0
-
-    for ll, w in enumerate(weights_in):
-        if w is None or ll >= layers:  # Empty or past the weights we need
-            weight_hash.append(None)
-            weight_ptrs.append(None if w is None else ll)
-            weights_out.append(w)
-            continue
-
-        # In order to deduplicate, the contents must be the same, and the shape, as well
-        # as quantization and processor_map. Contents are first checked using a hash; if the
-        # hash matches, a full compare is done.
-
-        # Generate hash
-        h3.reset()
-        h3.update(w)
-        w_hash: int = h3.intdigest()
-
-        duplicate: bool = False
-        duplicate_idx: Optional[int] = None
-        if w_hash in weight_hash:  # OK to use slow operator (max array length is 128)
-            # Check for collisions (hash matches, but other properties don't)
-            for i, wh in enumerate(weight_hash):
-                if wh == w_hash:
-                    weights_out_i = weights_out[i]
-                    assert weights_out_i is not None
-                    weight_ptrs_i = weight_ptrs[i]
-                    assert weight_ptrs_i is not None
-                    if w.shape == weights_in[weight_ptrs_i].shape \
-                       and quantization[ll] == quantization[weight_ptrs_i] \
-                       and processor_map[ll] == processor_map[weight_ptrs_i] \
-                       and np.array_equal(weights_out_i, w):
-                        duplicate_idx = i
-                        duplicate = True
-                        break
-
-        i = len(weights_out)
-        if not duplicate:
-            weight_hash.append(w_hash)
-            weight_ptrs.append(i)
-            weights_out.append(w)
-        else:
-            weight_hash.append(None)
-            weight_ptrs.append(duplicate_idx)
-            weights_out.append(None)
-            n += 1
-            saved_weight_bytes += reduce(opr.mul, w.shape) * abs(quantization[ll]) // 8
-
-    if n > 0 and state.verbose:
-        nprint(f'Deduplication eliminated weights for {n} {plural(n, "layer")} '
-               f'({saved_weight_bytes:,} bytes)')
-
-    return weight_ptrs, weights_out

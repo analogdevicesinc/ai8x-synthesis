@@ -15,8 +15,8 @@ from typing import List, Tuple
 
 import numpy as np
 
-from izer import (apbaccess, assets, compute, console, datamem, kbias, kernels, latency, load, op,
-                  rtlsim, state, stats)
+from izer import (apbaccess, assets, compute, console, datamem, kbias, kdedup, kernels, latency,
+                  load, op, rtlsim, state, stats)
 from izer import tornadocnn as tc
 from izer.eprint import eprint, nprint, wprint
 from izer.names import layer_pfx, layer_str
@@ -763,16 +763,27 @@ class Backend(backend.Backend):
         # Deduplicate kernels
         # Do this here since by now all modifications to the kernels have happened
         kernel_ptrs: List[int] = []  # Indirection for hw_kernel
+        bias_ptrs: List[int] = []
         if state.deduplicate_weights:
-            kernel_ptrs, hw_kernel = kernels.deduplicate(
+            kernel_ptrs, hw_kernel = kdedup.deduplicate(
                 hw_kernel,
                 layers,
                 quantization,
                 processor_map,
+                kind='kernels',
+            )
+            bias_ptrs, bias = kdedup.deduplicate(
+                bias,
+                layers,
+                quantization,
+                processor_map,
+                kind='bias',
             )
         else:
             kernel_ptrs = list(range(len(hw_kernel)))
+            bias_ptrs = list(range(len(bias)))
         state.weights = hw_kernel
+        state.bias = bias
 
         # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
         test_name = prefix
@@ -1145,7 +1156,7 @@ class Backend(backend.Backend):
                     verify_kernels,
                     api=embedded_code,
                 )
-                bias_offs, bias_group, group_bias_max = kbias.load(
+                hw_bias_offs, hw_bias_group, group_bias_max = kbias.load(
                     True,
                     apb,
                     layers,
@@ -1319,7 +1330,7 @@ class Backend(backend.Backend):
                     flatten,
                     verify_kernels,
                 )
-                bias_offs, bias_group, group_bias_max = kbias.load(
+                hw_bias_offs, hw_bias_group, group_bias_max = kbias.load(
                     embedded_code,
                     apb,
                     layers,
@@ -1342,6 +1353,8 @@ class Backend(backend.Backend):
             kern_len = np.zeros((layers), dtype=np.int64)
             kern_count = np.zeros((layers), dtype=np.int64)
             kern_ochan = np.zeros((layers), dtype=np.int64)
+            bias_offs = [[None] * tc.dev.P_NUMGROUPS for _ in range(layers)]
+            bias_group = [None] * layers
             for i, e in enumerate(kernel_ptrs):
                 if i >= layers:
                     break
@@ -1350,6 +1363,16 @@ class Backend(backend.Backend):
                     kern_len[i] = hw_kern_len[e]
                     kern_count[i] = hw_kern_count[e]
                     kern_ochan[i] = hw_kern_ochan[e]
+                else:
+                    kernel_ptrs[i] = i
+            for i, e in enumerate(bias_ptrs):
+                if i >= layers:
+                    break
+                if e is not None:
+                    bias_offs[i] = hw_bias_offs[e]
+                    bias_group[i] = hw_bias_group[e]
+                else:
+                    bias_ptrs[i] = i
 
             if verbose:
                 print('\nGlobal configuration:')
@@ -2802,6 +2825,15 @@ class Backend(backend.Backend):
                         multipass = 2 * in_expand[ll] - 1
                     else:
                         multipass = in_expand[ll]
+                    if tc.dev.REQUIRE_MP_KERNOFF_MULTIWRITE \
+                       and (in_expand[ll] > 1 or operands[ll] > 1) \
+                       and kern_offs[ll] > 0 \
+                       and not pool_first[ll]:  # Implies pooling > [1, 1]
+                        nprint(f'Detected potential cycle count increase in layer {ll}, '
+                               f'in_expand {in_expand[ll]}, operands {operands[ll]}, '
+                               f'kern_offs 0x{kern_offs[ll]:04x}')
+                        nprint(f'Pooling {pool[ll]}, pad {hw_padding[ll]}, '
+                               f'pool_first {pool_first[ll]}')
                     layer_lat, layer_comment = latency.calculate(
                         input_chan=hw_in_chan,
                         input_dim=hw_in_dim,
@@ -2971,7 +3003,7 @@ class Backend(backend.Backend):
                         stride[ll],
                         activation[ll],
                         k,
-                        bias[ll],
+                        bias[bias_ptrs[ll]],
                         data,
                         output_width=output_width[ll],
                         groups=conv_groups[ll],
@@ -3004,7 +3036,7 @@ class Backend(backend.Backend):
                         output_padding[ll],
                         activation[ll],
                         k,
-                        bias[ll],
+                        bias[bias_ptrs[ll]],
                         data,
                         output_width=output_width[ll],
                         groups=conv_groups[ll],
@@ -3035,7 +3067,7 @@ class Backend(backend.Backend):
                         stride[ll][0],
                         activation[ll],
                         k,
-                        bias[ll],
+                        bias[bias_ptrs[ll]],
                         data,
                         output_width=output_width[ll],
                         groups=conv_groups[ll],
