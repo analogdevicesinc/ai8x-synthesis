@@ -594,7 +594,7 @@ def main(
                         '// Enable CNN clock\n\n')
 
             if not riscv:
-                if not tc.dev.MODERN_SIM:
+                if embedded_code:
                     mfile.write('  MXC_NVIC_SetVector(CNN_IRQn, CNN_ISR); '
                                 '// Set CNN complete vector\n')
                 else:

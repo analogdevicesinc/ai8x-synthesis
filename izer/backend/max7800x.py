@@ -2825,15 +2825,15 @@ class Backend(backend.Backend):
                         multipass = 2 * in_expand[ll] - 1
                     else:
                         multipass = in_expand[ll]
-                    if tc.dev.REQUIRE_MP_KERNOFF_MULTIWRITE \
-                       and (in_expand[ll] > 1 or operands[ll] > 1) \
-                       and kern_offs[ll] > 0 \
-                       and not pool_first[ll]:  # Implies pooling > [1, 1]
-                        nprint(f'Detected potential cycle count increase in layer {ll}, '
-                               f'in_expand {in_expand[ll]}, operands {operands[ll]}, '
-                               f'kern_offs 0x{kern_offs[ll]:04x}')
-                        nprint(f'Pooling {pool[ll]}, pad {hw_padding[ll]}, '
-                               f'pool_first {pool_first[ll]}')
+                    # if tc.dev.REQUIRE_MP_KERNOFF_MULTIWRITE \
+                    #    and (in_expand[ll] > 1 or operands[ll] > 1) \
+                    #    and kern_offs[ll] > 0 \
+                    #    and not pool_first[ll]:  # Implies pooling > [1, 1]
+                    #     nprint(f'Detected potential cycle count increase in layer {ll}, '
+                    #            f'in_expand {in_expand[ll]}, operands {operands[ll]}, '
+                    #            f'kern_offs 0x{kern_offs[ll]:04x}')
+                    #     nprint(f'Pooling {pool[ll]}, pad {hw_padding[ll]}, '
+                    #            f'pool_first {pool_first[ll]}')
                     layer_lat, layer_comment = latency.calculate(
                         input_chan=hw_in_chan,
                         input_dim=hw_in_dim,
