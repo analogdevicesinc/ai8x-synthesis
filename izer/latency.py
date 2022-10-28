@@ -9,6 +9,8 @@ Latency calculations
 """
 from typing import Tuple
 
+from izer import tornadocnn as tc
+
 
 def calculate(
         input_chan: int,
@@ -27,6 +29,7 @@ def calculate(
         pass_out_chan: int,
         flatten: bool,
         streaming: bool,
+        kern_offs: int,
 ) -> Tuple[int, str]:
     """
     Calculate the latency in cycles for a single layer with the arguments given.
@@ -72,6 +75,7 @@ def calculate(
         f'MeqOne{meq_one:21}\n' \
         f'FlattenAdj{flatten_adj:17}\n\n'
 
+    pre_read: int = 0
     # Input processing
     if pool_first:
         in_pad_mp: int = multipass * num_elements * (rd_state + tram_wrt)
@@ -80,7 +84,14 @@ def calculate(
 
         s += f'InPadMPPoolElt{in_pad_mp:13}\n' \
             f'InDatMPPoolElt{in_dat_mp:13}\n\n'
-    else:
+    else:  # Implies pooling > 1,1
+        assert tc.dev is not None
+        if tc.dev.REQUIRE_MP_KERNOFF_MULTIWRITE \
+           and (multipass > 1 or num_elements > 1):
+            pre_read = ((pooled_dim[0] + 2*row_pad - kern_cols + 1) * col_pad
+                        + (pooled_dim[1] + 2*col_pad - kern_rows + 1) * row_pad
+                        - row_pad * col_pad) * kern_offs
+            s += f'PreRead{pre_read:20}\n'
         in_pad_mp = multipass * (rd_state + tram_wrt)
         in_dat_mp = multipass * ((num_elements * rd_state * pool[0] * pool[1]) + tram_wrt)
         mp_multiplier = multipass
@@ -132,7 +143,7 @@ def calculate(
     if passthrough:
         total: int = img_pooled_rows * img_pooled_cols * (in_dat_mp + multipass * pass_out_chan)
     else:
-        total = flatten_adj + row_pad * inp_pad_row + \
+        total = flatten_adj + pre_read + row_pad * inp_pad_row + \
             ((kern_rows - 1 - row_pad) * inp_dat_row_no_conv) + \
             (inp_dat_row_conv + out_dat) * (img_pooled_rows - (kern_rows - 1 - row_pad)) + \
             row_pad * (inp_pad_bottom_row + out_dat)

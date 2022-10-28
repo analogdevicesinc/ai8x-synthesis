@@ -15,6 +15,7 @@ from typing import List, Tuple
 # Allow test to run outside of pytest
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
+import izer.tornadocnn as tc  # noqa: E402 pylint: disable=wrong-import-position
 from izer import latency  # noqa: E402 pylint: disable=wrong-import-position
 from izer import op  # noqa: E402 pylint: disable=wrong-import-position
 
@@ -103,6 +104,7 @@ def wrapper(
             pass_out_chan=timeslots[ll],
             flatten=flatten[ll],
             streaming=streaming[ll],
+            kern_offs=0,
         )
         total += lat
         print(f'Layer {ll} Detail:\n')
@@ -118,6 +120,8 @@ def test_cycles() -> None:
     """
     Main program to test layer cycle calculations
     """
+    tc.dev = tc.get_device(85)
+
     c = wrapper(
         input_chan=[64],
         input_dim=[(20, 20)],

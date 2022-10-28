@@ -2825,15 +2825,6 @@ class Backend(backend.Backend):
                         multipass = 2 * in_expand[ll] - 1
                     else:
                         multipass = in_expand[ll]
-                    # if tc.dev.REQUIRE_MP_KERNOFF_MULTIWRITE \
-                    #    and (in_expand[ll] > 1 or operands[ll] > 1) \
-                    #    and kern_offs[ll] > 0 \
-                    #    and not pool_first[ll]:  # Implies pooling > [1, 1]
-                    #     nprint(f'Detected potential cycle count increase in layer {ll}, '
-                    #            f'in_expand {in_expand[ll]}, operands {operands[ll]}, '
-                    #            f'kern_offs 0x{kern_offs[ll]:04x}')
-                    #     nprint(f'Pooling {pool[ll]}, pad {hw_padding[ll]}, '
-                    #            f'pool_first {pool_first[ll]}')
                     layer_lat, layer_comment = latency.calculate(
                         input_chan=hw_in_chan,
                         input_dim=hw_in_dim,
@@ -2853,6 +2844,7 @@ class Backend(backend.Backend):
                         pass_out_chan=timeslots[ll],
                         flatten=hw_flatten[ll],
                         streaming=streaming[ll],
+                        kern_offs=kern_offs[ll],
                     )
                     latency_data.append((layer_lat, f'Layer {layer_str(ll)}', layer_comment))
 
@@ -3341,6 +3333,7 @@ class Backend(backend.Backend):
                     timeout = 10 * (apb.get_time() + rtlsim.GLOBAL_TIME_OFFSET)
                 if zero_sram:
                     timeout += 16
+                timeout = max(10, timeout)  # at least 1.0ms
                 state.timeout = timeout
             rtlsim.create_runtest_sv(
                 test_name,
