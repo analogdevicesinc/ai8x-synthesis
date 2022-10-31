@@ -76,15 +76,16 @@ def process_four_channel_data_from_word(word_value):
     """
     For 8 bit outputs, izer combines 4 of them and places all into a single memory word.
     This function seperates out the 4 channels from a given word value.
+    word_value must be a hexadecimal string.
     """
 
-    ch0 = int(word_value, 16) & int('0x000000ff', 0)
+    ch0 = int(word_value, 16) & 0x000000ff
     ch0 = f'{ch0:>08b}'
-    ch1 = (int(word_value, 16) & int('0x0000ff00', 0)) >> 8
+    ch1 = (int(word_value, 16) & 0x0000ff00) >> 8
     ch1 = f'{ch1:>08b}'
-    ch2 = (int(word_value, 16) & int('0x00ff0000', 0)) >> 16
+    ch2 = (int(word_value, 16) & 0x00ff0000) >> 16
     ch2 = f'{ch2:>08b}'
-    ch3 = (int(word_value, 16) & int('0xff000000', 0)) >> 24
+    ch3 = (int(word_value, 16) & 0xff000000) >> 24
     ch3 = f'{ch3:>08b}'
 
     # From Q7 8 bits to float:
