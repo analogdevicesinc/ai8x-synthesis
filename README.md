@@ -1,6 +1,6 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-September 21, 2022
+October 31, 2022
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
@@ -2221,6 +2221,7 @@ The following table describes the most important command line arguments for `ai8
 | `--max-verify-length` | Instead of checking all of the expected output data, verify only the first N words | `--max-verify-length 1024` |
 | `--no-unload`            | Do not create the `cnn_unload()` function                    |                                 |
 | `--no-kat` | Do not generate the `check_output()` function (disable known-answer test) | |
+| `--no-deduplicate-weights` | Do not deduplicate weights and and bias values | |
 
 ### YAML Network Description
 
@@ -2655,6 +2656,13 @@ When specifying `output: true`, any layer (or a combination of layers) can be us
 
 Example:
         `output: true`
+
+##### `weight_source` (Optional)
+
+Certain networks share weights between layers. The tools automatically deduplicate weights and bias values (unless `--no-deduplicate-weights` is specified). When the checkpoint file does *not* contain duplicated weights, `weight_source: layer` is needed in the YAML configuration for the layer(s) that reuse(s) weights. `layer` can be specified as layer number or name.
+
+Example:
+        `weight_source: conv1p3`
 
 ##### Dropout and Batch Normalization
 
