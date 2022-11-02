@@ -326,11 +326,13 @@ def main(
         function_footer(memfile, return_value='void')  # WakeISR()
 
     # Add this to RTL simulations where it's missing from the SDK
-    if arm_code_wrapper and sleep and not embedded_code:
+    if arm_code_wrapper and sleep and not (embedded_code or embedded_arm):
         function_header(memfile, prefix='', function='_MXC_LP_ClearWakeStatus', return_type='void')
         memfile.write('  /* Write 1 to clear */\n'
                       '  MXC_PWRSEQ->lpwkst0 = 0xFFFFFFFF;\n'
-                      '  MXC_PWRSEQ->lpwkst1 = 0xFFFFFFFF;\n')
+                      '  MXC_PWRSEQ->lpwkst1 = 0xFFFFFFFF;\n'
+                      '  MXC_PWRSEQ->lpwkst2 = 0xFFFFFFFF;\n'
+                      '  MXC_PWRSEQ->lpwkst3 = 0xFFFFFFFF;\n')
         if embedded_code or tc.dev.MODERN_SIM:
             memfile.write('  MXC_PWRSEQ->lppwst  = 0xFFFFFFFF;\n')
         else:
@@ -477,7 +479,7 @@ def main(
             else:
                 memfile.write('  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_SMPHRD; '
                               '// Clear semaphore disable\n'
-                              '  NVIC_SetVector(RV32_IRQn, WakeISR); // Set wakeup ISR\n'
+                              '  MXC_NVIC_SetVector(RV32_IRQn, WakeISR); // Set wakeup ISR\n'
                               '  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_CPU1; '
                               '// Enable RISC-V clock\n')
         else:
@@ -861,16 +863,23 @@ def main(
 
     if riscv is not None:
         if not riscv:
-            if sleep:
-                if tc.dev.REQUIRE_SEMA_LPWKEN:
-                    memfile.write('  MXC_PWRSEQ->lppwen |= 0x400; // CPU1WKEN=1\n')
-                memfile.write(f'  {"_" if not embedded_code else ""}MXC_LP_ClearWakeStatus();\n'
-                              '  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=1\n')
-            if state.wfi:
-                memfile.write('  __WFI(); // Let RISC-V run\n')
+            if sleep and tc.dev.REQUIRE_SEMA_LPWKEN:
+                if not (embedded_code or embedded_arm or tc.dev.MODERN_SIM):
+                    memfile.write('  MXC_PWRSEQ->lpwken |= 0x400; // CPU1WKEN=1\n')
+                else:
+                    memfile.write('  MXC_PWRSEQ->lppwen |= MXC_F_PWRSEQ_LPPWEN_CPU1;\n')
+            if (embedded_code or embedded_arm) and state.wfi:
+                memfile.write(f'  MXC_LP_Enter{"LowPower" if sleep else "Sleep"}Mode();\n')
             else:
-                memfile.write('  riscv_done = 0;\n'
-                              '  while (riscv_done == 0); // Let RISC-V run\n')
+                if sleep:
+                    memfile.write(f'  {"_" if not (embedded_code or embedded_arm) else ""}'
+                                  'MXC_LP_ClearWakeStatus();\n'
+                                  '  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=1\n')
+                if state.wfi:
+                    memfile.write('  __WFI(); // Let RISC-V run\n')
+                else:
+                    memfile.write('  riscv_done = 0;\n'
+                                  '  while (riscv_done == 0); // Let RISC-V run\n')
         elif embedded_code or tc.dev.MODERN_SIM:
             memfile.write('\n  // Signal the Cortex-M4\n'
                           '  MXC_SEMA->irq0 = MXC_F_SEMA_IRQ0_EN | MXC_F_SEMA_IRQ0_CM4_IRQ;\n')
