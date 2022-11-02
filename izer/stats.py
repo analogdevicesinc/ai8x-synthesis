@@ -124,7 +124,7 @@ def summary(
                         for i, e in enumerate(weights[:len(w_size)]) if e is not None)
         rv += f"\n{sp}RESOURCE USAGE\n" \
               f'{sp}Weight memory: {kmem_used:,} bytes out of {kmem:,} bytes total ' \
-              f'({kmem_used * 100.0 / kmem:.0f}%)\n'
+              f'({kmem_used * 100.0 / kmem:.1f}%)\n'
 
         bmem = tc.dev.BIAS_SIZE * tc.dev.P_NUMGROUPS
         if group_bias_max is not None:
@@ -134,6 +134,6 @@ def summary(
         else:
             bmem_used = 0
         rv += f'{sp}Bias memory:   {bmem_used:,} bytes out of {bmem:,} bytes total ' \
-              f'({bmem_used * 100.0 / bmem:.0f}%)\n'
+              f'({bmem_used * 100.0 / bmem:.1f}%)\n'
 
     return rv
