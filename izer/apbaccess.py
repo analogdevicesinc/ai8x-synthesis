@@ -273,6 +273,22 @@ class APB():
         """
         return (WRITE_TIME_NS * self.writes + READ_TIME_NS * self.reads) // 1000000
 
+    def get_reads(
+            self,
+    ):
+        """
+        Return total number of bus reads
+        """
+        return self.reads
+
+    def get_writes(
+            self,
+    ):
+        """
+        Return total number of bus writes
+        """
+        return self.writes
+
     def write(
             self,
             addr,
@@ -830,6 +846,7 @@ class APB():
                     assert rv == rv_item
                     self.memfile.write(f'  if ((*((volatile uint32_t *) 0x{addr:08x}){mask_str})'
                                        f' != 0x{val:0{2*val_bytes}x}) {action}{comment}\n')
+                    self.reads += 1
             else:
                 # Output is sorted by mask. Group like masks together.
                 max_count = state.max_count

@@ -29,6 +29,12 @@ statsdict = {
     "true_sw_macc": [0],
 }
 
+resourcedict = {
+    "kmem_used": 0,  # Used kernel memory
+    "bmem_used": 0,  # Used bias memory
+    "input_size": 0,  # Sample input size
+}
+
 
 def get(layer, operation: str) -> int:
     """
@@ -122,6 +128,7 @@ def summary(
         kmem = sum(tc.dev.mask_width(proc) * 9 for proc in range(tc.dev.MAX_PROC))
         kmem_used = sum(reduce(operator.mul, e.shape) * abs(w_size[i]) // 8
                         for i, e in enumerate(weights[:len(w_size)]) if e is not None)
+        resourcedict['kmem_used'] = kmem_used
         rv += f"\n{sp}RESOURCE USAGE\n" \
               f'{sp}Weight memory: {kmem_used:,} bytes out of {kmem:,} bytes total ' \
               f'({kmem_used * 100.0 / kmem:.1f}%)\n'
@@ -133,6 +140,7 @@ def summary(
             bmem_used = sum(len(e) for e in bias if e is not None)
         else:
             bmem_used = 0
+        resourcedict['bmem_used'] = bmem_used
         rv += f'{sp}Bias memory:   {bmem_used:,} bytes out of {bmem:,} bytes total ' \
               f'({bmem_used * 100.0 / bmem:.1f}%)\n'
 

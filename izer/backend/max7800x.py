@@ -3320,26 +3320,13 @@ class Backend(backend.Backend):
 
         # Create run_test.sv
         if not embedded_code and not block_mode:
-            if not timeout:
-                if total > 0:
-                    # Use cycle count if we have it: ~ 50 * 10-^9 * cycles * 1.25 (or 1.5)
-                    if lat_unknown:
-                        timeout = total * 75 // 1000000
-                    else:
-                        timeout = total * 63 // 1000000
-                    timeout += 3  # Round up, also takes care of <1
-                else:
-                    # If no timeout specified, calculate one based on reads/writes
-                    timeout = 10 * (apb.get_time() + rtlsim.GLOBAL_TIME_OFFSET)
-                if zero_sram:
-                    timeout += 16
-                timeout = max(10, timeout)  # at least 1.0ms
-                state.timeout = timeout
             rtlsim.create_runtest_sv(
                 test_name,
                 timeout,
-                riscv=riscv,
                 groups_used=groups_used,
+                cnn_cycles=total,
+                lat_unknown=lat_unknown,
+                apb=apb,
             )
             assets.copy('assets', 'rtlsim-ai' + str(device), base_directory, test_name)
             if riscv_cache:

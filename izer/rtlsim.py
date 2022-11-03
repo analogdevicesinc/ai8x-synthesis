@@ -10,17 +10,74 @@ RTL simulation support routines
 import os
 from typing import List, Optional
 
-from . import state
+from . import apbaccess, state, stats
 from . import tornadocnn as tc
 
+MIN_SIMULATION_TIMEOUT = 10  # ms
+
+CYCLES_TO_TIME = 63  # ~ 50 * 1.25
+CYCLES_TO_TIME_UNKNOWN = 75  # 50 * 1.5
+
 GLOBAL_TIME_OFFSET = 3
+ARM_MEMORY_ACCESS = 500  # ns
+RISCV_MEMORY_ACCESS = 1000  # ns
+FIFO_ACCESS = 500  # ns
+GENERAL_OFFSET = 3000000  # ns
+ZERO_SRAM_OFFSET = 16000000  # ns
+NS_TO_MS = 1000000
+
+
+def calculate_timeout(
+        total: int,
+        lat_unknown: bool,
+        apb: apbaccess.APB,
+) -> int:
+    """
+    Estimate timeout based on CNN cycles, and memory/register read/write operations
+    """
+    # Times in ns
+    access_time = RISCV_MEMORY_ACCESS if state.riscv else ARM_MEMORY_ACCESS
+    if total > 0:
+        # Use cycle count if we have it
+        timeout = total * (CYCLES_TO_TIME_UNKNOWN if lat_unknown else CYCLES_TO_TIME)
+        # Add input FIFO times
+        if state.fifo or state.fast_fifo:
+            timeout += stats.resourcedict['input_size'] * FIFO_ACCESS
+        elif not state.rtl_preload:
+            timeout += stats.resourcedict['input_size'] * access_time
+        # Add memory read/write times
+        timeout += apb.get_reads() * access_time + apb.get_writes() * access_time
+        # General overhead
+        timeout += GENERAL_OFFSET
+    else:
+        # If no timeout specified, and no cycle count available,
+        # calculate timeout based on reads/writes
+        timeout = 10 * NS_TO_MS * (apb.get_time() + GLOBAL_TIME_OFFSET)
+
+    if state.zero_sram:
+        timeout += ZERO_SRAM_OFFSET
+    # Add weight and bias write times
+    if not state.rtl_preload_weights:
+        timeout += stats.resourcedict['kmem_used'] * access_time // 4
+    if state.verify_kernels:
+        access_factor = 6 if state.mexpress else 4  # Reading back more than we wrote?
+        timeout += stats.resourcedict['kmem_used'] * access_factor * access_time // 4
+
+    # Convert to ms
+    timeout //= NS_TO_MS
+    timeout = max(MIN_SIMULATION_TIMEOUT, timeout)
+
+    state.timeout = timeout
+    return timeout
 
 
 def create_runtest_sv(
         test_name: str,
         timeout: int,
-        riscv: bool = False,
         groups_used: Optional[List[int]] = None,
+        cnn_cycles: int = 0,
+        lat_unknown: bool = False,
+        apb: apbaccess.APB = None,
 ):
     """
     For for test `test_name`, create the runtest.sv file named `runtest_filename`, in the
@@ -28,9 +85,14 @@ def create_runtest_sv(
     If in `block_mode`, it will refer to the `input_filename`.
     """
     assert tc.dev is not None
+    assert apb is not None
+
+    if not timeout:
+        timeout = calculate_timeout(cnn_cycles, lat_unknown, apb)
 
     # Cache for faster access
     result_output = state.result_output
+    riscv = state.riscv
 
     with open(
         os.path.join(state.base_directory, test_name, state.runtest_filename),
