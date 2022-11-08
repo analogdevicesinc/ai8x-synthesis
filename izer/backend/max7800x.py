@@ -2298,6 +2298,8 @@ class Backend(backend.Backend):
 
                         assert stream_start < 2**tc.dev.MAX_ISVAL_BITS
                         val = stream_start
+                        if streaming[ll] and group == min(groups_used):
+                            state.stream_start.append(stream_start + 1)
                         if state.fifo_go and ll == start_layer:
                             val |= 1 << 25
                         apb.write_lreg(group, hw_layer, tc.dev.LREG_STREAM1, val,
@@ -2310,6 +2312,9 @@ class Backend(backend.Backend):
                             eprint(f'Layer {ll}: delta2 ({delta2}) exceeds device maximum '
                                    f'({2**tc.dev.MAX_DSVAL2_BITS}). Reduce pooling.')
                         val = delta2 << 16 | delta1 << 4 | invol
+                        if streaming[ll] and group == min(groups_used):
+                            state.delta1.append(delta1)
+                            state.delta2.append(delta2)
                         apb.write_lreg(group, hw_layer, tc.dev.LREG_STREAM2, val,
                                        comment=' // Stream processing delta')
 
@@ -2846,6 +2851,8 @@ class Backend(backend.Backend):
                         streaming=streaming[ll],
                         kern_offs=kern_offs[ll],
                     )
+                    if streaming[ll]:
+                        layer_lat *= -1
                     latency_data.append((layer_lat, f'Layer {layer_str(ll)}', layer_comment))
 
                 compute.debug_open(ll, base_directory, test_name, log_filename)
@@ -3249,22 +3256,21 @@ class Backend(backend.Backend):
             if verbose:
                 print('ESTIMATED LATENCY')
             for layer_lat, layer_name, layer_comment in latency_data:
-                total += layer_lat
-                if layer_lat > 0:
-                    layer_lat_str = f'{layer_lat:18,}'
-                else:
-                    layer_lat_str = '                 ?'
+                total += abs(layer_lat)
+                layer_lat_str = f'{abs(layer_lat):18,}'
+                if layer_lat <= 0:
                     lat_unknown = True
+                    layer_lat_str += ' (est)'
                 if verbose:
                     print(f'{layer_name:9}{layer_lat_str}')
                     if state.debug_latency and layer_comment != '':
                         print(f'\n{layer_comment}')
-            total_str = f'{total:22,}'
+            total_str = f'{total:22,} cycles'
             if lat_unknown:
-                total_str += ' + ?'
+                total_str += ' (est)'
             if verbose:
                 print('                 ==========\n'
-                      f'Total{total_str} cycles\n')
+                      f'Total{total_str}\n')
 
             if not (embedded_code or block_mode or any(streaming)):
                 rtlsim.write_latency(
@@ -3325,8 +3331,9 @@ class Backend(backend.Backend):
                 timeout,
                 groups_used=groups_used,
                 cnn_cycles=total,
-                lat_unknown=lat_unknown,
                 apb=apb,
+                input_dim=hw_input_dim,
+                in_expand=in_expand,
             )
             assets.copy('assets', 'rtlsim-ai' + str(device), base_directory, test_name)
             if riscv_cache:

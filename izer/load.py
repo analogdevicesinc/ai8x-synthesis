@@ -439,7 +439,7 @@ def loadfifo(
             if state.riscv_flash:
                 apb.output(rv.RISCV_FLASH)
             apb.output(f'static const uint32_t input_{c}[] = SAMPLE_INPUT_{c};\n')
-            apb.inc_writes(len(b))
+            apb.inc_writes(len(b), fifo=c, fifo_wait=state.fifo_wait)
 
         apb.function_header(dest='wrapper', prefix='', function='load_input',
                             return_type='void')

@@ -34,10 +34,6 @@ def calculate(
     """
     Calculate the latency in cycles for a single layer with the arguments given.
     """
-    # No support for estimating streaming latency yet
-    if streaming:
-        return (0, 'unknown (streaming)')
-
     # Input
     img_rows, img_cols = input_dim  # type: Tuple[int, int]
     pool_rows, pool_cols = pool  # type: Tuple[int, int]
@@ -148,6 +144,10 @@ def calculate(
             (inp_dat_row_conv + out_dat) * (img_pooled_rows - (kern_rows - 1 - row_pad)) + \
             row_pad * (inp_pad_bottom_row + out_dat)
 
-    s += f'Layer Subtotal{total:13}\n'
+    if not streaming:
+        s += f'Layer Subtotal{total:13}\n'
+    else:
+        total = (15 * total + 9) // 10  # 1.5x regular layer
+        s += f'Layer Subtotal{total:13} (streaming estimate)\n'
 
     return total, s

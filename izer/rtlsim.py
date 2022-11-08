@@ -8,20 +8,19 @@
 RTL simulation support routines
 """
 import os
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from . import apbaccess, state, stats
 from . import tornadocnn as tc
 
 MIN_SIMULATION_TIMEOUT = 10  # ms
 
-CYCLES_TO_TIME = 63  # ~ 50 * 1.25
-CYCLES_TO_TIME_UNKNOWN = 75  # 50 * 1.5
+NS_PER_CNN_CYCLE = 25  # 20 ns * 1.25
 
 GLOBAL_TIME_OFFSET = 3
-ARM_MEMORY_ACCESS = 500  # ns
-RISCV_MEMORY_ACCESS = 1000  # ns
-FIFO_ACCESS = 500  # ns
+ARM_APB_ACCESS = 500  # ns
+RISCV_APB_ACCESS = 1000  # ns
+RISCV_FASTFIFO_ACCESS = 100  # ns
 GENERAL_OFFSET = 3000000  # ns
 ZERO_SRAM_OFFSET = 16000000  # ns
 NS_TO_MS = 1000000
@@ -29,24 +28,43 @@ NS_TO_MS = 1000000
 
 def calculate_timeout(
         total: int,
-        lat_unknown: bool,
         apb: apbaccess.APB,
+        input_dim: Optional[List[Tuple[int, int]]],
+        in_expand:  Optional[List[int]],
 ) -> int:
     """
     Estimate timeout based on CNN cycles, and memory/register read/write operations
     """
+    assert input_dim is not None
+    assert in_expand is not None
     # Times in ns
-    access_time = RISCV_MEMORY_ACCESS if state.riscv else ARM_MEMORY_ACCESS
+    apb_access_time = RISCV_APB_ACCESS if state.riscv else ARM_APB_ACCESS
     if total > 0:
         # Use cycle count if we have it
-        timeout = total * (CYCLES_TO_TIME_UNKNOWN if lat_unknown else CYCLES_TO_TIME)
-        # Add input FIFO times
-        if state.fifo or state.fast_fifo:
-            timeout += stats.resourcedict['input_size'] * FIFO_ACCESS
-        elif not state.rtl_preload:
-            timeout += stats.resourcedict['input_size'] * access_time
-        # Add memory read/write times
-        timeout += apb.get_reads() * access_time + apb.get_writes() * access_time
+        timeout = total * NS_PER_CNN_CYCLE
+        reads, writes, fifo_reads, fifo_writes, fastfifo_reads, fastfifo_writes = \
+            apb.get_access_count()
+        timeout += (reads + writes) * apb_access_time
+        write_ratio = 1.
+        if fifo_writes > 0 or fastfifo_writes > 0:
+            for ll, delta1 in enumerate(state.delta1):
+                if ll > state.start_layer:
+                    # Discount FIFO reads by delta ratios -- some of the FIFO writes occur in
+                    # parallel to processing that's already accounted for (does not apply to
+                    # first layer, since everything needs to be popped)
+                    write_count = input_dim[ll][0] * input_dim[ll][1] * in_expand[ll]
+                    if delta1 != 0:
+                        ratio = 1 / delta1
+                    if state.delta2[ll] != 0:
+                        ratio *= state.delta2[ll] / input_dim[ll][0]
+                    if state.stream_start[ll] != 0:
+                        start = state.stream_start[ll]
+                        ratio = (start + ratio * (write_count - start)) / write_count
+                    write_ratio *= ratio
+
+            timeout += (fifo_reads + fifo_writes) * int(apb_access_time * write_ratio)
+            timeout += (fastfifo_reads + fastfifo_writes) \
+                * int(RISCV_FASTFIFO_ACCESS * write_ratio)
         # General overhead
         timeout += GENERAL_OFFSET
     else:
@@ -58,10 +76,10 @@ def calculate_timeout(
         timeout += ZERO_SRAM_OFFSET
     # Add weight and bias write times
     if not state.rtl_preload_weights:
-        timeout += stats.resourcedict['kmem_used'] * access_time // 4
+        timeout += stats.resourcedict['kmem_used'] * apb_access_time // 4
     if state.verify_kernels:
         access_factor = 6 if state.mexpress else 4  # Reading back more than we wrote?
-        timeout += stats.resourcedict['kmem_used'] * access_factor * access_time // 4
+        timeout += stats.resourcedict['kmem_used'] * access_factor * apb_access_time // 4
 
     # Convert to ms
     timeout //= NS_TO_MS
@@ -76,8 +94,9 @@ def create_runtest_sv(
         timeout: int,
         groups_used: Optional[List[int]] = None,
         cnn_cycles: int = 0,
-        lat_unknown: bool = False,
         apb: apbaccess.APB = None,
+        input_dim: Optional[List[Tuple[int, int]]] = None,
+        in_expand: Optional[List[int]] = None,
 ):
     """
     For for test `test_name`, create the runtest.sv file named `runtest_filename`, in the
@@ -88,7 +107,7 @@ def create_runtest_sv(
     assert apb is not None
 
     if not timeout:
-        timeout = calculate_timeout(cnn_cycles, lat_unknown, apb)
+        timeout = calculate_timeout(cnn_cycles, apb, input_dim, in_expand)
 
     # Cache for faster access
     result_output = state.result_output
