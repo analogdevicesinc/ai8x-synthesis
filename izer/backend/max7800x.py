@@ -2080,13 +2080,21 @@ class Backend(backend.Backend):
                                 if override_start is not None:
                                     stream_start = override_start
                                 elif streaming[ll]:
-                                    stream_start = (pool[ll][0] - 1) * hw_input_dim[ll][1] \
-                                        + pool[ll][1]
+                                    row_inc = max(pool[ll][0] * pool_dilation[ll][0],
+                                                  pool_stride[ll][0])
+                                    col_inc = max(pool[ll][1] * pool_dilation[ll][1],
+                                                  pool_stride[ll][1])
+                                    if pool_stride[ll][0] == 1 and pool[ll][0] == 1:
+                                        stream_start = col_inc
+                                    else:
+                                        stream_start = (
+                                            row_inc * (hw_input_dim[ll][1] + hw_padding[ll][1] * 2)
+                                            + (hw_padding[ll][1] + 2 * col_inc)
+                                        ) * operands[ll]
                                 else:
                                     stream_start = hw_input_dim[ll][0] * hw_input_dim[ll][1]
                                     if big_data[ll]:
                                         stream_start = (stream_start + 3) // 4
-                                if override_start is None:
                                     stream_start *= pool[ll][0]
 
                                 if streaming[ll]:
