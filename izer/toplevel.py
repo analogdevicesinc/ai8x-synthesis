@@ -640,6 +640,8 @@ def main(
 
             memfile.write('\n')
 
+        sleep_api = 'MXC_LP_EnterLowPowerMode' if sleep else 'MXC_LP_EnterSleepMode'
+
         if embedded_code:
             memfile.write(f'  printf("\\n*** CNN Inference Test {name} ***\\n");\n\n')
             if not state.zero_sram:
@@ -711,10 +713,12 @@ def main(
         if not measure_energy:
             if embedded_code or tc.dev.MODERN_SIM:
                 if state.wfi:
-                    if not riscv:
+                    if not (riscv or embedded_code):
                         memfile.write('  SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=0\n')
                     memfile.write('  while (cnn_time == 0)\n')
-                    if not riscv:
+                    if embedded_code:
+                        memfile.write(f'    {sleep_api}(); // Wait for CNN\n\n')
+                    elif not riscv:
                         memfile.write('    __WFI(); // Wait for CNN\n\n')
                     else:
                         memfile.write('    asm volatile("wfi"); // Wait for CNN\n\n')
@@ -737,10 +741,12 @@ def main(
             if fifo:
                 memfile.write('    load_input(); // Load data input via FIFO\n')
             if state.wfi:
-                if not riscv:
+                if not (riscv or embedded_code):
                     memfile.write('    SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=0\n')
                 memfile.write('    while (cnn_time == 0)\n')
-                if not riscv:
+                if embedded_code:
+                    memfile.write(f'      {sleep_api}(); // Wait for CNN\n')
+                elif not riscv:
                     memfile.write('      __WFI(); // Wait for CNN\n')
                 else:
                     memfile.write('      asm volatile("wfi"); // Wait for CNN\n')
@@ -757,10 +763,12 @@ def main(
             memfile.write('    cnn_continue();\n')
             if embedded_code or tc.dev.MODERN_SIM:
                 if state.wfi:
-                    if not riscv:
+                    if not (riscv or embedded_code):
                         memfile.write('    SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=0\n')
                     memfile.write('    while (cnn_time == 0)\n')
-                    if not riscv:
+                    if embedded_code:
+                        memfile.write(f'      {sleep_api}(); // Wait for CNN\n')
+                    elif not riscv:
                         memfile.write('      __WFI(); // Wait for CNN\n')
                     else:
                         memfile.write('      asm volatile("wfi"); // Wait for CNN\n')
@@ -849,10 +857,12 @@ def main(
                           '  while(1) {\n'
                           '    cnn_start();\n')
             if embedded_code or tc.dev.MODERN_SIM:
-                if not riscv:
+                if not (riscv or embedded_code):
                     memfile.write('    SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=0\n')
                 memfile.write('    while (cnn_time == 0)\n')
-                if not riscv:
+                if embedded_code:
+                    memfile.write(f'      {sleep_api}(); // Wait for CNN\n')
+                elif not riscv:
                     memfile.write('      __WFI(); // Wait for CNN\n')
                 else:
                     memfile.write('      asm volatile("wfi"); // Wait for CNN\n')
@@ -869,11 +879,10 @@ def main(
                 else:
                     memfile.write('  MXC_PWRSEQ->lppwen |= MXC_F_PWRSEQ_LPPWEN_CPU1;\n')
             if (embedded_code or embedded_arm) and state.wfi:
-                memfile.write(f'  MXC_LP_Enter{"LowPower" if sleep else "Sleep"}Mode();\n')
+                memfile.write(f'  {sleep_api}(); // Let RISC-V run\n')
             else:
                 if sleep:
-                    memfile.write(f'  {"_" if not (embedded_code or embedded_arm) else ""}'
-                                  'MXC_LP_ClearWakeStatus();\n'
+                    memfile.write('  _MXC_LP_ClearWakeStatus();\n'
                                   '  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=1\n')
                 if state.wfi:
                     memfile.write('  __WFI(); // Let RISC-V run\n')
