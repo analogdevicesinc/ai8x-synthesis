@@ -2298,7 +2298,7 @@ class Backend(backend.Backend):
 
                         assert stream_start < 2**tc.dev.MAX_ISVAL_BITS
                         val = stream_start
-                        if streaming[ll] and group == min(groups_used):
+                        if streaming[ll] and group == groups_used[0]:
                             state.stream_start.append(stream_start + 1)
                         if state.fifo_go and ll == start_layer:
                             val |= 1 << 25
@@ -2312,7 +2312,7 @@ class Backend(backend.Backend):
                             eprint(f'Layer {ll}: delta2 ({delta2}) exceeds device maximum '
                                    f'({2**tc.dev.MAX_DSVAL2_BITS}). Reduce pooling.')
                         val = delta2 << 16 | delta1 << 4 | invol
-                        if streaming[ll] and group == min(groups_used):
+                        if streaming[ll] and group == groups_used[0]:
                             state.delta1.append(delta1)
                             state.delta2.append(delta2)
                         apb.write_lreg(group, hw_layer, tc.dev.LREG_STREAM2, val,
@@ -2357,88 +2357,105 @@ class Backend(backend.Backend):
 
                             assert val < 2**tc.dev.MAX_FBUF_BITS
 
-                            # Check rollover vs available data memory
-                            if output_processor_map[ll] & processor_map[ll] != 0:  # Any overlap?
-                                if in_offset[ll] < out_offset[ll] - out_ignore[ll]:
-                                    if in_offset[ll] + val * 4 >= out_offset[ll] - out_ignore[ll]:
-                                        eprint(f'{layer_pfx(ll)}Overlapping input and output: '
-                                               f'in_offset 0x{in_offset[ll]:08x} + '
-                                               f'rollover 0x{val:08x} * 4 >= '
-                                               f'out_offset 0x{out_offset[ll]:08x} - '
-                                               f'out_ignore 0x{out_ignore[ll]:08x}.',
-                                               error=not no_error_stop)
-                                else:
-                                    if out_offset[ll] + val * 4 >= in_offset[ll]:
-                                        eprint(f'{layer_pfx(ll)}Overlapping input and output: '
-                                               f'out_offset 0x{out_offset[ll]:08x} + '
-                                               f'rollover 0x{val:08x} * 4 >= '
-                                               f'in_offset 0x{in_offset[ll]:08x}.',
-                                               error=not no_error_stop)
-                                    if ll == terminating_layer:
-                                        osize = output_dim[ll][0] * output_dim[ll][1] + out_pad[ll]
-                                        if out_offset[ll] + osize * out_expand[ll] * 4 >= \
-                                           in_offset[ll]:
-                                            eprint(f'{layer_pfx(ll)}Overlapping input and output: '
-                                                   f'out_offset 0x{out_offset[ll]:08x} + '
-                                                   f'output of size {osize} '
-                                                   f'({output_dim_str[ll]}) '
-                                                   f'* {out_expand[ll]} * 4 >= '
-                                                   f'in_offset 0x{in_offset[ll]:08x}.',
-                                                   error=not no_error_stop)
-                            if in_offset[ll] + val * 4 >= tc.dev.INSTANCE_WIDTH \
-                               * tc.dev.P_SHARED * 4:
-                                eprint('Input plus rollover exceeds instance size: '
-                                       f'in_offset 0x{in_offset[ll]:08x}, '
-                                       f'out_offset 0x{out_offset[ll]:08x}, '
-                                       f'rollover 0x{val:08x}, '
-                                       f'instance size 0x{tc.dev.INSTANCE_WIDTH*4:08x}.',
-                                       error=not no_error_stop)
+                            if group == groups_used[0]:  # Run checks just once
+                                # Check rollover vs available data memory
+                                if output_processor_map[ll] & processor_map[ll] != 0:  # Overlap?
+                                    if in_offset[ll] < out_offset[ll] - out_ignore[ll]:
+                                        if in_offset[ll] + val * 4 \
+                                           >= out_offset[ll] - out_ignore[ll]:
+                                            eprint(
+                                                f'{layer_pfx(ll)}Overlapping input and output: '
+                                                f'in_offset 0x{in_offset[ll]:08x} + '
+                                                f'rollover 0x{val:08x} * 4 >= '
+                                                f'out_offset 0x{out_offset[ll]:08x} - '
+                                                f'out_ignore 0x{out_ignore[ll]:08x}.',
+                                                error=not no_error_stop,
+                                            )
+                                    else:
+                                        if out_offset[ll] + val * 4 >= in_offset[ll]:
+                                            eprint(
+                                                f'{layer_pfx(ll)}Overlapping input and output: '
+                                                f'out_offset 0x{out_offset[ll]:08x} + '
+                                                f'rollover 0x{val:08x} * 4 >= '
+                                                f'in_offset 0x{in_offset[ll]:08x}.',
+                                                error=not no_error_stop,
+                                            )
+                                        if ll == terminating_layer:
+                                            osize = \
+                                                output_dim[ll][0] * output_dim[ll][1] + out_pad[ll]
+                                            if out_offset[ll] + osize * out_expand[ll] * 4 >= \
+                                               in_offset[ll]:
+                                                eprint(
+                                                    f'{layer_pfx(ll)}Overlapping input and '
+                                                    f'output: out_offset 0x{out_offset[ll]:08x} + '
+                                                    f'output of size {osize} '
+                                                    f'({output_dim_str[ll]}) '
+                                                    f'* {out_expand[ll]} * 4 >= '
+                                                    f'in_offset 0x{in_offset[ll]:08x}.',
+                                                    error=not no_error_stop,
+                                                )
+                                if in_offset[ll] + val * 4 >= tc.dev.INSTANCE_WIDTH \
+                                   * tc.dev.P_SHARED * 4:
+                                    eprint(
+                                        'Input plus rollover exceeds instance size: '
+                                        f'in_offset 0x{in_offset[ll]:08x}, '
+                                        f'out_offset 0x{out_offset[ll]:08x}, '
+                                        f'rollover 0x{val:08x}, '
+                                        f'instance size 0x{tc.dev.INSTANCE_WIDTH*4:08x}.',
+                                        error=not no_error_stop,
+                                    )
 
-                            # Check streaming buffers for overlap across all streaming layers and
-                            # the data memories used by the processors in the streaming layers, as
-                            # well as the output of the last streaming layer.
-                            dmap = tc.dev.datamem_map(processor_map[ll],
-                                                      fast_fifo_quad and ll == 0)
-                            stream_buf[ll] = (in_offset[ll], in_offset[ll] + val * 4, dmap)
-                            for pl in range(ll):
-                                if stream_buf[pl] is None:
-                                    continue
-                                if stream_buf[pl][2] & dmap != 0 \
-                                   and overlap(stream_buf[ll], stream_buf[pl]):
-                                    eprint(f'{layer_pfx(ll)}Streaming buffer '
-                                           f'({stream_buf[ll][0]:04x}-{stream_buf[ll][1]:04x}, '
-                                           f'processors {processor_map[ll]:016x}) '
-                                           f'overlaps layer {layer_str(pl)} '
-                                           f'({stream_buf[pl][0]:04x}-{stream_buf[pl][1]:04x}, ',
-                                           f'processors {processor_map[pl]:016x}).',
-                                           error=not overwrite_ok)
-                                if rd_ahead[ll] \
-                                   and tc.dev.datainstance_from_offs(stream_buf[ll][0]) \
-                                   == tc.dev.datainstance_from_offs(stream_buf[pl][0]):
-                                    eprint(f'{layer_pfx(ll)}In streaming mode with read-ahead, '
-                                           'all streaming read-ahead layers must use separate '
-                                           'memory instances. The layer conflicts with layer '
-                                           f'{layer_str(pl)}; both use instance '
-                                           f'{tc.dev.datainstance_from_offs(stream_buf[pl][0])}.')
-
-                            if ll == final_layer or not streaming[next_sequence[ll]]:
-                                dmap = tc.dev.datamem_map(output_processor_map[ll])
-                                for pl in range(ll + 1):
+                                # Check streaming buffers for overlap across all streaming layers
+                                # and the data memories used by the processors in the streaming
+                                # layers, as well as the output of the last streaming layer.
+                                dmap = tc.dev.datamem_map(processor_map[ll],
+                                                          fast_fifo_quad and ll == 0)
+                                stream_buf[ll] = (in_offset[ll], in_offset[ll] + val * 4, dmap)
+                                for pl in range(ll):
                                     if stream_buf[pl] is None:
                                         continue
                                     if stream_buf[pl][2] & dmap != 0 \
-                                       and overlap((out_offset[ll], out_offset[ll]
-                                                   + (output_dim[ll][0] * output_dim[ll][1]
-                                                      + out_pad[ll]) * 4
-                                                   * output_width[ll] // 8), stream_buf[pl]):
-                                        eprint(f'{layer_pfx(ll)}The output '
-                                               f'({out_offset[ll]:04x}-{stream_buf[ll][1]:04x}, '
-                                               'output processors '
-                                               f'{output_processor_map[ll]:016x}) overlaps '
-                                               f'streaming buffer for layer {layer_str(pl)} '
-                                               f'({stream_buf[pl][0]:04x}-{stream_buf[pl][1]:04x}'
-                                               f', processors {processor_map[pl]:016x}).',
-                                               error=not overwrite_ok)
+                                       and overlap(stream_buf[ll], stream_buf[pl]):
+                                        eprint(
+                                            f'{layer_pfx(ll)}Streaming buffer '
+                                            f'({stream_buf[ll][0]:04x}-{stream_buf[ll][1]:04x}, '
+                                            f'processors {processor_map[ll]:016x}) '
+                                            f'overlaps layer {layer_str(pl)} '
+                                            f'({stream_buf[pl][0]:04x}-{stream_buf[pl][1]:04x}, '
+                                            f'processors {processor_map[pl]:016x}).',
+                                            error=not overwrite_ok,
+                                        )
+                                    if rd_ahead[ll] \
+                                       and tc.dev.datainstance_from_offs(stream_buf[ll][0]) \
+                                       == tc.dev.datainstance_from_offs(stream_buf[pl][0]):
+                                        eprint(
+                                            f'{layer_pfx(ll)}In streaming mode with read-ahead, '
+                                            'all streaming read-ahead layers must use separate '
+                                            'memory instances. The layer conflicts with layer '
+                                            f'{layer_str(pl)}; both use instance '
+                                            f'{tc.dev.datainstance_from_offs(stream_buf[pl][0])}.',
+                                        )
+
+                                if ll == final_layer or not streaming[next_sequence[ll]]:
+                                    dmap = tc.dev.datamem_map(output_processor_map[ll])
+                                    for pl in range(ll + 1):
+                                        if stream_buf[pl] is None:
+                                            continue
+                                        if stream_buf[pl][2] & dmap != 0 \
+                                           and overlap((out_offset[ll], out_offset[ll]
+                                                       + (output_dim[ll][0] * output_dim[ll][1]
+                                                          + out_pad[ll]) * 4
+                                                       * output_width[ll] // 8), stream_buf[pl]):
+                                            eprint(
+                                                f'{layer_pfx(ll)}The output '
+                                                f'({out_offset[ll]:04x}-{stream_buf[ll][1]:04x}, '
+                                                'output processors '
+                                                f'{output_processor_map[ll]:016x}) overlaps '
+                                                f'streaming buffer for layer {layer_str(pl)} '
+                                                f'({stream_buf[pl][0]:04x}-{stream_buf[pl][1]:04x}'
+                                                f', processors {processor_map[pl]:016x}).',
+                                                error=not overwrite_ok,
+                                            )
 
                             apb.write_lreg(group, hw_layer, tc.dev.LREG_FMAX, val,
                                            no_verify=not tc.dev.SUPPORT_ROLLOVER_READ,
