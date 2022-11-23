@@ -113,7 +113,7 @@ ifeq "$(MAXIM_PATH)" ""
 # MAXIM_PATH is still not defined...
 DEPTH := ##__DEPTH__##
 MAXIM_PATH := $(abspath $(DEPTH))
-$(warning Warning:  MAXIM_PATH is not set!  It's recommended to set MAXIM_PATH in your environment or in project.mk)
+$(warning Warning:  MAXIM_PATH is not set!  Set MAXIM_PATH in your environment or in project.mk to clear this warning.)
 $(warning Warning:  Attempting to use $(MAXIM_PATH) calculated from relative path)
 else
 # Sanitize MAXIM_PATH for backslashes
@@ -190,7 +190,7 @@ SRCS := $(SRCS)
 
 
 # The default value creates a file named after the target micro.  Ex: MAX78000.elf
-PROJECT ?= $(TARGET_UC)
+PROJECT ?= $(TARGET_LC)
 
 # *******************************************************************************
 # Compiler options
@@ -206,21 +206,35 @@ PROJECT ?= $(TARGET_UC)
 #			Ex: MFLOAT_ABI = hard
 # - LINKERFILE : Override the default linkerfile.
 #			Ex: LINKERFILE = customlinkerfile.ld
-
+# - LINKERPATH : Override the default search location for $(LINKERFILE)
+#			The default search location is $(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/GCC
+#			If $(LINKERFILE) cannot be found at this path, then the root project
+#			directory will be used as a fallback.
 
 # Select 'GCC' or 'IAR' compiler
 ifeq "$(COMPILER)" ""
 COMPILER := ##__COMPILER__##
 endif
 
-# Set compiler optimization level
+# Set default compiler optimization levels
 ifeq "$(MAKECMDGOALS)" "release"
-# Optimization level for "release" builds
-MXC_OPTIMIZE_CFLAGS := -O##__OLEVEL_RELEASE__##
-else
-# Optimization level for default builds
+# Default optimization level for "release" builds (make release)
+MXC_OPTIMIZE_CFLAGS ?= -O##__OLEVEL_RELEASE__##
+DEBUG = 0
+endif
+
+ifeq ($(DEBUG),1)
+# Default optimization level for debug builds (make DEBUG=1 ...)
+# gcc.mk checks for this flag to add some additional debug
+# info to the build, and should be used when you really need to
+# debug.
 MXC_OPTIMIZE_CFLAGS := -O##__OLEVEL_DEBUG__##
 endif
+
+# Fallback default optimizes for debugging as recommended
+# by GNU for code-edit-debug cycles
+# https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html#Optimize-Options
+MXC_OPTIMIZE_CFLAGS ?= -O##__OLEVEL_DEFAULT__##
 
 # Set compiler flags
 PROJ_CFLAGS += -Wall -Wcast-align # Enable warnings
@@ -235,22 +249,93 @@ MFLOAT_ABI ?= ##__FLOAT_ABI__##
 # MFLOAT_ABI must be exported to other Makefiles, who check this too
 export MFLOAT_ABI
 
-# Set the default linkerfile.  Since the core Makefiles later add the location of Maxim's
-# linkerfiles to VPATH, and the local project directory has also been added to VPATH, Make
-# will search both locations for the specified linkerfile if it can't find it by its path alone.
-# The result is that overriding LINKERFILE with the filename of one of Maxim's alternate linkerfiles
-# (ex: LINKERFILE=max78000_arm.ld) will work just the same as LINKERFILE=mycustom.ld 
-# even if mycustom.ld lives locally to this project.
-
 ifeq "$(RISCV_CORE)" ""
 # Default linkerfile is only specified for standard Arm-core projects.
 # Otherwise, gcc_riscv.mk sets the appropriate riscv linkerfile.
-LINKER = ##__LINKERFILE__##
-LINKERFILE ?= $(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/GCC/$(LINKER)
+LINKERFILE ?= $(TARGET_LC).ld
+LINKERPATH ?= $(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/GCC
+
+# Check if linkerfile exists
+ifeq ("$(wildcard $(LINKERPATH)/$(LINKERFILE))","")
+# Doesn't exists, attempt to use root project folder.
+LINKERPATH:=.
+endif
+
+# Form full path to linkerfile.  Works around MSYS2 edge case from (see MSDK-903).
+LINKERFILE:=$(LINKERPATH)/$(LINKERFILE)
 endif
 
 # This path contains system-level intialization files for the target micro.  Add to the build.
 VPATH += $(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source
+
+# *******************************************************************************
+# Secure Boot Tools (SBT)
+
+# This section integrates the Secure Boot Tools.  It's intended for use with
+# microcontrollers that have a secure bootloader.
+
+# Enabling SBT integration will add some special rules, such as "make sla", "make scpa", etc.
+
+# Configuration variables:
+#	SBT : 	Toggle SBT integration.  Set to 1 to enable, or 0
+# 			to disable
+#	MAXIM_SBT_DIR : Specify the location of the SBT tool binaries.  This defaults to
+#					Tools/SBT in the MaximSDK.  The standalone SBT installer will override
+#					this via an environment variable.
+#	TARGET_SEC : 	Specify the part number to be passed into the SBT.  This should match
+#					the secure variant part #.  The default value will depend on TARGET.
+#					For example, TARGET=MAX32650 will result in TARGET_SEC=MAX32651, and
+#					the default selection happens in Tools/SBT/SBT-config.
+#					However, if there are multiple secure part #s for the target
+#					microcontroller this variable may need to be changed.
+
+SBT ?= ##__SBT__##
+ifeq ($(SBT), 1)
+MAXIM_SBT_DIR ?= $(MAXIM_PATH)/Tools/SBT
+MAXIM_SBT_DIR := $(subst \,/,$(MAXIM_SBT_DIR))
+# ^ Must sanitize path for \ on Windows, since this may come from an environment
+# variable.
+
+export MAXIM_SBT_DIR # SBTs must have this environment variable defined to work
+
+# SBT-config.mk and SBT-rules.mk are included further down this Makefile.
+
+endif # SBT
+
+# *******************************************************************************
+# Default goal selection.  This section allows you to override the default goal
+# that will run if no targets are specified on the command-line.
+# (ie. just running 'make' instead of 'make all')
+
+# Configuration variables:
+#	.DEFAULT_GOAL : Set the default goal if no targets were specified on the
+#			command-line
+#			** "override" must be used with this variable. **
+#			Ex: "override .DEFAULT_GOAL = mygoal"
+
+ifeq "$(.DEFAULT_GOAL)" ""
+ifeq ($(SBT),1)
+override .DEFAULT_GOAL := sla
+else
+override .DEFAULT_GOAL := ##__DEFAULT_GOAL__##
+endif
+endif
+
+# Developer note:  'override' is used above for legacy Makefile compatibility.
+# gcc.mk/gcc_riscv.mk need to hard-set 'all' internally, so this new system
+# uses 'override' to come in over the top without breaking old projects.
+
+# It's also necessary to explicitly set MAKECMDGOALS...
+ifeq "$(MAKECMDGOALS)" ""
+MAKECMDGOALS:=$(.DEFAULT_GOAL)
+endif
+
+# *******************************************************************************
+# Include SBT config.  We need to do this here because it needs to know
+# the current MAKECMDGOAL.
+ifeq ($(SBT),1)
+include $(MAXIM_PATH)/Tools/SBT/SBT-config.mk
+endif
 
 # *******************************************************************************
 # Libraries
@@ -277,13 +362,30 @@ VPATH += $(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source
 
 include $(LIBS_DIR)/libs.mk
 
+
 # *******************************************************************************
+# Rules
+
 # Include the rules for building for this target. All other makefiles should be
 # included before this one.
 include $(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source/$(COMPILER)/$(TARGET_LC).mk
 
+# Include the rules that integrate the SBTs.  SBTs are a special case that must be
+# include after the core gcc rules to extend them.
+ifeq ($(SBT), 1)
+include $(MAXIM_PATH)/Tools/SBT/SBT-rules.mk
+endif
+
+
+# Get .DEFAULT_GOAL working.
+ifeq "$(MAKECMDGOALS)" ""
+MAKECMDGOALS:=$(.DEFAULT_GOAL)
+endif
+
+
 all:
 # 	Extend the functionality of the "all" recipe here
+	arm-none-eabi-size --format=berkeley $(BUILD_DIR)/$(PROJECT).elf
 
 libclean: 
 	$(MAKE)  -f ${PERIPH_DRIVER_DIR}/periphdriver.mk clean.periph
