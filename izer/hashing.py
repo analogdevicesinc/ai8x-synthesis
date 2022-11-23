@@ -11,9 +11,10 @@ and comparisons
 
 import hashlib
 import os
+from io import TextIOWrapper
 from pathlib import Path
 from tempfile import TemporaryFile
-from io import TextIOWrapper
+
 
 def hash_sha1(val):
     """
@@ -31,9 +32,9 @@ def hash_file(file):
     if isinstance(file, TextIOWrapper):
         # File is already opened
         return hash_sha1(file.read())
-    else:
-        # Open file, then hash
-        return hash_sha1(open(Path(file), 'rb').read())
+
+    # Open file, then hash
+    return hash_sha1(open(Path(file), 'rb').read())
 
 
 def hash_folder(folderpath) -> bytes:
