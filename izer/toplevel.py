@@ -543,6 +543,8 @@ def main(
             else:
                 memfile.write(';\n\n')
 
+    sleep_api = 'MXC_LP_EnterLowPowerMode' if sleep else 'MXC_LP_EnterSleepMode'
+
     if main_code:
         if embedded_code or tc.dev.MODERN_SIM:
             if measure_energy:
@@ -639,8 +641,6 @@ def main(
                 function_footer(apifile)  # boost_enable() or enable()
 
             memfile.write('\n')
-
-        sleep_api = 'MXC_LP_EnterLowPowerMode' if sleep else 'MXC_LP_EnterSleepMode'
 
         if embedded_code:
             memfile.write(f'  printf("\\n*** CNN Inference Test {name} ***\\n");\n\n')
