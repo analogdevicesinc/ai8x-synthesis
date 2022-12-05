@@ -31,6 +31,7 @@ def load(
         no_bias=None,
         conv_groups=None,
         bypass=None,
+        weight_source=None,
         skip_layers=0,
 ):
     """
@@ -84,8 +85,9 @@ def load(
     seq = 0
 
     for _, k in enumerate(checkpoint_state.keys()):
-        # Skip over non-weight layers
-        while seq < len(operator) and (operator[seq] == op.NONE or bypass[seq]):
+        # Skip over non-weight and duplicated weight layers
+        while seq < len(operator) and (operator[seq] == op.NONE or bypass[seq]
+                                       or weight_source[seq] is not None):
             seq += 1
 
         param_levels = k.rsplit(sep='.', maxsplit=2)
@@ -257,10 +259,11 @@ def load(
             seq += 1
 
     if verbose:
+        weight_key_len = max(41, max(len(weight_keys[ll]) for ll in range(layers)))
         print(f'Checkpoint for epoch {checkpoint["epoch"]}, model {checkpoint_arch} - '
               'weight and bias data:')
         print(' InCh OutCh  Weights         Quant Shift  Min  Max    Size '
-              'Key                                       Bias       Quant  Min  Max Size Key')
+              f'Key{" ":<{weight_key_len - 3}} Bias       Quant  Min  Max Size Key')
         for ll in range(layers):
             if ll < len(weights) and weights[ll] is not None:
                 weight_shape = str(weights[ll].shape)
@@ -276,7 +279,7 @@ def load(
                       f'{weight_shape:15} '
                       f'{quant[ll]:5} {output_shift_shape:5} '
                       f'{weight_min[ll]:4} {weight_max[ll]:4} {weight_size[ll]:7} '
-                      f'{weight_keys[ll]:41} '
+                      f'{weight_keys[ll]:<{weight_key_len}} '
                       f'{bias_shape:10} '
                       f'{bias_quant[ll]:5} {bias_min[ll]:4} {bias_max[ll]:4} {bias_size[ll]:4} '
                       f'{bias_keys[ll]:25}')

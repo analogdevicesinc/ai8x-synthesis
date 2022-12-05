@@ -83,6 +83,10 @@ class APB():
         self.mem = datamem.allocate()
         self.writes = 0
         self.reads = 0
+        self.fifo_writes = 0
+        self.fifo_reads = 0
+        self.fastfifo_writes = 0
+        self.fastfifo_reads = 0
         self.verify_listdata = []
         self.verify_text = []
 
@@ -271,7 +275,17 @@ class APB():
         """
         Return total bus access time in ms based on number of writes and reads
         """
-        return (WRITE_TIME_NS * self.writes + READ_TIME_NS * self.reads) // 1000000
+        return (WRITE_TIME_NS * (self.writes + self.fifo_writes + self.fastfifo_writes) +
+                READ_TIME_NS * (self.reads + self.fifo_reads + self.fastfifo_reads)) // 1000000
+
+    def get_access_count(
+            self,
+    ):
+        """
+        Return total number of bus reads, writes, FIFO reads, writes, and Fast FIFO reads, writes
+        """
+        return self.reads, self.writes, self.fifo_reads, self.fifo_writes, self.fastfifo_reads, \
+            self.fastfifo_writes
 
     def write(
             self,
@@ -295,11 +309,22 @@ class APB():
     def inc_writes(
             self,
             count,
+            fifo=None,
+            fifo_wait=False,
     ):
         """
         Increase write count by `count`.
         """
-        self.writes += count
+        if fifo is None:
+            self.writes += count
+        elif not self.fast_fifo:
+            if fifo_wait:
+                self.fifo_reads += count
+            self.fifo_writes += count
+        else:
+            if fifo_wait:
+                self.fastfifo_reads += count
+            self.fastfifo_writes += count
 
     def write_data(
             self,
@@ -830,6 +855,7 @@ class APB():
                     assert rv == rv_item
                     self.memfile.write(f'  if ((*((volatile uint32_t *) 0x{addr:08x}){mask_str})'
                                        f' != 0x{val:0{2*val_bytes}x}) {action}{comment}\n')
+                    self.reads += 1
             else:
                 # Output is sorted by mask. Group like masks together.
                 max_count = state.max_count
@@ -969,7 +995,16 @@ class APBBlockLevel(APB):
         self.memfile.write(f'@{self.foffs:04x} {addr:08x}\n')
         self.memfile.write(f'@{self.foffs+1:04x} {val:08x}\n')
         self.foffs += 2
-        self.writes += 1
+        if fifo is None:
+            self.writes += 1
+        elif not self.fast_fifo:
+            if fifo_wait:
+                self.fifo_reads += 1
+            self.fifo_writes += 1
+        else:
+            if fifo_wait:
+                self.fastfifo_reads += 1
+            self.fastfifo_writes += 1
 
     def verify(
             self,
@@ -1111,10 +1146,13 @@ class APBTopLevel(APB):
                                        f'{indent}while (((*((volatile uint32_t *) '
                                        f'0x{addr + tc.dev.FIFO_STAT*4:08x})'
                                        f' & {1 << fifo})) != 0); // Wait for FIFO {fifo}\n')
-                    self.reads += 1
+                    if not state.compact_data:
+                        self.fifo_reads += 1  # Othwerwise handled by 'inc_writes()' via load.py
                 self.memfile.write(f'{indent}*((volatile uint32_t *) '
                                    f'0x{addr + tc.dev.FIFO_REG*4 + fifo*4:08x}) = '
                                    f'{val};{comment}\n')
+                if not state.compact_data:
+                    self.fifo_writes += 1  # Othwerwise handled by 'inc_writes()' via load.py
             else:
                 addr = tc.dev.FAST_FIFO_BASE
                 if fifo_wait:
@@ -1123,11 +1161,13 @@ class APBTopLevel(APB):
                                        f'{indent}while (((*((volatile uint32_t *) '
                                        f'0x{addr + tc.dev.FAST_FIFO_SR*4:08x})'
                                        f' & 2)) != 0); // Wait for FIFO\n')
-                    self.reads += 1
+                    if not state.compact_data:
+                        self.fastfifo_reads += 1  # Othwerwise handled by 'inc_writes()'
                 self.memfile.write(f'{indent}*((volatile uint32_t *) '
                                    f'0x{addr + tc.dev.FAST_FIFO_DR*4:08x}) = '
                                    f'{val};{comment}\n')
-            self.writes += 1
+                if not state.compact_data:
+                    self.fastfifo_writes += 1  # Othwerwise handled by inc_writes() via load.py
 
     def write_data(
             self,
@@ -1350,6 +1390,7 @@ class APBTopLevel(APB):
             output_width=self.output_width,
             bias=self.bias,
             oneshot=self.oneshot,
+            name=self.test_name,
         )
 
     def softmax_layer(

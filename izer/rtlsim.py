@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -8,19 +8,95 @@
 RTL simulation support routines
 """
 import os
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
-from . import state
+from . import apbaccess, state, stats
 from . import tornadocnn as tc
 
+MIN_SIMULATION_TIMEOUT = 10  # ms
+
+NS_PER_CNN_CYCLE = 25  # 20 ns * 1.25
+
 GLOBAL_TIME_OFFSET = 3
+ARM_APB_ACCESS = 500  # ns
+RISCV_APB_ACCESS = 1000  # ns
+RISCV_FASTFIFO_ACCESS = 100  # ns
+GENERAL_OFFSET = 3000000  # ns
+ZERO_SRAM_OFFSET = 16000000  # ns
+NS_TO_MS = 1000000
+
+
+def calculate_timeout(
+        total: int,
+        apb: apbaccess.APB,
+        input_dim: Optional[List[Tuple[int, int]]],
+        in_expand:  Optional[List[int]],
+) -> int:
+    """
+    Estimate timeout based on CNN cycles, and memory/register read/write operations
+    """
+    assert input_dim is not None
+    assert in_expand is not None
+    # Times in ns
+    apb_access_time = RISCV_APB_ACCESS if state.riscv else ARM_APB_ACCESS
+    if total > 0:
+        # Use cycle count if we have it
+        timeout = total * NS_PER_CNN_CYCLE
+        reads, writes, fifo_reads, fifo_writes, fastfifo_reads, fastfifo_writes = \
+            apb.get_access_count()
+        timeout += (reads + writes) * apb_access_time
+        write_ratio = 1.
+        if fifo_writes > 0 or fastfifo_writes > 0:
+            for ll, delta1 in enumerate(state.delta1):
+                if ll > state.start_layer:
+                    # Discount FIFO reads by delta ratios -- some of the FIFO writes occur in
+                    # parallel to processing that's already accounted for (does not apply to
+                    # first layer, since everything needs to be popped)
+                    write_count = input_dim[ll][0] * input_dim[ll][1] * in_expand[ll]
+                    if delta1 != 0:
+                        ratio = 1 / delta1
+                    if state.delta2[ll] != 0:
+                        ratio *= state.delta2[ll] / input_dim[ll][0]
+                    if state.stream_start[ll] != 0:
+                        start = state.stream_start[ll]
+                        ratio = (start + ratio * (write_count - start)) / write_count
+                    write_ratio *= ratio
+
+            timeout += (fifo_reads + fifo_writes) * int(apb_access_time * write_ratio)
+            timeout += (fastfifo_reads + fastfifo_writes) \
+                * int(RISCV_FASTFIFO_ACCESS * write_ratio)
+        # General overhead
+        timeout += GENERAL_OFFSET
+    else:
+        # If no timeout specified, and no cycle count available,
+        # calculate timeout based on reads/writes
+        timeout = 10 * NS_TO_MS * (apb.get_time() + GLOBAL_TIME_OFFSET)
+
+    if state.zero_sram:
+        timeout += ZERO_SRAM_OFFSET
+    # Add weight and bias write times
+    if not state.rtl_preload_weights:
+        timeout += stats.resourcedict['kmem_used'] * apb_access_time // 4
+    if state.verify_kernels:
+        access_factor = 6 if state.mexpress else 4  # Reading back more than we wrote?
+        timeout += stats.resourcedict['kmem_used'] * access_factor * apb_access_time // 4
+
+    # Convert to ms
+    timeout //= NS_TO_MS
+    timeout = max(MIN_SIMULATION_TIMEOUT, timeout)
+
+    state.timeout = timeout
+    return timeout
 
 
 def create_runtest_sv(
         test_name: str,
         timeout: int,
-        riscv: bool = False,
         groups_used: Optional[List[int]] = None,
+        cnn_cycles: int = 0,
+        apb: apbaccess.APB = None,
+        input_dim: Optional[List[Tuple[int, int]]] = None,
+        in_expand: Optional[List[int]] = None,
 ):
     """
     For for test `test_name`, create the runtest.sv file named `runtest_filename`, in the
@@ -28,9 +104,14 @@ def create_runtest_sv(
     If in `block_mode`, it will refer to the `input_filename`.
     """
     assert tc.dev is not None
+    assert apb is not None
+
+    if not timeout:
+        timeout = calculate_timeout(cnn_cycles, apb, input_dim, in_expand)
 
     # Cache for faster access
     result_output = state.result_output
+    riscv = state.riscv
 
     with open(
         os.path.join(state.base_directory, test_name, state.runtest_filename),
@@ -111,7 +192,9 @@ def create_runtest_sv(
                 'real  clk2_time;\n'
                 'logic start_ena;\n'
                 'logic clkena1;\n'
-                'logic clkena2;\n')
+                'logic clkena2;\n'
+                'logic clkena3;\n'
+            )
             if result_output:
                 runfile.write('int   chk_stat;\n')
             runfile.write(
@@ -131,6 +214,7 @@ def create_runtest_sv(
                 '   start_ena  = 0;\n'
                 '   clkena1    = 0;\n'
                 '   clkena2    = 0;\n'
+                '   clkena3    = 0;\n'
                 'end\n\n'
                 'always @(posedge `CNN_ENA) begin\n'
                 '  if (!start_ena) begin\n'
@@ -155,9 +239,6 @@ def create_runtest_sv(
                     runfile.write(f'    dump_cnn_mems_{i};\n')
                 runfile.write(
                     '    close_files;\n'
-                    '    chk_stat = $system({`TARGET_DIR,"/verify-output.py ",`TARGET_DIR});\n'
-                    '    if (chk_stat != 0)\n'
-                    '      error_count++;\n'
                 )
             runfile.write(
                 '  end\n'
@@ -171,10 +252,20 @@ def create_runtest_sv(
                 '    clk2_time = $realtime;\n'
                 '    clkena2   = 0;\n'
                 '    $display("CNN Cycles = %.0f", '
-                '$ceil((end_time - start_time)/(clk2_time - clk1_time)));\n'
+                '$ceil((end_time - start_time)/(clk2_time - clk1_time)) - 1);\n'
+                '    clkena3   = 1;\n'
                 '  end\n'
                 'end\n'
             )
+            if result_output:
+                runfile.write(
+                    '\nalways @(posedge clkena3) begin\n'
+                    '    chk_stat = $system({`TARGET_DIR,"/verify-output.py ",`TARGET_DIR});\n'
+                    '    if (chk_stat != 0)\n'
+                    '      error_count++;\n'
+                    'end\n'
+                )
+
             if state.input_csv is not None:
                 runfile.write(f'\n`define CSV_FILE {{`TARGET_DIR,"/{state.input_csv}"}}\n')
                 runfile.write('`include "pcif_defines_af2.sv"\n')
@@ -292,6 +383,8 @@ def append_regression(
     `top_level` indicates whether to insert another directory level into the output
     path..
     """
+    if queue_name is None:
+        queue_name = 'long' if state.timeout > 50 else 'short'
 
     # Append to regression list?
     if not top_level:
@@ -310,3 +403,17 @@ def append_regression(
     if not found:
         with open(os.path.join(autogen_dir, autogen_list), mode='a', encoding='utf-8') as listfile:
             listfile.write(f'{testname}\n')
+
+
+def write_latency(test_name: str, total: int, per_layer: List[int]) -> None:
+    """
+    Create a file called latency.txt in the sim directory.
+    """
+    with open(
+        os.path.join(state.base_directory, test_name, 'latency.txt'),
+        mode='w',
+        encoding='utf-8',
+    ) as f:
+        f.write(f'{total}\n')
+        for i in per_layer:
+            f.write(f'{i}\n')

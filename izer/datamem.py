@@ -43,7 +43,7 @@ def validate(arr, offs, val=None):
             nstr = ''
         else:
             (ll, c, row, col) = val
-            nstr = layer_pfx(ll) + f' CHW={c},{row},{col} - '
+            nstr = layer_pfx(ll) + f'CHW={c},{row},{col} - '
         eprint(f'{nstr}Overwriting location 0x{offs:08x}, previously used by layer '
                f'{layer_str(old_ll)}, CHW={old_c},{old_row},{old_col}.',
                error=not state.no_error_stop)

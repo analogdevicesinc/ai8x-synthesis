@@ -7,10 +7,13 @@
 """
 Contains hard coded sample inputs.
 """
+import operator
 import os
+from functools import reduce
 
 import numpy as np
 
+from . import stats
 from .eprint import eprint
 from .utils import s2u, u2s
 
@@ -36,10 +39,12 @@ def get(
         eprint(f'The sample data array in {filename} is of type {data.dtype}, rather than '
                'int64!')
 
+    shape = data.shape
+    stats.resourcedict['input_size'] = reduce(operator.mul, shape)
+
     if synthesize_input is not None:
         # Every 8 (or synthesize_words) words, add data to the
         # combined 32-bit word for up to 4 channels
-        shape = data.shape
         if shape[0] < 1 or shape[0] > 4:
             eprint('`--synthesize-input` requires 1 to 4 input channels.')
         data = data.reshape(shape[0], -1)

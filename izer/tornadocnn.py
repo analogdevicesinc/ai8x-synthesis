@@ -46,6 +46,7 @@ class Dev:
     SUPPORT_MULTIPASS_ELTWISE_CONV_BIAS = True
     SUPPORT_STREAMING_PASSTHROUGH = True
     SUPPORT_ROLLOVER_READ = True
+    SUPPORT_LATENCY_CALC = False
     SUPPORT_SIM_PRELOAD = False
     REQUIRE_REG_CLEAR = False
     REQUIRE_SEMA_LPWKEN = False
@@ -55,6 +56,8 @@ class Dev:
     REQUIRE_FLATTEN_BIAS_FIRST = False
     REQUIRE_PASSTHROUGH_AVGPOOL_AFTER_ELTWISE = False
     REQUIRE_WEIGHT_MASK = False
+    REQUIRE_2X_MP_PASSTHROUGH = False
+    REQUIRE_MP_KERNOFF_MULTIWRITE = False
     EMULATE_ELTWISE_MP = False
     EMULATE_1X1_STREAMING = True
     USE_PROCESSORS = True
@@ -299,6 +302,9 @@ class DevAI85(Dev):
     FAST_FIFO_DMA = 5  # DMA register (reserved function, not yet supported)
 
     REQUIRE_FLATTEN_BIAS_FIRST = True
+    REQUIRE_2X_MP_PASSTHROUGH = True
+    REQUIRE_MP_KERNOFF_MULTIWRITE = True
+    REQUIRE_SEMA_LPWKEN = True
     EMULATE_ELTWISE_MP = True
     SUPPORTED_X2D_PADS = [0, 1, 2]
     SUPPORTED_X2D_OUTPUT_PADS = [1]
@@ -309,8 +315,7 @@ class DevAI85(Dev):
     RISCV_SRAM_ORIGIN = 0x2001C000
 
     # Cycles
-    C_START = 4
-    C_PAD = 2
+    SUPPORT_LATENCY_CALC = True
 
     def __str__(self):
         return self.__class__.__name__
@@ -517,6 +522,7 @@ class DevAI87(Dev):
     REQUIRE_PMON_GPIO = True
     REQUIRE_PASSTHROUGH_AVGPOOL_AFTER_ELTWISE = True
     REQUIRE_WEIGHT_MASK = True
+    REQUIRE_2X_MP_PASSTHROUGH = True
 
     MAX_DILATION_1D = MAX_ROW_COL - 1
     MAX_POOL_DILATION = 2**4
@@ -527,10 +533,6 @@ class DevAI87(Dev):
 
     FLASH_SIZE = 0x28000
     RISCV_SRAM_ORIGIN = 0x2005C000
-
-    # Cycles
-    C_START = 4
-    C_PAD = 2
 
     # PLL Speed in MHz
     IPO_SPEED = 120
