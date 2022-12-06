@@ -11,6 +11,7 @@ and comparisons
 
 import hashlib
 import os
+from io import TextIOWrapper
 from pathlib import Path
 from tempfile import TemporaryFile
 
@@ -24,11 +25,16 @@ def hash_sha1(val):
     return hashlib.sha1(val).digest()
 
 
-def hash_file(filepath):
+def hash_file(file):
     """
     Return the SHA1 hash of a file's contents
     """
-    return hash_sha1(open(Path(filepath), 'rb').read())
+    if isinstance(file, TextIOWrapper):
+        # File is already opened
+        return hash_sha1(file.read())
+
+    # Open file, then hash
+    return hash_sha1(open(Path(file), 'rb').read())
 
 
 def hash_folder(folderpath) -> bytes:
@@ -60,7 +66,7 @@ def compare_content(content: str, file: Path) -> bool:
     if not file.exists():
         return False
 
-    tmp = TemporaryFile(mode="w", encoding="utf-8")
+    tmp = TemporaryFile(mode="w+", encoding="utf-8")
     tmp.write(content)
 
     match = (hash_file(file) == hash_file(tmp))

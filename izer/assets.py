@@ -417,8 +417,11 @@ defaults = dict(
     depth=3,
     olevel_debug="g",
     olevel_release=2,
+    olevel_default=2,
     compiler="GCC",
     linkerfile="$(TARGET_LC).ld",
+    sbt=0,
+    default_goal="all"
 )
 
 
@@ -436,6 +439,13 @@ def makefile(
     Inject a project.mk-based Makefile system into the directory specified by out_root/out_stem.
     """
     out_path = Path(out_root).joinpath(out_stem)
+
+    # Calculate the depth of the project to use for relative
+    # search if no MAXIM_PATH is set.  This assumes that
+    # out_path is a relative location to the ai8x-synthesis
+    # directory (ie. sdk/Examples/MAX78000/CNN)
+    depth = len(out_path.parts)
+    defaults["depth"] = depth - 1
 
     for k, v in defaults.items():
         kwargs.setdefault(k, v)
