@@ -46,6 +46,8 @@ def get_parser() -> argparse.Namespace:
                         help="generate RTL sim code instead of embedded code (default: false)")
     mgroup.add_argument('--rtl-preload', action='store_true',
                         help="generate RTL sim code with memory preload (default: false)")
+    group.add_argument('--rtl-preload-weights', action='store_true',
+                       help="generate RTL sim code with weight memory preload (default: false)")
     mgroup = group.add_mutually_exclusive_group()
     mgroup.add_argument('--pipeline', action='store_true', default=None,
                         help="enable pipeline (default: enabled where supported)")
@@ -62,6 +64,8 @@ def get_parser() -> argparse.Namespace:
     mgroup.add_argument('--max-speed', action='store_false', dest='balance_speed',
                         help="load data and weights as fast as possible (MAX78002 only, "
                              "requires --pll, default: false)")
+    mgroup.add_argument('--clock-divider', type=int, metavar='N', choices=[1, 2, 4, 8, 16],
+                        help="CNN clock divider (default: 1 or 4, depends on clock source)")
     group.add_argument('--config-file', required=True, metavar='S',
                        help="YAML configuration file containing layer configuration")
     group.add_argument('--checkpoint-file', metavar='S',
@@ -112,7 +116,7 @@ def get_parser() -> argparse.Namespace:
     group.add_argument('--compact-weights', action='store_true', default=False,
                        help="use memcpy() to load weights in order to save code space")
     mgroup = group.add_mutually_exclusive_group()
-    mgroup.add_argument('--mexpress', action='store_true', default=True,
+    mgroup.add_argument('--mexpress', action='store_true', default=None,
                         help="use express kernel loading (default: true)")
     mgroup.add_argument('--no-mexpress', action='store_false', dest='mexpress',
                         help="disable express kernel loading")
@@ -155,6 +159,8 @@ def get_parser() -> argparse.Namespace:
     group.add_argument('--output-width', type=int, default=None,
                        choices=[8, 32],
                        help="override `output_width` for the final layer (default: use YAML)")
+    group.add_argument('--no-deduplicate-weights', action='store_true', default=False,
+                       help="do not reuse weights (default: enabled)")
 
     # File names
     group = parser.add_argument_group('File names')
@@ -289,9 +295,13 @@ def get_parser() -> argparse.Namespace:
                        help="ignore BatchNorm weights in checkpoint file (default: false)")
     group.add_argument('--ignore-activation', action='store_true', default=False,
                        help="ignore activations in YAML file (default: false)")
-    group.add_argument('--no-greedy-kernel', action='store_false', dest='greedy_kernel_allocator',
-                       default=True,
-                       help="do not use greedy kernel memory allocator (default: use)")
+    group.add_argument('--ignore-energy-warning', action='store_true', default=False,
+                       help="do not show energy and performance hints (default: show)")
+    group.add_argument('--ignore-mlator-warning', action='store_true', default=False,
+                       help="do not show mlator hints (default: show)")
+    # group.add_argument('--no-greedy-kernel', action='store_false',
+    #                    dest='greedy_kernel_allocator', default=True,
+    #                    help="do not use greedy kernel memory allocator (default: use)")
     mgroup = group.add_mutually_exclusive_group()
     mgroup.add_argument('--new-kernel-loader', action='store_true', default=True,
                         help="use new kernel loader (default)")
@@ -341,7 +351,7 @@ def get_parser() -> argparse.Namespace:
                        help="set base directory name for auto-filing .mem files")
     group.add_argument('--top-level', default='cnn', metavar='S',
                        help="top level name (default: 'cnn', 'None' for block level)")
-    group.add_argument('--queue-name', default='short', metavar='S',
+    group.add_argument('--queue-name', default=None, metavar='S',
                        help="queue name (default: 'short')")
     group.add_argument('--timeout', type=int, metavar='N',
                        help="set RTL sim timeout (units of 1ms, default based on test)")
@@ -442,8 +452,20 @@ def get_parser() -> argparse.Namespace:
 
     if args.rtl_preload:
         args.embedded_code = False
+    if args.verify_kernels or (args.verify_writes and args.new_kernel_loader) \
+       or args.mexpress is not None:
+        args.rtl_preload_weights = False
+    if args.rtl_preload_weights:
+        args.mexpress = False
     if args.embedded_code is None:
         args.embedded_code = True
+    if not args.embedded_code:
+        args.softmax = False
+        args.energy = False
+    if args.mexpress is None:
+        args.mexpress = True
+    if args.mlator:
+        args.result_output = False
 
     if not args.c_filename:
         args.c_filename = 'main' if args.embedded_code else 'test'
@@ -551,6 +573,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.boost = args.boost
     state.c_filename = args.c_filename
     state.calcx4 = args.calcx4
+    state.clock_divider = args.clock_divider
     state.clock_trim = args.clock_trim
     state.compact_data = args.compact_data and \
         (not args.rtl_preload or args.fifo or args.fast_fifo or args.fast_fifo_quad)
@@ -570,6 +593,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.eclipse_variables = args.eclipse_variables
     state.embedded_code = args.embedded_code
     state.enable_delay = args.enable_delay
+    state.energy_warning = not args.ignore_energy_warning
     state.ext_rdy = args.ext_rdy
     state.fast_fifo = args.fast_fifo
     state.fast_fifo_quad = args.fast_fifo_quad
@@ -579,7 +603,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.fixed_input = args.fixed_input
     state.forever = args.forever and args.embedded_code
     state.generate_kat = args.generate_kat
-    state.greedy_kernel_allocator = args.greedy_kernel_allocator
+    # state.greedy_kernel_allocator = args.greedy_kernel_allocator
     state.ignore_activation = args.ignore_activation
     state.ignore_bias_groups = args.ignore_bias_groups
     state.ignore_bn = args.ignore_bn
@@ -610,8 +634,10 @@ def set_state(args: argparse.Namespace) -> None:
     state.mlator = args.mlator
     state.mlator_chunk = args.unroll_mlator
     state.mlator_noverify = args.mlator_noverify
+    state.mlator_warning = not args.ignore_mlator_warning
     state.narrow_chunk = args.unroll_8bit
     state.new_kernel_loader = args.new_kernel_loader
+    state.deduplicate_weights = not args.no_deduplicate_weights
     state.no_error_stop = args.no_error_stop
     state.oneshot = args.one_shot
     state.output_filename = args.output_filename
@@ -637,6 +663,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.riscv_exclusive = args.riscv_exclusive
     state.riscv_flash = args.riscv_flash
     state.rtl_preload = args.rtl_preload
+    state.rtl_preload_weights = args.rtl_preload_weights
     state.runtest_filename = args.runtest_filename
     state.sample_filename = args.sample_filename
     state.simple1b = args.simple1b

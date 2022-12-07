@@ -28,3 +28,4 @@ layers:
     processors: 0x00000000ffffffff
     output_shift: -1
     op: conv2d
+    activate: None

@@ -194,7 +194,7 @@ def load(
 
     bias_map = sorted(bias_map, key=bias_sort)
 
-    for _, (ll, gmap, blen, _) in enumerate(bias_map):
+    for (ll, gmap, blen, _) in bias_map:
         if not calcx4[ll]:
             group = gmap[argmin(group_bias_max[t] for t in gmap)]
         else:

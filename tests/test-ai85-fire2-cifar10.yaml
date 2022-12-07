@@ -55,3 +55,4 @@ layers:
     op: mlp
     processors: 0x000000000000ff00
     output_width: 32
+    activate: None

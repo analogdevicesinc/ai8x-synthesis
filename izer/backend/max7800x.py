@@ -11,11 +11,12 @@ import copy
 import hashlib
 import os
 import sys
+from typing import List, Tuple
 
 import numpy as np
 
-from izer import (apbaccess, assets, compute, console, datamem, kbias, kernels, load, op, rtlsim,
-                  state, stats)
+from izer import (apbaccess, assets, compute, console, datamem, kbias, kdedup, kernels, latency,
+                  load, op, rtlsim, state, stats)
 from izer import tornadocnn as tc
 from izer.eprint import eprint, nprint, wprint
 from izer.names import layer_pfx, layer_str
@@ -31,7 +32,7 @@ class Backend(backend.Backend):
     Backend for MAX7800X CNN network code generation
     """
 
-    def create_net(self) -> str:  # pylint: disable=too-many-locals,too-many-branches,no-self-use
+    def create_net(self) -> str:  # pylint: disable=too-many-locals,too-many-branches
         """
         Chain multiple CNN layers, create and save input and output
         """
@@ -162,6 +163,7 @@ class Backend(backend.Backend):
         in_expand_thresh = [0] * layers
         out_expand_thresh = [0] * layers
         tram_max = [0] * layers
+        timeslots = [1] * layers
         hw_padding = padding.copy()
 
         input_dim_str = [None] * layers
@@ -179,6 +181,7 @@ class Backend(backend.Backend):
         out_pad = [0] * layers
 
         hw_add_layers = [0] * layers
+        hw_flatten = [False] * layers
         sum_hw_layers = 0
 
         all_outputs_map = None
@@ -223,15 +226,40 @@ class Backend(backend.Backend):
         if oneshot and not tc.dev.SUPPORT_ONESHOT:
             eprint('`--one-shot` is not supported on this device.')
 
-        if state.pipeline is None:
+        if state.pipeline is None:  # Turn the pipeline on by default
             state.pipeline = tc.dev.SUPPORT_PIPELINE
         pipeline = state.pipeline  # Cache
 
-        if state.pll is None and tc.dev.SUPPORT_PLL:
-            state.pll = True
+        if state.pll is None:  # Turn the PLL on by default
+            state.pll = tc.dev.SUPPORT_PLL
 
         if not state.balance_power and not state.pll:
             eprint('`--max-speed` requires `--pll` or `--pipeline`.')
+
+        clock_speed = tc.dev.PLL_SPEED if state.pll else tc.dev.APB_SPEED
+        if state.clock_divider is None:
+            if pipeline:
+                state.clock_divider = 1
+            else:
+                # Pick smallest working clock divider
+                cdiv = (clock_speed + tc.dev.MAX_NO_PIPELINE_SPEED - 1) \
+                    // tc.dev.MAX_NO_PIPELINE_SPEED
+                # Round up to the next power of 2
+                cdiv -= 1
+                cdiv |= cdiv >> 1
+                cdiv |= cdiv >> 2
+                cdiv |= cdiv >> 4
+                cdiv |= cdiv >> 8
+                cdiv += 1
+                state.clock_divider = cdiv
+
+        if clock_speed // state.clock_divider > tc.dev.MAX_NO_PIPELINE_SPEED and not pipeline:
+            wprint(f'For a CNN clock speed of {clock_speed} MHz, the pipeline must be enabled.')
+        elif clock_speed // state.clock_divider <= tc.dev.MAX_NO_PIPELINE_SPEED and pipeline:
+            nprint(f'For a CNN clock speed of {clock_speed} MHz, the pipeline can be disabled.')
+        if state.clock_divider > tc.dev.MAX_CNNCLKDIV:
+            nprint(f'The clock divider of {state.clock_divider} exceeds the device maximum '
+                   f'({tc.dev.MAX_CNNCLKDIV}).')
 
         if zero_sram or pretend_zero_sram:
             # Clear every seventh kernel so we can test the BIST
@@ -244,6 +272,10 @@ class Backend(backend.Backend):
 
         if result_output:
             state.max_count = None
+
+        if (state.rtl_preload or state.rtl_preload_weights or state.result_output) \
+           and not tc.dev.SUPPORT_SIM_PRELOAD:
+            eprint('`--rtl-preload` and `--result-output` are not supported on this device.')
 
         if embedded_code and any(calcx4) and not state.new_kernel_loader:
             wprint('Enabling --new-kernel-loader since calcx4 is used.')
@@ -330,12 +362,6 @@ class Backend(backend.Backend):
                 eprint(f'{layer_pfx(ll)}Passthrough operations are not supported for streaming '
                        'layers.')
 
-        if state.mlator and (output_dim[terminating_layer][0]
-                             * output_dim[terminating_layer][1] < 4
-                             or output_width[terminating_layer] > 8):
-            wprint('--mlator should only be used with 4 or more 8-bit outputs per channel; '
-                   'ignoring.')
-            state.mlator = False
         mlator = state.mlator
 
         if state.softmax and output_width[terminating_layer] == 8:
@@ -382,6 +408,7 @@ class Backend(backend.Backend):
         hw_operator = operator.copy()
         hw_input_dim = copy.deepcopy(input_dim)
         hw_pooled_dim = copy.deepcopy(pooled_dim)
+        hw_output_dim = copy.deepcopy(output_dim)
         hw_kernel_size = copy.deepcopy(kernel_size)
         hw_kernel = copy.deepcopy(kernel)
         hw_dilation = copy.deepcopy(dilation)
@@ -484,6 +511,11 @@ class Backend(backend.Backend):
                     nprint('Use `pool_first: False` to combine element-wise and pooling layers '
                            'where pooling is executed after the element-wise operation.')
 
+            if not pool_first[ll] and operands[ll] > tc.dev.MAX_POOL_LAST_ELEMENTS \
+               and (pool[ll][0] > 1 or pool[ll][1] > 1):
+                eprint(f'"pool last" supports a maximum of {tc.dev.MAX_POOL_LAST_ELEMENTS} '
+                       'element-wise operands on this device.')
+
             if dilation[ll][0] > 1:
                 if operator[ll] != op.CONV1D:
                     eprint(f'{layer_pfx(ll)}`dilation` > 1 is supported for Conv1d only.')
@@ -524,6 +556,7 @@ class Backend(backend.Backend):
                         // dilation[ll][0]
                     hw_input_dim[ll][1] = dilation[ll][0]
                     hw_pooled_dim[ll] = hw_input_dim[ll]
+                    hw_output_dim[ll] = hw_pooled_dim[ll]
                     hw_padding[ll] = [1, 1]
                     hw_kernel_size[ll] = [3, 3]
                     hw_dilation[ll] = [1, 1]
@@ -689,7 +722,7 @@ class Backend(backend.Backend):
                     if write_gap[ll] == 0:
                         min_proc = -1
                         max_proc = -1
-                        for _, lt in enumerate(in_sequences[ll]):
+                        for lt in in_sequences[ll]:
                             first_proc = ffs(processor_map[0]) if lt == -1 \
                                 else ffs(output_processor_map[lt])
                             last_proc = fls(processor_map[0]) if lt == -1 \
@@ -708,7 +741,7 @@ class Backend(backend.Backend):
                             max_proc = last_proc
                 else:  # eltwise
                     eltwise_proc_map = 0
-                    for _, lt in enumerate(in_sequences[ll]):
+                    for lt in in_sequences[ll]:
                         emap = processor_map[0] if lt == -1 else output_processor_map[lt]
                         if eltwise_proc_map not in (0, emap):
                             eprint(f'{layer_pfx(ll)}In `in_sequences` {in_sequences[ll]}, '
@@ -719,13 +752,38 @@ class Backend(backend.Backend):
 
                 # Merge the output of all processors of all input sequence members
                 emap = 0
-                for _, lt in enumerate(in_sequences[ll]):
+                for lt in in_sequences[ll]:
                     emap |= processor_map[0] if lt == -1 else output_processor_map[lt]
                 # Check that all out input processors have data from somewhere in the merged map
                 if processor_map[ll] & emap != processor_map[ll]:
                     wprint(f'{layer_pfx(ll)}The processor map {processor_map[ll]:016x} specifies '
                            'processors that have no data from any of the input sequences '
                            f'{in_sequences[ll]}.')
+
+        # Deduplicate kernels
+        # Do this here since by now all modifications to the kernels have happened
+        kernel_ptrs: List[int] = []  # Indirection for hw_kernel
+        bias_ptrs: List[int] = []
+        if state.deduplicate_weights:
+            kernel_ptrs, hw_kernel = kdedup.deduplicate(
+                hw_kernel,
+                layers,
+                quantization,
+                processor_map,
+                kind='kernels',
+            )
+            bias_ptrs, bias = kdedup.deduplicate(
+                bias,
+                layers,
+                quantization,
+                processor_map,
+                kind='bias',
+            )
+        else:
+            kernel_ptrs = list(range(len(hw_kernel)))
+            bias_ptrs = list(range(len(bias)))
+        state.weights = hw_kernel
+        state.bias = bias
 
         # Create comment of the form "k1_b0-1x32x32b_2x2s2p14-..."
         test_name = prefix
@@ -786,6 +844,7 @@ class Backend(backend.Backend):
                     mode='w',
                     encoding='utf-8',
                 )
+            sampledata_header.write('// This file was @generated automatically\n\n')
             if state.generate_kat and state.result_filename is not None:
                 sampleoutput_header = \
                     open(
@@ -793,17 +852,19 @@ class Backend(backend.Backend):
                         mode='w',
                         encoding='utf-8',
                     )
+                sampleoutput_header.write('// This file was @generated automatically\n\n')
             else:
                 sampleoutput_header = None
         else:
             sampledata_header = sampleoutput_header = None
-        if not block_mode and (embedded_code or compact_weights):
+        if not block_mode and not state.rtl_preload_weights:
             weight_header = \
                 open(
                     os.path.join(base_directory, test_name, weight_filename),
                     mode='w',
                     encoding='utf-8',
                 )
+            weight_header.write('// This file was @generated automatically\n\n')
         else:
             weight_header = None
 
@@ -886,7 +947,7 @@ class Backend(backend.Backend):
                            f'layer: {processor_map[ll]:016x}.')
                 if processor_map[ll] == output_processor_map[ll]:
                     broadcast_mode[ll] = True
-                else:
+                elif state.energy_warning:
                     nprint(f'{layer_pfx(ll)}depth-wise convolution moves data across processors. '
                            f'This has a performance impact. Input 0x{processor_map[ll]:016x}, '
                            f'output 0x{output_processor_map[ll]:016x}.')
@@ -901,7 +962,7 @@ class Backend(backend.Backend):
                 emulate_eltwise[ll] = True
 
             # Warn if hidden layers use channel count that is not divisible by 4
-            if ll != start_layer and input_chan[ll] % 4 != 0:
+            if ll != start_layer and input_chan[ll] % 4 != 0 and state.energy_warning:
                 nprint(f'{layer_pfx(ll)}The input channel count ({input_chan[ll]}) is not '
                        'a multiple of 4. Best energy performance is achieved with multiples of 4.')
 
@@ -916,7 +977,7 @@ class Backend(backend.Backend):
 
         for ll in range(first_layer_used, layers):
             if bias_group_map[ll] is not None:
-                for _, e in enumerate(bias_group_map[ll]):
+                for e in bias_group_map[ll]:
                     if e not in groups_used:
                         eprint(f'{layer_pfx(ll)}`bias_quadrant` references unused quadrant {e}. '
                                f'Used x16 groups for this network are: {groups_used}.',
@@ -939,8 +1000,10 @@ class Backend(backend.Backend):
                 )
                 apb.copyright_header()
 
-                apb.output(f'// ARM wrapper code\n// {test_name}\n')
-                apb.output(f'// Created using {" ".join(str(x) for x in sys.argv)}\n\n')
+                apb.output('// ARM wrapper code\n'
+                           f'// {test_name}\n'
+                           '// This file was @generated by '
+                           f'{" ".join(str(x) for x in sys.argv)}\n\n')
 
                 apb.header()
                 apb.main()
@@ -987,12 +1050,14 @@ class Backend(backend.Backend):
 
             apb.copyright_header()
 
-            apb.output(f'// {test_name}\n')
-            apb.output(f'// Created using {" ".join(str(x) for x in sys.argv)}\n\n')
+            apb.output(f'// {test_name}\n'
+                       '// This file was @generated by '
+                       f'{" ".join(str(x) for x in sys.argv)}\n\n')
             if apifile is not None:
-                apb.output(f'// {test_name}\n', True)
-                apb.output(f'// Created using {" ".join(str(x) for x in sys.argv)}\n\n', True)
-                apb.output('// DO NOT EDIT - regenerate this file instead!\n\n', True)
+                apb.output(f'// {test_name}\n'
+                           '// This file was @generated by '
+                           f'{" ".join(str(x) for x in sys.argv)}\n\n'
+                           '// DO NOT EDIT - regenerate this file instead!\n\n', True)
 
             # Human readable description of test
             apb.output(f'// Configuring {repeat_layers * layers} '
@@ -1070,7 +1135,7 @@ class Backend(backend.Backend):
                 )
             if not block_mode and (embedded_code or compact_weights):
                 # Pre-define the kernels and bias values
-                kern_offs, kern_len, kern_count, kern_ochan = kernels.load(
+                hw_kern_offs, hw_kern_len, hw_kern_count, hw_kern_ochan = kernels.load(
                     True,
                     apb,
                     layers,
@@ -1091,7 +1156,7 @@ class Backend(backend.Backend):
                     verify_kernels,
                     api=embedded_code,
                 )
-                bias_offs, bias_group, group_bias_max = kbias.load(
+                hw_bias_offs, hw_bias_group, group_bias_max = kbias.load(
                     True,
                     apb,
                     layers,
@@ -1115,42 +1180,12 @@ class Backend(backend.Backend):
             # Initialize CNN registers
 
             if verbose:
-                # startup, lat = stats.calc_latency(
-                #     streaming,
-                #     layers,
-                #     eltwise,
-                #     pool,
-                #     pooled_dim,
-                #     in_expand,
-                #     output_chan,
-                #     output_dim,
-                #     input_dim,
-                #     padding,
-                #     kernel_size,
-                # )
-                # print('\nEstimated latency:')
-                # print('------------------')
-                # if lat is None:
-                #     print('N/A')
-                # else:
-                #     total = startup
-                #     print(f'Startup{startup:14,}')
-                #     for k in range(first_layer_used, layers):
-                #         total += lat[k][0]
-                #         print(f'Layer {k:<3}{lat[k][0]:12,}', end='')
-                #         if debug_latency:
-                #             print('', lat[k][1])
-                #         else:
-                #             print('')
-                #     print('           ==========')
-                #     print(f'Total{total:16,} cycles')
-
-                print('\nGlobal registers:')
-                print('-----------------')
+                print('\nGlobal registers:\n'
+                      '-----------------')
 
             if tc.dev.REQUIRE_REG_CLEAR:
                 val = 0 if not tc.dev.SUPPORT_PIPELINE or pipeline else 1 << 5
-                for _, group in enumerate(groups_used):
+                for group in groups_used:
                     apb.write_ctl(group, tc.dev.REG_CTL, val | 1 << 3 | tc.dev.READY_SEL << 1,
                                   comment=' // Enable clocks', no_verify=True)
             # Reset
@@ -1158,25 +1193,25 @@ class Backend(backend.Backend):
                                comment=' // AON control', force_write=True)
 
             if tc.dev.REQUIRE_REG_CLEAR:
-                for _, group in enumerate(groups_used):
+                for group in groups_used:
                     apb.write_ctl(group, tc.dev.REG_SRAM, 0x40e,
                                   comment=' // SRAM control')
                 bist_clear = tc.dev.BIST_ZERO_BOTH_EX if any(b is not None for b in bias) \
                     else tc.dev.BIST_ZERO_EX
-                for _, group in enumerate(groups_used):
+                for group in groups_used:
                     apb.write_ctl(group, tc.dev.REG_SRAM_TEST, bist_clear,
                                   comment=' // Clear registers', no_verify=True)
-                for _, group in enumerate(groups_used):
+                for group in groups_used:
                     apb.wait_ctl(group, tc.dev.REG_SRAM_TEST,
                                  tc.dev.BIST_ZERO_WAIT, tc.dev.BIST_ZERO_WAIT,
                                  comment=' // Wait for clear')
-                for _, group in enumerate(groups_used):
+                for group in groups_used:
                     apb.write_ctl(group, tc.dev.REG_SRAM_TEST, 0,
                                   comment=' // Reset BIST', force_write=True, no_verify=True)
                 apb.output('\n', embedded_code)
 
             # Configure global control registers for used groups
-            for _, group in enumerate(groups_used):
+            for group in groups_used:
                 if init_tram:
                     # Zero out Tornado RAM
                     if not embedded_code:
@@ -1275,7 +1310,7 @@ class Backend(backend.Backend):
             apb.function_footer()
 
             if block_mode or not (embedded_code or compact_weights):
-                kern_offs, kern_len, kern_count, kern_ochan = kernels.load(
+                hw_kern_offs, hw_kern_len, hw_kern_count, hw_kern_ochan = kernels.load(
                     embedded_code,
                     apb,
                     layers,
@@ -1295,7 +1330,7 @@ class Backend(backend.Backend):
                     flatten,
                     verify_kernels,
                 )
-                bias_offs, bias_group, group_bias_max = kbias.load(
+                hw_bias_offs, hw_bias_group, group_bias_max = kbias.load(
                     embedded_code,
                     apb,
                     layers,
@@ -1313,6 +1348,31 @@ class Backend(backend.Backend):
                     list(set().union(groups_used)),
                     flatten,
                 )
+
+            kern_offs = np.zeros((layers), dtype=np.int64)
+            kern_len = np.zeros((layers), dtype=np.int64)
+            kern_count = np.zeros((layers), dtype=np.int64)
+            kern_ochan = np.zeros((layers), dtype=np.int64)
+            bias_offs = [[None] * tc.dev.P_NUMGROUPS for _ in range(layers)]
+            bias_group = [None] * layers
+            for i, e in enumerate(kernel_ptrs):
+                if i >= layers:
+                    break
+                if e is not None:
+                    kern_offs[i] = hw_kern_offs[e]
+                    kern_len[i] = hw_kern_len[e]
+                    kern_count[i] = hw_kern_count[e]
+                    kern_ochan[i] = hw_kern_ochan[e]
+                else:
+                    kernel_ptrs[i] = i
+            for i, e in enumerate(bias_ptrs):
+                if i >= layers:
+                    break
+                if e is not None:
+                    bias_offs[i] = hw_bias_offs[e]
+                    bias_group[i] = hw_bias_group[e]
+                else:
+                    bias_ptrs[i] = i
 
             if verbose:
                 print('\nGlobal configuration:')
@@ -1415,7 +1475,7 @@ class Backend(backend.Backend):
                     hw_layer = r * (layers + sum_hw_layers) + ll + hw_add_layers[ll]
 
                     local_source = False
-                    for _, group in enumerate(groups_used):
+                    for group in groups_used:
                         # Local output must be used:
                         # - for depthwise convolutions
                         # - When parallel processing is enabled (not currently supported), or
@@ -1446,7 +1506,7 @@ class Backend(backend.Backend):
 
                     # For passthrough, determine time slot count (maximum across all used groups)
                     tscnt_max = 0
-                    for _, group in enumerate(groups_used):
+                    for group in groups_used:
                         if hw_operator[ll] == op.NONE:
                             if popcount((processor_map[ll] >> group*tc.dev.P_NUMPRO)
                                         % 2**tc.dev.P_NUMPRO) != 0:
@@ -1471,6 +1531,9 @@ class Backend(backend.Backend):
                                               % 2**tc.dev.P_NUMPRO)
                                      * output_width[ll] + 7) // 8 - 1
                                 )
+                    timeslots[ll] = tscnt_max + 1
+                    if flatten[ll]:
+                        timeslots[ll] *= hw_pooled_dim[ll][0] * hw_pooled_dim[ll][1]
 
                     for gindex, group in enumerate(groups_used):
                         if avgpool_reset_layer[ll] and group == groups_used[0]:
@@ -1503,7 +1566,7 @@ class Backend(backend.Backend):
                                     ll_index = in_sequences[lt].index(ll)
                                     ll_offset = out_offset[ll] - ll_index * write_gap[ll] * 4
                                     offs = 0
-                                    for _, e in enumerate(in_sequences[lt][:ll_index]):
+                                    for e in in_sequences[lt][:ll_index]:
                                         offs += output_dim[e][0] * output_dim[e][1]
                                     if in_offset[lt] != ll_offset \
                                        and out_offset[ll] != offs * 4:
@@ -1974,6 +2037,7 @@ class Backend(backend.Backend):
                             val |= 1 << 26
 
                         if flatten_prod >= 2**4:
+                            hw_flatten[ll] = True
                             val |= 1 << 27 | (flatten_prod >> 4) << 18  # flatten_ena, xpmp_cnt
 
                         if hw_operator[ll] == op.CONVTRANSPOSE2D:
@@ -2022,7 +2086,8 @@ class Backend(backend.Backend):
                                     stream_start = hw_input_dim[ll][0] * hw_input_dim[ll][1]
                                     if big_data[ll]:
                                         stream_start = (stream_start + 3) // 4
-                                stream_start *= pool[ll][0]
+                                if override_start is None:
+                                    stream_start *= pool[ll][0]
 
                                 if streaming[ll]:
                                     # Delta 1: This layer's pooling stride
@@ -2233,6 +2298,8 @@ class Backend(backend.Backend):
 
                         assert stream_start < 2**tc.dev.MAX_ISVAL_BITS
                         val = stream_start
+                        if streaming[ll] and group == groups_used[0]:
+                            state.stream_start.append(stream_start + 1)
                         if state.fifo_go and ll == start_layer:
                             val |= 1 << 25
                         apb.write_lreg(group, hw_layer, tc.dev.LREG_STREAM1, val,
@@ -2241,8 +2308,13 @@ class Backend(backend.Backend):
                         assert invol < 2**4, \
                             f'{layer_pfx(ll)}invol ({invol:04x}) exceeds supported range.'
                         assert delta1 < 2**5
-                        assert delta2 < 2**tc.dev.MAX_DSVAL2_BITS
+                        if delta2 >= 2**tc.dev.MAX_DSVAL2_BITS:
+                            eprint(f'Layer {ll}: delta2 ({delta2}) exceeds device maximum '
+                                   f'({2**tc.dev.MAX_DSVAL2_BITS}). Reduce pooling.')
                         val = delta2 << 16 | delta1 << 4 | invol
+                        if streaming[ll] and group == groups_used[0]:
+                            state.delta1.append(delta1)
+                            state.delta2.append(delta2)
                         apb.write_lreg(group, hw_layer, tc.dev.LREG_STREAM2, val,
                                        comment=' // Stream processing delta')
 
@@ -2285,90 +2357,108 @@ class Backend(backend.Backend):
 
                             assert val < 2**tc.dev.MAX_FBUF_BITS
 
-                            # Check rollover vs available data memory
-                            if output_processor_map[ll] & processor_map[ll] != 0:  # Any overlap?
-                                if in_offset[ll] < out_offset[ll] - out_ignore[ll]:
-                                    if in_offset[ll] + val * 4 >= out_offset[ll] - out_ignore[ll]:
-                                        eprint(f'{layer_pfx(ll)}Overlapping input and output: '
-                                               f'in_offset 0x{in_offset[ll]:08x} + '
-                                               f'rollover 0x{val:08x} * 4 >= '
-                                               f'out_offset 0x{out_offset[ll]:08x} - '
-                                               f'out_ignore 0x{out_ignore[ll]:08x}.',
-                                               error=not no_error_stop)
-                                else:
-                                    if out_offset[ll] + val * 4 >= in_offset[ll]:
-                                        eprint(f'{layer_pfx(ll)}Overlapping input and output: '
-                                               f'out_offset 0x{out_offset[ll]:08x} + '
-                                               f'rollover 0x{val:08x} * 4 >= '
-                                               f'in_offset 0x{in_offset[ll]:08x}.',
-                                               error=not no_error_stop)
-                                    if ll == terminating_layer:
-                                        osize = output_dim[ll][0] * output_dim[ll][1] + out_pad[ll]
-                                        if out_offset[ll] + osize * out_expand[ll] * 4 >= \
-                                           in_offset[ll]:
-                                            eprint(f'{layer_pfx(ll)}Overlapping input and output: '
-                                                   f'out_offset 0x{out_offset[ll]:08x} + '
-                                                   f'output of size {osize} '
-                                                   f'({output_dim_str[ll]}) '
-                                                   f'* {out_expand[ll]} * 4 >= '
-                                                   f'in_offset 0x{in_offset[ll]:08x}.',
-                                                   error=not no_error_stop)
-                            if in_offset[ll] + val * 4 >= tc.dev.INSTANCE_WIDTH \
-                               * tc.dev.P_SHARED * 4:
-                                eprint('Input plus rollover exceeds instance size: '
-                                       f'in_offset 0x{in_offset[ll]:08x}, '
-                                       f'out_offset 0x{out_offset[ll]:08x}, '
-                                       f'rollover 0x{val:08x}, '
-                                       f'instance size 0x{tc.dev.INSTANCE_WIDTH*4:08x}.',
-                                       error=not no_error_stop)
+                            if group == groups_used[0]:  # Run checks just once
+                                # Check rollover vs available data memory
+                                if output_processor_map[ll] & processor_map[ll] != 0:  # Overlap?
+                                    if in_offset[ll] < out_offset[ll] - out_ignore[ll]:
+                                        if in_offset[ll] + val * 4 \
+                                           >= out_offset[ll] - out_ignore[ll]:
+                                            eprint(
+                                                f'{layer_pfx(ll)}Overlapping input and output: '
+                                                f'in_offset 0x{in_offset[ll]:08x} + '
+                                                f'rollover 0x{val:08x} * 4 >= '
+                                                f'out_offset 0x{out_offset[ll]:08x} - '
+                                                f'out_ignore 0x{out_ignore[ll]:08x}.',
+                                                error=not no_error_stop,
+                                            )
+                                    else:
+                                        if out_offset[ll] + val * 4 >= in_offset[ll]:
+                                            eprint(
+                                                f'{layer_pfx(ll)}Overlapping input and output: '
+                                                f'out_offset 0x{out_offset[ll]:08x} + '
+                                                f'rollover 0x{val:08x} * 4 >= '
+                                                f'in_offset 0x{in_offset[ll]:08x}.',
+                                                error=not no_error_stop,
+                                            )
+                                        if ll == terminating_layer:
+                                            osize = \
+                                                output_dim[ll][0] * output_dim[ll][1] + out_pad[ll]
+                                            if out_offset[ll] + osize * out_expand[ll] * 4 >= \
+                                               in_offset[ll]:
+                                                eprint(
+                                                    f'{layer_pfx(ll)}Overlapping input and '
+                                                    f'output: out_offset 0x{out_offset[ll]:08x} + '
+                                                    f'output of size {osize} '
+                                                    f'({output_dim_str[ll]}) '
+                                                    f'* {out_expand[ll]} * 4 >= '
+                                                    f'in_offset 0x{in_offset[ll]:08x}.',
+                                                    error=not no_error_stop,
+                                                )
+                                if in_offset[ll] + val * 4 >= tc.dev.INSTANCE_WIDTH \
+                                   * tc.dev.P_SHARED * 4:
+                                    eprint(
+                                        'Input plus rollover exceeds instance size: '
+                                        f'in_offset 0x{in_offset[ll]:08x}, '
+                                        f'out_offset 0x{out_offset[ll]:08x}, '
+                                        f'rollover 0x{val:08x}, '
+                                        f'instance size 0x{tc.dev.INSTANCE_WIDTH*4:08x}.',
+                                        error=not no_error_stop,
+                                    )
 
-                            # Check streaming buffers for overlap across all streaming layers and
-                            # the data memories used by the processors in the streaming layers, as
-                            # well as the output of the last streaming layer.
-                            dmap = tc.dev.datamem_map(processor_map[ll],
-                                                      fast_fifo_quad and ll == 0)
-                            stream_buf[ll] = (in_offset[ll], in_offset[ll] + val * 4, dmap)
-                            for pl in range(ll):
-                                if stream_buf[pl] is None:
-                                    continue
-                                if stream_buf[pl][2] & dmap != 0 \
-                                   and overlap(stream_buf[ll], stream_buf[pl]):
-                                    eprint(f'{layer_pfx(ll)}Streaming buffer '
-                                           f'({stream_buf[ll][0]:04x}-{stream_buf[ll][1]:04x}, '
-                                           f'processors {processor_map[ll]:016x}) '
-                                           f'overlaps layer {layer_str(pl)} '
-                                           f'({stream_buf[pl][0]:04x}-{stream_buf[pl][1]:04x}, ',
-                                           f'processors {processor_map[pl]:016x}).',
-                                           error=not overwrite_ok)
-                                if rd_ahead[ll] \
-                                   and tc.dev.datainstance_from_offs(stream_buf[ll][0]) \
-                                   == tc.dev.datainstance_from_offs(stream_buf[pl][0]):
-                                    eprint(f'{layer_pfx(ll)}In streaming mode with read-ahead, '
-                                           'all streaming read-ahead layers must use separate '
-                                           'memory instances. The layer conflicts with layer '
-                                           f'{layer_str(pl)}; both use instance '
-                                           f'{tc.dev.datainstance_from_offs(stream_buf[pl][0])}.')
-
-                            if ll == final_layer or not streaming[next_sequence[ll]]:
-                                dmap = tc.dev.datamem_map(output_processor_map[ll])
-                                for pl in range(ll + 1):
+                                # Check streaming buffers for overlap across all streaming layers
+                                # and the data memories used by the processors in the streaming
+                                # layers, as well as the output of the last streaming layer.
+                                dmap = tc.dev.datamem_map(processor_map[ll],
+                                                          fast_fifo_quad and ll == 0)
+                                stream_buf[ll] = (in_offset[ll], in_offset[ll] + val * 4, dmap)
+                                for pl in range(ll):
                                     if stream_buf[pl] is None:
                                         continue
                                     if stream_buf[pl][2] & dmap != 0 \
-                                       and overlap((out_offset[ll], out_offset[ll]
-                                                   + (output_dim[ll][0] * output_dim[ll][1]
-                                                      + out_pad[ll]) * 4
-                                                   * output_width[ll] // 8), stream_buf[pl]):
-                                        eprint(f'{layer_pfx(ll)}The output '
-                                               f'({out_offset[ll]:04x}-{stream_buf[ll][1]:04x}, '
-                                               'output processors '
-                                               f'{output_processor_map[ll]:016x}) overlaps '
-                                               f'streaming buffer for layer {layer_str(pl)} '
-                                               f'({stream_buf[pl][0]:04x}-{stream_buf[pl][1]:04x}'
-                                               f', processors {processor_map[pl]:016x}).',
-                                               error=not overwrite_ok)
+                                       and overlap(stream_buf[ll], stream_buf[pl]):
+                                        eprint(
+                                            f'{layer_pfx(ll)}Streaming buffer '
+                                            f'({stream_buf[ll][0]:04x}-{stream_buf[ll][1]:04x}, '
+                                            f'processors {processor_map[ll]:016x}) '
+                                            f'overlaps layer {layer_str(pl)} '
+                                            f'({stream_buf[pl][0]:04x}-{stream_buf[pl][1]:04x}, '
+                                            f'processors {processor_map[pl]:016x}).',
+                                            error=not overwrite_ok,
+                                        )
+                                    if rd_ahead[ll] \
+                                       and tc.dev.datainstance_from_offs(stream_buf[ll][0]) \
+                                       == tc.dev.datainstance_from_offs(stream_buf[pl][0]):
+                                        eprint(
+                                            f'{layer_pfx(ll)}In streaming mode with read-ahead, '
+                                            'all streaming read-ahead layers must use separate '
+                                            'memory instances. The layer conflicts with layer '
+                                            f'{layer_str(pl)}; both use instance '
+                                            f'{tc.dev.datainstance_from_offs(stream_buf[pl][0])}.',
+                                        )
+
+                                if ll == final_layer or not streaming[next_sequence[ll]]:
+                                    dmap = tc.dev.datamem_map(output_processor_map[ll])
+                                    for pl in range(ll + 1):
+                                        if stream_buf[pl] is None:
+                                            continue
+                                        if stream_buf[pl][2] & dmap != 0 \
+                                           and overlap((out_offset[ll], out_offset[ll]
+                                                       + (output_dim[ll][0] * output_dim[ll][1]
+                                                          + out_pad[ll]) * 4
+                                                       * output_width[ll] // 8), stream_buf[pl]):
+                                            eprint(
+                                                f'{layer_pfx(ll)}The output '
+                                                f'({out_offset[ll]:04x}-{stream_buf[ll][1]:04x}, '
+                                                'output processors '
+                                                f'{output_processor_map[ll]:016x}) overlaps '
+                                                f'streaming buffer for layer {layer_str(pl)} '
+                                                f'({stream_buf[pl][0]:04x}-{stream_buf[pl][1]:04x}'
+                                                f', processors {processor_map[pl]:016x}).',
+                                                error=not overwrite_ok,
+                                            )
 
                             apb.write_lreg(group, hw_layer, tc.dev.LREG_FMAX, val,
+                                           no_verify=not tc.dev.SUPPORT_ROLLOVER_READ,
                                            comment=' // Rollover')
 
                         # In read-ahead mode, ensure that input and output use separate
@@ -2408,7 +2498,7 @@ class Backend(backend.Backend):
             if zero_unused:
                 for r in range(repeat_layers):
                     for ll in range(first_layer_used, layers, tc.dev.MAX_LAYERS):
-                        for _, group in enumerate(groups_used):
+                        for group in groups_used:
                             for reg in range(tc.dev.MAX_LREG+1):
                                 if reg == tc.dev.LREG_RFU:  # Register 2 not implemented
                                     continue
@@ -2417,7 +2507,7 @@ class Backend(backend.Backend):
                                                comment=f' // Zero unused layer {ll} registers')
                     if hasattr(tc.dev, 'MIN_STREAM_LREG'):
                         for ll in range(first_layer_used, layers, tc.dev.MAX_STREAM_LAYERS):
-                            for _, group in enumerate(groups_used):
+                            for group in groups_used:
                                 for reg in range(tc.dev.MIN_STREAM_LREG, tc.dev.MAX_STREAM_LREG+1,
                                                  tc.dev.MAX_STREAM_LAYERS):
                                     apb.write_lreg(group, hw_layer, reg, 0,
@@ -2426,7 +2516,7 @@ class Backend(backend.Backend):
 
             if snoop is not None:
                 apb.output('  // Configure conditional execution\n', embedded_code)
-                for _, group in enumerate(groups_used):
+                for group in groups_used:
                     assert len(snoop) == 32
                     apb.write_ctl(group, tc.dev.REG_SNP1_A1, snoop[0],
                                   comment=' // Address snoop 1 register 1')
@@ -2567,7 +2657,7 @@ class Backend(backend.Backend):
 
             # Enable all needed groups except the first one
             rdy_sel = tc.dev.READY_SEL if not pipeline else tc.dev.PIPELINE_READY_SEL
-            for _, group in enumerate(groups_used):
+            for group in groups_used:
                 # Turn on the FIFO for this group if it's being loaded
                 if fifo and processor_map_0 & 0x0f << group * 16 != 0:
                     fval = 1 << 15
@@ -2593,13 +2683,13 @@ class Backend(backend.Backend):
                 unused_groups = [group for group in list(range(tc.dev.P_NUMGROUPS))
                                  if group not in groups_used]
                 val2 = 0
-                for _, group in enumerate(unused_groups):
+                for group in unused_groups:
                     val2 |= 1 << 12 + group
                 apb.write_fifo_ctl(tc.dev.AON_CTL, val2 | tc.dev.AON_READY_SEL,
                                    comment=' // AON control')
 
             if state.snoop_loop:
-                for _, group in enumerate(groups_used):
+                for group in groups_used:
                     apb.output('\n', embedded_code)
                     apb.write_lreg(group, hw_layer, tc.dev.LREG_NXTLYR, 0x80,
                                    force_write=True, comment=' // Link Layer')
@@ -2619,7 +2709,7 @@ class Backend(backend.Backend):
                                   comment=' // Snoop 1 control register 1')
 
                 apb.output('\n', embedded_code)
-                for _, group in enumerate(groups_used):
+                for group in groups_used:
                     # Turn on the FIFO for this group if it's being loaded
                     if fifo and processor_map_0 & 0x0f << group * 16 != 0:
                         fval = 1 << 15
@@ -2689,6 +2779,7 @@ class Backend(backend.Backend):
         # ----------------------------------------------------------------------------------------
 
         in_map = apb.get_mem()
+        latency_data: List[Tuple[int, str, str]] = [(1, 'Startup', '')]
 
         if verbose:
             print('')
@@ -2736,6 +2827,51 @@ class Backend(backend.Backend):
             # Compute layer-by-layer output and chain results into input
             while ll < layers:
                 progress.update(task, completed=ll)
+
+                if verbose and tc.dev.SUPPORT_LATENCY_CALC:
+                    if not flatten[ll]:
+                        hw_in_dim = hw_input_dim[ll]
+                        hw_in_chan = input_chan[ll]
+                        hw_out_chan = kern_count[ll] // in_expand[ll]
+                        hw_out_dim = hw_output_dim[ll]
+                    else:
+                        hw_in_dim = (hw_input_dim[ll][0] * pool[ll][0],
+                                     hw_input_dim[ll][1] * pool[ll][1])
+                        hw_in_chan = input_chan[ll]
+                        hw_out_chan = kern_count[ll] \
+                            // (in_expand[ll] * hw_pooled_dim[ll][0] * hw_pooled_dim[ll][1])
+                        hw_out_dim = (hw_output_dim[ll][0] * hw_pooled_dim[ll][0],
+                                      hw_output_dim[ll][1] * hw_pooled_dim[ll][1])
+                    if tc.dev.REQUIRE_2X_MP_PASSTHROUGH and hw_operator[ll] == op.NONE \
+                       and out_expand[ll] > 1 and (pool[ll][0] > 1 or pool[ll][1] > 1):
+                        multipass = 2 * in_expand[ll] - 1
+                    else:
+                        multipass = in_expand[ll]
+                    layer_lat, layer_comment = latency.calculate(
+                        input_chan=hw_in_chan,
+                        input_dim=hw_in_dim,
+                        pool=pool[ll],
+                        pool_stride=pool_stride[ll],
+                        pooled_dim=hw_pooled_dim[ll] if operator[ll] != op.CONVTRANSPOSE2D
+                        else (hw_pooled_dim[ll][0] * stride[ll][0],
+                              hw_pooled_dim[ll][1] * stride[ll][1]),
+                        multipass=multipass,
+                        output_chan=hw_out_chan if hw_operator[ll] != op.NONE else output_chan[ll],
+                        output_dim=hw_out_dim,
+                        kernel_size=hw_kernel_size[ll],
+                        padding=hw_padding[ll],
+                        num_elements=operands[ll],
+                        pool_first=pool_first[ll],
+                        passthrough=hw_operator[ll] == op.NONE,
+                        pass_out_chan=timeslots[ll],
+                        flatten=hw_flatten[ll],
+                        streaming=streaming[ll],
+                        kern_offs=kern_offs[ll],
+                    )
+                    if streaming[ll]:
+                        layer_lat *= -1
+                    latency_data.append((layer_lat, f'Layer {layer_str(ll)}', layer_comment))
+
                 compute.debug_open(ll, base_directory, test_name, log_filename)
 
                 # Concatenate input data if needed
@@ -2859,7 +2995,7 @@ class Backend(backend.Backend):
                             )
 
                     if not bypass[ll]:
-                        k = kernel[ll].reshape(
+                        k = kernel[kernel_ptrs[ll]].reshape(
                                 output_chan[ll],
                                 in_chan // conv_groups[ll],
                                 kernel_size[ll][0],
@@ -2883,7 +3019,7 @@ class Backend(backend.Backend):
                         stride[ll],
                         activation[ll],
                         k,
-                        bias[ll],
+                        bias[bias_ptrs[ll]],
                         data,
                         output_width=output_width[ll],
                         groups=conv_groups[ll],
@@ -2891,7 +3027,7 @@ class Backend(backend.Backend):
                     )
                 elif operator[ll] == op.CONVTRANSPOSE2D:
                     if not bypass[ll]:
-                        k = kernel[ll].reshape(
+                        k = kernel[kernel_ptrs[ll]].reshape(
                                 output_chan[ll],
                                 in_chan // conv_groups[ll],
                                 kernel_size[ll][0],
@@ -2916,7 +3052,7 @@ class Backend(backend.Backend):
                         output_padding[ll],
                         activation[ll],
                         k,
-                        bias[ll],
+                        bias[bias_ptrs[ll]],
                         data,
                         output_width=output_width[ll],
                         groups=conv_groups[ll],
@@ -2924,7 +3060,7 @@ class Backend(backend.Backend):
                     )
                 elif operator[ll] == op.CONV1D:
                     if not bypass[ll]:
-                        k = kernel[ll].reshape(
+                        k = kernel[kernel_ptrs[ll]].reshape(
                                 output_chan[ll],
                                 input_chan[ll] // conv_groups[ll],
                                 kernel_size[ll][0],
@@ -2947,7 +3083,7 @@ class Backend(backend.Backend):
                         stride[ll][0],
                         activation[ll],
                         k,
-                        bias[ll],
+                        bias[bias_ptrs[ll]],
                         data,
                         output_width=output_width[ll],
                         groups=conv_groups[ll],
@@ -2977,7 +3113,7 @@ class Backend(backend.Backend):
                         filename = f'{output_filename}-{ll}.mem'  # Intermediate output
                     filemode = 'w'
                 else:
-                    if output_layer[ll]:
+                    if output_layer[ll] or ll == terminating_layer:
                         filename = c_filename + ('_riscv' if riscv else '') + '.c'  # Final output
                     else:
                         filename = None  # Intermediate output - used for layer overwrite check
@@ -2992,24 +3128,6 @@ class Backend(backend.Backend):
                     apb.set_memfile(memfile)
 
                     if state.generate_kat:
-                        if output_layer[ll] and mlator \
-                           and not state.mlator_noverify and not embedded_code:
-                            apb.verify_unload(
-                                ll,
-                                in_map,
-                                None,
-                                out_buf,
-                                output_processor_map[ll],
-                                out_size,
-                                out_offset[ll],
-                                out_expand[ll],
-                                out_expand_thresh[ll],
-                                output_width[ll],
-                                overwrite_ok or streaming[ll],
-                                mlator=False,
-                                write_gap=write_gap[ll],
-                                unload_layer=output_layer[ll],
-                            )
                         if log_intermediate:
                             filename2 = f'{output_filename}-{ll}.mem'  # Intermediate output
                             memfile2 = open(os.path.join(base_directory, test_name, filename2),
@@ -3053,11 +3171,11 @@ class Backend(backend.Backend):
                             out_expand[ll],
                             out_expand_thresh[ll],
                             output_width[ll],
-                            overwrite_ok or (streaming[ll] if ll != start_layer
-                                             else (streaming[ll] and fifo)),
+                            overwrite_ok,
                             mlator=mlator and output_layer[ll],
                             write_gap=write_gap[ll],
                             unload_layer=output_layer[ll],
+                            streaming=streaming[ll],
                         )
                         if debug_snoop:
                             apb.verify_ctl(group, tc.dev.REG_SNP1_ACC, None, snoop[24],
@@ -3085,7 +3203,6 @@ class Backend(backend.Backend):
                            'zero. The generated known-answer test for this network may not be '
                            'meaningful. See the log file for details.')
 
-                data_buf[ll + 1] = out_buf.reshape(out_size)
                 if next_sequence[ll] != -1 and streaming[next_sequence[ll]]:
                     # When streaming, the output should not overwrite the input of prior layers
                     # since these layers are still needed.
@@ -3119,6 +3236,9 @@ class Backend(backend.Backend):
                     if next_sequence[ll] == -1:
                         break
                     ll = next_sequence[ll]
+
+                data_buf[ll] = out_buf.reshape(out_size)
+
             progress.update(task, completed=layers)
 
         data = data_buf[ll]
@@ -3145,6 +3265,37 @@ class Backend(backend.Backend):
         finally:
             if memfile:
                 memfile.close()
+
+        # ----------------------------------------------------------------------------------------
+        total = 0
+        lat_unknown = False
+        if tc.dev.SUPPORT_LATENCY_CALC:
+            if verbose:
+                print('ESTIMATED LATENCY')
+            for layer_lat, layer_name, layer_comment in latency_data:
+                total += abs(layer_lat)
+                layer_lat_str = f'{abs(layer_lat):18,}'
+                if layer_lat <= 0:
+                    lat_unknown = True
+                    layer_lat_str += ' (est)'
+                if verbose:
+                    print(f'{layer_name:9}{layer_lat_str}')
+                    if state.debug_latency and layer_comment != '':
+                        print(f'\n{layer_comment}')
+            total_str = f'{total:22,} cycles'
+            if lat_unknown:
+                total_str += ' (est)'
+            if verbose:
+                print('                 ==========\n'
+                      f'Total{total_str}\n')
+
+            if not (embedded_code or block_mode or any(streaming)):
+                rtlsim.write_latency(
+                    test_name,
+                    total,
+                    [x for x, _, _ in latency_data],
+                )
+        # ----------------------------------------------------------------------------------------
 
         if not block_mode:
             with open(os.path.join(base_directory, test_name, filename), mode=filemode,
@@ -3184,23 +3335,22 @@ class Backend(backend.Backend):
             sampleoutput_header.close()
         if apifile is not None:
             apifile.close()
-        if state.rtl_preload or result_output or state.new_kernel_loader:
+        if state.rtl_preload or state.rtl_preload_weights \
+           or result_output or state.new_kernel_loader:
             apb.write_mem(base_directory, test_name)
         if weight_header is not None:
             weight_header.close()
 
         # Create run_test.sv
         if not embedded_code and not block_mode:
-            if not timeout:
-                # If no timeout specified, calculate one based on reads/writes
-                timeout = 10 * (apb.get_time() + rtlsim.GLOBAL_TIME_OFFSET)
-                if zero_sram:
-                    timeout += 16
             rtlsim.create_runtest_sv(
                 test_name,
                 timeout,
-                riscv=riscv,
                 groups_used=groups_used,
+                cnn_cycles=total,
+                apb=apb,
+                input_dim=hw_input_dim,
+                in_expand=in_expand,
             )
             assets.copy('assets', 'rtlsim-ai' + str(device), base_directory, test_name)
             if riscv_cache:

@@ -11,3 +11,4 @@ layers:
     kernel_size: 1
     stride: 1
     pad: 0
+    activate: None

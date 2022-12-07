@@ -14,3 +14,4 @@ layers:
     pool_dilation: 2
     pool_stride: 3
     max_pool: 3
+    activate: None

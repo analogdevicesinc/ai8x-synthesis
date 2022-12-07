@@ -10,3 +10,4 @@ layers:
     operation: linear
     flatten: true
     output_width: 32
+    activate: None

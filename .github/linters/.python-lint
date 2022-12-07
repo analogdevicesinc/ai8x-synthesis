@@ -15,7 +15,7 @@ max-nested-blocks=10
 max-args=55
 max-attributes=60
 max-public-methods=35
-max-bool-expr=8
+max-bool-expr=12
 max-parents=15
 [MASTER]
 ignore=CMSIS_5,sdk

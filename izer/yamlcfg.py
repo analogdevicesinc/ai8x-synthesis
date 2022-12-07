@@ -7,6 +7,8 @@
 """
 YAML Configuration Routines
 """
+import os
+
 import yaml
 import yamllint
 import yamllint.config
@@ -14,7 +16,7 @@ import yamllint.linter
 
 from . import devices, names, op, state
 from . import tornadocnn as tc
-from .eprint import eprint, wprint
+from .eprint import eprint, nprint, wprint
 
 DEFAULT_2D_KERNEL = [3, 3]
 DEFAULT_1D_KERNEL = [9, 1]
@@ -46,7 +48,7 @@ class UniqueKeyLoader(yaml.Loader):
             # check for duplicate keys
             if key in mapping:
                 eprint(f'Found duplicate key {key} '
-                       f'while constructing a mapping{node.start_mark}')
+                       f'while constructing a mapping {node.start_mark}')
             value = self.construct_object(value_node, deep=deep)
             mapping[key] = value
 
@@ -73,6 +75,9 @@ def parse(
     print(f'Reading {config_file} to configure network...')
 
     # Run yamllint first
+    if not os.path.exists(config_file):
+        eprint(f'YAML configuration file {config_file} does not exist!')
+
     yaml_config = yamllint.config.YamlLintConfig('extends: relaxed')
     with open(config_file, mode='r', encoding='utf-8') as cfg_file:
         for p in yamllint.linter.run(cfg_file, yaml_config):
@@ -140,6 +145,7 @@ def parse(
     output_layer = [False] * tc.dev.MAX_LAYERS
     unload_custom = []
     layer_name = [None] * tc.dev.MAX_LAYERS
+    weight_source = [None] * tc.dev.MAX_LAYERS
 
     sequence = 0
     skip = skip_layers
@@ -158,7 +164,8 @@ def parse(
                                  'next_sequence', 'snoop_sequence', 'simulated_sequence',
                                  'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
                                  'bias_group', 'bias_quadrant', 'calcx4', 'readahead', 'name',
-                                 'pool_dilation', 'output_pad', 'tcalc', 'read_gap', 'output'])
+                                 'pool_dilation', 'output_pad', 'tcalc', 'read_gap', 'output',
+                                 'weight_source'])
         if bool(cfg_set):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`: '
                    f'{cfg_set}.')
@@ -249,6 +256,8 @@ def parse(
                     error_exit('`in_dim` must be an integer or list not exceeding two dimensions',
                                sequence)
             input_dim[sequence] = val
+        if 'in_skip' in ll and 'read_gap' in ll:
+            error_exit('Duplicate key for `in_skip`/`read_gap`', sequence)
         if 'in_skip' in ll or 'read_gap' in ll:
             key = 'in_skip' if 'in_skip' in ll else 'read_gap'
             input_skip[sequence] = ll[key]
@@ -264,6 +273,8 @@ def parse(
             wprint('Defaulting to `out_offset = 0` for '
                    f'layer sequence {sequence} in YAML configuration.')
 
+        if 'activate' in ll and 'activation' in ll:
+            error_exit('Duplicate key for `activation`/`activate`', sequence)
         if 'activate' in ll or 'activation' in ll:
             key = 'activate' if 'activate' in ll else 'activation'
             if ll[key].lower() == 'relu':
@@ -277,6 +288,13 @@ def parse(
             if state.ignore_activation:
                 activation[sequence] = None
 
+        if 'convolution' in ll and 'operation' in ll \
+           or 'convolution' in ll and 'operator' in ll \
+           or 'convolution' in ll and 'op' in ll \
+           or 'operation' in ll and 'operator' in ll \
+           or 'operation' in ll and 'op' in ll \
+           or 'operator' in ll and 'op' in ll:
+            error_exit('Duplicate key for `convolution`/`operation`/`operator`/`op`', sequence)
         if 'convolution' in ll or 'operation' in ll or 'op' in ll or 'operator' in ll:
             key = 'convolution' if 'convolution' in ll else \
                   'operation' if 'operation' in ll else \
@@ -297,7 +315,7 @@ def parse(
                 eltwise[sequence] = op.ELTWISE_ADD
                 operands[sequence] = 2
                 padding[sequence] = [0, 0]
-            elif conv == 'or':
+            elif conv in ['or', 'bitwiseor', 'bitwise_or']:
                 operator[sequence] = op.NONE
                 eltwise[sequence] = op.ELTWISE_OR
                 operands[sequence] = 2
@@ -307,7 +325,7 @@ def parse(
                 eltwise[sequence] = op.ELTWISE_SUB
                 operands[sequence] = 2
                 padding[sequence] = [0, 0]
-            elif conv == 'xor':
+            elif conv in ['xor', 'bitwisexor', 'bitwise_xor']:
                 operator[sequence] = op.NONE
                 eltwise[sequence] = op.ELTWISE_XOR
                 operands[sequence] = 2
@@ -321,6 +339,11 @@ def parse(
                 error_exit(f'Unknown value "{ll[key]}" for `{key}`', sequence)
         else:
             wprint('Defaulting to `op: Conv2d` for '
+                   f'layer sequence {sequence} in YAML configuration.')
+
+        if operator[sequence] in [op.CONV1D, op.CONV2D, op.CONVTRANSPOSE2D, op.LINEAR] \
+           and not ('activate' in ll or 'activation' in ll):
+            nprint(f'Defaulting to "no activation" for {conv} in '
                    f'layer sequence {sequence} in YAML configuration.')
 
         if 'pad' in ll:
@@ -471,6 +494,8 @@ def parse(
         if 'snoop_sequence' in ll:
             snoop_sequence[sequence] = ll['snoop_sequence'] - skip_layers
 
+        if 'conv_groups' in ll and 'groups' in ll:
+            error_exit('Duplicate key for `conv_groups`/`groups`', sequence)
         if 'conv_groups' in ll or 'groups' in ll:
             key = 'conv_groups' if 'conv_groups' in ll else 'groups'
             conv_groups[sequence] = ll[key]
@@ -485,6 +510,8 @@ def parse(
             except ValueError:
                 error_exit(f'Unsupported value `{val}` for `bypass`', sequence)
 
+        if 'bias_group' in ll and 'bias_quadrant' in ll:
+            error_exit('Duplicate key for `bias_quadrant`/`bias_group`', sequence)
         if 'bias_group' in ll or 'bias_quadrant' in ll:
             key = 'bias_quadrant' if 'bias_quadrant' in ll else 'bias_group'
             val = ll[key]
@@ -545,6 +572,14 @@ def parse(
             if val.lower() in ['stop', 'input']:
                 error_exit(f'Using reserved name {val} for `name`', sequence)
             layer_name[sequence] = val
+
+        if 'weight_source' in ll:
+            val = ll['weight_source']
+            if isinstance(val, str):
+                val = val.lower()
+                weight_source[sequence] = val
+            else:
+                weight_source[sequence] = val - skip_layers
 
         # Fix up values for 1D convolution or no convolution
         if operator[sequence] == op.CONV1D:
@@ -607,6 +642,7 @@ def parse(
             del output_padding[ll]
             del tcalc[ll]
             del output_layer[ll]
+            del weight_source[ll]
 
     for ll, _ in enumerate(operator):
         # Convert string layer names to sequences
@@ -616,9 +652,12 @@ def parse(
         if isinstance(simulated_sequence[ll], str):
             simulated_sequence[ll] = names.find_layer(layer_name, ll, simulated_sequence[ll],
                                                       'simulated_sequence')
+        if isinstance(weight_source[ll], str):
+            weight_source[ll] = names.find_layer(layer_name, ll, weight_source[ll],
+                                                 'weight_source')
         if in_sequences[ll] is not None:
             new_in_sequences = []
-            for _, e in enumerate(in_sequences[ll]):
+            for e in in_sequences[ll]:
                 if isinstance(e, str):
                     new_in_sequences.append(names.find_layer(layer_name, ll, e, 'in_sequences'))
                 else:
@@ -715,5 +754,6 @@ def parse(
     settings['tcalc'] = tcalc
     settings['unload_custom'] = unload_custom if len(unload_custom) > 0 else None
     settings['write_gap'] = write_gap
+    settings['weight_source'] = weight_source
 
     return cfg, len(processor_map), settings

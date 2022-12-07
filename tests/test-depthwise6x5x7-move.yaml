@@ -11,3 +11,4 @@ layers:
     operation: conv2d
     kernel_size: 3x3
     groups: 6
+    activate: None

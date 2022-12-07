@@ -7,3 +7,4 @@ layers:
     processors: 0x00000000000007ff
     pad: 1
     op: conv2d
+    activate: None

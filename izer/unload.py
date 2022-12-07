@@ -8,7 +8,7 @@
 Unload AI8X HWC memory into standard representation.
 """
 import os
-from typing import List, TextIO
+from typing import List, Optional, TextIO
 
 import numpy as np
 
@@ -60,10 +60,11 @@ def unload(
     narrow_chunk = state.narrow_chunk if state.embedded_code else 0
     wide_chunk = state.wide_chunk if state.embedded_code else 0
     unload_custom = state.unload_custom
+    mlator_warning = state.mlator_warning
 
     assert not state.block_mode or not mlator
 
-    mlator_warning_shown = False
+    mlator_layers = []
 
     # If 'unload' is specified in the YAML file, create synthetic versions of
     # output_layer[], output_width[], input_shape[], processor_map[], out_expand[],
@@ -95,50 +96,48 @@ def unload(
                     min((out_expand_thresh[ll] + tc.dev.P_SHARED-1) & ~(tc.dev.P_SHARED-1),
                         tc.dev.MAX_PROC)
 
-    o_width = 0
+    o_widths = set()
     for ll, e in enumerate(output_layer):
         if not e:
             continue
 
         lname = layer_pfx(ll) if unload_custom is None else f"Unload sequence #{ll}: "
-        if o_width not in (0, output_width[ll]):
-            eprint(f'{lname}Multiple outputs with different output widths are '
-                   'not supported by this software.')
-        else:
-            o_width = output_width[ll]
+        o_widths.add(output_width[ll])
 
-        # Show only one of these warnings, if any
-        if mlator and o_width != 8 and not mlator_warning_shown:
-            wprint(f'{lname}Ignoring --mlator for 32-bit output.')
-            mlator = False
-            mlator_warning_shown = True
+        if output_width[ll] != 8:
+            if mlator and mlator_warning:
+                wprint(f'{lname}Ignoring --mlator for 32-bit output.')
+        elif input_shape[ll][0] > 1 and input_shape[ll][1] * input_shape[ll][2] % 4 != 0:
+            if mlator and mlator_warning:
+                wprint(f'{lname}Ignoring --mlator for '
+                       f'{input_shape[ll][1]}x{input_shape[ll][2]} frame size '
+                       f'({input_shape[ll][1] * input_shape[ll][2]} bytes) that is '
+                       f'not divisible by 4.')
+        elif input_shape[ll][1] * input_shape[ll][2] < 4:
+            if mlator and mlator_warning:
+                wprint(f'{lname}--mlator should only be used with 4 or more 8-bit outputs '
+                       ' per channel; ignoring.')
+        elif mlator:
+            mlator_layers.append(ll)
+        elif state.embedded_code and mlator_warning:
+            nprint(f'{lname}Use --mlator to optimize cnn_unload() for 8-bit output values.')
 
-        if mlator and input_shape[ll][0] > 1 and input_shape[ll][1] * input_shape[ll][2] % 4 != 0:
-            wprint(f'{lname}Ignoring --mlator for '
-                   f'{input_shape[ll][1]}x{input_shape[ll][2]} frame size '
-                   f'({input_shape[ll][1] * input_shape[ll][2]} bytes) that is '
-                   f'not divisible by 4.')
-            mlator = False
-            mlator_warning_shown = True
-
-        # Don't show the final hint if this layer prevents mlator from being used
-        if not mlator and input_shape[ll][1] * input_shape[ll][2] % 4 != 0:
-            mlator_warning_shown = True
-
-    # If mlator is still True, we might have been able to use it
-    if not mlator and o_width == 8 and state.embedded_code and not mlator_warning_shown:
-        nprint('Use --mlator to optimize cnn_unload() for 8-bit output values.')
-
+    # If ANY output is 8-bit, use the 8-bit unload since there is a chance of non-word aligned
+    # writes.
+    o_width = 32 if 8 not in o_widths else 8
     toplevel.function_header(memfile, function='unload',
                              arguments=f'uint32_t *out_buf{"32" if o_width != 32 else ""}')
     out_text = ''
     need_i = False
     need_offs = False
-    out_size = o_width // 8
     read_addr = None
     write_addr = None
     written = 0
     out_addr = 0
+    out_size = 1
+    have_non_mlator = False
+    first_output = True
+    prev_out_size = 4
 
     for ll, e in enumerate(output_layer):
         if not e:
@@ -146,9 +145,11 @@ def unload(
 
         lname = f"layer {layer_str(ll)}" if unload_custom is None else f"unload sequence #{ll}"
         out_text += f'\n  // Custom unload for this network, {lname}: ' \
-                    f'{o_width}-bit data, shape: {input_shape[ll]}\n'
+                    f'{output_width[ll]}-bit data, shape: {input_shape[ll]}\n'
         if o_width != 32 and input_shape[ll][1] * input_shape[ll][2] != 1:
             need_offs = True
+
+        out_size = output_width[ll] // 8
 
         coffs_start = ffs(processor_map[ll]) & ~(tc.dev.P_SHARED-1)
         coffs = coffs_start
@@ -170,7 +171,8 @@ def unload(
             expand = c // out_expand_thresh[ll]  # Channels 64+ handled by processors 0+
             proc = poffs & ~(tc.dev.P_SHARED-1)
 
-            if not mlator:
+            if ll not in mlator_layers:
+                have_non_mlator = True
                 for doffs in range(input_shape[ll][1] * input_shape[ll][2]):
                     row, col = divmod(doffs, input_shape[ll][2])
                     this_map = next_layer_map
@@ -184,10 +186,15 @@ def unload(
 
                     for shift in range(4):
                         if this_map & 1:
-                            if out_size == 4:
+                            if o_width == 32:  # out_size == 4 (implied)
                                 emit_list.append(offs)
                                 offs += 4
-                            else:  # out_size == 1
+                            elif out_size == 4:  # o_width == 8
+                                emit_list.append((offs + 4 * shift, 0))
+                                emit_list.append((offs + 4 * shift, 1))
+                                emit_list.append((offs + 4 * shift, 2))
+                                emit_list.append((offs + 4 * shift, 3))
+                            else:  # out_size == 1, o_width == 8
                                 emit_list.append((offs, shift))
                             this_c += 1
                         this_map >>= 1
@@ -276,8 +283,8 @@ def unload(
                                 out_text += '  asm volatile ("" : "=m" (*mlat) : "r" (*mlat));' \
                                             ' // Prime\n'
 
-                            # FIXME: Do not write more than `num_bytes =
-                            # min(4, input_shape[2] - col)`
+                            # FIXME: Do not write more than
+                            # `num_bytes = min(4, input_shape[2] - col)`
                             if mlator_chunk == 1:
                                 out_text += mlator_write_one('',
                                                              f' // {this_c},{row},{col}-{col+3}',
@@ -302,7 +309,10 @@ def unload(
             next_layer_map >>= 4
 
         if len(emit_list) > 0:
-            if out_size == 4:
+            if o_width == 32:
+                if prev_out_size != 4:
+                    # TODO: Resync output pointer
+                    pass
                 idx = 0
                 chunk = max(1, wide_chunk)
                 while idx < len(emit_list):
@@ -347,13 +357,15 @@ def unload(
                         remaining -= loop_runs * chunk
                         out_addr += loop_runs * chunk
                     idx += run + 1
-            else:  # out_size == 1
+            else:  # o_width == 8
                 idx = 0
                 xy_dim = input_shape[ll][1] * input_shape[ll][2]
                 short_write = xy_dim == 1
                 chunk = max(1, narrow_chunk)
                 if not short_write:
-                    out_text += f'  offs = 0x{written:04x};\n'
+                    out_text += '  offs = 0x0000;\n'
+                if not first_output:
+                    out_text += f'  out_buf = ((uint8_t *) out_buf32) + 0x{written:04x};\n'
                 while idx < len(emit_list):
                     # Find how many have the same r/w addresses with different shift,
                     # then how many the same deltas between rs and ws with the same set of shifts.
@@ -401,7 +413,7 @@ def unload(
                                 out_text += f'{prefix}  val = *addr;\n' \
                                             f'{prefix}  addr {"+" if delta_r >= 0 else "-"}= ' \
                                             f'0x{abs(delta_r) // 4:04x};\n'
-                            for _, shift in enumerate(shift_list):
+                            for shift in shift_list:
                                 if not short_write:
                                     out_text += f'{prefix}  out_buf[offs'
                                     if shift > 0:
@@ -426,16 +438,21 @@ def unload(
                     if not short_write and idx < len(emit_list) and shift_count > 1:
                         out_text += f'  offs += 0x{xy_dim * (shift_count - 1):04x};\n'
 
-        written += input_shape[ll][0] * input_shape[ll][1] * input_shape[ll][2]
+        # Always a byte counter
+        written += input_shape[ll][0] * input_shape[ll][1] * input_shape[ll][2] \
+            * output_width[ll] // 8
 
-    if o_width != 32 and not mlator:
+        first_output = False
+        prev_out_size = out_size
+
+    if o_width != 32 and have_non_mlator:
         memfile.write(f'  uint{o_width}_t *out_buf = (uint{o_width}_t *) out_buf32;\n')
         memfile.write('  uint32_t val;\n')
-    if not mlator:
+    if o_width == 32 or have_non_mlator:
         memfile.write('  volatile uint32_t *addr;\n')
-    else:
+    if mlator_layers:
         memfile.write('  volatile uint32_t *mlat, *ctrl;\n')
-    if need_i or mlator and mlator_chunk > 1:
+    if need_i or mlator_layers and mlator_chunk > 1:
         memfile.write('  int i;\n')
     if need_offs:
         memfile.write('  uint32_t offs;\n')
@@ -455,14 +472,15 @@ def verify(
         out_offset,
         out_expand,
         out_expand_thresh,
-        output_width=8,
-        overwrite_ok=False,
-        mlator=False,
-        stream=None,
-        write_gap=0,
-        unload_layer=False,
-        embedded=False,
-        test_name=None,
+        output_width: int = 8,
+        overwrite_ok: bool = False,
+        mlator: bool = False,
+        body: Optional[List] = None,
+        write_gap: int = 0,
+        unload_layer: bool = False,
+        embedded: bool = False,
+        test_name: str = '',
+        streaming: bool = False,
 ):
     """
     Verify HWC memory from AI8X, writing C or mem code using the `verify_fn` function.
@@ -475,6 +493,8 @@ def verify(
     When `mlator` is set, use the hardware mechanism to rearrange 4-channel data into single
     channels.
     """
+    assert tc.dev is not None
+
     # Cache for faster access
     apb_base = state.apb_base
     max_count = state.max_count
@@ -533,54 +553,57 @@ def verify(
     out_size = output_width // 8
     width = out_expand * out_size
 
-    if not mlator:
-        for doffs in range(input_shape[1] * input_shape[2]):
-            row, col = divmod(doffs, input_shape[2])
-            this_map = next_layer_map
-            coffs = coffs_start
-            poffs = coffs_start
-            c = 0
-            while c < input_shape[0]:
-                if c % out_expand_thresh == 0:
-                    poffs = coffs_start
-                    this_map = next_layer_map  # Wrap around for AI85 channel expansion
+    if unload_layer and not embedded:
+        body.append(f'  // Layer {layer_str(ll)}\n')
 
-                this_c = c
-                expand = c // out_expand_thresh  # Channels 64+ handled by processors 0+
-                # Physical offset into instance and group
-                proc = poffs & ~(tc.dev.P_SHARED-1)
+    for doffs in range(input_shape[1] * input_shape[2]):
+        row, col = divmod(doffs, input_shape[2])
+        this_map = next_layer_map
+        coffs = coffs_start
+        poffs = coffs_start
+        c = 0
+        while c < input_shape[0]:
+            if c % out_expand_thresh == 0:
+                poffs = coffs_start
+                this_map = next_layer_map  # Wrap around for AI85 channel expansion
 
-                # Get four bytes or words either from output or zeros and construct HWC word
-                no_data = True
+            this_c = c
+            expand = c // out_expand_thresh  # Channels 64+ handled by processors 0+
+            # Physical offset into instance and group
+            proc = poffs & ~(tc.dev.P_SHARED-1)
+
+            # Get four bytes or words either from output or zeros and construct HWC word
+            no_data = True
+            if out_size == 1:
+                val = 0
+                for _ in range(4):
+                    val >>= 8
+                    if this_map & 1:
+                        no_data = False
+                        if c < input_shape[0]:
+                            val |= (out_buf[c][row][col] & 0xff) << 24
+                        c += 1
+                    this_map >>= 1
+            else:
+                val = [0] * 4
+                for i in range(4):
+                    if this_map & 1:
+                        no_data = False
+                        if c < input_shape[0]:
+                            val[i] = out_buf[c][row][col] & 0xffffffff
+                        c += 1
+                    this_map >>= 1
+
+            # Get the offset of the first output byte/word of 4
+            offs = tc.dev.C_SRAM_BASE + out_offset + \
+                (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
+                  (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
+                 (doffs * width + expand * out_size) * (write_gap + 1)) * 4
+
+            if not no_data:
+                num_bytes = min(c - this_c, input_shape[0] - this_c)
                 if out_size == 1:
-                    val = 0
-                    for _ in range(4):
-                        val >>= 8
-                        if this_map & 1:
-                            no_data = False
-                            if c < input_shape[0]:
-                                val |= (out_buf[c][row][col] & 0xff) << 24
-                            c += 1
-                        this_map >>= 1
-                else:
-                    val = [0] * 4
-                    for i in range(4):
-                        if this_map & 1:
-                            no_data = False
-                            if c < input_shape[0]:
-                                val[i] = out_buf[c][row][col] & 0xffffffff
-                            c += 1
-                        this_map >>= 1
-
-                # Get the offset of the first output byte/word of 4
-                offs = tc.dev.C_SRAM_BASE + out_offset + \
-                    (((proc % tc.dev.P_NUMPRO) * tc.dev.INSTANCE_SIZE |
-                      (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
-                     (doffs * width + expand * out_size) * (write_gap + 1)) * 4
-
-                if not no_data:
-                    num_bytes = min(c - this_c, input_shape[0] - this_c)
-                    if out_size == 1:
+                    if not streaming:
                         check_overwrite(
                             proc,
                             offs,
@@ -592,18 +615,19 @@ def verify(
                         )
                         if out_map is not None:
                             datamem.store(out_map, offs, (ll, this_c, row, col))
-                        if max_count is None or count < max_count:
-                            verify_fn(
-                                offs,
-                                val,
-                                rv=False,
-                                comment=f' // {row},{col},{this_c}-{this_c+num_bytes-1}',
-                                num_bytes=num_bytes,
-                                first_proc=ffs(processor_map >> proc) % 4,
-                                data=unload_layer,
-                            )
-                    else:
-                        for i in range(min(num_bytes, out_size)):
+                    if not mlator:
+                        verify_fn(
+                            offs,
+                            val,
+                            rv=False,
+                            comment=f' // {this_c}-{this_c+num_bytes-1},{row},{col}',
+                            num_bytes=num_bytes,
+                            first_proc=ffs(processor_map >> proc) % 4,
+                            data=unload_layer,
+                        )
+                else:
+                    for i in range(min(num_bytes, out_size)):
+                        if not streaming:
                             check_overwrite(
                                 proc,
                                 offs,
@@ -615,22 +639,25 @@ def verify(
                             )
                             if out_map is not None:
                                 datamem.store(out_map, offs, (ll, this_c, row, col))
-                            if max_count is None or count < max_count:
-                                verify_fn(
-                                    offs,
-                                    val[i],
-                                    rv=False,
-                                    comment=f' // {row},{col},{this_c+i}',
-                                    data=unload_layer,
-                                )
-                            offs += out_size
-                    count += 1
-                    if count == max_count and stream is not None:
-                        stream.write('  // Truncated further checks...\n')
+                        if not mlator:
+                            verify_fn(
+                                offs,
+                                val[i],
+                                rv=False,
+                                comment=f' // {this_c+i},{row},{col}',
+                                data=unload_layer,
+                            )
+                        offs += out_size
+                count += 1
+                if count == max_count:
+                    body.append('  // Truncated further checks...\n')
 
-                coffs += 4
-                poffs += 4
-    else:  # mlator == True
+            coffs += 4
+            poffs += 4
+
+    if mlator:
+        # This path is used for RTL sims to emit the verification code.
+        # Overwrite checks have already happened above.
         assert out_size == 1
         c = 0
         poffs = coffs_start
@@ -670,57 +697,52 @@ def verify(
 
                         if source != read_addr:
                             if doffs != 0:
-                                stream.write(f'  *((volatile uint32_t *) '
-                                             f'0x{apb_base + ctrl:08x}) = '
-                                             f'0x{tc.dev.READY_SEL << 1 | 1 << 3:08x}; '
-                                             '// Disable mlator\n')
+                                body.append(f'  *((volatile uint32_t *) '
+                                            f'0x{apb_base + ctrl:08x}) = '
+                                            f'0x{tc.dev.READY_SEL << 1 | 1 << 3:08x}; '
+                                            '// Disable mlator\n')
                             # Set wptr to start address
                             w = apb_base + tc.lreg_addr(proc // tc.dev.P_NUMPRO,
                                                         tc.dev.LREG_WPTR_BASE)
-                            stream.write(f'  *((volatile uint32_t *) 0x{w:08x}) = '
-                                         f'0x{source >> 2:08x}; // Set SRAM address\n')
+                            body.append(f'  *((volatile uint32_t *) 0x{w:08x}) = '
+                                        f'0x{source >> 2:08x}; // Set SRAM address\n')
                             # Set wptr_inc to set increment value (default: 1)
                             w = apb_base + tc.lreg_addr(proc // tc.dev.P_NUMPRO,
                                                         tc.dev.LREG_LCTL2)
-                            stream.write(f'  *((volatile uint32_t *) 0x{w:08x}) = '
-                                         f'0x{expand:08x}; // Set pointer increment\n')
+                            body.append(f'  *((volatile uint32_t *) 0x{w:08x}) = '
+                                        f'0x{expand:08x}; // Set pointer increment\n')
                             # Set mlatorld enable bit to load write ptr; select byte 0..3
                             w = tc.dev.READY_SEL << 1 | 1 << 16 | shift << 17 | 1 << 3
-                            stream.write(f'  *((volatile uint32_t *) 0x{apb_base + ctrl:08x}) ='
-                                         f' 0x{w:08x}; '
-                                         f'// Enable mlator, byte {shift}\n')
-                            stream.write('  asm volatile ("" : "=m" (*((volatile uint32_t *) '
-                                         f'0x{apb_base + mlat:08x})) : "r" '
-                                         f'(*((volatile uint32_t *) 0x{apb_base + mlat:08x})));'
-                                         ' // Prime\n')
+                            body.append(f'  *((volatile uint32_t *) 0x{apb_base + ctrl:08x}) ='
+                                        f' 0x{w:08x}; '
+                                        f'// Enable mlator, byte {shift}\n')
+                            body.append('  asm volatile ("" : "=m" (*((volatile uint32_t *) '
+                                        f'0x{apb_base + mlat:08x})) : "r" '
+                                        f'(*((volatile uint32_t *) 0x{apb_base + mlat:08x})));'
+                                        ' // Prime\n')
 
                         num_bytes = min(4, input_shape[2] - col)
-                        check_overwrite(
-                            proc,
-                            tc.dev.C_SRAM_BASE + source,
-                            in_map,
-                            out_map,
-                            c,
-                            row,
-                            col,
-                        )
-                        if out_map is not None:
-                            datamem.store(out_map, source, (ll, c, row, col))
+                        first_proc = (out_offset >> 2) & 0x03
+                        if first_proc != 0:
+                            val <<= first_proc * 8
+                        # No overwrite checks here since mlator happens on read of the memory,
+                        # not on write TO the memory.
                         verify_fn(
                             mlat,
                             val,
                             rv=False,
-                            comment=f' // {row},{col}-{col+num_bytes-1},{c}',
+                            comment=f' // {c},{row},{col}-{col+num_bytes-1}',
                             num_bytes=num_bytes,
+                            first_proc=first_proc,
                             data=unload_layer,
                         )
 
                         read_addr = source + 4
                     # Disable mlator
-                    stream.write(f'  *((volatile uint32_t *) '
-                                 f'0x{apb_base + ctrl:08x}) = '
-                                 f'0x{tc.dev.READY_SEL << 1 | 1 << 3:08x}; '
-                                 '// Disable mlator\n')
+                    body.append(f'  *((volatile uint32_t *) '
+                                f'0x{apb_base + ctrl:08x}) = '
+                                f'0x{tc.dev.READY_SEL << 1 | 1 << 3:08x}; '
+                                '// Disable mlator\n')
 
                 this_map >>= 1
                 c += 1

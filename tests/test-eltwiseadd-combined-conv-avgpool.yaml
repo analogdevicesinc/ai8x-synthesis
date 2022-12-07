@@ -10,6 +10,7 @@ layers:
     op: conv2d
     out_offset: 0x2000
     kernel_size: 1x1
+    activation: None
   - op: none
     avg_pool: 2
     pool_stride: 2

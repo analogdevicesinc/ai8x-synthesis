@@ -10,6 +10,7 @@ layers:
     pad: 1
     out_offset: 0x1000
     data_format: HWC
+    activate: None
   # Layer 1
   - max_pool: [3, 2]
     pool_stride: 1

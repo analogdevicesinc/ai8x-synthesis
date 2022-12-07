@@ -60,8 +60,6 @@ def main():
         tc.dev.FIFO_READY_SEL = args.ready_sel_fifo
     if args.ready_sel_aon:
         tc.dev.AON_READY_SEL = args.ready_sel_aon
-    if args.new_kernel_loader and not args.embedded_code:
-        args.new_kernel_loader = False
     if args.new_kernel_loader:
         args.compact_weights = False
     if args.enable_delay is None:
@@ -111,6 +109,7 @@ def main():
                     args.no_bias,
                     params['conv_groups'],
                     params['bypass'],
+                    params['weight_source'],
                     args.skip_checkpoint_layers,
                 )
     else:  # Get some hard-coded sample weights
@@ -150,6 +149,15 @@ def main():
                 input_channels.insert(ll, 0)
                 output_channels.insert(ll, 0)
                 layers += 1
+            else:
+                val = params['weight_source'][ll]
+                if val is not None:
+                    weights.insert(ll, weights[val])
+                    bias.insert(ll, bias[val])
+                    input_channels.insert(ll, input_channels[val])
+                    output_channels.insert(ll, output_channels[val])
+                    output_shift[ll] = output_shift[val]
+                    layers += 1
 
     if layers != cfg_layers:
         eprint(f'Number of layers in the YAML configuration file ({cfg_layers}) '
@@ -214,12 +222,11 @@ def main():
                     else output_channels[in_sequences[ll][0]]
             gap = write_gap[in_sequences[ll][0]]
             chan = output_channels[in_sequences[ll][0]]
-            l_str = ", ".join([layer_str(e) for _, e in enumerate(in_sequences[ll])])
+            l_str = ", ".join([layer_str(e) for e in in_sequences[ll]])
             l_inseq = len(in_sequences[ll])
-            for _, e in enumerate(in_sequences[ll], start=1):
+            for e in in_sequences[ll]:
                 if chan != output_channels[e]:
-                    ochan_str = ', '.join(str(output_channels[e])
-                                          for _, e in enumerate(in_sequences[ll]))
+                    ochan_str = ', '.join(str(output_channels[e]) for e in in_sequences[ll])
                     eprint(f'{layer_pfx(ll)}`in_sequences` [{l_str}] for the element-wise '
                            'operation includes inputs with non-matching channel counts '
                            f'({ochan_str}).')
@@ -337,7 +344,7 @@ def main():
         streaming = params['streaming'][:layers]
     if args.streaming_layers is not None:
         # Additional (or only) streaming layers from command line
-        for _, e in enumerate(args.streaming_layers):
+        for e in args.streaming_layers:
             streaming[e] = True
     flatten = params['flatten'][:layers]
     eltwise = params['eltwise'][:layers]
@@ -449,7 +456,7 @@ def main():
             if in_sequences[ll] is not None:
                 dim = auto_input_dim[0] if in_sequences[ll][0] == -1 \
                     else output_dim[in_sequences[ll][0]]
-                for _, e in enumerate(in_sequences[ll], start=1):
+                for e in in_sequences[ll]:
                     odim = auto_input_dim[0] if e == -1 else output_dim[e]
                     if odim != dim and conf_input_dim[ll] is None:
                         eprint(f'{layer_pfx(ll)}Cannot concatenate outputs of different '
@@ -540,6 +547,11 @@ def main():
             output_dim[ll] = [(pooled_size[0] - dilation[ll][0] * (kernel_size[ll][0] - 1) - 1 +
                                2 * padding[ll][0]) // stride[ll][0] + 1,
                               1]
+
+        # No padding when no convolution...
+        if operator[ll] == op.NONE and (padding[ll][0] > 0 or padding[ll][1] > 0):
+            eprint(f'{layer_pfx(ll)}Padding ({padding[ll]}) can only be used with a convolution '
+                   'operation.')
 
         # Prohibit pad greater than or equal to kernel size
         if padding[ll][0] >= kernel_size[ll][0] or padding[ll][1] >= kernel_size[ll][1]:

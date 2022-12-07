@@ -27,3 +27,4 @@ layers:
     processors: 0x0000000000000007
     streaming: true
     op: conv2d
+    activate: None

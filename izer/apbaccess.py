@@ -83,14 +83,17 @@ class APB():
         self.mem = datamem.allocate()
         self.writes = 0
         self.reads = 0
+        self.fifo_writes = 0
+        self.fifo_reads = 0
+        self.fastfifo_writes = 0
+        self.fastfifo_reads = 0
         self.verify_listdata = []
+        self.verify_text = []
 
         self.data_mem = self.kernel_mem = self.output_data_mem = None
 
-        if state.rtl_preload or state.new_kernel_loader:
-            if not (state.compact_weights
-                    or state.mexpress and state.rtl_preload
-                    or state.verify_kernels and state.rtl_preload):
+        if state.rtl_preload_weights or state.new_kernel_loader:
+            if not state.compact_weights:
                 self.kernel_mem = np.empty(
                     (tc.dev.P_NUMGROUPS, tc.dev.P_NUMPRO, tc.dev.MASK_INSTANCES),
                     dtype=list,
@@ -140,7 +143,10 @@ class APB():
                                 for (addr, val) in self.data_mem[group][proc][mem]:
                                     f.write(f'@{addr:04x} {val}\n')
 
-        if self.kernel_mem is not None and not state.rtl_preload:
+        def sort_addr(val):
+            return val[0]
+
+        if self.kernel_mem is not None and not state.rtl_preload_weights:
             # Build a list of sequential kernel "chunks" so the loader code can use compact
             # memcpy instructions of streaming copy
             input_list = []
@@ -151,7 +157,7 @@ class APB():
                 for proc in range(tc.dev.P_NUMPRO):
                     for mem in range(tc.dev.mask_count(proc)):
                         if self.kernel_mem[group][proc][mem]:
-                            self.kernel_mem[group][proc][mem].sort()
+                            self.kernel_mem[group][proc][mem].sort(key=sort_addr)
                             for (naddr, nval) in self.kernel_mem[group][proc][mem]:
                                 if mem >= tc.dev.MASK_INSTANCES_EACH:
                                     phys_addr = state.apb_base + tc.dev.C_GROUP_OFFS * group \
@@ -187,7 +193,7 @@ class APB():
             # Create a header file of "chunks" (address, length, data)
             if input_list is not None:
                 kl = []
-                for _, (addr, val) in enumerate(input_list):
+                for (addr, val) in input_list:
                     assert len(val) > 0
                     # Address (u32), word length
                     if not state.mexpress:
@@ -221,9 +227,9 @@ class APB():
                 kl.append(0)  # EOF
                 self.output_define(kl, 'KERNELS', '0x%08x', 8)
 
-        if self.kernel_mem is not None and state.rtl_preload:
+        if self.kernel_mem is not None and state.rtl_preload_weights:
             try:
-                target_dir = target_dir = os.path.join(base_directory, test_name, 'masks')
+                target_dir = os.path.join(base_directory, test_name, 'masks')
                 os.makedirs(target_dir, exist_ok=False)
             except OSError:
                 wprint(target_dir, 'exists')
@@ -231,7 +237,7 @@ class APB():
                 for proc in range(tc.dev.P_NUMPRO):
                     for mem in range(tc.dev.MASK_INSTANCES):
                         if self.kernel_mem[group][proc][mem]:
-                            self.kernel_mem[group][proc][mem].sort()
+                            self.kernel_mem[group][proc][mem].sort(key=sort_addr)
                             with open(
                                 os.path.join(target_dir,
                                              f'MRAM_x16_{group}_proc_{proc}_ram_{mem}.dat'),
@@ -269,7 +275,17 @@ class APB():
         """
         Return total bus access time in ms based on number of writes and reads
         """
-        return (WRITE_TIME_NS * self.writes + READ_TIME_NS * self.reads) // 1000000
+        return (WRITE_TIME_NS * (self.writes + self.fifo_writes + self.fastfifo_writes) +
+                READ_TIME_NS * (self.reads + self.fifo_reads + self.fastfifo_reads)) // 1000000
+
+    def get_access_count(
+            self,
+    ):
+        """
+        Return total number of bus reads, writes, FIFO reads, writes, and Fast FIFO reads, writes
+        """
+        return self.reads, self.writes, self.fifo_reads, self.fifo_writes, self.fastfifo_reads, \
+            self.fastfifo_writes
 
     def write(
             self,
@@ -293,11 +309,22 @@ class APB():
     def inc_writes(
             self,
             count,
+            fifo=None,
+            fifo_wait=False,
     ):
         """
         Increase write count by `count`.
         """
-        self.writes += count
+        if fifo is None:
+            self.writes += count
+        elif not self.fast_fifo:
+            if fifo_wait:
+                self.fifo_reads += count
+            self.fifo_writes += count
+        else:
+            if fifo_wait:
+                self.fastfifo_reads += count
+            self.fastfifo_writes += count
 
     def write_data(
             self,
@@ -488,6 +515,7 @@ class APB():
             reg,
             val,
             force_write=False,
+            no_verify=False,
             comment='',
     ):
         """
@@ -500,7 +528,7 @@ class APB():
             comment += ' *'
         addr = tc.lreg_addr(group, reg, layer)
         if force_write or val != 0 or self.write_zero_regs:
-            self.write(addr, val, comment)
+            self.write(addr, val, no_verify=no_verify, comment=comment)
         if state.verbose:
             print(f'L{layer} G{group} R{reg:02} ({addr:08x}): {val:08x}{comment}')
 
@@ -579,7 +607,7 @@ class APB():
                                        (tc.dev.MASK_WIDTH_LARGE - tc.dev.MASK_WIDTH_SMALL)
                                        // tc.dev.MASK_INSTANCES_EACH)
                     mem += tc.dev.MASK_INSTANCES_EACH
-                if state.rtl_preload:
+                if state.rtl_preload_weights:
                     if size != 1:
                         val = f'{k[0] & 0xff:02x}_{k[1] & 0xff:02x}{k[2] & 0xff:02x}' \
                             f'{k[3] & 0xff:02x}{k[4] & 0xff:02x}_{k[5] & 0xff:02x}' \
@@ -687,7 +715,7 @@ class APB():
         else:
             self.memfile.write(comment)
 
-    def copyright_header(  # pylint: disable=no-self-use
+    def copyright_header(
             self,
     ):
         """
@@ -696,7 +724,7 @@ class APB():
         """
         return
 
-    def header(  # pylint: disable=no-self-use
+    def header(
             self,
     ):
         """
@@ -705,7 +733,7 @@ class APB():
         """
         return
 
-    def function_header(  # pylint: disable=no-self-use
+    def function_header(
             self,
             dest='api',  # pylint: disable=unused-argument
             **kwargs,  # pylint: disable=unused-argument
@@ -716,7 +744,7 @@ class APB():
         """
         return
 
-    def function_footer(  # pylint: disable=no-self-use
+    def function_footer(
             self,
             dest='api',  # pylint: disable=unused-argument
             **kwargs,  # pylint: disable=unused-argument
@@ -727,7 +755,7 @@ class APB():
         """
         return
 
-    def main(  # pylint: disable=no-self-use
+    def main(
             self,
     ):
         """
@@ -736,7 +764,7 @@ class APB():
         """
         return
 
-    def softmax_layer(  # pylint: disable=no-self-use
+    def softmax_layer(
             self,
             *args,  # pylint: disable=unused-argument
             **kwargs,  # pylint: disable=unused-argument
@@ -748,7 +776,7 @@ class APB():
         """
         return
 
-    def unload(  # pylint: disable=no-self-use
+    def unload(
             self,
             *,
             output_layer,
@@ -783,6 +811,7 @@ class APB():
             mlator=False,
             write_gap=0,
             unload_layer=False,
+            streaming=False,
     ):
         """
         Write a verification function. The layer to unload has the shape `input_shape`,
@@ -802,101 +831,106 @@ class APB():
             output_width,
             overwrite_ok=overwrite_ok,
             mlator=mlator,
-            stream=self.memfile,
+            body=self.verify_text,
             write_gap=write_gap,
             unload_layer=unload_layer,
             embedded=self.embedded_code,
             test_name=self.test_name,
+            streaming=streaming,
         )
 
     def verify_unload_finalize(self):
         """
         Finalize the verification function.
         """
-        if len(self.verify_listdata) == 0:
-            return
+        if len(self.verify_listdata) > 0:
+            # Sort by mask, then address
+            data = sorted(self.verify_listdata)
 
-        # Sort by mask, then address
-        data = sorted(self.verify_listdata)
+            rv = data[0][5]
+            action = 'rv = CNN_FAIL;' if rv else 'return CNN_FAIL;'
 
-        rv = data[0][5]
-        action = 'rv = CNN_FAIL;' if rv else 'return CNN_FAIL;'
+            if self.sampleoutput_header is None:
+                for (_, addr, mask_str, val, val_bytes, rv_item, comment) in data:
+                    assert rv == rv_item
+                    self.memfile.write(f'  if ((*((volatile uint32_t *) 0x{addr:08x}){mask_str})'
+                                       f' != 0x{val:0{2*val_bytes}x}) {action}{comment}\n')
+                    self.reads += 1
+            else:
+                # Output is sorted by mask. Group like masks together.
+                max_count = state.max_count
 
-        if self.sampleoutput_header is None:
-            for _, (_, addr, mask_str,
-                    val, val_bytes, rv_item, comment) in enumerate(data):
-                assert rv == rv_item
-                self.memfile.write(f'  if ((*((volatile uint32_t *) 0x{addr:08x}){mask_str})'
-                                   f' != 0x{val:0{2*val_bytes}x}) {action}{comment}\n')
-        else:
-            # Output is sorted by mask. Group like masks together.
-            max_count = state.max_count
+                output_array = []
+                val_array = []
+                output_mask = 0
+                output_addr = 0
+                next_addr = 0
+                cumulative_length = 0
 
-            output_array = []
-            val_array = []
-            output_mask = 0
-            output_addr = 0
-            next_addr = 0
-            cumulative_length = 0
+                for (mask_item, addr, _, val, _, rv_item, _) in data:
+                    assert rv == rv_item
 
-            for _, (mask_item, addr, _, val, _, rv_item, _) in enumerate(data):
-                assert rv == rv_item
+                    # New mask? Output collected data and start over
+                    if mask_item != output_mask or addr != next_addr:
+                        if len(val_array) > 0:
+                            output_array += [
+                                output_addr,
+                                output_mask,
+                                len(val_array),
+                            ]
+                            output_array += val_array
 
-                # New mask? Output collected data and start over
-                if mask_item != output_mask or addr != next_addr:
-                    if len(val_array) > 0:
-                        output_array += [
-                            output_addr,
-                            output_mask,
-                            len(val_array),
-                        ]
-                        output_array += val_array
+                        # Start new block
+                        val_array = []
+                        output_mask = mask_item
+                        output_addr = next_addr = addr
 
-                    # Start new block
-                    val_array = []
-                    output_mask = mask_item
-                    output_addr = next_addr = addr
+                    # Collect the next value
+                    val_array.append(val)
+                    next_addr += 4
+                    cumulative_length += 1
+                    if max_count is not None and cumulative_length > max_count:
+                        break
 
-                # Collect the next value
-                val_array.append(val)
-                next_addr += 4
-                cumulative_length += 1
-                if max_count is not None and cumulative_length > max_count:
-                    break
+                if len(val_array) > 0:
+                    output_array += [
+                        output_addr,
+                        output_mask if output_mask is not None else 0xffffffff,
+                        len(val_array),
+                    ]
+                    output_array += val_array
+                    output_array.append(0)  # Terminator
 
-            if len(val_array) > 0:
-                output_array += [
-                    output_addr,
-                    output_mask if output_mask is not None else 0xffffffff,
-                    len(val_array),
-                ]
-                output_array += val_array
-                output_array.append(0)  # Terminator
+                # Write to the header file
+                toplevel.c_define(self.sampleoutput_header, output_array, 'SAMPLE_OUTPUT',
+                                  '0x%08x', 8)
 
-            # Write to the header file
-            toplevel.c_define(self.sampleoutput_header, output_array, 'SAMPLE_OUTPUT', '0x%08x', 8)
+                # Write to the function
+                self.memfile.write('  int i;\n'
+                                   '  uint32_t mask, len;\n'
+                                   '  volatile uint32_t *addr;\n'
+                                   '  const uint32_t *ptr = sample_output;\n\n'
+                                   '  while ((addr = (volatile uint32_t *) *ptr++) != 0) {\n'
+                                   '    mask = *ptr++;\n'
+                                   '    len = *ptr++;\n'
+                                   '    for (i = 0; i < len; i++)\n'
+                                   '      if ((*addr++ & mask) != *ptr++) {\n'
+                                   '        printf("Data mismatch (%d/%d) at address 0x%08x: '
+                                   'Expected 0x%08x, read 0x%08x.\\n",\n'
+                                   '               i + 1, len, addr - 1, *(ptr - 1), '
+                                   '*(addr - 1) & mask);\n'
+                                   f'        {action}\n'
+                                   '      }\n'
+                                   '  }\n')
 
-            # Write to the function
-            self.memfile.write('  int i;\n'
-                               '  uint32_t mask, len;\n'
-                               '  volatile uint32_t *addr;\n'
-                               '  const uint32_t *ptr = sample_output;\n\n'
-                               '  while ((addr = (volatile uint32_t *) *ptr++) != 0) {\n'
-                               '    mask = *ptr++;\n'
-                               '    len = *ptr++;\n'
-                               '    for (i = 0; i < len; i++)\n'
-                               '      if ((*addr++ & mask) != *ptr++) {\n'
-                               '        printf("Data mismatch (%d/%d) at address 0x%08x: '
-                               'Expected 0x%08x, read 0x%08x.\\n",\n'
-                               '               i + 1, len, addr - 1, *(ptr - 1), '
-                               '*(addr - 1) & mask);\n'
-                               f'        {action}\n'
-                               '      }\n'
-                               '  }\n')
+            self.verify_listdata = []  # Consume
 
-        self.verify_listdata = []
+        if len(self.verify_text) > 0:
+            for e in self.verify_text:
+                self.memfile.write(e)
+            self.verify_text = []  # Consume
 
-    def output_define(  # pylint: disable=no-self-use
+    def output_define(
             self,
             array,
             define_name,
@@ -961,7 +995,16 @@ class APBBlockLevel(APB):
         self.memfile.write(f'@{self.foffs:04x} {addr:08x}\n')
         self.memfile.write(f'@{self.foffs+1:04x} {val:08x}\n')
         self.foffs += 2
-        self.writes += 1
+        if fifo is None:
+            self.writes += 1
+        elif not self.fast_fifo:
+            if fifo_wait:
+                self.fifo_reads += 1
+            self.fifo_writes += 1
+        else:
+            if fifo_wait:
+                self.fastfifo_reads += 1
+            self.fastfifo_writes += 1
 
     def verify(
             self,
@@ -1103,10 +1146,13 @@ class APBTopLevel(APB):
                                        f'{indent}while (((*((volatile uint32_t *) '
                                        f'0x{addr + tc.dev.FIFO_STAT*4:08x})'
                                        f' & {1 << fifo})) != 0); // Wait for FIFO {fifo}\n')
-                    self.reads += 1
+                    if not state.compact_data:
+                        self.fifo_reads += 1  # Othwerwise handled by 'inc_writes()' via load.py
                 self.memfile.write(f'{indent}*((volatile uint32_t *) '
                                    f'0x{addr + tc.dev.FIFO_REG*4 + fifo*4:08x}) = '
                                    f'{val};{comment}\n')
+                if not state.compact_data:
+                    self.fifo_writes += 1  # Othwerwise handled by 'inc_writes()' via load.py
             else:
                 addr = tc.dev.FAST_FIFO_BASE
                 if fifo_wait:
@@ -1115,11 +1161,13 @@ class APBTopLevel(APB):
                                        f'{indent}while (((*((volatile uint32_t *) '
                                        f'0x{addr + tc.dev.FAST_FIFO_SR*4:08x})'
                                        f' & 2)) != 0); // Wait for FIFO\n')
-                    self.reads += 1
+                    if not state.compact_data:
+                        self.fastfifo_reads += 1  # Othwerwise handled by 'inc_writes()'
                 self.memfile.write(f'{indent}*((volatile uint32_t *) '
                                    f'0x{addr + tc.dev.FAST_FIFO_DR*4:08x}) = '
                                    f'{val};{comment}\n')
-            self.writes += 1
+                if not state.compact_data:
+                    self.fastfifo_writes += 1  # Othwerwise handled by inc_writes() via load.py
 
     def write_data(
             self,
@@ -1223,10 +1271,13 @@ class APBTopLevel(APB):
         action = 'rv = CNN_FAIL;' if rv else 'return CNN_FAIL;'
 
         if not use_list:
-            mfile = self.apifile or self.memfile if api else self.memfile
-            mfile.write(f'  if ((*((volatile uint32_t *) 0x{addr:08x}){mask_str})'
-                        f' != 0x{val:0{2*val_bytes}x}) '
-                        f'{action}{comment}\n')
+            s = f'  if ((*((volatile uint32_t *) 0x{addr:08x}){mask_str})' \
+                f' != 0x{val:0{2*val_bytes}x}) {action}{comment}\n'
+            if api:
+                mfile = self.apifile or self.memfile
+                mfile.write(s)
+            else:
+                self.verify_text.append(s)
         else:
             self.verify_listdata.append((mask, addr, mask_str, val, val_bytes, rv, comment))
         self.reads += 1
@@ -1331,7 +1382,7 @@ class APBTopLevel(APB):
             riscv=self.riscv,
             channels=self.input_chan,
             unload=self.embedded_code,
-            load_kernels=self.kernel_mem is None,
+            load_kernels=not state.rtl_preload_weights,
             forever=self.forever,
             fifo=self.fifo,
             groups=self.groups,
@@ -1339,6 +1390,7 @@ class APBTopLevel(APB):
             output_width=self.output_width,
             bias=self.bias,
             oneshot=self.oneshot,
+            name=self.test_name,
         )
 
     def softmax_layer(

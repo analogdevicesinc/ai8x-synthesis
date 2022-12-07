@@ -43,7 +43,7 @@ def validate(arr, offs, val=None):
             nstr = ''
         else:
             (ll, c, row, col) = val
-            nstr = layer_pfx(ll) + f' CHW={c},{row},{col} - '
+            nstr = layer_pfx(ll) + f'CHW={c},{row},{col} - '
         eprint(f'{nstr}Overwriting location 0x{offs:08x}, previously used by layer '
                f'{layer_str(old_ll)}, CHW={old_c},{old_row},{old_col}.',
                error=not state.no_error_stop)
@@ -64,7 +64,11 @@ def store(arr, offs, val, check_overwrite=False):
     if check_overwrite:
         validate(arr, offs, val)
     (ll, c, row, col) = val
-    arr[idx(offs)] = (ll << 48) | (c << 32) | (row << 16) | col
+    try:
+        arr[idx(offs)] = (ll << 48) | (c << 32) | (row << 16) | col
+    except IndexError:
+        eprint(f'Data memory overflow in layer {layer_str(ll)} for '
+               f'offset 0x{offs:08x}, c={c}, row={row}, col={col}.')
 
 
 def used(arr, offs):

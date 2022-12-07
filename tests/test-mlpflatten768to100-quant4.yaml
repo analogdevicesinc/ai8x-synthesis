@@ -10,3 +10,4 @@ layers:
     operation: linear
     flatten: true
     quantization: 4
+    activate: None

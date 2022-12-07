@@ -83,7 +83,7 @@ def header(
                   '#include <stdint.h>\n')
     if embedded_code or state.verify_kernels:
         memfile.write('#include <string.h>\n')
-    if embedded_code:
+    if embedded_code or state.verify_kernels and state.new_kernel_loader:
         memfile.write('#include <stdio.h>\n')
     if not cmsis_nn:
         if embedded_code or embedded_arm:
@@ -122,7 +122,7 @@ def header(
                       '#define MXC_S_GCR_PCLKDIV_CNNCLKSEL_IPLL MXC_S_GCR_PCLKDIV_CNNCLKSEL_ITO\n')
 
     if main_code:
-        if (lib is True or lib is None) and (embedded_code or state.compact_weights):
+        if (lib is True or lib is None) and not state.rtl_preload_weights:
             memfile.write(f'#include "{state.weight_filename}"\n')
         if not lib and (embedded_code or state.compact_data):
             memfile.write(f'#include "{state.sample_filename}"\n')
@@ -169,7 +169,7 @@ def header(
                 function_header(memfile, prefix='', function='CNN_IRQHandler',
                                 return_type='void __attribute__((interrupt("machine")))')
             memfile.write('  // Acknowledge interrupt to all quadrants\n')
-            for _, group in enumerate(groups):
+            for group in groups:
                 addr = tc.dev.APB_BASE + tc.ctl_addr(group, tc.dev.REG_CTL)
                 memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) &= ')
                 if oneshot > 0 and not tc.dev.REQUIRE_ONESHOT_CLEAR:
@@ -200,8 +200,9 @@ def header(
         addr = state.apb_base + tc.ctl_addr(master, tc.dev.REG_CTL)
 
         function_header(memfile, function='continue')
-        memfile.write('  cnn_time = 0;\n\n'
-                      f'  *((volatile uint32_t *) 0x{addr:08x}) |= 1; '
+        if embedded_code or tc.dev.MODERN_SIM:
+            memfile.write('  cnn_time = 0;\n\n')
+        memfile.write(f'  *((volatile uint32_t *) 0x{addr:08x}) |= 1; '
                       f'// Re-enable quadrant {master}\n')
         function_footer(memfile)  # continue()
 
@@ -274,6 +275,7 @@ def main(
         bias: bool = False,
         load_kernels: bool = True,
         oneshot: int = 0,
+        name: str = '',
 ) -> None:
     """
     Write the main function to `memfile`.
@@ -302,7 +304,7 @@ def main(
 
     assert groups is not None
     mask = 0
-    for _, group in enumerate(groups):
+    for group in groups:
         mask |= 1 << group
     unmask = ~mask & ((1 << tc.dev.P_NUMGROUPS_ALL) - 1)
 
@@ -310,22 +312,31 @@ def main(
         write_ml_data(memfile, output_width)
         memfile.write('\n')
 
-    if arm_code_wrapper and (embedded_arm or tc.dev.MODERN_SIM):
+    if arm_code_wrapper:
         if not state.wfi:
             memfile.write('static volatile int riscv_done;\n\n')
         function_header(memfile, prefix='', function='WakeISR', return_type='void')
-        memfile.write('  MXC_SEMA->irq0 = MXC_F_SEMA_IRQ0_EN & ~MXC_F_SEMA_IRQ0_CM4_IRQ;\n')
+        if embedded_arm or tc.dev.MODERN_SIM:
+            memfile.write('  MXC_SEMA->irq0 = MXC_F_SEMA_IRQ0_EN & ~MXC_F_SEMA_IRQ0_CM4_IRQ;\n')
+        else:
+            memfile.write('  MXC_SEMA->irqr0 = MXC_S_SEMA_IRQR_IRQEN_EN | '
+                          'MXC_S_SEMA_IRQR_IRQ_CLR;\n')
         if not state.wfi:
             memfile.write('  riscv_done = 1;\n')
         function_footer(memfile, return_value='void')  # WakeISR()
 
     # Add this to RTL simulations where it's missing from the SDK
-    if arm_code_wrapper and sleep and not embedded_code:
+    if arm_code_wrapper and sleep and not (embedded_code or embedded_arm):
         function_header(memfile, prefix='', function='_MXC_LP_ClearWakeStatus', return_type='void')
         memfile.write('  /* Write 1 to clear */\n'
                       '  MXC_PWRSEQ->lpwkst0 = 0xFFFFFFFF;\n'
                       '  MXC_PWRSEQ->lpwkst1 = 0xFFFFFFFF;\n'
-                      '  MXC_PWRSEQ->lppwst  = 0xFFFFFFFF;\n')
+                      '  MXC_PWRSEQ->lpwkst2 = 0xFFFFFFFF;\n'
+                      '  MXC_PWRSEQ->lpwkst3 = 0xFFFFFFFF;\n')
+        if embedded_code or tc.dev.MODERN_SIM:
+            memfile.write('  MXC_PWRSEQ->lppwst  = 0xFFFFFFFF;\n')
+        else:
+            memfile.write('  MXC_PWRSEQ->lpwkst  = 0xFFFFFFFF;\n')
         function_footer(memfile, return_value='void')  # _MXC_LP_ClearWakeStatus
 
     function_header(memfile, prefix='', function='main')
@@ -407,8 +418,9 @@ def main(
 
                     memfile.write('  MXC_GCR->pclkdiv &= ~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | '
                                   'MXC_F_GCR_PCLKDIV_CNNCLKSEL);\n'
-                                  '  MXC_GCR->pclkdiv |= MXC_S_GCR_PCLKDIV_CNNCLKDIV_DIV1; '
-                                  '// CNN clock: APB div 1\n')
+                                  '  MXC_GCR->pclkdiv |= MXC_S_GCR_PCLKDIV_'
+                                  f'CNNCLKDIV_DIV{state.clock_divider}; '
+                                  f'// CNN clock: APB div {state.clock_divider}\n')
                     memfile.write('  MXC_GCR->pclkdis0 &= ~MXC_F_GCR_PCLKDIS0_CNN;'
                                   ' // Enable CNN clock\n')
             else:
@@ -453,8 +465,11 @@ def main(
                                   '// Exclusive SRAM access for RISC-V (MXC_NBBFC->reg5)\n')
             if embedded_code or embedded_arm or tc.dev.MODERN_SIM:
                 memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_SMPHR); '
-                              '// Enable Sempahore clock\n'
-                              '  NVIC_SetVector(RISCV_IRQn, WakeISR); // Set wakeup ISR\n')
+                              '// Enable Sempahore clock\n')
+                if not tc.dev.MODERN_SIM:
+                    memfile.write('  MXC_NVIC_SetVector(RISCV_IRQn, WakeISR); // Set wakeup ISR\n')
+                else:
+                    memfile.write('  NVIC_SetVector(RISCV_IRQn, WakeISR); // Set wakeup ISR\n')
                 if (embedded_code or embedded_arm) and debugwait:
                     memfile.write('\n  // DO NOT DELETE THIS LINE:\n'
                                   f'  MXC_Delay(SEC({debugwait})); '
@@ -462,7 +477,10 @@ def main(
                 memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CPU1); '
                               '// Enable RISC-V clock\n')
             else:
-                memfile.write('  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_CPU1; '
+                memfile.write('  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_SMPHRD; '
+                              '// Clear semaphore disable\n'
+                              '  MXC_NVIC_SetVector(RV32_IRQn, WakeISR); // Set wakeup ISR\n'
+                              '  MXC_GCR->perckcn1 &= ~MXC_F_GCR_PERCKCN1_CPU1; '
                               '// Enable RISC-V clock\n')
         else:
             if (embedded_code or embedded_arm) and debugwait:
@@ -525,6 +543,8 @@ def main(
             else:
                 memfile.write(';\n\n')
 
+    sleep_api = 'MXC_LP_EnterLowPowerMode' if sleep else 'MXC_LP_EnterSleepMode'
+
     if main_code:
         if embedded_code or tc.dev.MODERN_SIM:
             if measure_energy:
@@ -540,7 +560,7 @@ def main(
                 memfile.write('  SYS_COMPLETE;\n\n')
 
             if embedded_code and apifile is not None:
-                cdiv = '4' if pll and state.balance_power else '1'
+                cdiv = 4 if pll and state.balance_power else state.clock_divider
                 memfile.write('  // Enable peripheral, enable CNN interrupt, turn on CNN clock\n'
                               f'  // CNN clock: {clock_speed} div {cdiv}\n'
                               '  cnn_enable(MXC_S_GCR_PCLKDIV_CNNCLKSEL_'
@@ -571,15 +591,19 @@ def main(
                             '~(MXC_F_GCR_PCLKDIV_CNNCLKDIV | MXC_F_GCR_PCLKDIV_CNNCLKSEL))\n'
                             '                     | clock_divider | clock_source;\n')
             else:
-                select_clock(mfile, 'IPLL' if pll else 'PCLK', 'DIV1',
-                             f'CNN clock: {clock_speed} div 1')
+                select_clock(mfile, 'IPLL' if pll else 'PCLK', f'DIV{state.clock_divider}',
+                             f'CNN clock: {clock_speed} div {state.clock_divider}')
 
             mfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_CNN); '
                         '// Enable CNN clock\n\n')
 
             if not riscv:
-                mfile.write('  NVIC_SetVector(CNN_IRQn, CNN_ISR); '
-                            '// Set CNN complete vector\n')
+                if embedded_code:
+                    mfile.write('  MXC_NVIC_SetVector(CNN_IRQn, CNN_ISR); '
+                                '// Set CNN complete vector\n')
+                else:
+                    mfile.write('  NVIC_SetVector(CNN_IRQn, CNN_ISR); '
+                                '// Set CNN complete vector\n')
             else:
                 mfile.write('  // Set CNN complete vector\n'
                             '  __enable_irq();\n'
@@ -619,7 +643,7 @@ def main(
             memfile.write('\n')
 
         if embedded_code:
-            memfile.write('  printf("\\n*** CNN Inference Test ***\\n");\n\n')
+            memfile.write(f'  printf("\\n*** CNN Inference Test {name} ***\\n");\n\n')
             if not state.zero_sram:
                 memfile.write('  cnn_init(); // Bring state machine into consistent state\n')
             else:
@@ -651,12 +675,17 @@ def main(
                 memfile.write('  cnn_load_bias();\n')
             else:
                 memfile.write('  cnn_load_bias(); // Not used in this network\n')
-            memfile.write('  cnn_configure(); // Configure state machine\n')
+            if state.verify_writes:
+                memfile.write('  if (cnn_configure() != CNN_OK) fail(); '
+                              '// Configure state machine\n')
+            else:
+                memfile.write('  cnn_configure(); // Configure state machine\n')
             if not measure_energy:
                 if not fifo:
                     memfile.write('  load_input(); // Load data input\n')
                 if clock_switch:
-                    select_clock(memfile, 'IPLL', 'DIV1', f'CNN clock: {clock_speed} div 1',
+                    select_clock(memfile, 'IPLL', f'DIV{state.clock_divider}',
+                                 f'CNN clock: {clock_speed} div {state.clock_divider}',
                                  pll_wait=False)
                 memfile.write('  cnn_start(); // Start CNN processing\n')
                 if fifo:
@@ -684,10 +713,12 @@ def main(
         if not measure_energy:
             if embedded_code or tc.dev.MODERN_SIM:
                 if state.wfi:
-                    if not riscv:
+                    if not (riscv or embedded_code):
                         memfile.write('  SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=0\n')
                     memfile.write('  while (cnn_time == 0)\n')
-                    if not riscv:
+                    if embedded_code:
+                        memfile.write(f'    {sleep_api}(); // Wait for CNN\n\n')
+                    elif not riscv:
                         memfile.write('    __WFI(); // Wait for CNN\n\n')
                     else:
                         memfile.write('    asm volatile("wfi"); // Wait for CNN\n\n')
@@ -703,16 +734,19 @@ def main(
             if not fifo:
                 memfile.write('    load_input(); // Load data input\n')
             if clock_switch:
-                select_clock(memfile, 'IPLL', 'DIV1', f'CNN clock: {clock_speed} div 1',
+                select_clock(memfile, 'IPLL', f'DIV{state.clock_divider}',
+                             f'CNN clock: {clock_speed} div {state.clock_divider}',
                              pll_wait=False, prefix='  ')
             memfile.write('    cnn_start(); // Run inference\n')
             if fifo:
                 memfile.write('    load_input(); // Load data input via FIFO\n')
             if state.wfi:
-                if not riscv:
+                if not (riscv or embedded_code):
                     memfile.write('    SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=0\n')
                 memfile.write('    while (cnn_time == 0)\n')
-                if not riscv:
+                if embedded_code:
+                    memfile.write(f'      {sleep_api}(); // Wait for CNN\n')
+                elif not riscv:
                     memfile.write('      __WFI(); // Wait for CNN\n')
                 else:
                     memfile.write('      asm volatile("wfi"); // Wait for CNN\n')
@@ -729,10 +763,12 @@ def main(
             memfile.write('    cnn_continue();\n')
             if embedded_code or tc.dev.MODERN_SIM:
                 if state.wfi:
-                    if not riscv:
+                    if not (riscv or embedded_code):
                         memfile.write('    SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=0\n')
                     memfile.write('    while (cnn_time == 0)\n')
-                    if not riscv:
+                    if embedded_code:
+                        memfile.write(f'      {sleep_api}(); // Wait for CNN\n')
+                    elif not riscv:
                         memfile.write('      __WFI(); // Wait for CNN\n')
                     else:
                         memfile.write('      asm volatile("wfi"); // Wait for CNN\n')
@@ -795,7 +831,7 @@ def main(
                             '  MXC_SYS_ClockDisable(MXC_SYS_PERIPH_CLOCK_CNN);\n\n')
             mfile.write('  // Disable power to CNN\n')
             mfile.write(f'  MXC_{bbfc}->reg3 = 0xf; // Reset\n')
-            mfile.write(f'  MXC_{bbfc}->reg2 = 0xf; // Iso\n')
+            mfile.write(f'  MXC_{bbfc}->reg2 |= 0xf; // Iso\n')
             mfile.write(f'  MXC_{bbfc}->reg0 = 0x0; // Power\n')
             mfile.write(f'  MXC_{bbfc}->reg1 = 0x0; // Mask memory\n')
             mfile.write(f'  MXC_{bbfc}->reg3 = 0x0; // Reset\n')
@@ -821,10 +857,12 @@ def main(
                           '  while(1) {\n'
                           '    cnn_start();\n')
             if embedded_code or tc.dev.MODERN_SIM:
-                if not riscv:
+                if not (riscv or embedded_code):
                     memfile.write('    SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=0\n')
                 memfile.write('    while (cnn_time == 0)\n')
-                if not riscv:
+                if embedded_code:
+                    memfile.write(f'      {sleep_api}(); // Wait for CNN\n')
+                elif not riscv:
                     memfile.write('      __WFI(); // Wait for CNN\n')
                 else:
                     memfile.write('      asm volatile("wfi"); // Wait for CNN\n')
@@ -835,19 +873,29 @@ def main(
 
     if riscv is not None:
         if not riscv:
-            if sleep:
-                if tc.dev.REQUIRE_SEMA_LPWKEN:
-                    memfile.write('  MXC_PWRSEQ->lppwen |= 0x400; // CPU1WKEN=1\n')
-                memfile.write(f'  {"_" if not embedded_code else ""}MXC_LP_ClearWakeStatus();\n'
-                              '  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=1\n')
-            if state.wfi:
-                memfile.write('  __WFI(); // Let RISC-V run\n')
+            if sleep and tc.dev.REQUIRE_SEMA_LPWKEN:
+                if not (embedded_code or embedded_arm or tc.dev.MODERN_SIM):
+                    memfile.write('  MXC_PWRSEQ->lpwken |= 0x400; // CPU1WKEN=1\n')
+                else:
+                    memfile.write('  MXC_PWRSEQ->lppwen |= MXC_F_PWRSEQ_LPPWEN_CPU1;\n')
+            if (embedded_code or embedded_arm) and state.wfi:
+                memfile.write(f'  {sleep_api}(); // Let RISC-V run\n')
             else:
-                memfile.write('  riscv_done = 0;\n'
-                              '  while (riscv_done == 0); // Let RISC-V run\n')
+                if sleep:
+                    memfile.write('  _MXC_LP_ClearWakeStatus();\n'
+                                  '  SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=1\n')
+                if state.wfi:
+                    memfile.write('  __WFI(); // Let RISC-V run\n')
+                else:
+                    memfile.write('  riscv_done = 0;\n'
+                                  '  while (riscv_done == 0); // Let RISC-V run\n')
         elif embedded_code or tc.dev.MODERN_SIM:
             memfile.write('\n  // Signal the Cortex-M4\n'
                           '  MXC_SEMA->irq0 = MXC_F_SEMA_IRQ0_EN | MXC_F_SEMA_IRQ0_CM4_IRQ;\n')
+        else:
+            memfile.write('\n  // Signal the Cortex-M4\n'
+                          '  MXC_SEMA->irqr0 = MXC_S_SEMA_IRQR_IRQEN_EN | '
+                          'MXC_S_SEMA_IRQR_IRQ_SET;\n')
 
     if not embedded_code and not embedded_arm:
         memfile.write('\n  pass();')
@@ -891,6 +939,7 @@ def c_define(
         define_name: str,
         fmt: str,
         columns: int = 8,
+        size: int = 32,
 ) -> None:
     """
     Write a #define to `memfile` for array `array` to `define_name`, using format `fmt` and
@@ -901,7 +950,10 @@ def c_define(
     prefix, formatting = fmt.split('%')
     memfile.write(f'#define {define_name} {{ \\\n  ')
     for i, e in enumerate(array):
-        memfile.write(f'{prefix}{e & 0xffffffff:{formatting}}')
+        if size == 8:
+            memfile.write(f'{prefix}{e:{formatting}}')
+        else:
+            memfile.write(f'{prefix}{e & 0xffffffff:{formatting}}')
         if i + 1 < len(array):
             memfile.write(', ')
             if (i + 1) % columns == 0:
@@ -912,7 +964,7 @@ def c_define(
 def select_clock(
         memfile: TextIO,
         source: str,
-        divider: int,
+        divider: str,
         comment: str = '',
         pll_wait: bool = True,
         prefix: str = '',

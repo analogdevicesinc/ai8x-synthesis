@@ -10,7 +10,7 @@ Configuration state for backends.
 from typing import Any, List, Optional, TextIO
 
 # These are the raw global state variables, initialized to None, False, 0, [], or their defaults.
-# Defaults must not depend on any other module such as tc.
+# Defaults must not depend on any other module such as tornadocnn (tc).
 activation: List[Any] = []
 allow_streaming: bool = False
 apb_base: int = 0
@@ -29,6 +29,7 @@ boost: Optional[List[int]] = None
 bypass: List[bool] = []
 c_filename: str = ''
 calcx4: List[bool] = []
+clock_divider: Optional[int] = None
 clock_trim: Optional[List[int]] = None
 compact_data: bool = False
 compact_weights: bool = False
@@ -41,9 +42,12 @@ debug_new_streaming: bool = False
 debug_snoop: bool = False
 debug_wait: int = 1
 debug: bool = False
+deduplicate_weights: bool = True
 defines_arm: str = ''
 defines_riscv: str = ''
 defines: str = ''
+delta1: List[int] = []
+delta2: List[int] = []
 dilation: List[List[int]] = []
 display_progress: bool = True
 eclipse_includes: str = ''
@@ -52,6 +56,7 @@ eclipse_variables: str = ''
 eltwise: List[bool] = []
 embedded_code: bool = False
 enable_delay: int = 0
+energy_warning: bool = True
 ext_rdy: bool = False
 fast_fifo_quad: bool = False
 fast_fifo: bool = False
@@ -103,7 +108,8 @@ max_count: Optional[int] = None
 measure_energy: bool = False
 mexpress: bool = False
 mlator_chunk: int = 0
-mlator_noverify = False
+mlator_noverify: bool = False
+mlator_warning: bool = True
 mlator: bool = False
 narrow_chunk: int = 0
 new_kernel_loader: bool = False
@@ -155,6 +161,7 @@ riscv_debug: bool = False
 riscv_exclusive: bool = False
 riscv_flash: bool = False
 riscv: bool = False
+rtl_preload_weights: bool = False
 rtl_preload: bool = False
 runtest_filename: str = ''
 sample_filename: str = ''
@@ -169,6 +176,7 @@ softmax: bool = False
 split: int = 1
 start_layer: int = 0
 stopstart: bool = False
+stream_start: List[int] = []
 streaming: List[bool] = []
 stride: List[List[int]] = []
 synthesize_input: Optional[int] = None

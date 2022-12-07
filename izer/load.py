@@ -271,7 +271,10 @@ def load(
                     for i, e in enumerate(buffer_list[proc]):
                         apb.output(f'// HWC {input_size[1]}x{input_size[2]}, '
                                    f'channels {e[2]} to {e[3]}\n')
-                        buf[i::in_expand] = e[0]
+                        for j, val in enumerate(e[0]):
+                            target = i * operands + (j // operands) * in_expand * operands \
+                                + j % operands
+                            buf[target] = val
 
                     if not fixed_input:
                         b = buf if synthesize is None else buf[:state.synthesize_words]
@@ -309,7 +312,7 @@ def load(
                                 return_type='void')
             apb.output('  // This function loads the sample data input -- '
                        'replace with actual data\n\n')
-            for _, (addr, ch, offs) in enumerate(input_list):
+            for (addr, ch, offs) in input_list:
                 if not fixed_input:
                     apb.output(f'  memcpy32((uint32_t *) 0x{state.apb_base + addr:08x}, '
                                f'input_{ch}, {offs});\n')
@@ -436,7 +439,7 @@ def loadfifo(
             if state.riscv_flash:
                 apb.output(rv.RISCV_FLASH)
             apb.output(f'static const uint32_t input_{c}[] = SAMPLE_INPUT_{c};\n')
-            apb.inc_writes(len(b))
+            apb.inc_writes(len(b), fifo=c, fifo_wait=state.fifo_wait)
 
         apb.function_header(dest='wrapper', prefix='', function='load_input',
                             return_type='void')

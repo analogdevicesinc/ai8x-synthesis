@@ -17,6 +17,7 @@ layers:
     processors: 0x000000000000ffff
     streaming: true
     op: conv2d
+    activate: None
   - max_pool: 4
     pool_stride: 4
     pad: 1
@@ -24,3 +25,4 @@ layers:
     processors: 0x000000000000ffff
     streaming: true
     op: conv2d
+    activate: None
