@@ -15,7 +15,7 @@ import stat
 from collections.abc import MutableMapping
 from pathlib import Path
 
-from . import hashing, state
+from . import state
 from . import tornadocnn as tc
 
 
@@ -249,12 +249,7 @@ def vscode(
                         replace("##__XPACK_GCC_PATH__##", xpack_gcc_path). \
                         replace("##__MAKE_PATH__##", make_path)
 
-                write = True
-                if out_file.exists() and \
-                        (not overwrite or hashing.compare_content(content, out_file)):
-                    write = False
-
-                if write:
+                if (not out_file.exists()) or overwrite:
                     with open(out_file, "w+", encoding="UTF-8") as f:
                         f.write(content)
                     os.chmod(out_file, stat.S_IRWXU | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
@@ -268,13 +263,7 @@ def vscode(
                 in_file = Path(directory).joinpath(file)
                 out_file = Path(out_path).joinpath(file)
 
-                write = True
-                if out_file.exists():
-                    if not overwrite or \
-                            (hashing.hash_file(in_file) == hashing.hash_file(out_file)):
-                        write = False
-
-                if write:
+                if (not out_file.exists()) or overwrite:
                     shutil.copy(in_file, out_path)
                     os.chmod(out_file, stat.S_IRWXU | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
                     if out_file not in updated:
@@ -390,18 +379,13 @@ def write_mapping(template_file: Path, out_path: Path, mapping: MakefileMapping,
     if not out_file.parent.exists():
         out_file.parent.mkdir()
 
-    write = True
-    if out_file.exists() and \
-            (not overwrite or hashing.compare_content(template, out_file)):
-        # Don't write the file content is exactly the same,
-        # or if overwrite is not specified but the file exists.
-        write = False
-
-    if write:
-        if out_file.exists() and backup:
+    write = False
+    if (not out_file.exists()) or overwrite:
+        if backup:
             shutil.copy(out_file, out_file.parent.joinpath(f"{out_file.name}-backup.mk"))
         with open(out_file, "w+", encoding="utf-8") as f:
             f.write(template)
+        write = True
 
     return write
 
@@ -461,11 +445,11 @@ def makefile(
     template_projectmk = Path("assets").joinpath("makefile", "project.mk").resolve()
 
     wrote_makefile = write_mapping(
-        template_makefile,
-        out_path,
-        mapping,
-        overwrite=overwrite,
-        backup=backup
+            template_makefile,
+            out_path,
+            mapping,
+            overwrite=overwrite,
+            backup=backup
         )
 
     wrote_projectmk = write_mapping(
