@@ -1,6 +1,6 @@
 # Neural Network Training on Windows
 
-December 9, 2021
+December 8, 2022
 
 The preferred and most compatible way to train networks is using the *[Windows Subsystem for Linux (WSL2)](https://github.com/MaximIntegratedAI/ai8x-synthesis/blob/develop/docs/WSL2.md).* However, WSL2 is not always available. The instructions in this document demonstrate how to train networks natively on Windows, without WSL2.
 
@@ -18,9 +18,9 @@ Windows **must** run in 64-bit mode. To check, use the Start menu and type “Ab
 
 Several applications and packages are needed. Some of the installation steps may require administrator privileges.
 
-#### Maxim Micros SDK
+#### Microcontroller SDK
 
-Install the [Maxim Micros SDK](https://www.maximintegrated.com/en/design/software-description.html/swpart=SFW0010820A) for MAX78000/MAX78002.
+Install the [Microcontroller SDK](https://www.analog.com/en/design-center/evaluation-hardware-and-software/software/software-download?swpart=SFW0010820A) for MAX78000/MAX78002.
 
 ![maximsdk](maximsdk.png)
 
