@@ -87,7 +87,7 @@ The WSL2 file system should be used for all actions such as creating git reposit
 
 The user home is typically at `\\wsl$\Ubuntu\home\<name>\`.
 
-*Please note that the MaximSDK MinGW shell creates a user directory at* `C:\MaximSDK\Tools\MinGW\msys\1.0\home\<name>\`. *This directory is separate from both the Windows documents and the WSL2 home directory.*
+*Please note that the MSDK MinGW shell creates a user directory at* `C:\MaximSDK\Tools\MinGW\msys\1.0\home\<name>\`. *This directory is separate from both the Windows documents and the WSL2 home directory.*
 
 
 

@@ -18,9 +18,9 @@ Windows **must** run in 64-bit mode. To check, use the Start menu and type “Ab
 
 Several applications and packages are needed. Some of the installation steps may require administrator privileges.
 
-#### Microcontroller SDK
+#### Analog Devices MSDK
 
-Install the [Microcontroller SDK](https://www.analog.com/en/design-center/evaluation-hardware-and-software/software/software-download?swpart=SFW0010820A) for MAX78000/MAX78002.
+Install the [Analog Devices MSDK](https://www.analog.com/en/design-center/evaluation-hardware-and-software/software/software-download?swpart=SFW0010820A) for MAX78000/MAX78002.
 
 ![maximsdk](maximsdk.png)
 
