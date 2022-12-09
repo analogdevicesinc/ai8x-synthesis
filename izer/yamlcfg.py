@@ -145,6 +145,7 @@ def parse(
     output_layer = [False] * tc.dev.MAX_LAYERS
     unload_custom = []
     layer_name = [None] * tc.dev.MAX_LAYERS
+    weight_source = [None] * tc.dev.MAX_LAYERS
 
     sequence = 0
     skip = skip_layers
@@ -163,7 +164,8 @@ def parse(
                                  'next_sequence', 'snoop_sequence', 'simulated_sequence',
                                  'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
                                  'bias_group', 'bias_quadrant', 'calcx4', 'readahead', 'name',
-                                 'pool_dilation', 'output_pad', 'tcalc', 'read_gap', 'output'])
+                                 'pool_dilation', 'output_pad', 'tcalc', 'read_gap', 'output',
+                                 'weight_source'])
         if bool(cfg_set):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`: '
                    f'{cfg_set}.')
@@ -571,6 +573,14 @@ def parse(
                 error_exit(f'Using reserved name {val} for `name`', sequence)
             layer_name[sequence] = val
 
+        if 'weight_source' in ll:
+            val = ll['weight_source']
+            if isinstance(val, str):
+                val = val.lower()
+                weight_source[sequence] = val
+            else:
+                weight_source[sequence] = val - skip_layers
+
         # Fix up values for 1D convolution or no convolution
         if operator[sequence] == op.CONV1D:
             padding[sequence][1] = 0
@@ -632,6 +642,7 @@ def parse(
             del output_padding[ll]
             del tcalc[ll]
             del output_layer[ll]
+            del weight_source[ll]
 
     for ll, _ in enumerate(operator):
         # Convert string layer names to sequences
@@ -641,6 +652,9 @@ def parse(
         if isinstance(simulated_sequence[ll], str):
             simulated_sequence[ll] = names.find_layer(layer_name, ll, simulated_sequence[ll],
                                                       'simulated_sequence')
+        if isinstance(weight_source[ll], str):
+            weight_source[ll] = names.find_layer(layer_name, ll, weight_source[ll],
+                                                 'weight_source')
         if in_sequences[ll] is not None:
             new_in_sequences = []
             for e in in_sequences[ll]:
@@ -740,5 +754,6 @@ def parse(
     settings['tcalc'] = tcalc
     settings['unload_custom'] = unload_custom if len(unload_custom) > 0 else None
     settings['write_gap'] = write_gap
+    settings['weight_source'] = weight_source
 
     return cfg, len(processor_map), settings

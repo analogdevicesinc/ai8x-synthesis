@@ -109,6 +109,7 @@ def main():
                     args.no_bias,
                     params['conv_groups'],
                     params['bypass'],
+                    params['weight_source'],
                     args.skip_checkpoint_layers,
                 )
     else:  # Get some hard-coded sample weights
@@ -148,6 +149,15 @@ def main():
                 input_channels.insert(ll, 0)
                 output_channels.insert(ll, 0)
                 layers += 1
+            else:
+                val = params['weight_source'][ll]
+                if val is not None:
+                    weights.insert(ll, weights[val])
+                    bias.insert(ll, bias[val])
+                    input_channels.insert(ll, input_channels[val])
+                    output_channels.insert(ll, output_channels[val])
+                    output_shift[ll] = output_shift[val]
+                    layers += 1
 
     if layers != cfg_layers:
         eprint(f'Number of layers in the YAML configuration file ({cfg_layers}) '

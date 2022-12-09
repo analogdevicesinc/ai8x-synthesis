@@ -134,7 +134,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
     with console.Progress(start=True) as progress:
         task0 = progress.add_task(description='Arranging weights...', total=layers-start_layer)
         for ll in range(start_layer, layers):
-            if operator[ll] == op.NONE or bypass[ll]:
+            if operator[ll] == op.NONE or bypass[ll] or kernel[ll] is None:
                 assert kern_len[ll] == 0
                 assert kern_offs[ll] == start_offs
                 progress.advance(task0)
@@ -603,8 +603,9 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
                     '  int av;\n\n'
                     '  while ((addr = (volatile uint32_t *) *compare++) != 0) {\n'
                     '    len = (*compare++ * 4) / 9;\n'
-                    '    ptr = (volatile uint32_t *)(((uint32_t)addr & 0xffff0000) | '
-                    '(((uint32_t)addr & 0xffff) << 2));\n'
+                    '    ptr = (volatile uint32_t *)(((uint32_t)addr '
+                    f'& 0x{~(tc.dev.MASK_OFFS - 1) & 0xffffffff:08x}) | '
+                    f'(((uint32_t)addr & 0x{tc.dev.MASK_OFFS - 1:04x}) << 2));\n'
                     '    av = 0;\n'
                     '    val = 0;\n\n'
                     '    while (len-- > 0) {\n'

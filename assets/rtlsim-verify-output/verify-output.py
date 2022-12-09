@@ -13,6 +13,8 @@ import logging
 import os
 import sys
 
+RUNTEST_FILE = 'run_test.log.fail'
+
 stdout_handler = logging.StreamHandler(sys.stdout)
 handlers = [stdout_handler]
 
@@ -118,6 +120,37 @@ for _, _, fnames in sorted(os.walk('data-expected')):  # type: ignore
 
 if failures == 0:
     log.info('%d successful data word matches, no failures.', matches)
+
+if not os.path.isfile(RUNTEST_FILE):
+    log.error('No %s, exiting!', RUNTEST_FILE)
+    sys.exit(-1)
+
+failures = 0
+matches = 0
+
+# Check whether 'latency.txt' exists and get cycle count
+if os.path.isfile('latency.txt'):
+    with open('latency.txt', encoding='utf-8') as f:
+        cycles = int(f.read().split()[0])
+
+    with open(RUNTEST_FILE, encoding='utf-8') as f:
+        data = f.readlines()
+
+    actual_cycles = -1
+    for d in data:
+        if d.startswith("CNN Cycles = "):
+            actual_cycles = int(d[13:].split()[0])
+            break
+
+    if actual_cycles == -1:
+        log.error('Did not find "CNN Cycles = " in %s!', RUNTEST_FILE)
+        sys.exit(-1)
+
+    if cycles == actual_cycles:
+        log.debug('Cycle counts match (%d)', cycles)
+    else:
+        log.error('Cycle count mismatch! Expected: %d, simulated: %d.', cycles, actual_cycles)
+        failures += 1
 
 # Return success (0) or number of failures (when < MAX_MISMATCH):
 sys.exit(failures)

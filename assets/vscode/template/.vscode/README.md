@@ -6,7 +6,7 @@ If you are viewing this document from within Visual Studio Code, press `CTRL+SHI
 
 ## Introduction
 
-This repository is dedicated to maintaining [Visual Studio Code](https://code.visualstudio.com/) project files that integrate with [Maxim Integrated's](https://www.maximintegrated.com/en/products/microcontrollers.html) Microcontroller SDK.  The following features are enabled by the project files:
+This repository is dedicated to maintaining [Visual Studio Code](https://code.visualstudio.com/) project files that integrate with [Analog Device's MSDK](https://www.analog.com/en/product-category/microcontrollers.html). The following features are enabled by the project files:
 
 * Code editing with intellisense and definition look-ups down to the register level
 * Code compilation with the ability to easily re-target a project for different microcontrollers and boards
@@ -19,14 +19,14 @@ The project folders in this repo have the following dependencies:
 
 * [Visual Studio Code](https://code.visualstudio.com/)
 * [C/C++ VSCode Extension](https://github.com/microsoft/vscode-cpptools)
-* [Maxim Micros SDK](https://www.maximintegrated.com/content/maximintegrated/en/design/software-description.html/swpart=SFW0010820A)
+* [Analog Devices MSDK](https://www.analog.com/en/design-center/evaluation-hardware-and-software/software/software-download?swpart=SFW0010820A)
 
 ## Installation
 
-1. Download & install the Maxim Microcontrollers SDK for your OS from the links below.
-    * [Windows](https://www.maximintegrated.com/en/design/software-description.html/swpart=SFW0010820A)
-    * [Linux (Ubuntu)](https://www.maximintegrated.com/en/design/software-description.html/swpart=SFW0018720A)
-    * [MacOS](https://www.maximintegrated.com/en/design/software-description.html/swpart=SFW0018610A)
+1. Download & install the Analog Devices MSDK for your OS from the links below.
+    * [Windows](https://www.analog.com/en/design-center/evaluation-hardware-and-software/software/software-download?swpart=SFW0010820A)
+    * [Linux (Ubuntu)](https://www.analog.com/en/design-center/evaluation-hardware-and-software/software/software-download?swpart=SFW0018720A)
+    * [MacOS](https://www.analog.com/en/design-center/evaluation-hardware-and-software/software/software-download?swpart=SFW0018610A)
 
 2. Run the installer executable.
 
@@ -34,7 +34,7 @@ The project folders in this repo have the following dependencies:
 
     ![Selected Components](https://raw.githubusercontent.com/MaximIntegratedTechSupport/VSCode-Maxim/main/img/installer_components.JPG)
 
-4. Finish the MaximSDK installation, and proceed to step 5 below to set up Visual Studio Code.
+4. Finish the MSDK installation, and proceed to step 5 below to set up Visual Studio Code.
 
 5. Download & install Visual Studio Code for your OS [here](https://code.visualstudio.com/Download).
 
@@ -53,7 +53,7 @@ The project folders in this repo have the following dependencies:
     ```json
     {
         ...
-        "MAXIM_PATH":"<MaximSDK root directory>", //Change this to the installation location of the MaximSDK from step 1.
+        "MAXIM_PATH":"<MSDK root directory>", // Change this to the installation location of the Analog Devices MSDK from step 1.
         "update.mode": "manual", // Disable auto updates of VS Code (Optional but strongly recommended)
         "extensions.autoUpdate": false, // Disable auto updates of extensions (Optional but strongly recommended)
         ...
@@ -62,7 +62,7 @@ The project folders in this repo have the following dependencies:
 
 11. Save your changes to the file with `CTRL + S`.  VS Code will prompt for a restart.  Restart for the changes to take effect.
 
-12. That's it!  You're ready to start using Visual Studio Code to develop with Maxim's Microcontrollers.  The MaximSDK example projects come pre-populated with .vscode project folders, and the "Tools/VSCode-Maxim" folder of the SDK contains documentation and new project templates.  See [Usage](#usage) below for more details on using the projects.
+12. That's it!  You're ready to start using Visual Studio Code to develop with Analog Device's Microcontrollers.  The MSDK example projects come pre-populated with .vscode project folders, and the "Tools/VSCode-Maxim" folder of the MSDK contains documentation and new project templates.  See [Usage](#usage) below for more details on using the projects.
 
 ## Usage
 
@@ -98,7 +98,7 @@ Once a project is opened 4 available build tasks will become available via `Term
   * This task cleans the build output, removing the `./build` directory and all of its contents.
 
 * Clean-Periph
-  * This task is the same as 'clean', but it also removes the build output for Maxim's peripheral drivers.
+  * This task is the same as 'clean', but it also removes the build output for Analog Devices MSDK peripheral drivers.
   * Use this if you would like to recompile the peripheral drivers from source on the next build.
 
 * Flash
@@ -109,7 +109,7 @@ Once a project is opened 4 available build tasks will become available via `Term
 
 At the heart of every project is its `Makefile`.  Build Tasks are essentially a wrapper around the Makefile.  Adding source code files to the build, setting compiler flags, linking libraries, etc. must be done by directly editing this file.
 
-The usage guidelines below are specific to Maxim's Makefiles.  The [GNU Make Manual](https://www.gnu.org/software/make/manual/html_node/index.html) is a good one to have on hand for documentation regarding Makefiles in general.
+The usage guidelines below are specific to MSDK Makefiles.  The [GNU Make Manual](https://www.gnu.org/software/make/manual/html_node/index.html) is a good one to have on hand for documentation regarding Makefiles in general.
 
 #### Adding Source Code Files
 
@@ -205,7 +205,7 @@ The following configuration options are available:
 * `"board"`
   * This sets the target board for the project (ie. Evaluation Kit, Feather board, etc.)
   * Supported values:
-    * ... can be found in the `Libraries/Boards` folder of the MaximSDK
+    * ... can be found in the `Libraries/Boards` folder of the MSDK.
     * For example, the supported options for the MAX78000 are `"EvKit_V1"`, `"FTHR_RevA"`, and `"MAXREFDES178"`.
 
     ![MAX78000 Boards](https://raw.githubusercontent.com/MaximIntegratedTechSupport/VSCode-Maxim/main/img/78000_boards.JPG)
@@ -213,7 +213,7 @@ The following configuration options are available:
 ### Advanced Config Options
 
 * `"MAXIM_PATH"`
-  * This option must point to the root installation directory of the MaximSDK.  
+  * This option must point to the root installation directory of the MSDK.  
   * It should be placed in the _global_ user settings.json file during first-time VSCode-Maxim setup.  See [Installation](#installation).
 
 * `"terminal.integrated.env.[platform]:Path"`
@@ -287,7 +287,7 @@ The following configuration options are available:
 
 ### Setting Search Paths for Intellisense
 
-VS Code's intellisense engine must be told where to find the header files for your source code.  By default, Maxim's perpiheral drivers, the C standard libraries, and all of the sub-directories of the workspace will be searched for header files to use with Intellisense.  If VS Code throws an error on an `#include` statement (and the file exists), then a search path is most likely missing.
+VS Code's intellisense engine must be told where to find the header files for your source code.  By default, the MSDK's perpiheral drivers, the C standard libraries, and all of the sub-directories of the workspace will be searched for header files to use with Intellisense.  If VS Code throws an error on an `#include` statement (and the file exists), then a search path is most likely missing.
 
 To add additional search paths :
 
@@ -299,7 +299,7 @@ To add additional search paths :
 
 ## Die Types to Part Numbers
 
-The MaximSDK's peripheral driver filenames are written using die types instead of external part numbers.  This table shows which part numbers correspond to each die type, which is useful when browsing through source file definitions in Maxim's peripheral drivers.
+The MSDK's peripheral driver filenames are written using die types instead of external part numbers.  This table shows which part numbers correspond to each die type, which is useful when browsing through source file definitions in the MSDK's peripheral drivers.
 
 | Die Type | Part Number |
 | -------- | ----------- |
@@ -322,7 +322,7 @@ The MaximSDK's peripheral driver filenames are written using die types instead o
 
 Copying a pre-made example project is a great way to get rolling quickly, and is currently the recommended method for creating new projects.  
 
-The release package for this project (Located at Tools/VSCode-Maxim in the MaximSDK) contains a `New_Project` folder designed for such purposes.  Additionally, any of the VS Code-enabled Example projects can be copied from the SDK.
+The release package for this project (Located at Tools/VSCode-Maxim in the Analog Devices MSDK) contains a `New_Project` folder designed for such purposes.  Additionally, any of the VS Code-enabled Example projects can be copied from the MSDK.
 
 1. Copy the existing project folder to an accessible location.  This will be the location of your new project.
 
@@ -362,11 +362,11 @@ If you want to start from scratch, take this option.
 
 Before troubleshooting, ensure that you are using the project files from the latest VSCode-Maxim version, and that the version number of Visual Studio Code and the C/C++ extension match the release notes.  Sometimes, issues are caused by VS Code auto-updates.
 
-Additionally, ensure that your MaximSDK is updated to the latest version. You can use the "MaintenanceTool" application in the root directory of the SDK installation.
+Additionally, ensure that your MSDK is updated to the latest version. You can use the "MaintenanceTool" application in the root directory of the MSDK installation.
 
 ### Testing the Setup
 
-Opening a VSCode-Maxim project with `File > Open Folder` should make Maxim's toolchain accessible from the integrated terminal.  To test that everything is working properly :
+Opening a VSCode-Maxim project with `File > Open Folder` should make the toolchain accessible from the integrated terminal.  To test that everything is working properly :
 
 1. Navigate to the open `TERMINAL` tab on the bottom of the VS Code application.  If a terminal is not open, you can open a new terminal with `Terminal > New Terminal` or (Ctrl+Shift+`).  
 
@@ -397,7 +397,7 @@ If the tools are not accessible from the terminal, then the system settings and/
 
 The issues above are usually caused by a missing or improperly set "MAXIM_PATH" global settings.json variable.  
 
-If you see the issues below ensure that you have set "MAXIM_PATH" in your _global_ user settings.json file, and that this path matches the location of the MaximSDK installation on your system.
+If you see the issues below ensure that you have set "MAXIM_PATH" in your _global_ user settings.json file, and that this path matches the location of the MSDK installation on your system.
 
 This can be resolved by double checking that the [Installation](#installation) procedure has been followed exactly.
 
@@ -421,7 +421,7 @@ echo $env:MAXIM_PATH
 printenv | grep MAXIM_PATH
 ```
 
-... which should print the exact location of the MaximSDK installation.
+... which should print the exact location of the MSDK installation.
 
 ### Strange Debugger Behavior
 

@@ -553,6 +553,9 @@ def verify(
     out_size = output_width // 8
     width = out_expand * out_size
 
+    if unload_layer and not embedded:
+        body.append(f'  // Layer {layer_str(ll)}\n')
+
     for doffs in range(input_shape[1] * input_shape[2]):
         row, col = divmod(doffs, input_shape[2])
         this_map = next_layer_map
@@ -612,7 +615,7 @@ def verify(
                         )
                         if out_map is not None:
                             datamem.store(out_map, offs, (ll, this_c, row, col))
-                    if not mlator and (max_count is None or count < max_count):
+                    if not mlator:
                         verify_fn(
                             offs,
                             val,
@@ -636,7 +639,7 @@ def verify(
                             )
                             if out_map is not None:
                                 datamem.store(out_map, offs, (ll, this_c, row, col))
-                        if not mlator and (max_count is None or count < max_count):
+                        if not mlator:
                             verify_fn(
                                 offs,
                                 val[i],
@@ -719,6 +722,9 @@ def verify(
                                         ' // Prime\n')
 
                         num_bytes = min(4, input_shape[2] - col)
+                        first_proc = (out_offset >> 2) & 0x03
+                        if first_proc != 0:
+                            val <<= first_proc * 8
                         # No overwrite checks here since mlator happens on read of the memory,
                         # not on write TO the memory.
                         verify_fn(
@@ -727,6 +733,7 @@ def verify(
                             rv=False,
                             comment=f' // {c},{row},{col}-{col+num_bytes-1}',
                             num_bytes=num_bytes,
+                            first_proc=first_proc,
                             data=unload_layer,
                         )
 

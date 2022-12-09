@@ -1,0 +1,177 @@
+---
+# Layer test
+
+arch: test
+dataset: test_layers
+
+layers:
+  - pad: 1
+    in_offset: 0
+    out_offset: 0x200
+    processors: 0x0000000000000007
+    data_format: HWC
+    streaming: true
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x400
+    processors: 0x0000000000000007
+    streaming: true
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x600
+    processors: 0x0000000000000007
+    streaming: true
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x800
+    processors: 0x0000000000000007
+    streaming: true
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0xa00
+    processors: 0x0000000000000007
+    streaming: true
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0xc00
+    processors: 0x0000000000000007
+    streaming: true
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0xe00
+    processors: 0x0000000000000007
+    streaming: true
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x1000
+    processors: 0x0000000000000007
+    streaming: true
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x2000
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x0
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x2000
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x0
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x2000
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x0
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x2000
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x0
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x2000
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x0
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x2000
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x0
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x2000
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x0
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x2000
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x0
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x2000
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x0
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x2000
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x0
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x2000
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x0
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x2000
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None
+  - pad: 1
+    out_offset: 0x0
+    processors: 0x0000000000000007
+    op: conv2d
+    activate: None

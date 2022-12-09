@@ -10,7 +10,7 @@ Configuration state for backends.
 from typing import Any, List, Optional, TextIO
 
 # These are the raw global state variables, initialized to None, False, 0, [], or their defaults.
-# Defaults must not depend on any other module such as tc.
+# Defaults must not depend on any other module such as tornadocnn (tc).
 activation: List[Any] = []
 allow_streaming: bool = False
 apb_base: int = 0
@@ -42,9 +42,12 @@ debug_new_streaming: bool = False
 debug_snoop: bool = False
 debug_wait: int = 1
 debug: bool = False
+deduplicate_weights: bool = True
 defines_arm: str = ''
 defines_riscv: str = ''
 defines: str = ''
+delta1: List[int] = []
+delta2: List[int] = []
 dilation: List[List[int]] = []
 display_progress: bool = True
 eclipse_includes: str = ''
@@ -158,8 +161,8 @@ riscv_debug: bool = False
 riscv_exclusive: bool = False
 riscv_flash: bool = False
 riscv: bool = False
-rtl_preload: bool = False
 rtl_preload_weights: bool = False
+rtl_preload: bool = False
 runtest_filename: str = ''
 sample_filename: str = ''
 simple1b: bool = False
@@ -173,6 +176,7 @@ softmax: bool = False
 split: int = 1
 start_layer: int = 0
 stopstart: bool = False
+stream_start: List[int] = []
 streaming: List[bool] = []
 stride: List[List[int]] = []
 synthesize_input: Optional[int] = None
