@@ -1,6 +1,6 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-December 9, 2022
+December 13, 2022
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
@@ -2168,7 +2168,7 @@ The following table describes the most important command line arguments for `ai8
 | `--softmax`              | Add software Softmax functions to generated code             |                                 |
 | `--boost`                | Turn on a port pin to boost the CNN supply                   | `--boost 2.5`                   |
 | `--timer`                | Insert code to time the inference using a timer              | `--timer 0`                     |
-| `--no-wfi`               | Do not use WFI (wait for interrupt) instructions when waiting for CNN completion |                                 |
+| `--no-wfi`               | Do not use WFI (wait for interrupt) instructions and do not enter sleep mode when waiting for CNN completion. This is required for very fast, small networks. |                                 |
 | `--define` | Additional preprocessor defines | `--define "FAST GOOD"` |
 | *MAX78002* |  |  |
 | `--no-pipeline` | **MAX78002 only**: Disable the pipeline and run the CNN on the slower APB clock. This reduces power consumption, but increases inference time and in most cases overall energy usage. |  |
@@ -3126,6 +3126,36 @@ To deal with this issue, there are several options:
 * For 8-bit output values, `--mlator` typically generates more compact code.
 * Change the compiler optimization level in `Makefile`. To change the default optimization levels, modify `MXC_OPTIMIZE_CFLAGS` in `assets/embedded-ai85/templateMakefile` for Arm code and `assets/embedded-riscv-ai85/templateMakefile.RISCV` for RISC-V code. Both `-O1` and `-Os` may result in smaller code compared to `-O2`.
 * If the last layer has large-dimension, large-channel output, the `cnn_unload()` code in `cnn.c` may cause memory segment overflows not only in Flash, but also in the target buffer in SRAM (`ml_data32[]` or `ml_data[]` in `main.c`). In this case, manual code edits are required to perform multiple partial unloads in sequence.
+
+##### Known-Answer-Test (KAT): Console Does Not Print PASS/FAIL
+
+In some cases, the serial console does not print PASS or FAIL for the known-answer test, for example:
+
+```
+Waiting...
+
+*** CNN Inference Test ***
+
+[nothing]
+```
+
+A connected debugger will disconnect, similar to:
+
+```
+Program stopped.
+0x0000fff4 in ?? ()
+```
+
+This can be caused by very small, fast networks, where the inference finishes before the main code has entered sleep mode:
+
+```c
+ while (cnn_time == 0)
+    // CNN has already finished or is about to finish
+    MXC_LP_EnterSleepMode(); // Wait for CNN
+    // Device will not wake up since the CNN complete interrupt has already happened
+```
+
+Solution: Please use the command line switch `--no-wfi` to disable sleep mode.
 
 ##### Known-Answer-Test (KAT) Failures – Debugging Techniques
 
