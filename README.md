@@ -1,12 +1,12 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-November 29, 2022
+December 13, 2022
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
 1. **Start here**:
     **[Top Level Documentation](https://github.com/MaximIntegratedAI/MaximAI_Documentation)**
-2. The software development kit (SDK), which contains drivers and example programs ready to run on the evaluation kits (EVkit and Feather):
+2. The software development kit (MSDK), which contains drivers and example programs ready to run on the evaluation kits (EVkit and Feather):
     [Analog Devices MSDK](https://github.com/Analog-Devices-MSDK/msdk)
 3. The training repository, which is used for deep learning *model development and training*:
     [ai8x-training](https://github.com/MaximIntegratedAI/ai8x-training) **(described in this document)**
@@ -42,7 +42,7 @@ The following graphic shows an overview of the development flow:
 
 ### File System Layout
 
-Including the SDK, the expected/resulting file system layout will be:
+Including the MSDK, the expected/resulting file system layout will be:
 
     ..../ai8x-training/
     ..../ai8x-synthesis/
@@ -415,7 +415,7 @@ For minor updates, pull the latest code and install the updated wheels:
 
 ##### MSDK Updates
 
-Please *also* update the MSDK or use the Maintenance Tool as documented in the [Analog Devices MSDK documentation](https://github.com/Analog-Devices-MSDK/msdk). The Maintenance Tool automatically updates the SDK.
+Please *also* update the MSDK or use the Maintenance Tool as documented in the [Analog Devices MSDK documentation](https://github.com/Analog-Devices-MSDK/msdk). The Maintenance Tool automatically updates the MSDK.
 
 ##### Python Version Updates
 
@@ -525,9 +525,9 @@ With the installation of Training and Synthesis projects completed it is importa
 
 
 
-### Embedded Software Development Kit (SDK)
+### Embedded Software Development Kit (MSDK)
 
-The Embedded SDK for MAX78000 and MAX78002 is used to compile, flash, and debug the output of the *ai8x-synthesis* (“izer”) tool. It also enables general software development for the microcontroller cores of the MAX78000 and MAX78002. It consists of the following components:
+The Software Development Kit (MSDK) for MAX78000 and MAX78002 is used to compile, flash, and debug the output of the *ai8x-synthesis* (“izer”) tool. It also enables general software development for the microcontroller cores of the MAX78000 and MAX78002. It consists of the following components:
 
 * Peripheral Drivers
 * Board Support Packages (BSPs)
@@ -539,16 +539,16 @@ The Embedded SDK for MAX78000 and MAX78002 is used to compile, flash, and debug 
   * Make
   * OpenOCD
 
-There are two ways to install the SDK.
+There are two ways to install the MSDK.
 
-#### Method 1: SDK Installer
+#### Method 1: MSDK Installer
 
-The [Microcontroller SDK](https://github.com/Analog-Devices-MSDK/msdk) for MAX78000/MAX7802 (“MaximSDK”) is available via the installer links below. These installers require a GUI on your system.
+The [Analog Devices MSDK](https://github.com/Analog-Devices-MSDK/msdk) for MAX78000/MAX7802 is available via the installer links below. These installers require a GUI on your system.
 
-1. Download the MaximSDK installer for your operating system from one of the links below.
-    * [Windows](https://www.maximintegrated.com/content/maximintegrated/en/design/software-description.html/swpart=SFW0010820A)
-    * [Ubuntu Linux](https://www.maximintegrated.com/content/maximintegrated/en/design/software-description.html/swpart=SFW0018720A)
-    * [macOS](https://www.maximintegrated.com/content/maximintegrated/en/design/software-description.html/swpart=SFW0018610A)
+1. Download the MSDK installer for your operating system from one of the links below.
+    * [Windows](https://www.analog.com/en/design-center/evaluation-hardware-and-software/software/software-download?swpart=SFW0010820A)
+    * [Ubuntu Linux](https://www.analog.com/en/design-center/evaluation-hardware-and-software/software/software-download?swpart=SFW0018720A)
+    * [macOS](https://www.analog.com/en/design-center/evaluation-hardware-and-software/software/software-download?swpart=SFW0018610A)
 
 2. Run the installer executable. Note: On Linux, this may require making the file executable with the following command:
 
@@ -574,7 +574,7 @@ The [Microcontroller SDK](https://github.com/Analog-Devices-MSDK/msdk) for MAX78
 
 5. (Optional) Select the “Eclipse” and/or “Visual Studio Code Support” components to add support for those IDEs.
 
-6. Continue through the instructions to complete the installation of the MaximSDK.
+6. Continue through the instructions to complete the installation of the MSDK.
 
 7. (macOS only) Install OpenOCD dependencies using [Homebrew](https://brew.sh/)
 
@@ -586,10 +586,10 @@ The [Microcontroller SDK](https://github.com/Analog-Devices-MSDK/msdk) for MAX78
 
     On Linux and macOS, copy the following contents into `~/.profile`...
     On macOS, _also_ copy the following contents into `~/.zprofile`...
-    ...and change `MAXIM_PATH` to the installation location of the MaximSDK.
+    ...and change `MAXIM_PATH` to the installation location of the MSDK.
 
     ```shell
-    # MaximSDK location
+    # MSDK location
     MAXIM_PATH=$HOME/MaximSDK  # Change me!
     export MAXIM_PATH
     
@@ -627,7 +627,7 @@ Once the tools above have been installed, continue with [Final Check](#final-che
 
 #### Method 2: Manual Installation
 
-The MAX78000/MAX78002 SDK is available as a git repository. The repository contains all of the SDK's components _except_ the Arm GCC, RISC-V GCC, and Make. These must be downloaded and installed manually.
+The MAX78000/MAX78002 MSDK is available as a git repository. The repository contains all of the MSDK's components _except_ the Arm GCC, RISC-V GCC, and Make. These must be downloaded and installed manually.
 
 1. Clone the MSDK repository (recommendation: change to the *ai8x-synthesis* folder first):
 
@@ -698,14 +698,14 @@ Once the tools above have been installed, continue to the [Final Check](#final-c
 
 #### Final Check
 
-After a successful manual or SDK installation, the following commands will run from on the terminal and display their version numbers:
+After a successful manual or MSDK installation, the following commands will run from on the terminal and display their version numbers:
 
 * `arm-none-eabi-gcc -v`
 * `arm-none-eabi-gdb -v`
 * `make -v`
 * `openocd -v`
 
-`gen-demos-max78000.sh` and `gen-demos-max78002.sh` will create code that is compatible with the SDK and copy it into the SDK’s Example directories.
+`gen-demos-max78000.sh` and `gen-demos-max78002.sh` will create code that is compatible with the MSDK and copy it into the MSDK’s Example directories.
 
 ---
 
@@ -1933,7 +1933,7 @@ Place the new model file (with its unique model name as specified by `name` in t
 
 #### Data Loader
 
-The application note [Data Loader Design for MAX78000 Model Training](https://www.maximintegrated.com/en/design/technical-documents/app-notes/7/7600.html) provides an in-depth tutorial about developing data loaders.
+The application note [Data Loader Design for MAX78000 Model Training](https://www.analog.com/en/app-notes/data-loader-design-for-max78000-model-training.html) provides an in-depth tutorial about developing data loaders.
 
 In brief, the following steps are needed for new data formats and datasets:
 
@@ -2168,7 +2168,7 @@ The following table describes the most important command line arguments for `ai8
 | `--softmax`              | Add software Softmax functions to generated code             |                                 |
 | `--boost`                | Turn on a port pin to boost the CNN supply                   | `--boost 2.5`                   |
 | `--timer`                | Insert code to time the inference using a timer              | `--timer 0`                     |
-| `--no-wfi`               | Do not use WFI (wait for interrupt) instructions when waiting for CNN completion |                                 |
+| `--no-wfi`               | Do not use WFI (wait for interrupt) instructions and do not enter sleep mode when waiting for CNN completion. This is required for very fast, small networks. |                                 |
 | `--define` | Additional preprocessor defines | `--define "FAST GOOD"` |
 | *MAX78002* |  |  |
 | `--no-pipeline` | **MAX78002 only**: Disable the pipeline and run the CNN on the slower APB clock. This reduces power consumption, but increases inference time and in most cases overall energy usage. |  |
@@ -3119,7 +3119,7 @@ The most likely reason is that the input is too large (from `sampledata.h`), or 
 
 To deal with this issue, there are several options:
 
-* The sample input data can be stored in external memory. This requires modifications to the generated code. Please see the SDK examples to learn how to access external memory.
+* The sample input data can be stored in external memory. This requires modifications to the generated code. Please see the MSDK examples to learn how to access external memory.
 * The sample input data can be programmatically generated. Typically, this requires manual modification of the generated code, and a corresponding modification of the sample input file.
   The generator also contains a built-in generator (supported *only* when using `--fifo`, and only for HWC inputs); the command line option `--synthesize-input` uses only the first few words of the sample input data, and then adds the specified value N (for example, 0x112233 if three input channels are used) to each subsequent set of M 32-bit words. M can be specified using `--synthesize-words` and defaults to 8. Note that M must be a divisor of the number of pixels per channel.
 * The output check can be truncated. The command line option `--max-verify-length` checks only the first N words of output data (for example, 1024). To completely disable the output check, use `--no-kat`.
@@ -3127,30 +3127,51 @@ To deal with this issue, there are several options:
 * Change the compiler optimization level in `Makefile`. To change the default optimization levels, modify `MXC_OPTIMIZE_CFLAGS` in `assets/embedded-ai85/templateMakefile` for Arm code and `assets/embedded-riscv-ai85/templateMakefile.RISCV` for RISC-V code. Both `-O1` and `-Os` may result in smaller code compared to `-O2`.
 * If the last layer has large-dimension, large-channel output, the `cnn_unload()` code in `cnn.c` may cause memory segment overflows not only in Flash, but also in the target buffer in SRAM (`ml_data32[]` or `ml_data[]` in `main.c`). In this case, manual code edits are required to perform multiple partial unloads in sequence.
 
+##### Known-Answer-Test (KAT): Console Does Not Print PASS/FAIL
+
+In some cases, the serial console does not print PASS or FAIL for the known-answer test, for example:
+
+```text
+Waiting...
+
+*** CNN Inference Test ***
+
+[nothing]
+```
+
+A connected debugger will disconnect, similar to:
+
+```text
+Program stopped.
+0x0000fff4 in ?? ()
+```
+
+This can be caused by very small, fast networks, where the inference finishes before the main code has entered sleep mode:
+
+```c
+ while (cnn_time == 0)
+    // CNN has already finished or is about to finish
+    MXC_LP_EnterSleepMode(); // Wait for CNN
+    // Device will not wake up since the CNN complete interrupt has already happened
+```
+
+Solution: Please use the command line switch `--no-wfi` to disable sleep mode.
+
 ##### Known-Answer-Test (KAT) Failures – Debugging Techniques
 
 There can be many reasons why the known-answer test (KAT) fails for a given network with an error message, or where the KAT does not complete. The following techniques may help in narrowing down where in the network or the YAML description of the network the error occurs:
 
 * For very short and small networks, disable the use of WFI (wait for interrupt) instructions while waiting for completion of the CNN computations by using the command line option `--no-wfi`. *Explanation: In these cases, the network terminates more quickly than the time it takes between testing for completion and executing the WFI instruction, so the WFI instruction is never interrupted and the code may appear to hang.*
-  
 * The `--no-wfi` option can also be useful when trying to debug code, since the debugger loses connection when the device enters sleep mode using `__WFI()`.
-  
-* By default, there is a two-second delay at the beginning of the code. This time allows the debugger to take control before the device enters any kind of sleep mode. `--no-wfi` disables sleep mode. The time delay can be modified using the `--debugwait` option.
+* By default, there is a two-second delay at the beginning of the code. This time allows the debugger to take control before the device enters any kind of sleep mode. `--no-wfi` disables sleep mode (see also the related information [above](#known-answer-test-kat-console-does-not-print-passfail)). The time delay can be modified using the `--debugwait` option.
   If the delay is too short or skipped altogether, and the device does not wake at the end of execution, the device may appear to hang and the [recovery procedure](https://github.com/MaximIntegratedAI/MaximAI_Documentation/tree/master/MAX78000_Feather#how-to-unlock-a-max78000-that-can-no-longer-be-programmed) may have to be used in order to load new code or to debug code.
-  
 * For very large and deep networks, enable the boost power supply using the `--boost` command line option. On the EVkit, the boost supply is connected to port pin P2.5, so the command line option is `--boost 2.5`.
-  
 * The default compiler optimization level is `-O2`, and incorrect code may be generated under rare circumstances. Lower the optimization level in the generated `Makefile` to `-O1`, clean (`make distclean && make clean`), and rebuild the project (`make`). If this solves the problem, one of the possible reasons is that code is missing the `volatile` keyword for certain variables.
   To permanently adjust the default compiler optimization level, modify `MXC_OPTIMIZE_CFLAGS` in `assets/embedded-ai85/templateMakefile` for Arm code and `assets/embedded-riscv-ai85/templateMakefile.RISCV` for RISC-V code.
-
-* When allocating large amounts of data on the stack, ensure the stack is sized appropriately. The stack size is configured in the linker file (by default, part of the SDK).
-  
+* When allocating large amounts of data on the stack, ensure the stack is sized appropriately. The stack size is configured in the linker file (by default, part of the MSDK).
 * `--stop-after N` where `N` is a layer number may help to find the problematic layer by terminating the network early without having to retrain and without having to change the weight input file. Note that this may also require `--max-verify-length` as [described above](#handling-linker-flash-section-overflows) since intermediate outputs tend to be large, and additionally `--no-unload` to suppress generation of the `cnn_unload()` function.
-
 * `--no-bias LIST` where `LIST` is a comma-separated list of layers (e.g., `0,1,2,3`) can rule out problems due to the bias. This option zeros out the bias for the given layers without having to remove bias values from the weight input file.
-
 * `--ignore-streaming` ignores all `streaming` statements in the YAML file. Note that this typically only works when the sample input is replaced with a different, lower-dimension sample input (for example, use 3×32×32 instead of 3×128×128), and does not support fully connected layers without retraining (use `--stop-after` to remove final layers). Ensure that the network (or partial network when using `--stop-after`) does not produce all-zero intermediate data or final outputs when using reduced-dimension inputs. The log file (`log.txt` by default) will contain the necessary information.
-
 * Certain C library functions (such as `memcpy` or `printf`) use byte-wide or 16-bit wide accesses and may not work correctly when accessing CNN memory *directly* (i.e., pointing inside the accelerator memory). They *will* function as expected when operating on data memory that is *not* located inside the CNN accelerator, for example data returned by `cnn_unload()`.
 
 
@@ -3184,7 +3205,7 @@ See the [benchmarking guide](https://github.com/MaximIntegratedAI/MaximAI_Docume
 
 ## Further Information
 
-Additional information about the evaluation kits, and the software development kit (SDK) is available on the web at <https://github.com/MaximIntegratedAI/MaximAI_Documentation>.
+Additional information about the evaluation kits, and the software development kit (MSDK) is available on the web at <https://github.com/MaximIntegratedAI/MaximAI_Documentation>.
 
 [AHB Addresses for MAX78000 and MAX78002](docs/AHBAddresses.md)
 
