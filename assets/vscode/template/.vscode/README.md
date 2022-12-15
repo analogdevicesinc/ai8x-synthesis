@@ -350,7 +350,7 @@ A project's build system is managed by two files found in the project's root dir
 * `Makefile`
 * `project.mk`
 
-![Files are located in the root directory](img/projectmk.JPG)
+![Files are located in the root directory](https://raw.githubusercontent.com/Analog-Devices-MSDK/VSCode-Maxim/65af7c61800c7039956f3c1971ffd7915008668d/img/projectmk.JPG)
 
 When the command...
 
