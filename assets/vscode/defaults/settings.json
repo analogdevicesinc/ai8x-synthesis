@@ -4,7 +4,7 @@
         "MAXIM_PATH":"${config:MAXIM_PATH}"
     },
     "terminal.integrated.defaultProfile.windows": "Command Prompt",
-    
+
     "terminal.integrated.env.linux": {
         "PATH":"${config:OCD_path}:${config:ARM_GCC_path}/bin:${config:xPack_GCC_path}/bin:${env:PATH}",
         "MAXIM_PATH":"${config:MAXIM_PATH}"

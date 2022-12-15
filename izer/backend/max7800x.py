@@ -3381,6 +3381,15 @@ class Backend(backend.Backend):
             else:
                 assets.from_template('assets', 'embedded-ai' + str(device), base_directory,
                                      test_name, board_name)
+
+                assets.makefile(
+                    base_directory,
+                    test_name,
+                    tc.dev.partnum,
+                    board_name,
+                    overwrite=overwrite,
+                )
+
             assets.from_template('assets', 'eclipse', base_directory, test_name, board_name)
 
             # Generate VS Code project files
@@ -3397,6 +3406,7 @@ class Backend(backend.Backend):
                     board_name,
                     program_file="${config:project_name}-combined.elf",
                     symbol_file="${config:project_name}.elf",
+                    overwrite=overwrite,
                 )
 
             else:
@@ -3405,6 +3415,7 @@ class Backend(backend.Backend):
                     test_name,
                     tc.dev.partnum,
                     board_name,
+                    overwrite=overwrite,
                 )
 
             assets.from_template('assets', 'device-all', base_directory,

@@ -12,6 +12,7 @@ import json
 import os
 import shutil
 import stat
+from collections.abc import MutableMapping
 from pathlib import Path
 
 from . import state
@@ -147,6 +148,7 @@ def vscode(
     out_stem: str,
     target: str,
     board: str,
+    overwrite=False,
     program_file: str = defaults["PROGRAM_FILE"],
     symbol_file: str = defaults["SYMBOL_FILE"],
     m4_ocd_interface_file: str = defaults["M4_OCD_INTERFACE_FILE"],
@@ -161,7 +163,7 @@ def vscode(
     ocd_path: str = defaults["OCD_PATH"],
     arm_gcc_path: str = defaults["ARM_GCC_PATH"],
     xpack_gcc_path: str = defaults["XPACK_GCC_PATH"],
-    make_path: str = defaults["MAKE_PATH"]
+    make_path: str = defaults["MAKE_PATH"],
 ):
     """
     Generates Visual Studio Code project files from the VSCode-Maxim project.
@@ -198,6 +200,7 @@ def vscode(
     tmp = list(map(lambda s: f"\"{s}\"", tmp))  # Surround with quotes
     v_paths_parsed = ",\n        ".join(tmp).replace(target, "${config:target}").replace("\\", "/")
 
+    updated = set()
     # Create template...
     for directory, _, files in sorted(os.walk(template_dir)):
         # ^ For each directory in the directory tree rooted at top (including top itself,
@@ -222,36 +225,240 @@ def vscode(
             if file.startswith(template_prefix):
 
                 # There is a template file to copy.  Perform string substitution in output file.
-                out_loc = Path(out_path).joinpath(file[len(template_prefix):])  # Remove prefix
+                out_file = Path(out_path).joinpath(file[len(template_prefix):])  # Remove prefix
                 template = Path(directory).joinpath(file)
-                with open(template, 'r', encoding="UTF-8") as in_file, \
-                        open(out_loc, "w+", encoding="UTF-8") as out_file:
-                    for line in in_file.readlines():
-                        out_file.write(
-                            line.replace("##__TARGET__##", target.upper()).
-                            replace("##__BOARD__##", board).
-                            replace("##__PROGRAM_FILE__##", program_file).
-                            replace("##__SYMBOL_FILE__##", symbol_file).
-                            replace("##__M4_OCD_INTERFACE_FILE__##", m4_ocd_interface_file).
-                            replace("##__M4_OCD_TARGET_FILE__##", m4_ocd_target_file).
-                            replace("##__RV_OCD_INTERFACE_FILE__##", rv_ocd_interface_file).
-                            replace("##__RV_OCD_TARGET_FILE__##", rv_ocd_target_file).
-                            replace("\"##__I_PATHS__##\"", i_paths_parsed).
-                            replace("\"##__DEFINES__##\"", defines_parsed).
-                            replace("\"##__V_PATHS__##\"", v_paths_parsed).
-                            replace("##__V_ARM_GCC__##", v_arm_gcc).
-                            replace("##__V_XPACK_GCC__##", v_xpack_gcc).
-                            replace("##__OCD_PATH__##", ocd_path).
-                            replace("##__ARM_GCC_PATH__##", arm_gcc_path).
-                            replace("##__XPACK_GCC_PATH__##", xpack_gcc_path).
-                            replace("##__MAKE_PATH__##", make_path)
-                        )
 
-                os.chmod(out_loc, stat.S_IRWXU | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
-                # print(f"Wrote {os.path.basename(out_loc)}")  # Uncomment to debug
+                content = None
+                with open(template, 'r', encoding="UTF-8") as f:
+                    content = f.read()
+                    content = content.replace("##__TARGET__##", target.upper()). \
+                        replace("##__BOARD__##", board). \
+                        replace("##__PROGRAM_FILE__##", program_file). \
+                        replace("##__SYMBOL_FILE__##", symbol_file). \
+                        replace("##__M4_OCD_INTERFACE_FILE__##", m4_ocd_interface_file). \
+                        replace("##__M4_OCD_TARGET_FILE__##", m4_ocd_target_file). \
+                        replace("##__RV_OCD_INTERFACE_FILE__##", rv_ocd_interface_file). \
+                        replace("##__RV_OCD_TARGET_FILE__##", rv_ocd_target_file). \
+                        replace("\"##__I_PATHS__##\"", i_paths_parsed). \
+                        replace("\"##__DEFINES__##\"", defines_parsed). \
+                        replace("\"##__V_PATHS__##\"", v_paths_parsed). \
+                        replace("##__V_ARM_GCC__##", v_arm_gcc). \
+                        replace("##__V_XPACK_GCC__##", v_xpack_gcc). \
+                        replace("##__OCD_PATH__##", ocd_path). \
+                        replace("##__ARM_GCC_PATH__##", arm_gcc_path). \
+                        replace("##__XPACK_GCC_PATH__##", xpack_gcc_path). \
+                        replace("##__MAKE_PATH__##", make_path)
+
+                if (not out_file.exists()) or overwrite:
+                    with open(out_file, "w+", encoding="UTF-8") as f:
+                        f.write(content)
+                    os.chmod(out_file, stat.S_IRWXU | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
+                    if out_file not in updated:
+                        updated.add(out_file)
+
+                    # print(f"Wrote {os.path.basename(out_loc)}")  # Uncomment to debug
 
             else:
                 # There is a non-template file to copy
-                shutil.copy(os.path.join(directory, file), out_path)
-                os.chmod(out_path, stat.S_IRWXU | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
-                # print(f"Wrote {os.path.basename(file)}") # Uncomment to debug
+                in_file = Path(directory).joinpath(file)
+                out_file = Path(out_path).joinpath(file)
+
+                if (not out_file.exists()) or overwrite:
+                    shutil.copy(in_file, out_path)
+                    os.chmod(out_file, stat.S_IRWXU | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH)
+                    if out_file not in updated:
+                        updated.add(out_file)
+                    # print(f"Wrote {os.path.basename(file)}") # Uncomment to debug
+
+    return updated
+
+
+class MakefileMapping(MutableMapping):
+    """
+    This class is a modified dictionary that maps template strings (keys) to
+    values while enforcing template pattern matching.  It also handles special
+    cases where a value is not a 1:1 match to what should be written to
+    the template Makefile.  For example, pre-pending source files with
+    'SRCS +=', etc. is done "on the fly" through this mapping object.
+
+    The key:value rules are as follows:
+        * The key is lowercase, and any '.' is replaced is '_'. (revelant for JSON parsing)
+
+        * The value is a tuple with 2 items:
+            * index 0: The template string
+            * index 1: The value to use when replacing the template string
+
+    Ex:  The setter `MakefileMapping["mykey"]="myvalue"` results in a getter
+    for `MakefileMapping["mykey"]` that would return `("##__MYKEY__##", "myvalue")`
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.d = {}
+        self.update(dict(*args, **kwargs))
+
+    def _form_key(self, key):
+        # Dictionary keys should be lower-case
+        # Ex: templatestring
+        return str(key).lower().replace('.', '_')
+
+    def _form_tstring(self, key):
+        # Template strings should be uppercase
+        # Ex: ##__TEMPLATESTRING__##
+        return f"##__{self._form_key(key).upper()}__##"
+
+    # Override the dictionary setter to handle special cases.
+    def __setitem__(self, key, value) -> None:
+
+        _value = str(value)
+        _key = self._form_key(key)
+
+        # Handle special cases/parsing here.
+        if _key == "srcs":
+            if isinstance(value, (list, tuple)):
+                tmp = tuple(map(lambda s: f"SRCS += {s}", value))
+                _value = "\n".join(tmp)
+            elif isinstance(value, str):
+                _value = f"SRCS += {value}\n"
+
+        elif _key == "vpaths":
+            if isinstance(value, (list, tuple)):
+                tmp = tuple(map(lambda s: f"VPATH += {s}", value))
+                _value = "\n".join(tmp)
+            elif isinstance(value, str):
+                _value = f"VPATH += {value}\n"
+
+        elif _key == "ipaths":
+            if isinstance(value, (list, tuple)):
+                tmp = tuple(map(lambda s: f"IPATH += {s}", value))
+                _value = "\n".join(tmp)
+            elif isinstance(value, str):
+                _value = f"IPATH += {value}\n"
+
+        elif _key == "defines":
+            if isinstance(value, (list, tuple)):
+                tmp = tuple(map(lambda s: f"PROJ_CFLAGS += -D{s}", value))
+                _value = "\n".join(tmp)
+            elif isinstance(value, str):
+                _value = f"PROJ_CFLAGS += -D{value}\n"
+
+        elif _key == "depth":
+            if isinstance(value, int):
+                _value = "../" * value
+
+        self.d[_key] = (self._form_tstring(key), _value)
+
+    def __getitem__(self, key):
+        return self.d[self._form_key(key)]
+
+    def __delitem__(self, key) -> None:
+        del self.d[self._form_key(key)]
+
+    def __iter__(self):
+        return iter(self.d)
+
+    def __len__(self):
+        return len(self.d)
+
+
+def write_mapping(template_file: Path, out_path: Path, mapping: MakefileMapping,
+                  overwrite=False, backup=False):
+    """
+    Apply a MakefileMapping to 'template_file', then write the converted template to 'out_path'.
+
+    Returns True if the file has been written/modified, otherwise returns False.
+    """
+    template = None
+    with open(template_file, "r", encoding="utf-8") as f:
+        template = f.read()
+        for _k, v in mapping.items():
+            template = template.replace(v[0], v[1])
+            # ^ Mapping values are a tuple.
+            # v[0] = template string, v[1] = value to replace the template string with
+
+    out_file = Path(out_path).joinpath(template_file.name)
+    if not out_file.parent.exists():
+        out_file.parent.mkdir()
+
+    write = False
+    if (not out_file.exists()) or overwrite:
+        if backup:
+            shutil.copy(out_file, out_file.parent.joinpath(f"{out_file.name}-backup.mk"))
+        with open(out_file, "w+", encoding="utf-8") as f:
+            f.write(template)
+        write = True
+
+    return write
+
+
+# Default values that will be used in the template if these keyword
+# arguments are not passed to 'create_makefile'
+defaults = dict(
+    vpaths=[".", "src"],
+    ipaths=[".", "include"],
+    autosearch=1,
+    defines=["MXC_ASSERT_ENABLE", "ARM_MATH_CM4"],
+    float_abi="softfp",
+    depth=3,
+    olevel_debug="g",
+    olevel_release=2,
+    olevel_default=2,
+    compiler="GCC",
+    linkerfile="$(TARGET_LC).ld",
+    sbt=0,
+    default_goal="all"
+)
+
+
+def makefile(
+    out_root: str,
+    out_stem: str,
+    target: str,
+    board: str,
+    overwrite=False,
+    backup=False,
+    overwrite_projectmk=False,
+    **kwargs
+):
+    """
+    Inject a project.mk-based Makefile system into the directory specified by out_root/out_stem.
+    """
+    out_path = Path(out_root).joinpath(out_stem)
+
+    # Calculate the depth of the project to use for relative
+    # search if no MAXIM_PATH is set.  This assumes that
+    # out_path is a relative location to the ai8x-synthesis
+    # directory (ie. sdk/Examples/MAX78000/CNN)
+    depth = len(out_path.parts)
+    defaults["depth"] = depth - 1
+
+    for k, v in defaults.items():
+        kwargs.setdefault(k, v)
+
+    mapping = MakefileMapping(kwargs)
+
+    mapping["target"] = target
+    mapping["target_uc"] = target.upper()
+    mapping["target_lc"] = target.lower()
+    mapping["board"] = board
+
+    template_makefile = Path("assets").joinpath("makefile", "Makefile").resolve()
+    template_projectmk = Path("assets").joinpath("makefile", "project.mk").resolve()
+
+    wrote_makefile = write_mapping(
+            template_makefile,
+            out_path,
+            mapping,
+            overwrite=overwrite,
+            backup=backup
+        )
+
+    wrote_projectmk = write_mapping(
+            template_projectmk,
+            out_path,
+            mapping,
+            overwrite=overwrite_projectmk,
+            backup=backup
+        )
+
+    # Return value indicates whether or not any files have been changed.
+    return wrote_makefile or wrote_projectmk

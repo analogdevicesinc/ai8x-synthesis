@@ -93,7 +93,7 @@ Check out the training and synthesis repositories as detailed in the [main docum
 
 ### Could not Install Packages due to an OSError
 
-When `pip3 install -U pip setup tools wheel` returns that it could not uninstall pip3.exe, simply ignore the error and repeat the command one more time.
+When `pip3 install -U pip setuptools wheel` returns that it could not uninstall pip3.exe, simply ignore the error and repeat the command one more time.
 
 ![packages-error](packages-error.png)
 
