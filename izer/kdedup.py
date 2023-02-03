@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2022 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2022-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -52,7 +52,7 @@ def deduplicate(
 
         # Generate hash
         h3.reset()
-        h3.update(w)
+        h3.update(w.tobytes())
         w_hash: int = h3.intdigest()
 
         duplicate: bool = False
