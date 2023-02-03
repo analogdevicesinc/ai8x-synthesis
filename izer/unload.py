@@ -728,7 +728,7 @@ def verify(
                         # No overwrite checks here since mlator happens on read of the memory,
                         # not on write TO the memory.
                         verify_fn(
-                            mlat,
+                            tc.dev.C_SRAM_BASE + source,
                             val,
                             rv=False,
                             comment=f' // {c},{row},{col}-{col+num_bytes-1}',

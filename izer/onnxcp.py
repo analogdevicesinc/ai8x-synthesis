@@ -146,7 +146,7 @@ def load(
                             if a.name == 'kernel_shape':
                                 kernel_size_onnx.append(a.ints)
 
-                    if len(w.shape) > 1:  # not a bias
+                    if w.ndim > 1:  # not a bias
                         quant.append(quantization[seq])
 
                         w_min, w_max = w.min(), w.max()
@@ -186,14 +186,14 @@ def load(
                         input_channels.append(w.shape[1])  # Input channels
                         output_channels.append(w.shape[0])  # Output channels
 
-                        if len(w.shape) == 2:  # MLP
+                        if w.ndim == 2:  # MLP
                             if kernel_size_onnx[seq][0] != 1 or kernel_size_onnx[seq][1] != 1:
                                 eprint(f'The `kernel_size` for the MLP layer {seq} should '
                                        f'be set to 1x1 instead of '
                                        f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.',
                                        exit_code=None)
                                 error_exit = True
-                        elif len(w.shape) == 3:  # 1D
+                        elif w.ndim == 3:  # 1D
                             if kernel_size_onnx[seq][0] != w.shape[2] \
                                or kernel_size_onnx[seq][1] != 1:
                                 eprint(f'The `kernel_size` for the 1D layer {seq} should '
@@ -201,7 +201,7 @@ def load(
                                        f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.',
                                        exit_code=None)
                                 error_exit = True
-                        elif len(w.shape) == 4:  # 2D
+                        elif w.ndim == 4:  # 2D
                             if kernel_size_onnx[seq][0] != w.shape[2] \
                                or kernel_size_onnx[seq][1] != w.shape[3]:
                                 eprint(f'The `kernel_size` for the 2D layer {seq} should '
@@ -216,7 +216,7 @@ def load(
                         weight_size.append(w_size)
                         param_size += w_size
 
-                        if len(w.shape) == 2:  # linear - add dummy 'channel'
+                        if w.ndim == 2:  # linear - add dummy 'channel'
                             w = np.expand_dims(w, axis=0)
                         else:  # conv1d, conv2d, ... - combine input and output channels
                             w = np.reshape(w, (-1, ) + w.shape[2:])
