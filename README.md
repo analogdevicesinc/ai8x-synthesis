@@ -1,6 +1,6 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-December 13, 2022
+January 23, 2023
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
@@ -1466,6 +1466,7 @@ The following table describes the most important command line arguments for `tra
 | `--device`                 | Set device (default: AI84)                                   | `--device MAX78000`             |
 | *Model and dataset*        |                                                              |                                 |
 | `-a`, `--arch`, `--model`  | Set model (collected from models folder)                     | `--model ai85net5`              |
+| `-f`, `--out-fold-ratio`   | Fold ratio for the model output (default: 1). Fold ratio 1 means no folding. | `--out-fold-ratio 4` |
 | `--dataset`                | Set dataset (collected from datasets folder)                 | `--dataset MNIST`               |
 | `--data`                   | Path to dataset (default: data)                              | `--data /data/ml`               |
 | *Training*                 |                                                              |                                 |
