@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -8,6 +8,7 @@
 Kernel related functions
 """
 import sys
+from typing import Optional
 
 import numpy as np
 
@@ -113,7 +114,7 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
             ll: int,
             p: int,
             offs: int,
-            length: int = None,
+            length: Optional[int] = None,
             error: bool = True,
             reverse: bool = False,
     ) -> bool:

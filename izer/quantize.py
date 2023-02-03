@@ -80,9 +80,10 @@ def convert_checkpoint(input_file, output_file, arguments):
     def get_const(_):
         return arguments.scale
 
-    def get_max_bit_shift(t, shift_quantile, return_bit_shift=False):
+    def get_max_bit_shift(t, clamp_bits, shift_quantile, return_bit_shift=False):
         float_scale = 1.0 / torch.quantile(t.abs(), shift_quantile)
-        bit_shift = torch.floor(torch.log2(float_scale))
+        bit_shift = torch.floor(torch.log2(float_scale)) \
+            .clamp(min=-7.-clamp_bits, max=23.-clamp_bits)
         if return_bit_shift:
             return bit_shift
 
@@ -167,7 +168,7 @@ def convert_checkpoint(input_file, output_file, arguments):
                 if shift_quantile_name in checkpoint_state:
                     shift_quantile = checkpoint_state[shift_quantile_name]
 
-                distribution_factor = get_max_bit_shift(params_r, shift_quantile)
+                distribution_factor = get_max_bit_shift(params_r, clamp_bits, shift_quantile)
                 factor = 2**(clamp_bits-1) * distribution_factor
             else:
                 factor = 2**(clamp_bits-1) * sat_fn(checkpoint_state[k])
@@ -238,7 +239,7 @@ def convert_checkpoint(input_file, output_file, arguments):
             # Set output shift
             if arguments.clip_mode is None:
                 out_shift_name = '.'.join([layer, 'output_shift'])
-                out_shift = torch.Tensor([-1 * get_max_bit_shift(params_r,
+                out_shift = torch.Tensor([-1 * get_max_bit_shift(params_r, clamp_bits,
                                                                  shift_quantile, True)])
                 new_checkpoint_state[out_shift_name] = out_shift
                 if new_masks_dict is not None:

@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -94,7 +94,7 @@ def create_runtest_sv(
         timeout: int,
         groups_used: Optional[List[int]] = None,
         cnn_cycles: int = 0,
-        apb: apbaccess.APB = None,
+        apb: Optional[apbaccess.APB] = None,
         input_dim: Optional[List[Tuple[int, int]]] = None,
         in_expand: Optional[List[int]] = None,
 ):
