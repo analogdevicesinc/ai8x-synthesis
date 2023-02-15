@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -84,7 +84,7 @@ def load(
     error_exit = False
     seq = 0
 
-    for _, k in enumerate(checkpoint_state.keys()):
+    for k in checkpoint_state.keys():
         # Skip over non-weight and duplicated weight layers
         while seq < len(operator) and (operator[seq] == op.NONE or bypass[seq]
                                        or weight_source[seq] is not None):
