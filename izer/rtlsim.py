@@ -177,13 +177,65 @@ def create_runtest_sv(
                     '\n  `define CNN_CLK  `DIGITAL_TOP.xuut1.x16proc_0__xproc_xuut.clk\n'
                     '`else\n'
                     '  `define CNN_ENA  `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.cnnena\n'
-                    '  `define CNN_CLK  `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.clk\n'
+                    '  `define CNN_CLK  `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.clk\n')
+                if state.log_intermediate:
+                    runfile.write(
+                        '  `define CNN_SWR  `DIGITAL_TOP.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.sramwr\n'
+                        '  `define CNN_WAD  `DIGITAL_TOP.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.cnnadr0\n'
+                        '  `define CNN_WDT  `DIGITAL_TOP.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.cnnout0\n'
+                        '  `define CNN_SRD  `DIGITAL_TOP.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.req_sram_rd\n'
+                        '  `define CNN_RAD  `DIGITAL_TOP.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.rptr\n'
+                        '  `define CNN_WRT  `DIGITAL_TOP.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.sram_wrt\n'
+                        '  `define CNN_ADR  `DIGITAL_TOP.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.ram_adr\n'
+                        '  `define CNN_DAT  `DIGITAL_TOP.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.ram_data\n'
+                        '  `define CNN_BYP  `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.bypass\n'
+                        '  `define CNN_STRM `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.strmact\n'
+                        '  `define CNN_LYR  `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.lyrcnt_e\n'
+                        '  `define CNN_SLYR `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.lyrsel\n'
+                        '  `define DBG_FILE {`TARGET_DIR,"/debug/cnn_debug_data.csv"}\n'
+                    )
+                runfile.write(
                     '`endif\n\n'
                 )
             else:
                 runfile.write(
                     '\n`define CNN_ENA  tb.xchip.xuut1.x16proc[0].xproc.xuut.cnnena\n'
-                    '`define CNN_CLK  tb.xchip.xuut1.x16proc[0].xproc.xuut.clk\n\n'
+                    '`define CNN_CLK  tb.xchip.xuut1.x16proc[0].xproc.xuut.clk\n'
+                )
+                if state.log_intermediate:
+                    runfile.write(
+                        '  `define CNN_SWR  tb.xchip.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.sramwr\n'
+                        '  `define CNN_WAD  tb.xchip.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.cnnadr0\n'
+                        '  `define CNN_WDT  tb.xchip.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.cnnout0\n'
+                        '  `define CNN_SRD  tb.xchip.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.req_sram_rd\n'
+                        '  `define CNN_RAD  tb.xchip.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.rptr\n'
+                        '  `define CNN_WRT  tb.xchip.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.sram_wrt\n'
+                        '  `define CNN_ADR  tb.xchip.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.ram_adr\n'
+                        '  `define CNN_DAT  tb.xchip.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.ram_data\n'
+                        '  `define CNN_BYP  tb.xchip.xuut1.x16proc[0].xproc.xuut.bypass\n'
+                        '  `define CNN_STRM tb.xchip.xuut1.x16proc[0].xproc.xuut.strmact\n'
+                        '  `define CNN_LYR  tb.xchip.xuut1.x16proc[0].xproc.xuut.lyrcnt_e\n'
+                        '  `define CNN_SLYR tb.xchip.xuut1.x16proc[0].xproc.xuut.lyrsel\n'
+                        '  `define DBG_FILE {`TARGET_DIR,"/debug/cnn_debug_output.csv"}\n'
+                    )
+                runfile.write(
+                    '\n'
                 )
             runfile.write(
                 'real  start_time;\n'
@@ -199,6 +251,18 @@ def create_runtest_sv(
                 runfile.write('int   chk_stat;\n')
             runfile.write(
                 'logic chk_clk;\n'
+            )
+            if state.log_intermediate:
+                runfile.write(
+                    'int   i;\n\n'
+                    'logic [3:0] lcnt;\n'
+                    'logic [3:0] lcnt_wsel;\n'
+                    'logic [3:0] lcnt_rsel;\n'
+                    'logic [3:0] lcnt_dly [9:0];\n\n'
+                    'int   cycle_cnt;\n'
+                    'int   fd;\n'
+                )
+            runfile.write(
                 '\ninitial begin\n'
             )
             if result_output:
@@ -215,6 +279,18 @@ def create_runtest_sv(
                 '   clkena1    = 0;\n'
                 '   clkena2    = 0;\n'
                 '   clkena3    = 0;\n'
+            )
+            if state.log_intermediate:
+                runfile.write(
+                    '\n   for(i=0;i<10;i++)\n'
+                    '     lcnt_dly[i] = 0;\n\n'
+                    '   lcnt       = 0;\n'
+                    '   lcnt_wsel  = 0;\n'
+                    '   lcnt_rsel  = 0;\n'
+                    '   cycle_cnt  = 0;\n'
+                    '   fd = $fopen(`DBG_FILE,"w");\n'
+                )
+            runfile.write(
                 'end\n\n'
                 'always @(posedge `CNN_ENA) begin\n'
                 '  if (!start_ena) begin\n'
@@ -263,6 +339,30 @@ def create_runtest_sv(
                     '    chk_stat = $system({`TARGET_DIR,"/verify-output.py ",`TARGET_DIR});\n'
                     '    if (chk_stat != 0)\n'
                     '      error_count++;\n'
+                    'end\n'
+                )
+            if state.log_intermediate:
+                runfile.write(
+                    '\nalways @* begin\n'
+                    '  assign lcnt      = (`CNN_STRM == 1\'b1)? `CNN_SLYR : `CNN_LYR;\n'
+                    '  assign lcnt_wsel = (`CNN_BYP  == 1\'b1)?  lcnt     :  lcnt_dly[9];\n'
+                    '  assign lcnt_rsel = (`CNN_BYP  == 1\'b1)?  lcnt     :  lcnt_dly[1];\n'
+                    'end\n\n'
+                    'always @(posedge `CNN_CLK) begin\n'
+                    '  if (`CNN_WRT) begin\n'
+                    '    $fdisplay(fd,"w,%0h,%0h,%0d,%0d",`CNN_ADR,`CNN_DAT,-1,cycle_cnt);\n'
+                    '  end\n'
+                    '  if (start_ena) begin\n'
+                    '    lcnt_dly <= {lcnt_dly[8:0],lcnt};\n\n'
+                    '    if (`CNN_SWR) begin\n'
+                    '      $fdisplay(fd,"w,%0h,%0h,%0d,%0d",'
+                    '`CNN_WAD,`CNN_WDT,lcnt_wsel,cycle_cnt);\n'
+                    '    end\n'
+                    '    if (`CNN_SRD) begin\n'
+                    '      $fdisplay(fd,"r,%0h,0,%0d,%0d",`CNN_RAD,lcnt_rsel,cycle_cnt);\n'
+                    '    end\n'
+                    '    cycle_cnt++;\n'
+                    '  end\n'
                     'end\n'
                 )
 
@@ -368,6 +468,9 @@ def create_runtest_sv(
                 runfile.write('\n  $fclose(input_file);\n')
                 runfile.write('  $display("Camera image data read");\n\n')
                 runfile.write('end\n')
+
+    if state.log_intermediate:
+        os.makedirs(os.path.join(state.base_directory, test_name, 'debug'), exist_ok=True)
 
 
 def append_regression(

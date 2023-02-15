@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -339,7 +339,18 @@ def get_parser() -> argparse.Namespace:
     group.add_argument('--input-filename', default='input', metavar='S',
                        help="input .mem file name base (default: 'input' -> 'input.mem')")
     group.add_argument('--output-filename', default='output', metavar='S',
-                       help="output .mem file name base (default: 'output' -> 'output-X.mem')")
+                       help="output .mem or .csv file name base (default: 'output' -> "
+                            "'output-X.mem' or 'output.csv')")
+    group.add_argument('--output-config-filename', default='config', metavar='S',
+                       help="output config file name base (default: 'config' -> 'config.csv')")
+    group.add_argument('--output-data-filename', default='data', metavar='S',
+                       help="output data file name base (default: 'data' -> 'data.npy')")
+    group.add_argument('--output-weights-filename', default='weights', metavar='S',
+                       help="output weights file name base (default: 'weights' -> 'weights.npy')")
+    group.add_argument('--output-bias-filename', default='bias', metavar='S',
+                       help="output bias file name base (default: 'bias' -> 'bias.npy')")
+    group.add_argument('--output-pass-filename', default=None, metavar='S',
+                       help="output pass data file name base (default: None)")
     group.add_argument('--runtest-filename', default='run_test.sv', metavar='S',
                        help="run test file name (default: 'run_test.sv')")
     group.add_argument('--legacy-test', action='store_true', default=False,
@@ -641,6 +652,11 @@ def set_state(args: argparse.Namespace) -> None:
     state.no_error_stop = args.no_error_stop
     state.oneshot = args.one_shot
     state.output_filename = args.output_filename
+    state.output_config_filename = args.output_config_filename
+    state.output_data_filename = args.output_data_filename
+    state.output_weights_filename = args.output_weights_filename
+    state.output_bias_filename = args.output_bias_filename
+    state.output_pass_filename = args.output_pass_filename
     state.override_delta1 = args.override_delta1
     state.override_delta2 = args.override_delta2
     state.override_rollover = args.override_rollover

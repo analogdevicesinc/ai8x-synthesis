@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -84,7 +84,7 @@ def load(
     error_exit = False
     seq = 0
 
-    for _, k in enumerate(checkpoint_state.keys()):
+    for k in checkpoint_state.keys():
         # Skip over non-weight and duplicated weight layers
         while seq < len(operator) and (operator[seq] == op.NONE or bypass[seq]
                                        or weight_source[seq] is not None):
@@ -111,7 +111,7 @@ def load(
             if np.all(w == 0):
                 wprint(f'All weights for `{k}` are zero.')
 
-            if len(w.shape) == 1:
+            if w.ndim == 1:
                 if this_op == 'bn':
                     eprint('The checkpoint file contains 1-dimensional weights for '
                            f'`{layer}.{this_op}.{parameter}` with dimensions {w.shape}. '
@@ -160,19 +160,19 @@ def load(
             mult = conv_groups[seq] if operator[seq] == op.CONVTRANSPOSE2D else 1
             output_channels.append(w.shape[0] * mult)  # Output channels
 
-            if len(w.shape) == 2:  # MLP
+            if w.ndim == 2:  # MLP
                 if kernel_size[seq][0] != 1 or kernel_size[seq][1] != 1:
                     eprint(f'The `kernel_size` for the MLP layer {layer_str(seq)} should '
                            f'be set to 1x1 instead of '
                            f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.', exit_code=None)
                     error_exit = True
-            elif len(w.shape) == 3:  # 1D
+            elif w.ndim == 3:  # 1D
                 if kernel_size[seq][0] != w.shape[2] or kernel_size[seq][1] != 1:
                     eprint(f'The `kernel_size` for the 1D layer {layer_str(seq)} should '
                            f'be set to {w.shape[2]}x1 instead of '
                            f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.', exit_code=None)
                     error_exit = True
-            elif len(w.shape) == 4:  # 2D
+            elif w.ndim == 4:  # 2D
                 if kernel_size[seq][0] != w.shape[2] \
                    or kernel_size[seq][1] != w.shape[3]:
                     eprint(f'The `kernel_size` for the 2D layer {layer_str(seq)} should '
@@ -186,7 +186,7 @@ def load(
             weight_size.append(w_size)
             param_size += w_size
 
-            if len(w.shape) == 2:  # linear - add dummy 'channel'
+            if w.ndim == 2:  # linear - add dummy 'channel'
                 w = np.expand_dims(w, axis=0)
             else:  # conv1d, conv2d, ... - combine input and output channels
                 w = np.reshape(w, (-1, ) + w.shape[2:])

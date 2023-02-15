@@ -184,7 +184,7 @@ def main():
         eprint(f'Input data {sampledata_file} contains values that are outside the limits of '
                f'signed 8-bit (data min={np.min(data)}, max={np.max(data)})!')
     # Work with 1D input data
-    if len(data.shape) < 3:
+    if data.ndim < 3:
         data = np.expand_dims(data, axis=2)
 
     input_size = list(data.shape)

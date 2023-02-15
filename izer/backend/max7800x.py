@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -182,7 +182,10 @@ class Backend(backend.Backend):
 
         hw_add_layers = [0] * layers
         hw_flatten = [False] * layers
+        flatten_prod = [0] * layers
         sum_hw_layers = 0
+
+        rollover = [None] * layers
 
         all_outputs_map = None
 
@@ -1022,6 +1025,30 @@ class Backend(backend.Backend):
         else:
             apifile = None
 
+        passfile = None
+        if state.generate_kat and log_intermediate:
+            memfile2 = open(os.path.join(base_directory, test_name,
+                            f'{output_filename}.csv'),
+                            mode='w', encoding='utf-8')
+            if state.output_pass_filename is not None:
+                passfile = open(os.path.join(base_directory, test_name,
+                                f'{state.output_pass_filename}.csv'),
+                                mode='w', encoding='utf-8')
+            datafile = open(os.path.join(base_directory, test_name,
+                            f'{state.output_data_filename}.npy'),
+                            mode='wb')
+            weightsfile = open(os.path.join(base_directory, test_name,
+                               f'{state.output_weights_filename}.npy'),
+                               mode='wb')
+            biasfile = open(os.path.join(base_directory, test_name,
+                            f'{state.output_bias_filename}.npy'),
+                            mode='wb')
+        else:
+            memfile2 = None
+            datafile = None
+            weightsfile = None
+            biasfile = None
+
         with open(os.path.join(base_directory, test_name, filename), mode='w',
                   encoding='utf-8') as memfile:
             apb = apbaccess.apbwriter(
@@ -1837,12 +1864,12 @@ class Backend(backend.Backend):
                         apb.write_lreg(group, hw_layer, tc.dev.LREG_LCTL, val,
                                        comment=' // Layer control')
 
-                        flatten_prod = 0
+                        flatten_prod[ll] = 0
                         if flatten[ll]:
                             # Store all bits, top programmed in post processing register
-                            flatten_prod = \
+                            flatten_prod[ll] = \
                                 in_expand[ll] * hw_pooled_dim[ll][0] * hw_pooled_dim[ll][1] - 1
-                            in_exp = flatten_prod & 0x0f  # Lower 4 bits only
+                            in_exp = flatten_prod[ll] & 0x0f  # Lower 4 bits only
                         elif hw_operator[ll] == op.NONE and emulate_eltwise[ll]:
                             in_exp = 0
                         else:
@@ -1964,9 +1991,9 @@ class Backend(backend.Backend):
                            hw_operator[ll] in [op.CONV2D, op.LINEAR] \
                            and hw_kernel_size[ll] == [1, 1] \
                            and (ll == 0 or not streaming[ll]):
-                            if flatten_prod >= 2**4:
-                                assert flatten_prod < 2**16
-                                val = flatten_prod << 16 | (2 * flatten_prod + 1)
+                            if flatten_prod[ll] >= 2**4:
+                                assert flatten_prod[ll] < 2**16
+                                val = flatten_prod[ll] << 16 | (2 * flatten_prod[ll] + 1)
                             else:
                                 val = 0
                         else:
@@ -2036,9 +2063,9 @@ class Backend(backend.Backend):
                         if activation[ll] == op.ACT_ABS:
                             val |= 1 << 26
 
-                        if flatten_prod >= 2**4:
+                        if flatten_prod[ll] >= 2**4:
                             hw_flatten[ll] = True
-                            val |= 1 << 27 | (flatten_prod >> 4) << 18  # flatten_ena, xpmp_cnt
+                            val |= 1 << 27 | (flatten_prod[ll] >> 4) << 18  # flatten_ena, xpmp_cnt
 
                         if hw_operator[ll] == op.CONVTRANSPOSE2D:
                             val |= 1 << 28
@@ -2460,6 +2487,7 @@ class Backend(backend.Backend):
                             apb.write_lreg(group, hw_layer, tc.dev.LREG_FMAX, val,
                                            no_verify=not tc.dev.SUPPORT_ROLLOVER_READ,
                                            comment=' // Rollover')
+                            rollover[ll] = val
 
                         # In read-ahead mode, ensure that input and output use separate
                         # instances. First, check the start addresses, then the end addresses.
@@ -2922,6 +2950,10 @@ class Backend(backend.Backend):
                         data = np.delete(data, np.s_[:input_channel_skip[ll]], axis=1)
                     data = np.delete(data, np.s_[in_chan:], axis=1)
 
+                if datafile is not None:
+                    # Log input to npy
+                    np.save(datafile, data, allow_pickle=False, fix_imports=False)
+
                 show_data(
                     ll,
                     data.shape,
@@ -2961,6 +2993,15 @@ class Backend(backend.Backend):
                                                                          test_name),
                 )
 
+                if datafile is not None:
+                    # Pooling output (pre-elementwise)
+                    if pool[ll][0] > 1 or pool[ll][1] > 1 \
+                       or pool_stride[ll][0] > 1 or pool_stride[ll][1] > 1 \
+                       or pool_dilation[ll][0] > 1 or pool_dilation[ll][1] > 1:
+                        np.save(datafile, data, allow_pickle=False, fix_imports=False)
+                    else:
+                        np.save(datafile, np.empty((0)), allow_pickle=False, fix_imports=False)
+
                 if operator[ll] == op.CONV1D:
                     if out_size[0] != in_chan \
                        or out_size[1] != pooled_dim[ll][0] or pooled_dim[ll][1] != 1:
@@ -2978,6 +3019,12 @@ class Backend(backend.Backend):
                     data = run_eltwise(data, ll)
                 else:
                     data = np.squeeze(data, axis=0)
+
+                if datafile is not None:
+                    # if operands[ll] > 1 and pool_first[ll]:
+                    np.save(datafile, data, allow_pickle=False, fix_imports=False)
+                    # else:
+                    #    np.save(datafile, np.empty((0)), allow_pickle=False, fix_imports=False)
 
                 # Convolution or passthrough
                 if operator[ll] in [op.CONV2D, op.LINEAR]:
@@ -3024,6 +3071,7 @@ class Backend(backend.Backend):
                         output_width=output_width[ll],
                         groups=conv_groups[ll],
                         bypass=bypass[ll],
+                        datafile=datafile,
                     )
                 elif operator[ll] == op.CONVTRANSPOSE2D:
                     if not bypass[ll]:
@@ -3057,6 +3105,7 @@ class Backend(backend.Backend):
                         output_width=output_width[ll],
                         groups=conv_groups[ll],
                         bypass=bypass[ll],
+                        datafile=datafile,
                     )
                 elif operator[ll] == op.CONV1D:
                     if not bypass[ll]:
@@ -3088,15 +3137,46 @@ class Backend(backend.Backend):
                         output_width=output_width[ll],
                         groups=conv_groups[ll],
                         bypass=bypass[ll],
+                        datafile=datafile,
                     )
                 elif operator[ll] == op.NONE:  # '0'D (pooling only or passthrough)
                     out_buf, out_size = passthrough_layer(
                         ll,
                         data.shape,
                         data,
+                        datafile=datafile,
                     )
                 else:
                     eprint(f'Unknown operator `{op.string(operator[ll])}`.')
+
+                if operator[ll] in [op.CONV2D, op.LINEAR, op.CONVTRANSPOSE2D, op.CONV1D]:
+                    if weightsfile is not None:
+                        np.save(
+                            weightsfile,
+                            hw_kernel[ll].reshape(
+                                output_chan[ll],
+                                input_chan[ll] // conv_groups[ll],
+                                hw_kernel_size[ll][0],
+                                -1,
+                            ),
+                            allow_pickle=False,
+                            fix_imports=False,
+                        )
+                    if biasfile is not None:
+                        if bias[bias_ptrs[ll]] is not None:
+                            np.save(biasfile, bias[bias_ptrs[ll]], allow_pickle=False,
+                                    fix_imports=False)
+                        else:
+                            np.save(biasfile, np.empty((0)), allow_pickle=False, fix_imports=False)
+                else:
+                    if weightsfile is not None:
+                        np.save(weightsfile, np.empty((0)), allow_pickle=False, fix_imports=False)
+                    if biasfile is not None:
+                        np.save(biasfile, np.empty((0)), allow_pickle=False, fix_imports=False)
+
+                if datafile is not None:
+                    # Operator output
+                    np.save(datafile, out_buf, allow_pickle=False, fix_imports=False)
 
                 assert out_size[0] == output_chan[ll] \
                     and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
@@ -3129,9 +3209,6 @@ class Backend(backend.Backend):
 
                     if state.generate_kat:
                         if log_intermediate:
-                            filename2 = f'{output_filename}-{ll}.mem'  # Intermediate output
-                            memfile2 = open(os.path.join(base_directory, test_name, filename2),
-                                            mode='w', encoding='utf-8')
                             apb2 = apbaccess.apbwriter(
                                 memfile2,
                                 verify_writes=False,
@@ -3143,6 +3220,7 @@ class Backend(backend.Backend):
                                 input_chan=input_chan[start_layer],
                                 debug_mem=True,
                                 test_name=test_name,
+                                passfile=passfile,
                             )
                             out_map2 = datamem.allocate()
                             apb2.verify_unload(
@@ -3157,8 +3235,9 @@ class Backend(backend.Backend):
                                 out_expand_thresh[ll],
                                 output_width[ll],
                                 overwrite_ok or streaming[ll],
-                                mlator=mlator and output_layer[ll],
+                                mlator=False,  # mlator is a function of read, not write
                                 write_gap=write_gap[ll],
+                                rollover=rollover[ll + 1] if ll < layers - 1 else None,
                             )
                         apb.verify_unload(
                             ll,
@@ -3265,6 +3344,59 @@ class Backend(backend.Backend):
         finally:
             if memfile:
                 memfile.close()
+            if memfile2:
+                memfile2.close()
+            if datafile:
+                datafile.close()
+            if weightsfile:
+                weightsfile.close()
+            if biasfile:
+                biasfile.close()
+            if passfile:
+                passfile.close()
+
+        if log_intermediate:
+            with open(os.path.join(base_directory, test_name,
+                                   f'{state.output_config_filename}.csv'),
+                      mode='w', encoding='utf-8') as configfile:
+                # Save layer configuration to debug file
+                for ll in range(first_layer_used, layers):
+                    if pool[ll][0] <= 1 and pool[ll][1] <= 1:
+                        pool_type = 'no'
+                    else:
+                        pool_type = 'avg' if pool_average[ll] else 'max'
+
+                    configfile.write(
+                        f'l,{ll},'
+                        f'{tc.dev.INSTANCE_SIZE:x},'
+                        f'{1 if streaming[ll] else 0},'
+                        f'{0 if rollover[ll] is None else rollover[ll]:x},'
+                        f'{output_width[ll]},'
+                        f'{processor_map[ll]:x},'
+                        f'{flatten_prod[ll]:x},'
+                        f'{1 if hw_flatten[ll] else 0},'
+                        f'{1 if flatten[ll] else 0},'
+                        f'{op.string(operator[ll])},'
+                        f'{op.string(hw_operator[ll])},'
+                        f'{op.string(eltwise[ll], elt=True)},'
+                        f'{in_expand[ll]},'
+                        f'{input_chan[ll]},'
+                        f'{hw_input_dim[ll][0]}x{hw_input_dim[ll][1]},'
+                        f'{hw_pooled_dim[ll][0]}x{hw_pooled_dim[ll][1]},'
+                        f'{hw_output_dim[ll][0]}x{hw_output_dim[ll][1]},'
+                        f'{pool_type},'
+                        f'{1 if pool_first[ll] else 0},'
+                        f'{pool[ll][0]}x{pool[ll][1]},'
+                        f'{pool_stride[ll][0]}x{pool_stride[ll][1]},'
+                        f'{pool_dilation[ll][0]}x{pool_dilation[ll][1]},'
+                        f'{conv_groups[ll]},'
+                        f'{hw_padding[ll][0]}x{hw_padding[ll][1]},'
+                        f'{hw_kernel_size[ll][0]}x{hw_kernel_size[ll][1]},'
+                        f'{stride[ll][0]}x{stride[ll][1]},'
+                        f'{hw_dilation[ll][0]}x{hw_dilation[ll][1]},'
+                        f'{out_pad[ll]},'
+                        f'{output_padding[ll][0]}x{output_padding[ll][1]}\n'
+                    )
 
         # ----------------------------------------------------------------------------------------
         total = 0

@@ -90,6 +90,10 @@ class APB():
         self.verify_listdata = []
         self.verify_text = []
 
+        self.out_offset = 0
+        self.layer = 0
+        self.rollover = 0
+
         self.data_mem = self.kernel_mem = self.output_data_mem = None
 
         if state.rtl_preload_weights or state.new_kernel_loader:
@@ -812,11 +816,16 @@ class APB():
             write_gap=0,
             unload_layer=False,
             streaming=False,
+            rollover=None,
     ):
         """
         Write a verification function. The layer to unload has the shape `input_shape`,
         and the optional `output_offset` argument can shift the output.
         """
+        self.layer = ll
+        self.out_offset = out_offset
+        self.rollover = rollover
+
         unload.verify(
             self.verify_list,
             ll,
@@ -963,6 +972,8 @@ class APBBlockLevel(APB):
             fast_fifo=False,
             input_chan=None,
             apifile=None,
+            test_name=None,
+            passfile=None,
     ):
         super().__init__(
             memfile,
@@ -972,6 +983,7 @@ class APBBlockLevel(APB):
             embedded_code=embedded_code,
         )
         self.foffs = 0
+        self.passfile = passfile
 
     def write(
             self,
@@ -1086,15 +1098,36 @@ class APBDebug(APBBlockLevel):
     ):  # pylint: disable=unused-argument
         """
         Verify that memory at address `addr` contains data `val`.
-        This function ensuring the input address and data are not negative
+        This function ensures the input address and data are not negative
         and then writes the expected data to a file.
         """
         assert val >= 0
         assert addr >= 0
-        addr += state.apb_base
+        addr -= tc.dev.C_SRAM_BASE
+        assert addr >= 0, comment
+        group = addr // tc.dev.C_GROUP_OFFS
+        addr %= tc.dev.C_GROUP_OFFS
+        proc = addr // (tc.dev.INSTANCE_SIZE*16)
+        offs = addr % (tc.dev.INSTANCE_SIZE*16)
 
-        self.memfile.write(f'{val:08x}\n')
-        self.foffs += 2
+        if self.rollover is not None:
+            offs = (offs - self.out_offset) % (self.rollover * 4) + self.out_offset
+        else:
+            offs = addr
+        offs |= (proc | group * 4) * (tc.dev.INSTANCE_SIZE*16)  # proc is 0, 4, 8 or 12
+        offs //= 4  # Switch to 32-bit word address
+        assert offs >= 0, comment
+
+        # Comment is " // channel,row,col" where each of the values can be an int or a range
+        if comment.startswith(' // '):
+            comment = comment[4:]
+
+        self.memfile.write(f'w,{offs:x},{val:x},{self.layer},{comment}\n')
+        if self.passfile is not None:
+            state.write_count += 1
+            self.passfile.write(f'w,{offs | 0x200000:x},{val:x},{self.layer},'
+                                f'{state.write_count}\n')
+        self.foffs += 1
 
 
 class APBTopLevel(APB):

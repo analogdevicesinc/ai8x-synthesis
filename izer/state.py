@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2021-2022 Maxim Integrated Products Inc. All Rights Reserved.
+# Copyright (C) 2021-2023 Maxim Integrated Products Inc. All Rights Reserved.
 #
 # Maxim Integrated Products Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -122,6 +122,11 @@ out_offset: List[int] = []
 output_channels: List[int] = []
 output_dim: List[List[int]] = []
 output_filename: str = ''
+output_config_filename: str = ''
+output_data_filename: str = ''
+output_bias_filename: str = ''
+output_weights_filename: str = ''
+output_pass_filename: Optional[str] = None
 output_is_console: bool = True
 output_layer: List[bool] = []
 output_offset: List[int] = []
@@ -198,5 +203,6 @@ wfi: bool = True
 wide_chunk: int = 0
 write_gap: List[int] = []
 write_zero_regs: bool = False
+write_count: int = 0
 zero_sram: bool = False
 zero_unused: bool = False

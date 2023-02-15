@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -109,6 +109,7 @@ def conv2d_layer(
         output_width=8,
         groups=1,
         bypass=False,
+        datafile=None,
 ):
     """
     Perform 2D convolution for one layer.
@@ -160,6 +161,9 @@ def conv2d_layer(
         output_pad=[0, 0],
         groups=groups,
     )
+
+    if datafile is not None:
+        np.save(datafile, out_buf, allow_pickle=False, fix_imports=False)
 
     if state.verbose and verbose_data:
         print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} FULL-RES OUTPUT:")
@@ -235,6 +239,7 @@ def convtranspose2d_layer(
         output_width=8,
         groups=1,
         bypass=False,
+        datafile=None,
 ):
     """
     Perform a fractionally strided 2D convolution for one layer.
@@ -289,6 +294,9 @@ def convtranspose2d_layer(
         output_pad=output_padding,
         groups=groups,
     )
+
+    if datafile is not None:
+        np.save(datafile, out_buf, allow_pickle=False, fix_imports=False)
 
     if state.verbose and verbose_data:
         print(f"{out_size[0]}x{out_size[1]}x{out_size[2]} FULL-RES OUTPUT:")
@@ -363,6 +371,7 @@ def conv1d_layer(
         output_width=8,
         groups=1,
         bypass=False,
+        datafile=None,
 ):
     """
     Perform 1D convolution for one layer.
@@ -401,6 +410,9 @@ def conv1d_layer(
         output_pad=0,
         groups=groups,
     )[:, :, np.newaxis]
+
+    if datafile is not None:
+        np.save(datafile, out_buf, allow_pickle=False, fix_imports=False)
 
     if state.verbose and verbose_data:
         print(f"{out_size[0]}x{out_size[1]} FULL-RES OUTPUT:")
@@ -531,10 +543,13 @@ def passthrough_layer(
         layer,  # pylint: disable=unused-argument
         input_size,
         data,
+        datafile=None,
 ):
     """
     2D passthrough for one layer.
     """
+    if datafile is not None:
+        np.save(datafile, np.empty((0)), allow_pickle=False, fix_imports=False)
 
     return data, input_size
 
