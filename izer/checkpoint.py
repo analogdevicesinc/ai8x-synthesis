@@ -122,7 +122,7 @@ def load(
 
             wb_name = '.'.join([layer, 'weight_bits'])
             wb = checkpoint_state[wb_name].numpy().astype(np.int64) \
-                     if wb_name in checkpoint_state else 8
+                if wb_name in checkpoint_state else 8
 
             # Determine quantization or make sure that what was given fits
             if quantization[seq] is not None:
