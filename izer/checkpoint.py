@@ -121,6 +121,10 @@ def load(
                 eprint('The checkpoint file contains 1-dimensional weights for '
                        f'`{layer}.{this_op}.{parameter}` with dimensions {w.shape}.')
 
+            wb_name = '.'.join([layer, 'weight_bits'])
+            wb = checkpoint_state[wb_name].numpy().astype(np.int64) \
+                     if wb_name in checkpoint_state else 8
+
             # Determine quantization or make sure that what was given fits
             if quantization[seq] is not None:
                 if quantization[seq] == -1:
@@ -133,18 +137,10 @@ def load(
                    and not np.any(w_abs == 0):
                     quantization[seq] = -1
                 else:
-                    if w_max > 0:
-                        w_max_m = int(w_max)
-                    else:
-                        w_max_m = int(abs(w_max)) - 1
-                    if w_min > 0:
-                        w_min_m = int(w_min)
-                    else:
-                        w_min_m = int(abs(w_min)) - 1
-                    if w_max_m > 0 or w_min_m > 0:
-                        quantization[seq] = 1 << (fls(max(fls(w_max_m), fls(w_min_m)) + 1) + 1)
-                    else:
+                    if np.all(w == 0):
                         quantization[seq] = 1  # all weights zero
+                    else:
+                        quantization[seq] = int(wb[0])
                 assert quantization[seq] <= 8
             quant.append(quantization[seq])
 
@@ -197,11 +193,8 @@ def load(
             # Is there a bias for this layer?
             bias_name = '.'.join([layer, 'bias']) if this_op is None \
                 else '.'.join([layer, this_op, 'bias'])
-            wb_name = '.'.join([layer, 'weight_bits'])
 
             if bias_name in checkpoint_state and seq not in no_bias:
-                wb = checkpoint_state[wb_name].numpy().astype(np.int64) \
-                     if wb_name in checkpoint_state else 8
 
                 if wb == 0:  # In case the weights are all zero
                     wb = 8

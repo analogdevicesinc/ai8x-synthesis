@@ -2484,7 +2484,7 @@ This key describes whether to activate the layer output (the default is to not a
 
 ##### `quantization` (Optional)
 
-This key describes the width of the weight memory in bits and can be `1`, `2`, `4`, or `8` (the default is based on the range of the layer’s weights). Specifying a `quantization` that is smaller than what the weights require results in an error message. By default, the value is automatically derived from the weights.
+This key describes the width of the weight memory in bits and can be `1`, `2`, `4`, or `8` (the default is based on the `weight_bits` field read from the quantized checkpoint for the layer). Specifying a `quantization` that is smaller than what the weights require results in an error message. By default, the value is set from `weight_bits` set for the layer in the checkpoint's `state_dict` after quantization.
 
 *On MAX78002 only, `binary` sets the alternate 1-bit representation of –1/+1.*
 
