@@ -16,7 +16,6 @@ from . import op, state
 from . import tornadocnn as tc
 from .eprint import eprint, wprint
 from .names import layer_str
-from .utils import fls
 
 
 def load(
