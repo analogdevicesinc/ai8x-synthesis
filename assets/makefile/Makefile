@@ -1,5 +1,5 @@
 # /*******************************************************************************
-# * Copyright (C) 2022 Maxim Integrated Products, Inc., All Rights Reserved.
+# * Copyright (C) 2022-2023 Maxim Integrated Products, Inc., All Rights Reserved.
 # *
 # * Permission is hereby granted, free of charge, to any person obtaining a
 # * copy of this software and associated documentation files (the "Software"),
@@ -265,7 +265,7 @@ endif
 LINKERFILE:=$(LINKERPATH)/$(LINKERFILE)
 endif
 
-# This path contains system-level intialization files for the target micro.  Add to the build.
+# This path contains system-level initialization files for the target micro.  Add to the build.
 VPATH += $(CMSIS_ROOT)/Device/Maxim/$(TARGET_UC)/Source
 
 # *******************************************************************************
