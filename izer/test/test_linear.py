@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -22,7 +22,7 @@ from izer import compute, state  # noqa: E402 pylint: disable=wrong-import-posit
 
 
 def linear(data, weight, bias, expected):
-    """Fully conected (linear) transformation."""
+    """Fully connected (linear) transformation."""
 
     print('Input:', data)
 

@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2021-2022 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2021-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -15,6 +15,6 @@ class Backend:
     """
     def create_net(self) -> str:
         """
-        Contruct a CNN and create C code for a given device
+        Construct a CNN and create C code for a given device
         """
         return ''

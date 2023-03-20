@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -460,7 +460,7 @@ def main():
                     odim = auto_input_dim[0] if e == -1 else output_dim[e]
                     if odim != dim and conf_input_dim[ll] is None:
                         eprint(f'{layer_pfx(ll)}Cannot concatenate outputs of different '
-                               f'dimensions without specfying `in_dim`: {dim} vs {odim}.')
+                               f'dimensions without specifying `in_dim`: {dim} vs {odim}.')
                     pixels += odim[0] * odim[1]
                 auto_input_dim[ll] = dim
                 prev_op = operator[in_sequences[ll][0]]

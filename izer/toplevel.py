@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -465,7 +465,7 @@ def main(
                                   '// Exclusive SRAM access for RISC-V (MXC_NBBFC->reg5)\n')
             if embedded_code or embedded_arm or tc.dev.MODERN_SIM:
                 memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_SMPHR); '
-                              '// Enable Sempahore clock\n')
+                              '// Enable Semaphore clock\n')
                 if not tc.dev.MODERN_SIM:
                     memfile.write('  MXC_NVIC_SetVector(RISCV_IRQn, WakeISR); // Set wakeup ISR\n')
                 else:
