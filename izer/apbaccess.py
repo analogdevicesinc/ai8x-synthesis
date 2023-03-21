@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -1180,12 +1180,12 @@ class APBTopLevel(APB):
                                        f'0x{addr + tc.dev.FIFO_STAT*4:08x})'
                                        f' & {1 << fifo})) != 0); // Wait for FIFO {fifo}\n')
                     if not state.compact_data:
-                        self.fifo_reads += 1  # Othwerwise handled by 'inc_writes()' via load.py
+                        self.fifo_reads += 1  # Otherwise handled by 'inc_writes()' via load.py
                 self.memfile.write(f'{indent}*((volatile uint32_t *) '
                                    f'0x{addr + tc.dev.FIFO_REG*4 + fifo*4:08x}) = '
                                    f'{val};{comment}\n')
                 if not state.compact_data:
-                    self.fifo_writes += 1  # Othwerwise handled by 'inc_writes()' via load.py
+                    self.fifo_writes += 1  # Otherwise handled by 'inc_writes()' via load.py
             else:
                 addr = tc.dev.FAST_FIFO_BASE
                 if fifo_wait:
@@ -1195,12 +1195,12 @@ class APBTopLevel(APB):
                                        f'0x{addr + tc.dev.FAST_FIFO_SR*4:08x})'
                                        f' & 2)) != 0); // Wait for FIFO\n')
                     if not state.compact_data:
-                        self.fastfifo_reads += 1  # Othwerwise handled by 'inc_writes()'
+                        self.fastfifo_reads += 1  # Otherwise handled by 'inc_writes()'
                 self.memfile.write(f'{indent}*((volatile uint32_t *) '
                                    f'0x{addr + tc.dev.FAST_FIFO_DR*4:08x}) = '
                                    f'{val};{comment}\n')
                 if not state.compact_data:
-                    self.fastfifo_writes += 1  # Othwerwise handled by inc_writes() via load.py
+                    self.fastfifo_writes += 1  # Otherwise handled by inc_writes() via load.py
 
     def write_data(
             self,

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (C) 2020 Maxim Integrated Products, Inc., All Rights Reserved.
+ * Copyright (C) 2020-2023 Maxim Integrated Products, Inc., All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -124,7 +124,7 @@ SECTIONS {
         __sbss_start = .;                 /* Standard newlib definition. */
 	__sbss_start__ = .;                 /* Standard newlib definition. */
         _sbss = .;
-        *(.sbss*)     /*read-write zero initialized data: uninitialzed global variable*/
+        *(.sbss*)     /*read-write zero initialized data: uninitialized global variable*/
         *(COMMON)
         _esbss = ALIGN(., 4);
        __sbss_end__ = .;                /* Standard newlib definition. */
@@ -137,7 +137,7 @@ SECTIONS {
         __bss_start = .;                 /* Standard newlib definition. */
 	__bss_start__ = .;                 /* Standard newlib definition. */
         _bss = .;
-        *(.bss*)     /*read-write zero initialized data: uninitialzed global variable*/
+        *(.bss*)     /*read-write zero initialized data: uninitialized global variable*/
         *(COMMON)
         _ebss = ALIGN(., 4);
         __bss_end__ = .;                /* Standard newlib definition. */
