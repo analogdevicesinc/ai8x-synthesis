@@ -14,7 +14,7 @@ from . import tornadocnn as tc
 
 COPYRIGHT = \
     '/*******************************************************************************\n' \
-    '* Copyright (C) 2019-2022 Maxim Integrated Products, Inc., All rights Reserved.\n' \
+    '* Copyright (C) 2019-2023 Maxim Integrated Products, Inc., All rights Reserved.\n' \
     '*\n' \
     '* This software is protected by copyright laws of the United States and\n' \
     '* of foreign countries. This material may also be protected by patent laws\n' \
@@ -465,11 +465,8 @@ def main(
                                   '// Exclusive SRAM access for RISC-V (MXC_NBBFC->reg5)\n')
             if embedded_code or embedded_arm or tc.dev.MODERN_SIM:
                 memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_SMPHR); '
-                              '// Enable Semaphore clock\n')
-                if not tc.dev.MODERN_SIM:
-                    memfile.write('  MXC_NVIC_SetVector(RISCV_IRQn, WakeISR); // Set wakeup ISR\n')
-                else:
-                    memfile.write('  NVIC_SetVector(RISCV_IRQn, WakeISR); // Set wakeup ISR\n')
+                              '// Enable Sempahore clock\n')
+                memfile.write('  MXC_NVIC_SetVector(RISCV_IRQn, WakeISR); // Set wakeup ISR\n')
                 if (embedded_code or embedded_arm) and debugwait:
                     memfile.write('\n  // DO NOT DELETE THIS LINE:\n'
                                   f'  MXC_Delay(SEC({debugwait})); '
