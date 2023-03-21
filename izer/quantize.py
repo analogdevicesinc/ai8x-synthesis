@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -218,7 +218,7 @@ def convert_checkpoint(input_file, output_file, arguments):
                           max=2**(clamp_bits-1)-1)
 
                 # Since the device multiplies the biases with 8 bits by default, the range
-                # of bias needs to be shrinked according to the weight bits.
+                # of bias needs to be shrunk according to the weight bits.
                 bias *= 2**(clamp_bits-8)
 
                 # Save conv biases so PyTorch can still use them to run a model. This needs

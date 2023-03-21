@@ -43,7 +43,7 @@
   /**
    * @brief Q8.7 fixed point softmax function, returns Q15
    * @param[in]       vec_in      pointer to input vector
-   * @param[in]       dim_vec     input vector dimention
+   * @param[in]       dim_vec     input vector dimension
    * @param[out]      p_out       pointer to output vector
    * @return none.
    *

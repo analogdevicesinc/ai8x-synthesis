@@ -154,7 +154,7 @@ arm_convolve_HWC_q7_basic(const q7_t * Im_in,
             /* Load the accumulator with bias first */
             q31_t     sum = ((q31_t)bias[i] << bias_shift) + NN_ROUND(out_shift);
 
-            /* Point to the beging of the im2col buffer */
+            /* Point to the beginning of the im2col buffer */
             const q15_t    *pB = bufferA;
 
             /* Each time it process 4 entries */
