@@ -44,4 +44,4 @@ jobs:
         run: npm install -g markdown-link-check
 
       - name: Run markdown-lint-check
-        run: markdown-link-check -p -v `find . -type f -name "*.md"`
+        run: find . -name \*.md -print0 | xargs -0 -n1 markdown-link-check -p -v -r
