@@ -1,5 +1,5 @@
 ---
-name: Lint Code Base
+name: Lint code
 
 on:
   push:
@@ -13,12 +13,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - name: Lint Code Base
+      - name: Lint code
         uses: github/super-linter@v4
         env:
           VALIDATE_ALL_CODEBASE: true
@@ -34,8 +34,14 @@ jobs:
           VALIDATE_GITHUB_ACTIONS: false
           FILTER_REGEX_EXCLUDE: (attic/.*|\.github/workflows/.*\.yml|assets/vscode/\.vscode/.*\.json)
 
-      - name: Install dependencies
+      - name: Install codespell
         run: pip install codespell tomli
 
       - name: Run codespell
         run: codespell
+
+      - name: Install markdown-lint-check
+        run: npm install -g markdown-link-check
+
+      - name: Run markdown-lint-check
+        run: markdown-link-check -p -v `find . -type f -name "*.md"`
