@@ -138,6 +138,8 @@ def load(
                 else:
                     if np.all(w == 0):
                         quantization[seq] = 1  # all weights zero
+                    elif isinstance(wb, int):
+                        quantization[seq] = wb
                     else:
                         quantization[seq] = int(wb[0])
                 assert quantization[seq] <= 8
