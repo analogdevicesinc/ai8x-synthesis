@@ -143,6 +143,8 @@ def load(
                     else:
                         quantization[seq] = int(wb[0])
                 assert quantization[seq] <= 8
+            if quantization[seq] == 0:
+                quantization[seq] = 8
             quant.append(quantization[seq])
 
             weight_min.append(w_min)
