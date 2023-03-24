@@ -1,6 +1,6 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-March 22, 2023
+March 24, 2023
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
@@ -2409,7 +2409,7 @@ Example:
 
 ##### `output_width` (Optional)
 
-When **not** using an `activation`, the **last** layer can output `32` bits of unclipped data in Q17.14 format. The default is `8` bits. *Note that the corresponding model’s last layer must be trained with* `wide=True` *when* `output_width` *is 32*.
+When **not** using an `activation` and when `operation` is **not** `None`/`Passthrough`, a layer can output `32` bits of unclipped data in Q17.14 format. Typically, this is used for the **last** layer. The default is `8` bits. *Note that the corresponding model’s layer must be trained with* `wide=True` *when* `output_width` *is 32*.
 
 Example:
         `output_width: 32`

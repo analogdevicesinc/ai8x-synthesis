@@ -405,6 +405,10 @@ def main():
         if output_width[final_layer] != 8 and activation[final_layer] is not None:
             eprint(f'{layer_pfx(ll)}`output_width` must be 8 when activation is used.')
 
+    if ll == 0 and (pool[0][0] != 1 or pool[0][1] != 1):
+        wprint(f'{layer_pfx(0)}The input layer uses pooling. Consider downscaling the input data '
+               'at the source instead.')
+
     while ll < layers:
         if input_channels[ll] <= 0:
             eprint(f'{layer_pfx(ll)}`in_channels` is required.')
