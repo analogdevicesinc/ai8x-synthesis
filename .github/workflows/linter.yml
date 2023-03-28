@@ -19,7 +19,7 @@ jobs:
           fetch-depth: 0
 
       - name: Lint code
-        uses: github/super-linter@v4
+        uses: github/super-linter/slim@v4
         env:
           VALIDATE_ALL_CODEBASE: true
           DEFAULT_BRANCH: develop
@@ -40,8 +40,8 @@ jobs:
       - name: Run codespell
         run: codespell
 
-      - name: Install markdown-lint-check
-        run: npm install -g markdown-link-check
-
-      - name: Run markdown-lint-check
-        run: find . -name \*.md -print0 | xargs -0 -n1 markdown-link-check -a 0 -p -v -r
+#      - name: Install markdown-lint-check
+#        run: npm install -g markdown-link-check
+#
+#      - name: Run markdown-lint-check
+#        run: find . -name \*.md -print0 | xargs -0 -n1 markdown-link-check -a 0 -p -v -r

@@ -763,6 +763,10 @@ class Backend(backend.Backend):
                            'processors that have no data from any of the input sequences '
                            f'{in_sequences[ll]}.')
 
+            if output_width[ll] != 8 and hw_operator[ll] == op.NONE:
+                eprint(f'{layer_pfx(ll)}'
+                       'The passthrough operator requires an output width of 8.')
+
         # Deduplicate kernels
         # Do this here since by now all modifications to the kernels have happened
         kernel_ptrs: List[int] = []  # Indirection for hw_kernel
