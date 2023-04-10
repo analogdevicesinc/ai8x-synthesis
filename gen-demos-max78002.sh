@@ -20,3 +20,4 @@ python ai8xize.py --test-dir $TARGET --prefix svhn_tinierssd --checkpoint-file t
 python ai8xize.py --test-dir $TARGET --prefix cifar-100-effnet2 --checkpoint-file trained/ai87-cifar100-effnet2-qat8-q.pth.tar --config-file networks/ai87-cifar100-effnet2.yaml --softmax $COMMON_ARGS "$@"
 python ai8xize.py --test-dir $TARGET --prefix cifar-100-mobilenet-v2-0.75 --checkpoint-file trained/ai87-cifar100-mobilenet-v2-0.75-qat8-q.pth.tar --config-file networks/ai87-cifar100-mobilenet-v2-0.75.yaml --softmax $COMMON_ARGS "$@"
 python ai8xize.py --test-dir $TARGET --prefix imagenet --checkpoint-file trained/ai87-imagenet-effnet2-q.pth.tar --config-file networks/ai87-imagenet-effnet2.yaml $COMMON_ARGS "$@"
+python ai8xize.py --test-dir $TARGET --prefix facedet_tinierssd --checkpoint-file trained/ai87-facedet-tinierssd-qat8-q.pth.tar --config-file networks/ai87-facedet-tinierssd.yaml --sample-input tests/sample_vggface2_facedetection.npy $COMMON_ARGS "$@"
