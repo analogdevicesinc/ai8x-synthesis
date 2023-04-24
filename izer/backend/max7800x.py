@@ -48,12 +48,15 @@ class Backend(backend.Backend):
         big_data = state.big_data
         block_mode = state.block_mode
         board_name = state.board_name
+        buffer_op = state.buffer_op
         bypass = state.bypass
         c_filename = state.c_filename
         calcx4 = state.calcx4
         compact_data = state.compact_data
         conv_groups = state.conv_groups
         data = state.data
+        data_buffer = state.data_buffer
+        data_buffer_cfg = state.data_buffer_cfg
         debug_new_streaming = state.debug_new_streaming
         debug_snoop = state.debug_snoop
         dilation = state.dilation
@@ -267,7 +270,8 @@ class Backend(backend.Backend):
         if zero_sram or pretend_zero_sram:
             # Clear every seventh kernel so we can test the BIST
             for i, _ in enumerate(kernel):
-                kernel[i][::7] = np.full(shape=kernel[i][0].shape, fill_value=0, dtype=np.int64)
+                if kernel[i] is not None:
+                    kernel[i][::7] = np.full(shape=kernel[i][0].shape, fill_value=0, dtype=np.int64)
 
         if state.result_output and (state.mlator or oneshot or stopstart):
             state.result_output = False
@@ -694,7 +698,12 @@ class Backend(backend.Backend):
                 or_map = 0
                 and_map = ~or_map
                 for i, lt in enumerate(in_sequences[ll]):
-                    emap = processor_map[0] if lt == -1 else output_processor_map[lt]
+                    if lt == -1:
+                        emap = processor_map[0]
+                    elif lt == -2:
+                        emap = data_buffer_cfg[0]['proc']
+                    else:
+                        emap = output_processor_map[lt]
                     or_map |= emap
                     and_map &= emap
                 if or_map != processor_map[ll]:
@@ -714,7 +723,7 @@ class Backend(backend.Backend):
                     # Channel-wise concatenation or element-wise or interleaved concatenation
                     offs = 0
                     for i, lt in enumerate(in_sequences[ll]):
-                        if lt != -1 and in_offset[ll] + 4 * i != out_offset[lt] \
+                        if lt not in [-1, -2] and in_offset[ll] + 4 * i != out_offset[lt] \
                            and in_offset[ll] + offs != out_offset[lt]:
                             wprint(f'{layer_pfx(ll)}`in_offset` (0x{in_offset[ll]:04x}, for '
                                    f'input #{i}) does not match `out_offset` '
@@ -756,7 +765,12 @@ class Backend(backend.Backend):
                 # Merge the output of all processors of all input sequence members
                 emap = 0
                 for lt in in_sequences[ll]:
-                    emap |= processor_map[0] if lt == -1 else output_processor_map[lt]
+                    if lt == -1:
+                        emap |= processor_map[0]
+                    elif lt == -2:
+                        emap |= data_buffer_cfg[0]['proc']
+                    else:
+                        emap |= output_processor_map[lt]
                 # Check that all out input processors have data from somewhere in the merged map
                 if processor_map[ll] & emap != processor_map[ll]:
                     wprint(f'{layer_pfx(ll)}The processor map {processor_map[ll]:016x} specifies '
@@ -2925,8 +2939,10 @@ class Backend(backend.Backend):
                             except ValueError as err:
                                 eprint(f'{layer_pfx(ll)}Input data concatenation unsuccessful: ',
                                        err_concat, err)
+                    elif in_sequences[ll][0] == -2:
+                        data = data_buffer
                     else:
-                        data = data_buf[in_sequences[ll][0] + 1]
+                        data = data_buf[in_sequences[ll][0]+1]
                 else:
                     data = data_buf[ll]
 
@@ -2976,7 +2992,7 @@ class Backend(backend.Backend):
                 if operator[ll] == op.CONV1D:
                     assert input_dim[ll][1] == 1
                     data = data.reshape(data.shape[0], -1, input_dim[ll][0])
-                else:
+                elif buffer_op[ll] != 'shiftleft': #todo: check this, what exactly is the purpose?
                     data = data.reshape(data.shape[0], -1, input_dim[ll][0], input_dim[ll][1])
 
                 # In-flight pooling
@@ -3012,7 +3028,7 @@ class Backend(backend.Backend):
                         eprint(f'{layer_pfx(ll)}Input dimensions do not match. '
                                f'Expected: {in_chan}x{pooled_dim[ll][0]}, '
                                f'got {out_size[0]}x{out_size[1]}.')
-                else:
+                elif buffer_op[ll] != 'shiftleft': #todo: this is a temporary solution, add relevant checks to shift ops as well
                     if out_size[0] != in_chan \
                        or out_size[1] != pooled_dim[ll][0] or out_size[2] != pooled_dim[ll][1]:
                         eprint(f'{layer_pfx(ll)}Input dimensions do not match. '
@@ -3153,6 +3169,11 @@ class Backend(backend.Backend):
                 else:
                     eprint(f'Unknown operator `{op.string(operator[ll])}`.')
 
+                if buffer_op[ll] == 'shiftleft': # modify buffer
+                    np.roll(data_buffer, -1)
+                elif buffer_op[ll] == 'insertright': # modify buffer
+                    data_buffer[:,[-1],:] = out_buf
+
                 if operator[ll] in [op.CONV2D, op.LINEAR, op.CONVTRANSPOSE2D, op.CONV1D]:
                     if weightsfile is not None:
                         np.save(
@@ -3182,10 +3203,11 @@ class Backend(backend.Backend):
                     # Operator output
                     np.save(datafile, out_buf, allow_pickle=False, fix_imports=False)
 
-                assert out_size[0] == output_chan[ll] \
-                    and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
-                assert out_size[0] == output_size[ll][0] \
-                    and out_size[1] == output_size[ll][1] and out_size[2] == output_size[ll][2]
+                if buffer_op[ll] != 'shiftleft': #todo: this is a temporary solution, add relevant checks to shift ops as well
+                    assert out_size[0] == output_chan[ll] \
+                        and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
+                    assert out_size[0] == output_size[ll][0] \
+                        and out_size[1] == output_size[ll][1] and out_size[2] == output_size[ll][2]
 
                 # Write .mem file for output or create the C check_output() function to
                 # verify the output

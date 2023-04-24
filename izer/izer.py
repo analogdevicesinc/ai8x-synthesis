@@ -187,6 +187,11 @@ def main():
     if data.ndim < 3:
         data = np.expand_dims(data, axis=2)
 
+    # todo: may read from sampledata_file, or initialize
+    if params['data_buffer_cfg'] is not None:
+        data_buffer_dims = params['data_buffer_cfg'][0]['dim']
+        data_buffer = np.zeros(data_buffer_dims, dtype=np.int64)
+
     input_size = list(data.shape)
 
     processor_map = params['processor_map'][:layers]
@@ -218,8 +223,12 @@ def main():
                                          for i in in_sequences[ll])
             else:
                 # Element-wise operation
-                input_channels[ll] = input_size[0] if in_sequences[ll][0] == -1 \
-                    else output_channels[in_sequences[ll][0]]
+                if in_sequences[ll][0] == -1:
+                    input_channels[ll] = input_size[0]
+                elif in_sequences[ll][0] == -2:
+                    input_channels[ll] = params['data_buffer_cfg']['dim'][0]
+                else:
+                    input_channels[ll] = output_channels[in_sequences[ll][0]]
             gap = write_gap[in_sequences[ll][0]]
             chan = output_channels[in_sequences[ll][0]]
             l_str = ", ".join([layer_str(e) for e in in_sequences[ll]])
@@ -252,7 +261,7 @@ def main():
                            f'input count ({l_inseq}) and `write_gap` {gap} of the '
                            f'{plural(l_inseq, "input")} for this layer.')
         else:
-            gap = 0 if prev_ll == -1 else write_gap[prev_ll]
+            gap = 0 if prev_ll in [-1, -2] else write_gap[prev_ll]
             if gap != input_skip[ll]:
                 wprint(f'{layer_pfx(ll)}`read_gap` {input_skip[ll]} does not match the '
                        f'`write_gap` {gap} of layer {layer_str(prev_ll)} that created the input '
@@ -366,6 +375,7 @@ def main():
         wprint(f'The final layer {layer_str(ll)} is not designated as an `output` layer.')
     # Set this since 'layers' may have changed
     operands = params['operands'][:layers]
+    buffer_op = params['buffer_op'][:layers]
 
     # Command line override
     if args.input_offset is not None:
@@ -599,10 +609,13 @@ def main():
     state.bias = bias
     state.bias_group_map = bias_group_map
     state.big_data = big_data
+    state.buffer_op = buffer_op
     state.bypass = bypass
     state.calcx4 = calcx4
     state.conv_groups = conv_groups
     state.data = data
+    state.data_buffer = data_buffer  if 'data_buffer' in cfg else None
+    state.data_buffer_cfg = params['data_buffer_cfg']
     state.dilation = dilation
     state.eltwise = eltwise
     state.final_layer = final_layer

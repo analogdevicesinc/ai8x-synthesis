@@ -15,6 +15,7 @@ from .eprint import eprint
 
 def find_layer(
     layer_name: List,
+#    buffer_name: List,
     sequence: int,
     name: str,
     keyword: str,
@@ -26,6 +27,9 @@ def find_layer(
     name = name.lower()
     if name == 'input':
         return -1
+    #for ll, e in enumerate(buffer_name):
+    #    if e is not None and e.lower() == name:
+    #        return ll
     for ll, e in enumerate(layer_name):
         if e is not None and e.lower() == name:
             return ll
