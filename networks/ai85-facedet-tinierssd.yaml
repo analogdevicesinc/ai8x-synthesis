@@ -1,0 +1,191 @@
+---
+# HWC (little data) configuration for FaceDetection
+# Parallel Model
+
+arch: ai85tinierssdface
+dataset: VGGFace2_FaceDetection
+
+layers:
+
+  # Layer 0: backbone_conv1
+  - out_offset: 0x2000
+    in_offset: 0x0000
+    processors: 0x0000000000000007
+    output_processors: 0x00000000ffff0000
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    max_pool: 2
+    streaming: true
+    pool_stride: 2
+
+  # Layer 1: backbone_conv2
+  - out_offset: 0x4000
+    in_offset: 0x2000
+    processors: 0x00000000ffff0000
+    output_processors: 0xffffffff00000000
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    max_pool: 2
+    streaming: true
+    pool_stride: 2
+
+  # Layer 2: backbone_conv3
+  - out_offset: 0x3000
+    in_offset: 0x4000
+    processors: 0xffffffff00000000
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+
+  # Layer 3: backbone_conv4
+  - out_offset: 0x0000  # 1600
+    in_offset: 0x3000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+  # Layer 4: backbone_conv5
+  - out_offset: 0x3000  # 1600+600 = 1C00
+    in_offset: 0x0000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+  # Layer 5: backbone_conv6
+  - out_offset: 0x0000  # 1600
+    in_offset: 0x3000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+
+  # Layer 6: backbone_conv7
+  - out_offset: 0x3000  # 1600
+    in_offset: 0x0000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+
+  # Layer 7: backbone_conv8
+  - name: backbone_conv8
+    out_offset: 0x0000  # 1C00
+    in_offset: 0x3000
+    processors: 0xffffffffffffffff
+    output_processors: 0x00000000ffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+
+  # Layer 8: backbone_conv9
+  - name: backbone_conv9
+    out_offset: 0x3000
+    in_offset: 0x0000
+    processors: 0x00000000ffffffff
+    output_processors: 0xffffffff00000000
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    max_pool: 2
+    pool_stride: 2
+
+  # Layer 9: backbone_conv10
+  - name: backbone_conv10
+    out_offset: 0x1E70  # 1F00
+    in_offset: 0x3000
+    processors: 0xffffffff00000000
+    output_processors: 0xffffffff00000000
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    max_pool: 2
+    pool_stride: 2
+
+  # Layer 10: conv12_1
+  - name: conv12_1
+    out_offset: 0x0080
+    in_offset: 0x1E70
+    processors: 0xffffffff00000000
+    output_processors: 0xffff000000000000
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+
+  # Layer 11: conv12_2
+  - name: conv12_2
+    out_offset: 0x2080
+    in_offset: 0x0080
+    processors: 0xffff000000000000
+    output_processors: 0x0000ffff00000000
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    max_pool: 2
+    pool_stride: 2
+
+  # Layer 12: loc_conv9
+  - out_offset: 0x0000  # 0000+0930 = 0930
+    in_offset: 0x3000
+    processors: 0xffffffff00000000
+    output_processors: 0x00000000000000ff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    in_sequences: backbone_conv9
+    output: true
+    activate: None
+
+  # Layer 13: loc_conv12_2
+  - out_offset: 0x0930
+    in_offset: 0x2080
+    processors: 0x0000ffff00000000
+    output_processors: 0x00000000000000ff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    in_sequences: conv12_2
+    output: true
+    activate: None
+
+  # Layer 14: cl_conv9
+  - out_offset: 0x0000  # 0000+0930 = 0930
+    in_offset: 0x3000
+    processors: 0xffffffff00000000
+    output_processors: 0x0000000000000f00
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    in_sequences: backbone_conv9
+    output: true
+    activate: None
+
+  # Layer 15: cl_conv12_2
+  - out_offset: 0x0930
+    in_offset: 0x2080
+    processors: 0x0000ffff00000000
+    output_processors: 0x0000000000000f00
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    in_sequences: conv12_2
+    output: true
+    activate: None
