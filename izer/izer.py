@@ -375,7 +375,8 @@ def main():
         wprint(f'The final layer {layer_str(ll)} is not designated as an `output` layer.')
     # Set this since 'layers' may have changed
     operands = params['operands'][:layers]
-    buffer_op = params['buffer_op'][:layers]
+    buffer_insert = params['buffer_insert'][:layers]
+    buffer_shift = params['buffer_shift'][:layers]
 
     # Command line override
     if args.input_offset is not None:
@@ -588,6 +589,9 @@ def main():
             eprint(f'{layer_pfx(ll)}Activation {op.act_string(activation[ll])} cannot '
                    'be used in a passthrough layer.')
 
+        if buffer_shift[ll] is not None and operator[ll] is not op.NONE:
+            eprint(f'{layer_pfx(ll)}Buffer shift can only be used in a passthrough layer.')
+
         # On MAX78002, if an average pool directly follows an element-wise operation, we need
         # to insert a small layer to reset the average pool logic
         if tc.dev.REQUIRE_PASSTHROUGH_AVGPOOL_AFTER_ELTWISE and ll > 0 \
@@ -609,12 +613,13 @@ def main():
     state.bias = bias
     state.bias_group_map = bias_group_map
     state.big_data = big_data
-    state.buffer_op = buffer_op
+    state.buffer_insert = buffer_insert
+    state.buffer_shift = buffer_shift
     state.bypass = bypass
     state.calcx4 = calcx4
     state.conv_groups = conv_groups
     state.data = data
-    state.data_buffer = data_buffer  if 'data_buffer' in cfg else None
+    state.data_buffer = data_buffer if 'data_buffer' in cfg else None
     state.data_buffer_cfg = params['data_buffer_cfg']
     state.dilation = dilation
     state.eltwise = eltwise

@@ -145,9 +145,11 @@ def parse(
     output_layer = [False] * tc.dev.MAX_LAYERS
     unload_custom = []
     data_buffer_cfg = []
+    data_buffer_name = ['']
     layer_name = [None] * tc.dev.MAX_LAYERS
     weight_source = [None] * tc.dev.MAX_LAYERS
-    buffer_op = [None] * tc.dev.MAX_LAYERS
+    buffer_shift = [None] * tc.dev.MAX_LAYERS
+    buffer_insert = [None] * tc.dev.MAX_LAYERS
 
     sequence = 0
     skip = skip_layers
@@ -167,7 +169,7 @@ def parse(
                                  'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
                                  'bias_group', 'bias_quadrant', 'calcx4', 'readahead', 'name',
                                  'pool_dilation', 'output_pad', 'tcalc', 'read_gap', 'output',
-                                 'weight_source','buffer_op'])
+                                 'weight_source','buffer_shift', 'buffer_insert'])
         if bool(cfg_set):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`: '
                    f'{cfg_set}.')
@@ -569,7 +571,8 @@ def parse(
 
         if 'name' in ll:
             val = ll['name']
-            if names.find_layer(layer_name, sequence, val.lower(), 'name', False) is not None:
+            if names.find_layer([layer_name, data_buffer_name],
+                                sequence, val.lower(), 'name', False) is not None:
                 error_exit(f'Duplicate layer name {val} for `name`', sequence)
             if val.lower() in ['stop', 'input']:
                 error_exit(f'Using reserved name {val} for `name`', sequence)
@@ -582,15 +585,24 @@ def parse(
                 weight_source[sequence] = val
             else:
                 weight_source[sequence] = val - skip_layers
-
-        if 'buffer_op' in ll:
-            val = ll['buffer_op']
-            if isinstance(val, str):
-                val = val.lower()
-            if val not in ['shiftright', 'shiftleft', 'insertleft', 'insertright']:
-                error_exit('`buffer_op` must be one of shiftright, shiftleft, insertleft or insertright', sequence)
-            buffer_op[sequence] = val
-
+        
+        if 'buffer_shift' in ll:
+            val = ll['buffer_shift']
+            if not isinstance(val, int):
+                error_exit('`buffer_shift` must be an integer', sequence)
+            if 'in_sequences' not in ll:
+                error_exit('The `buffer_shift` operation requires the name of the buffer '
+                           '(`in_sequences`) to be specified', sequence)
+            buffer_shift[sequence] = val
+        
+        if 'buffer_insert' in ll:
+            val = ll['buffer_insert']
+            if not isinstance(val, int):
+                error_exit('`buffer_insert` must be an integer', sequence)
+            if 'out_offset' not in ll:
+                error_exit('The `buffer_insert` operation requires `out_offset` '
+                           'to be specified', sequence)
+            buffer_insert[sequence] = val
 
         # Fix up values for 1D convolution or no convolution
         if operator[sequence] == op.CONV1D:
@@ -654,7 +666,8 @@ def parse(
             del tcalc[ll]
             del output_layer[ll]
             del weight_source[ll]
-            del buffer_op[ll]
+            del buffer_shift[ll]
+            del buffer_insert[ll]
 
     if 'data_buffer' in cfg:
         #data_buffer_sequence = 0
@@ -662,12 +675,13 @@ def parse(
             cfg_set = set(ll)
 
             if bool(cfg_set - set(['processors', 'dim', 'offset', 'width', 'channels', 'name'])):
-                eprint(f'Configuration file {config_file} contains unknown key(s) for `data_buffer`.')
+                eprint(f'Configuration file {config_file} contains unknown key(s) for '
+                       '`data_buffer`.')
 
             if 'processors' not in cfg_set or 'dim' not in cfg_set or 'channels' not in cfg_set \
-               or 'offset' not in cfg_set:
-                eprint(f'`data_buffer` sequence in configuration file {config_file} does not contain '
-                       '`processors`, `channels`, `dim`, or `offset`.')
+               or 'offset' not in cfg_set or 'name' not in cfg_set:
+                eprint(f'`data_buffer` sequence in configuration file {config_file} does not '
+                       'contain `processors`, `channels`, `dim`, `offset` or `name`.')
 
             data_buffer_proc = ll['processors']
             if isinstance(data_buffer_proc, str):
@@ -695,27 +709,36 @@ def parse(
                 'dim': (data_buffer_channels, data_buffer_dim[0], data_buffer_dim[1]),
                 'offset': data_buffer_offset,
                 'width': data_buffer_width,
-                'name' : data_buffer_name,
+                'name': data_buffer_name,
             })
 
-            #data_buffer_sequence += 1
+        # Check that the required parameters are specified for layers using the data buffer
+        sequence = 0
+        for ll in cfg['layers']:           
+            if in_sequences[sequence] == [data_buffer_name]:
+                if 'in_offset' not in ll or 'out_offset' not in ll or 'in_dim' not in ll \
+                   or 'in_channels' not in ll:
+                    error_exit('Using the data buffer as input to a layer requires `in_offset`, '
+                            '`out_offset`, `in_dim` and `in_channels` to be specified', sequence)
+            sequence += 1
 
     for ll, _ in enumerate(operator):
         # Convert string layer names to sequences
         if isinstance(next_sequence[ll], str):
-            next_sequence[ll] = names.find_layer(layer_name, ll, next_sequence[ll],
-                                                 'next_sequence')
+            next_sequence[ll] = names.find_layer([layer_name, data_buffer_name],
+                                                 ll, next_sequence[ll], 'next_sequence')
         if isinstance(simulated_sequence[ll], str):
-            simulated_sequence[ll] = names.find_layer(layer_name, ll, simulated_sequence[ll],
-                                                      'simulated_sequence')
+            simulated_sequence[ll] = names.find_layer(
+                [layer_name, data_buffer_name], ll, simulated_sequence[ll], 'simulated_sequence')
         if isinstance(weight_source[ll], str):
-            weight_source[ll] = names.find_layer(layer_name, ll, weight_source[ll],
-                                                 'weight_source')
+            weight_source[ll] = names.find_layer([layer_name, data_buffer_name],
+                                                 ll, weight_source[ll], 'weight_source')
         if in_sequences[ll] is not None:
             new_in_sequences = []
             for e in in_sequences[ll]:
                 if isinstance(e, str):
-                    new_in_sequences.append(names.find_layer(layer_name, ll, e, 'in_sequences'))
+                    new_in_sequences.append(names.find_layer([layer_name, data_buffer_name],
+                                                             ll, e, 'in_sequences'))
                 else:
                     new_in_sequences.append(e)
             in_sequences[ll] = new_in_sequences
@@ -729,7 +752,7 @@ def parse(
         # Check that pooling isn't set for ConvTranspose2d:
         if not pool_first[ll] and (operands[ll] == 1 or pool[ll][0] == 1 and pool[ll][1] == 1):
             error_exit('`pool_first: False` requires both pooling and element-wise operations', ll)
-
+    
     if 'unload' in cfg:
         for ll in cfg['unload']:
             cfg_set = set(ll)
@@ -812,6 +835,7 @@ def parse(
     settings['data_buffer_cfg'] = data_buffer_cfg if len(data_buffer_cfg) > 0 else None
     settings['write_gap'] = write_gap
     settings['weight_source'] = weight_source
-    settings['buffer_op'] = buffer_op
+    settings['buffer_shift'] = buffer_shift
+    settings['buffer_insert'] = buffer_insert
 
     return cfg, len(processor_map), settings

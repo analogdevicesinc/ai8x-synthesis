@@ -14,8 +14,7 @@ from .eprint import eprint
 
 
 def find_layer(
-    layer_name: List,
-#    buffer_name: List,
+    all_names: List,  # contains "layer_name"s as first element, "data_buffer_name" as second 
     sequence: int,
     name: str,
     keyword: str,
@@ -27,12 +26,12 @@ def find_layer(
     name = name.lower()
     if name == 'input':
         return -1
-    #for ll, e in enumerate(buffer_name):
-    #    if e is not None and e.lower() == name:
-    #        return ll
-    for ll, e in enumerate(layer_name):
+    layer_names = all_names[0]
+    for ll, e in enumerate(layer_names):
         if e is not None and e.lower() == name:
             return ll
+    if name == all_names[1].lower():
+        return -2   # data buffer
     if error:
         eprint(f'Could not find the `{keyword}` layer name `{name}` in layer sequence '
                f'{sequence} of the YAML configuration file.')

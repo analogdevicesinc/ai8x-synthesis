@@ -48,7 +48,8 @@ class Backend(backend.Backend):
         big_data = state.big_data
         block_mode = state.block_mode
         board_name = state.board_name
-        buffer_op = state.buffer_op
+        buffer_insert = state.buffer_insert
+        buffer_shift = state.buffer_shift
         bypass = state.bypass
         c_filename = state.c_filename
         calcx4 = state.calcx4
@@ -267,11 +268,11 @@ class Backend(backend.Backend):
             nprint(f'The clock divider of {state.clock_divider} exceeds the device maximum '
                    f'({tc.dev.MAX_CNNCLKDIV}).')
 
-        if zero_sram or pretend_zero_sram:
-            # Clear every seventh kernel so we can test the BIST
-            for i, _ in enumerate(kernel):
-                if kernel[i] is not None:
-                    kernel[i][::7] = np.full(shape=kernel[i][0].shape, fill_value=0, dtype=np.int64)
+        #if zero_sram or pretend_zero_sram:
+        # Clear every seventh kernel so we can test the BIST
+        #    for i, _ in enumerate(kernel):
+        #        if kernel[i] is not None:
+        #            kernel[i][::7] = np.full(shape=kernel[i][0].shape, fill_value=0, dtype=np.int64)
 
         if state.result_output and (state.mlator or oneshot or stopstart):
             state.result_output = False
@@ -2992,7 +2993,7 @@ class Backend(backend.Backend):
                 if operator[ll] == op.CONV1D:
                     assert input_dim[ll][1] == 1
                     data = data.reshape(data.shape[0], -1, input_dim[ll][0])
-                elif buffer_op[ll] != 'shiftleft': #todo: check this, what exactly is the purpose?
+                elif buffer_shift[ll] == None:
                     data = data.reshape(data.shape[0], -1, input_dim[ll][0], input_dim[ll][1])
 
                 # In-flight pooling
@@ -3028,7 +3029,7 @@ class Backend(backend.Backend):
                         eprint(f'{layer_pfx(ll)}Input dimensions do not match. '
                                f'Expected: {in_chan}x{pooled_dim[ll][0]}, '
                                f'got {out_size[0]}x{out_size[1]}.')
-                elif buffer_op[ll] != 'shiftleft': #todo: this is a temporary solution, add relevant checks to shift ops as well
+                elif buffer_shift[ll] == None:
                     if out_size[0] != in_chan \
                        or out_size[1] != pooled_dim[ll][0] or out_size[2] != pooled_dim[ll][1]:
                         eprint(f'{layer_pfx(ll)}Input dimensions do not match. '
@@ -3169,10 +3170,19 @@ class Backend(backend.Backend):
                 else:
                     eprint(f'Unknown operator `{op.string(operator[ll])}`.')
 
-                if buffer_op[ll] == 'shiftleft': # modify buffer
-                    np.roll(data_buffer, -1)
-                elif buffer_op[ll] == 'insertright': # modify buffer
-                    data_buffer[:,[-1],:] = out_buf
+                if buffer_shift[ll] != None:
+                    # todo: check shape (whether 1D, 2D) against in_dim & in_channels
+                    data_buffer = np.roll(data_buffer, -buffer_shift[ll], axis=2)
+                    if buffer_shift[ll] > 0:
+                        data_buffer[:, -buffer_shift[ll]:, :] = 0
+                    else:
+                        data_buffer[:, :-buffer_shift[ll], :] = 0
+                if buffer_insert[ll] != None:
+                    # todo: check shape of out_buf (whether 1D, 2D) against in_dim & in_channels
+                    if buffer_insert[ll] > 0:
+                        data_buffer[:, -buffer_insert[ll]:, :] = out_buf
+                    else:
+                        data_buffer[:, :-buffer_insert[ll], :] = out_buf
 
                 if operator[ll] in [op.CONV2D, op.LINEAR, op.CONVTRANSPOSE2D, op.CONV1D]:
                     if weightsfile is not None:
@@ -3203,7 +3213,8 @@ class Backend(backend.Backend):
                     # Operator output
                     np.save(datafile, out_buf, allow_pickle=False, fix_imports=False)
 
-                if buffer_op[ll] != 'shiftleft': #todo: this is a temporary solution, add relevant checks to shift ops as well
+                # todo: add relevant checks to shift ops
+                if buffer_shift[ll] == None:
                     assert out_size[0] == output_chan[ll] \
                         and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
                     assert out_size[0] == output_size[ll][0] \
