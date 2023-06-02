@@ -1,0 +1,1585 @@
+---
+# Feature Pyramid Network Detector for Object Detection
+# HWC (little data) configuration for Pascal VOC dataset with 21 classes
+# Compatible with MAX78002
+
+# YAML file for KAT-3: for testing regression network's first resolution
+# outputs (other resolutions will be tested using KAT-4)
+#
+# (the classificaiton network can be verified using
+#  scripts/gen_pascalvoc_fpndetector_max78002_KAT1.sh and
+#  scripts/gen_pascalvoc_fpndetector_max78002_KAT2.sh)
+#
+# Identical to networks/ai87-pascalvoc-fpndetector.yaml except:
+# - output fields of classificaiton network (layers 52, 61, 70, 79)
+# is commented out
+# see: scripts/gen_pascalvoc_fpndetector_max78002_KAT3.sh
+
+# ------------   Global Configuration   ------------
+
+# The name of the model as in training
+arch: ai87fpndetector
+
+# The name of the dataset as in training
+dataset: PascalVOC_2007_2012_256_320_augmented
+
+# Model Outputs:
+#
+# Class predictions   : (32x40 + 16x20 + 8x10 + 4x5) * 6 * 21 = 10200 * 21
+#                       0x0000 - 0xD480 (1700 x 32: wide & multi-pass)
+#
+# 0x0000 - 0xA000: 32x40x121 (&wide)
+# 0xA000 - 0xC800: 16x20x121 (&wide)
+# 0xC800 - 0xD200: 8x10x121 (&wide)
+# 0xD200 - 0xD480: 4x5x121 (&wide)
+#
+# Location predictions: (32x40 + 16x20 + 8x10 + 4x5) * 6 * 4 = 10200 * 4
+#                       0xD500 - 0xEF90 (1700 x 4)
+#
+# 0xD500 - 0xE900: 32x40x24
+# 0xE900 - 0xEE00: 16x20x24
+# 0xEE00 - 0xEF40: 8x10x24
+# 0xEF40 - 0xEF90: 4x5x24
+#
+## Note: Feature pyramid network outputs should be fixed in memory and
+#        not be overwritten as these will be used by classification
+#        and regression networks
+# Memory map for these outputs:
+#
+# FPN_out_4_5  : 0xF000-0xF0A0 (4x5x64, gap:1, protect after Layer 34 until x)
+# FPN_out_8_10 : 0xF0A0-0xF1E0 (8x10x64, protect after Layer 37 until x)
+# FPN_out_16_20: 0xF1E0-0xF6E0 (16x20x64, protect after Layer 40 until x)
+# FPN_out_32_40: 0xF6E0-0x10AE0 (32x40x64, protect after Layer 43 until x)
+#
+# Note: Similarly, enc_32_40 and others, skip_32_40 and others are also
+#       protected layer outputs
+#
+# NOTE: Model outputs cannot fit into Flash all together.
+#       Output layers therefore should be verified using independent experiments
+#       see sh files for KAT experiments.
+#
+#       For energy tests and for testing on EVKit, do NOT forget to enable
+#       all output fields and add --no-kat option to izer
+
+layers:
+
+  # ------------   RetinaNetv7: Initial Pre-process Layers  ------------
+
+  # Layer 0: in 3ch, out 64 ch, (256, 320) -> (256, 320)
+  - out_offset: 0x1000
+    processors: 0x0000000000000007
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    streaming: true
+    name: preprocess_layer_1
+
+  # Layer 1: in 64ch, out 64 ch, (256, 320) -> (256, 320)
+  - out_offset: 0x2000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    streaming: true
+    name: preprocess_layer_2
+
+  # ------------   RetinaNet4: ResNetBackbone Layers   ------------
+
+  ## ------ RetinaNetv4: ResNetBackbone - Residual 0 (residual_256_320) -------
+
+  # Layer 2: BB0: residual_256_320 - preprocess:
+  #          in 64ch, out 64 ch, (256, 320) -> (128, 160)
+  - max_pool: 2
+    pool_stride: 2
+    out_offset: 0x3000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    streaming: true
+    name: BB0_preprocess
+
+  # Layer 3: BB0: residual_256_320 - res_layers[0]:
+  #          in 64ch, out 64 ch, (128, 160) -> (128, 160)
+  - out_offset: 0x4000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    streaming: true
+
+  # Layer 4: BB0: residual_256_320 - res_layers[1]:
+  #          in 64ch, out 64 ch, (128, 160) -> (128, 160)
+  - out_offset: 0x5000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    streaming: true
+    name: BB0_conv2
+
+  ## ------- RetinaNetv4: ResNetBackbone - Residual 1 (residual_128_160) ------
+  # Layer 5: BB1: residual_128_160 - preprocess:
+  #          in 64ch, out 64 ch, (128, 160) -> (64, 80)
+  - max_pool: 2
+    pool_stride: 2
+    out_offset: 0x6000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    activate: ReLU
+    pad: 1
+    streaming: true
+    write_gap: 1
+    name: BB1_preprocess
+
+  # Layer 6: BB1: residual_128_160 - res_layers[0]:
+  #          in 64ch, out 64 ch, (64, 80) -> (64, 80)
+  - out_offset: 0x0000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+
+  # Layer 7: BB1: residual_128_160 - res_layers[1]:
+  #          in 64ch, out 64 ch, (64, 80) -> (64, 80)
+  - out_offset: 0x6004
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: BB1_conv2
+
+  # Layer 8: BB1: residual_128_160 - preprocess + res_layers[1]:
+  #          in 64ch, out 64 ch, (64, 80) -> (64, 80)
+  - in_sequences: [BB1_preprocess, BB1_conv2]
+    in_offset: 0x6000
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: enc_64_80
+
+  ## ----- RetinaNetv4: ResNetBackbone - Residual 2 (residual_64_80_pre) ------
+
+  # Layer 9: BB2: residual_64_80_pre - preprocess:
+  #          in 64ch, out 64 ch, (64, 80) -> (64, 80)
+  - out_offset: 0x5000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: BB2_preprocess
+
+  # Layer 10: BB2: residual_64_80_pre - res_layers[0]:
+  #           in 64ch, out 64 ch, (64, 80) -> (64, 80)
+  - out_offset: 0xF000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+
+  # Layer 11: BB2: residual_64_80_pre - res_layers[1]:
+  #           in 64ch, out 64 ch, (64, 80) -> (64, 80)
+  - out_offset: 0x5004
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: BB2_conv2
+
+  # Layer 12: BB2: residual_64_80_pre - preprocess + res_layers[1]:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - in_sequences: [BB2_preprocess, BB2_conv2]
+    in_offset: 0x5000
+    out_offset: 0xF000
+    processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: enc_64_80_2
+
+  ## ------- RetinaNetv4: ResNetBackbone - Residual 3 (residual_64_80)--------
+
+  # Layer 13: BB3: residual_64_80 - preprocess:
+  #           in 64ch, out 64 ch, (64, 80) -> (32, 40)
+  - max_pool: 2
+    pool_stride: 2
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: BB3_preprocess
+
+  # Layer 14: BB3: residual_64_80 - res_layers[0]:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - out_offset: 0x3000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+
+  # Layer 15: BB3: residual_64_80 - res_layers[1]:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - out_offset: 0x0004
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: BB3_conv2
+
+  # Layer 16: BB3: residual_64_80 - preprocess + res_layers[1]:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - in_sequences: [BB3_preprocess, BB3_conv2]
+    in_offset: 0x0000
+    out_offset: 0xA000
+    processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: enc_32_40
+
+  ## -------- RetinaNetv4: ResNetBackbone - Residual 4 (residual_32_40) --------
+  # Layer 17: BB4: residual_32_40 - preprocess:
+  #           in 64ch, out 64 ch, (32, 40) -> (16, 20)
+  - max_pool: 2
+    pool_stride: 2
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: BB4_preprocess
+
+  # Layer 18: BB4: residual_32_40 - res_layers[0]:
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - out_offset: 0x2000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+
+  # Layer 19: BB4: residual_32_40 - res_layers[1]:
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - out_offset: 0x0004
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: BB4_conv2
+
+  # Layer 20: BB4: residual_32_40 - preprocess + res_layers[1]:
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - in_sequences: [BB4_preprocess, BB4_conv2]
+    in_offset: 0x0000
+    out_offset: 0xB400
+    processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: enc_16_20
+
+  ## -------- RetinaNetv4: ResNetBackbone - Residual 5 (residual_16_20) -------
+  # Layer 21: BB5: residual_16_20 - preprocess:
+  #           in 64 ch, out 128 ch, (16, 20) -> (8, 10)
+  - max_pool: 2
+    pool_stride: 2
+    out_offset: 0x5000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    name: BB5_preprocess
+    # Note: can not use write_gap in this layer: `read_gap` must be 0 when
+    # using more than 64 channels or multi-pass on this device.
+    # Thereforei additional gapping layer will be added after next conv
+
+  # Layer 22: BB5: residual_16_20 - res_layers[0]:
+  #           in 128 ch, out 128 ch, (8, 10) -> (8, 10)
+  - out_offset: 0x2000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    name: BB5_conv1
+
+  # Layer 23: gapped version of BB5_preprocess: 128 ch, (8, 10) -> (8, 10)
+  - in_sequences: [BB5_preprocess]
+    in_offset: 0x5000
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: none
+    write_gap: 1
+    name: BB5_preprocess_gapped
+
+  # Layer 24: BB5: residual_16_20 - res_layers[1]:
+  #           in 128 ch, out 128 ch, (8, 10) -> (8, 10)
+  - in_sequences: [BB5_conv1]
+    in_offset: 0x2000
+    out_offset: 0x0004
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: BB5_conv2
+
+  # Layer 25: BB5: residual_16_20 - preprocess + res_layers[1]:
+  #           in 128 ch, out 128 ch, (8, 10) -> (8, 10)
+  - in_sequences: [BB5_preprocess_gapped, BB5_conv2]
+    in_offset: 0x0000
+    out_offset: 0xB900
+    processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: enc_8_10
+
+  ## -------- RetinaNetv4: ResNetBackbone - Residual 6 (residual_8_10) --------
+  # Layer 26: BB6: residual_8_10 - preprocess:
+  #           in 128 ch, out 128 ch, (8, 10) -> (4, 5)
+  - in_sequences: [enc_8_10]
+    in_offset: 0xB900
+    max_pool: 2
+    pool_stride: 2
+    out_offset: 0x5000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    name: BB6_preprocess
+    # Note: can not use write_gap in this layer: `read_gap` must be 0 when
+    # using more than 64 channels or multi-pass on this device.
+    # Therefore additional gapping layer will be added after next conv
+
+  # Layer 27: BB6: residual_8_10 - res_layers[0]:
+  #           in 128 ch, out 128 ch, (4, 5) -> (4, 5)
+  - out_offset: 0x2000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    name: BB6_conv1
+
+  # Layer 28: gapped version of BB6_preprocess
+  - in_sequences: [BB6_preprocess]
+    in_offset: 0x5000
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: none
+    write_gap: 1
+    name: BB6_preprocess_gapped
+
+  # Layer 29: BB6: residual_8_10 - res_layers[1]:
+  #           in 128 ch, out 128 ch, (4, 5) -> (4, 5)
+  - in_sequences: [BB6_conv1]
+    in_offset: 0x2000
+    out_offset: 0x0004
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: BB6_conv2
+
+  # Layer 30: BB6: residual_8_10 - preprocess + res_layers[1]:
+  #           in 128 ch, out 128 ch, (4, 5) -> (4, 5)
+  - in_sequences: [BB6_preprocess_gapped, BB6_conv2]
+    in_offset: 0x0000
+    out_offset: 0xBB80
+    processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: enc_4_5
+
+  # # --------- RetinaNetv4: Feature Pyramid Network (FPN) Layers ------------
+
+  # Layer 31: FPN_skip0: skip_32_40:
+  #           in 64 ch, out 64 ch, (32, 40) -> (32, 40)
+  - in_offset: 0xA000
+    in_sequences: enc_32_40
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
+    write_gap: 1
+    name: skip_32_40
+
+  # Layer 32: FPN_skip1: skip_16_20: in 64 ch, out 64 ch, (16, 20) -> (16, 20)
+  - in_offset: 0xB400
+    in_sequences: enc_16_20
+    out_offset: 0x2800
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
+    write_gap: 1
+    name: skip_16_20
+
+  # Layer 33: FPN_skip2: skip_8_10: in 128 ch, out 64 ch, (8, 10) -> (8, 10)
+  - in_offset: 0xB900
+    in_sequences: enc_8_10
+    out_offset: 0xA004
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
+    write_gap: 1
+    name: skip_8_10
+
+  # Layer 34: FPN_skip3: skip_4_5: in 128 ch, out 64 ch, (4, 5) -> (4, 5)
+  - in_sequences: enc_4_5
+    in_offset: 0xBB80
+    out_offset: 0xF000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
+    name: FPN_out_4_5
+
+  # Layer 35: FPN_upconv0: upconv_4_5: in 64ch, out 64 ch, (4, 5) -> (8, 10)
+  - in_sequences: FPN_out_4_5
+    out_offset: 0xA000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: ConvTranspose2d
+    kernel_size: 3x3
+    pad: 1
+    activate: none
+    write_gap: 1
+    name: up_conv_4_5
+
+  # Layer 36: Add skip_8_10 + upconv_4_5(skip_4_5)
+  - in_sequences: [up_conv_4_5, skip_8_10]
+    in_offset: 0xA000
+    out_offset: 0x3200
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: out_8_10
+
+  # Layer 37: process_8_10(out_8_10): in 64ch, out 64 ch, (8, 10) -> (8, 10)
+  - out_offset: 0xF0A0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    name: FPN_out_8_10
+
+  # Layer 38: FPN_upconv1: upconv_8_10: in 64ch, out 64 ch, (8, 10) -> (16, 20)
+  - in_sequences: FPN_out_8_10
+    out_offset: 0x2804
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: ConvTranspose2d
+    kernel_size: 3x3
+    pad: 1
+    activate: none
+    write_gap: 1
+    name: upconv_8_10
+
+  # Layer 39: Add skip_16_20 + upconv_8_10(FPN_out_8_10):
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - in_sequences: [skip_16_20, upconv_8_10]
+    in_offset: 0x2800
+    out_offset: 0x3200
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: out_16_20
+
+  # Layer 40: process_16_20(out_16_20): in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - out_offset: 0xF1E0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    name: FPN_out_16_20
+
+  # Layer 41: FPN_upconv2: upconv_16_20:
+  #           in 64ch, out 64 ch, (16, 20) -> (32, 40)
+  - in_sequences: FPN_out_16_20
+    out_offset: 0x0004
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: ConvTranspose2d
+    kernel_size: 3x3
+    pad: 1
+    activate: none
+    write_gap: 1
+    name: upconv_16_20
+
+  # Layer 42: Add skip_32_40 + upconv_16_20(FPN_out_16_20)
+  - in_sequences: [skip_32_40, upconv_16_20]
+    in_offset: 0x0000
+    out_offset: 0x3200
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: out_32_40
+
+  # Layer 43: process_32_40(out_32_40):
+  #           in 64 ch, out 64 ch, (32, 40) -> (32, 40)
+  - out_offset: 0xF6E0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    name: FPN_out_32_40
+
+  # ------------   RetinaNetv4: Classification Model Layers   ------------
+
+  ## Classification Model Layers for Features 32_40 -------
+
+  ### Classification Model Layers for Features 32_40: Residual 0 (res_conv1) ---
+
+  # Layer 44: res0 - preprocess:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - in_sequences: FPN_out_32_40
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: class_32_40_res0_preprocess
+
+  # Layer 45: res0 - res_layers[0]:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - out_offset: 0x2800
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+    name: class_32_40_res0_conv1
+
+  # Layer 46: res0 - res_layers[1]:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - out_offset: 0x0004
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: class_32_40_res0_conv2
+
+  # Layer 47: res0 - preprocess + res_layers[1]:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - in_sequences: [class_32_40_res0_preprocess, class_32_40_res0_conv2]
+    in_offset: 0x0000
+    out_offset: 0x3C00
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: class_32_40_res0
+
+  ### Classification Model Layers for Features 32_40: Residual 1 (res_conv2) ---
+
+  # Layer 48: res1 - preprocess:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - in_sequences: class_32_40_res0
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: class_32_40_res1_preprocess
+
+  # Layer 49: res1 - res_layers[0]:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - out_offset: 0x2800
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+    name: class_32_40_res1_conv1
+
+  # Layer 50: res1 - res_layers[1]:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - out_offset: 0x0004
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: class_32_40_res1_conv2
+
+  # Layer 51: res1 - preprocess + res_layers[1]:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - in_sequences: [class_32_40_res1_preprocess, class_32_40_res1_conv2]
+    in_offset: 0x0000
+    out_offset: 0xA000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: class_32_40_res1
+
+  ### Classification Model Layers for Features 32_40: conv5 -------
+
+  # Layer 52: class_32_40_conv5:
+  #           in 64ch, out 6 * 21 = 126 ch, (32, 40) -> (32, 40)
+  - out_offset: 0x0000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: none
+    name: class_preds_from_32_40
+    output_width: 32
+    # output: true
+
+  ## Classification Model Layers for Features 16_20 -------
+
+  ### Classification Model Layers for Features 16_20: Residual 0 (res_conv1) ---
+
+  # Layer 53: res0 - preprocess:
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - in_sequences: FPN_out_16_20
+    in_offset: 0xF1E0
+    out_offset: 0xA000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: class_16_20_res0_preprocess
+    weight_source: class_32_40_res0_preprocess
+
+  # Layer 54: res0 - res_layers[0]:
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - out_offset: 0xC800
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+    weight_source: class_32_40_res0_conv1
+
+  # Layer 55: res0 - res_layers[1]:
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - out_offset: 0xA004
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: class_16_20_res0_conv2
+    weight_source: class_32_40_res0_conv2
+
+  # Layer 56: res0 - preprocess + res_layers[0]:
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - in_sequences: [class_16_20_res0_preprocess, class_16_20_res0_conv2]
+    in_offset: 0xA000
+    out_offset: 0xDC00
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: class_16_20_res0
+    weight_source: class_32_40_res0
+
+  ### Classification Model Layers for Features 16_20: Residual 1 (res_conv2) ---
+
+  # Layer 57: res1 - preprocess:
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - in_sequences: class_16_20_res0
+    out_offset: 0xA000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: class_16_20_res1_preprocess
+    weight_source: class_32_40_res1_preprocess
+
+  # Layer 58: res1 - res_layers[0]:
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - out_offset: 0xC800
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+    weight_source: class_32_40_res1_conv1
+
+  # Layer 59: res1 - res_layers[1]:
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - out_offset: 0xA004
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: class_16_20_res1_conv2
+    weight_source: class_32_40_res1_conv2
+
+  # Layer 60: res1 - preprocess + res_layers[1]:
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - in_sequences: [class_16_20_res1_preprocess, class_16_20_res1_conv2]
+    in_offset: 0xA000
+    out_offset: 0xDC00
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: class_16_20_res1
+    weight_source: class_32_40_res1
+
+  ### Classification Model Layers for Features 16_20: conv5 -------
+
+  # Layer 61: class_16_20_conv5:
+  #           in 64ch, out 6 * 21 = 126 ch, (16, 20) -> (16, 20)
+  - out_offset: 0xA000
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: none
+    name: class_preds_from_16_20
+    output_width: 32
+    # output: true
+    weight_source: class_preds_from_32_40
+
+  ## Classification Model Layers for Features 8_10 -------
+
+  ### Classification Model Layers for Features 8_10: Residual 0 (res_conv1) ---
+
+  # Layer 62: res0 - preprocess:
+  #           in 64ch, out 64 ch, (8, 10) -> (8, 10)
+  - in_sequences: FPN_out_8_10
+    in_offset: 0xF0A0
+    out_offset: 0xC800
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: class_8_10_res0_preprocess
+    weight_source: class_32_40_res0_preprocess
+
+  # Layer 63: res0 - res_layers[0]:
+  #           in 64ch, out 64 ch, (8, 10) -> (8, 10)
+  - out_offset: 0xCA80
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+    weight_source: class_32_40_res0_conv1
+
+  # Layer 64: res0 - res_layers[1]:
+  #           in 64ch, out 64 ch, (8, 10) -> (8, 10)
+  - out_offset: 0xC804
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: class_8_10_res0_conv2
+    weight_source: class_32_40_res0_conv2
+
+  # Layer 65: res0 - preprocess + res_layers[1]:
+  #           in 64ch, out 64 ch, (8, 10) -> (8, 10)
+  - in_sequences: [class_8_10_res0_preprocess, class_8_10_res0_conv2]
+    in_offset: 0xC800
+    out_offset: 0xD500
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: class_8_10_res0
+    weight_source: class_32_40_res0
+
+  ### Classification Model Layers for Features 8_10: Residual 1 (res_conv2) ---
+
+  # Layer 66: res1 - preprocess:
+  #           in 64ch, out 64 ch, (8, 10) -> (8, 10)
+  - in_sequences: class_8_10_res0
+    out_offset: 0xC800
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: class_8_10_res1_preprocess
+    weight_source: class_32_40_res1_preprocess
+
+  # Layer 67: res1 - res_layers[0]:
+  #           in 64ch, out 64 ch, (8, 10) -> (8, 10)
+  - out_offset: 0xCA80
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+    weight_source: class_32_40_res1_conv1
+
+  # Layer 68: res1 - res_layers[1]:
+  #           in 64ch, out 64 ch, (8, 10) -> (8, 10)
+  - out_offset: 0xC804
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: class_8_10_res1_conv2
+    weight_source: class_32_40_res1_conv2
+
+  # Layer 69: res1 - preprocess + res_layers[1]:
+  #           in 64ch, out 64 ch, (8, 10) -> (8, 10)
+  - in_sequences: [class_8_10_res1_preprocess, class_8_10_res1_conv2]
+    in_offset: 0xC800
+    out_offset: 0xDC00
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: class_8_10_res1
+    weight_source: class_32_40_res1
+
+  ### Classification Model Layers for Features 8_10: conv5 -------
+
+  # Layer 70: class_8_10_conv5:
+  #           in 64ch, out 6 * 21 = 126 ch, (8, 10) -> (8, 10)
+  - out_offset: 0xC800
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: none
+    name: class_preds_from_8_10
+    output_width: 32
+    # output: true
+    weight_source: class_preds_from_32_40
+
+  ## Classification Model Layers for Features 4_5 -------
+
+  ### Classification Model Layers for Features 4_5: Residual 0 (res_conv1) ---
+
+  # Layer 71: res0 - preprocess:
+  #           in 64ch, out 64 ch, (4, 5) -> (4, 5)
+  - in_sequences: FPN_out_4_5
+    in_offset: 0xF000
+    out_offset: 0xD200
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: class_4_5_res0_preprocess
+    weight_source: class_32_40_res0_preprocess
+
+  # Layer 72: res0 - res_layers[0]:
+  #           in 64ch, out 64 ch, (4, 5) -> (4, 5)
+  - out_offset: 0xD2A0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+    weight_source: class_32_40_res0_conv1
+
+  # Layer 73: res0 - res_layers[1]:
+  #           in 64ch, out 64 ch, (4, 5) -> (4, 5)
+  - out_offset: 0xD204
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: class_4_5_res0_conv2
+    weight_source: class_32_40_res0_conv2
+
+  # Layer 74: res0 - preprocess + res_layers[1]:
+  #           in 64ch, out 64 ch, (4, 5) -> (4, 5)
+  - in_sequences: [class_4_5_res0_preprocess, class_4_5_res0_conv2]
+    in_offset: 0xD200
+    out_offset: 0xD500
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: class_4_5_res0
+    weight_source: class_32_40_res0
+
+  ### Classification Model Layers for Features 4_5: Residual 1 (res_conv2) ---
+
+  # Layer 75: res1 - preprocess:
+  #           in 64ch, out 64 ch, (4, 5) -> (4, 5)
+  - in_sequences: class_4_5_res0
+    out_offset: 0xD200
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: class_4_5_res1_preprocess
+    weight_source: class_32_40_res1_preprocess
+
+  # Layer 76: res1 - res_layers[0]:
+  #           in 64ch, out 64 ch, (4, 5) -> (4, 5)
+  - out_offset: 0xD2A0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+    weight_source: class_32_40_res1_conv1
+
+  # Layer 77: res1 - res_layers[1]:
+  #           in 64ch, out 64 ch, (4, 5) -> (4, 5)
+  - out_offset: 0xD204
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: class_4_5_res1_conv2
+    weight_source: class_32_40_res1_conv2
+
+  # Layer 78: res1 - preprocess + res_layers[1]:
+  #           in 64ch, out 64 ch, (4, 5) -> (4, 5)
+  - in_sequences: [class_4_5_res1_preprocess, class_4_5_res1_conv2]
+    in_offset: 0xD200
+    out_offset: 0xDC00
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: class_4_5_res1
+    weight_source: class_32_40_res1
+
+  ### Classification Model Layers for Features 4_5: conv5 -------
+
+  # Layer 79: class_8_10_conv5:
+  #           in 64ch, out 6 * 21 = 126 ch, (4, 5) -> (4, 5)
+  - out_offset: 0xD200
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: none
+    name: class_preds_from_4_5
+    output_width: 32
+    # output: true
+    weight_source: class_preds_from_32_40
+
+  # ------------   RetinaNetv4: Regression Model Layers   ------------
+
+  ## Regression Model Layers for Features 32_40 -------
+
+  ### Regression Model Layers for Features 32_40: Residual 0 (res_conv1) ---
+
+  # Layer 80: res0 - preprocess:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - in_sequences: FPN_out_32_40
+    in_offset: 0xF6E0
+    out_offset: 0x10AE0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: loc_32_40_res0_preprocess
+
+  # Layer 81: res0 - res_layers[0]:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - out_offset: 0xF6E0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+    name: loc_32_40_res0_conv1
+
+  # Layer 82: res0 - res_layers[1]:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - out_offset: 0x10AE4
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: loc_32_40_res0_conv2
+
+  # Layer 83: res0 - preprocess + res_layers[1]:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - in_sequences: [loc_32_40_res0_preprocess, loc_32_40_res0_conv2]
+    in_offset: 0x10AE0
+    out_offset: 0xF6E0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: loc_32_40_res0
+
+  ### Regression Model Layers for Features 32_40: Residual 1 (res_conv2) ---
+
+  # Layer 84: res1 - preprocess:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - in_sequences: loc_32_40_res0
+    out_offset: 0x10AE0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: loc_32_40_res1_preprocess
+
+  # Layer 85: res1 - res_layers[0]:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - out_offset: 0xF6E0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+    name: loc_32_40_res1_conv1
+
+  # Layer 86: res1 - res_layers[1]:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - out_offset: 0x10AE4
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: loc_32_40_res1_conv2
+
+  # Layer 87: res1 - preprocess + res_layers[1]:
+  #           in 64ch, out 64 ch, (32, 40) -> (32, 40)
+  - in_sequences: [loc_32_40_res1_preprocess, loc_32_40_res1_conv2]
+    in_offset: 0x10AE0
+    out_offset: 0xF6E0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: loc_32_40_res1
+
+  # Layer 88: loc_32_40_conv5:
+  #           in 64ch, out 6 * 4 = 24 ch, (32, 40) -> (32, 40)
+  - out_offset: 0xD500
+    processors: 0xffffffffffffffff
+    output_processors: 0x000000000000ffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: none
+    name: loc_preds_from_32_40
+    output: true
+
+  ## Regression Model Layers for Features 16_20 -------
+
+  ### Regression Model Layers for Features 16_20: Residual 0 (res_conv1) ---
+
+  # Layer 89: res0 - preprocess:
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - in_sequences: FPN_out_16_20
+    in_offset: 0xF1E0
+    out_offset: 0x10AE0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: loc_16_20_res0_preprocess
+    weight_source: loc_32_40_res0_preprocess
+
+  # Layer 90: res1 - res_layers[0]:
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - out_offset: 0xF6E0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+    name: loc_16_20_res0_conv1
+    weight_source: loc_32_40_res0_conv1
+
+  # Layer 91: res1 - res_layers[1]:
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - out_offset: 0x10AE4
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: loc_16_20_res0_conv2
+    weight_source: loc_32_40_res0_conv2
+
+  # Layer 92: res1 - preprocess + res_layers[1]:
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - in_sequences: [loc_16_20_res0_preprocess, loc_16_20_res0_conv2]
+    in_offset: 0x10AE0
+    out_offset: 0xF6E0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: loc_16_20_res0
+    weight_source: loc_32_40_res0
+
+  ### Regression Model Layers for Features 16_20: Residual 1 (res_conv2) ---
+
+  # Layer 93: res0 - preprocess:
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - in_sequences: loc_16_20_res0
+    out_offset: 0x10AE0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: loc_16_20_res1_preprocess
+    weight_source: loc_32_40_res1_preprocess
+
+  # Layer 94: res1 - res_layers[0]:
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - out_offset: 0xF6E0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+    name: loc_16_20_res1_conv1
+    weight_source: loc_32_40_res1_conv1
+
+  # Layer 95: res1 - res_layers[1]:
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - out_offset: 0x10AE4
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: loc_16_20_res1_conv2
+    weight_source: loc_32_40_res1_conv2
+
+  # Layer 96: res1 - preprocess + res_layers[1]:
+  #           in 64ch, out 64 ch, (16, 20) -> (16, 20)
+  - in_sequences: [loc_16_20_res1_preprocess, loc_16_20_res1_conv2]
+    in_offset: 0x10AE0
+    out_offset: 0xF6E0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: loc_16_20_res1
+    weight_source: loc_32_40_res1
+
+  # Layer 97: loc_16_20_conv5:
+  #           in 64ch, out 6 * 4 = 24 ch, (16, 20) -> (16, 20)
+  - out_offset: 0xE900
+    processors: 0xffffffffffffffff
+    output_processors: 0x000000000000ffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: none
+    name: loc_preds_from_16_20
+    output: true
+    weight_source: loc_preds_from_32_40
+
+  ## Regression Model Layers for Features 8_10 -------
+
+  ### Regression Model Layers for Features 8_10: Residual 0 (res_conv1) ---
+
+  # Layer 98: res0 - preprocess:
+  #           in 64ch, out 64 ch, (8, 10) -> (8, 10)
+  - in_sequences: FPN_out_8_10
+    in_offset: 0xF0A0
+    out_offset: 0x10AE0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: loc_8_10_res0_preprocess
+    weight_source: loc_32_40_res0_preprocess
+
+  # Layer 99: res1 - res_layers[0]:
+  #           in 64ch, out 64 ch, (8, 10) -> (8, 10)
+  - out_offset: 0xF6E0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+    name: loc_8_10_res0_conv1
+    weight_source: loc_32_40_res0_conv1
+
+  # Layer 100: res1 - res_layers[1]:
+  #            in 64ch, out 64 ch, (8, 10) -> (8, 10)
+  - out_offset: 0x10AE4
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: loc_8_10_res0_conv2
+    weight_source: loc_32_40_res0_conv2
+
+  # Layer 101: res1 - preprocess + res_layers[1]:
+  #            in 64ch, out 64 ch, (8, 10) -> (8, 10)
+  - in_sequences: [loc_8_10_res0_preprocess, loc_8_10_res0_conv2]
+    in_offset: 0x10AE0
+    out_offset: 0xF6E0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: loc_8_10_res0
+    weight_source: loc_32_40_res0
+
+  ### Regression Model Layers for Features 8_10: Residual 1 (res_conv2) ---
+
+  # Layer 102: res0 - preprocess:
+  #            in 64ch, out 64 ch, (8, 10) -> (8, 10)
+  - in_sequences: loc_8_10_res0
+    out_offset: 0x10AE0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: loc_8_10_res1_preprocess
+    weight_source: loc_32_40_res1_preprocess
+
+  # Layer 103: res1 - res_layers[0]:
+  #            in 64ch, out 64 ch, (8, 10) -> (8, 10)
+  - out_offset: 0xF6E0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+    name: loc_8_10_res1_conv1
+    weight_source: loc_32_40_res1_conv1
+
+  # Layer 104: res1 - res_layers[1]:
+  #            in 64ch, out 64 ch, (8, 10) -> (8, 10)
+  - out_offset: 0x10AE4
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: loc_8_10_res1_conv2
+    weight_source: loc_32_40_res1_conv2
+
+  # Layer 105: res1 - preprocess + res_layers[1]:
+  #            in 64ch, out 64 ch, (8, 10) -> (8, 10)
+  - in_sequences: [loc_8_10_res1_preprocess, loc_8_10_res1_conv2]
+    in_offset: 0x10AE0
+    out_offset: 0xF6E0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: loc_8_10_res1
+    weight_source: loc_32_40_res1
+
+  # Layer 106: loc_8_10_conv5:
+  #            in 64ch, out 6 * 4 = 24 ch, (8, 10) -> (8, 10)
+  - out_offset: 0xEE00
+    processors: 0xffffffffffffffff
+    output_processors: 0x000000000000ffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: none
+    name: loc_preds_from_8_10
+    output: true
+    weight_source: loc_preds_from_32_40
+
+  ## Regression Model Layers for Features 4_5 -------
+
+  ### Regression Model Layers for Features 4_5: Residual 0 (res_conv1) ---
+
+  # Layer 107: res0 - preprocess:
+  #            in 64ch, out 64 ch, (4, 5) -> (4, 5)
+  - in_sequences: FPN_out_4_5
+    in_offset: 0xF000
+    out_offset: 0x10AE0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: loc_4_5_res0_preprocess
+    weight_source: loc_32_40_res0_preprocess
+
+  # Layer 108: res1 - res_layers[0]:
+  #            in 64ch, out 64 ch, (4, 5) -> (4, 5)
+  - out_offset: 0xF6E0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+    name: loc_4_5_res0_conv1
+    weight_source: loc_32_40_res0_conv1
+
+  # Layer 109: res1 - res_layers[1]:
+  #            in 64ch, out 64 ch, (4, 5) -> (4, 5)
+  - out_offset: 0x10AE4
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: loc_4_5_res0_conv2
+    weight_source: loc_32_40_res0_conv2
+
+  # Layer 110: res1 - preprocess + res_layers[1]:
+  #            in 64ch, out 64 ch, (4, 5) -> (4, 5)
+  - in_sequences: [loc_4_5_res0_preprocess, loc_4_5_res0_conv2]
+    in_offset: 0x10AE0
+    out_offset: 0xF6E0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: loc_4_5_res0
+    weight_source: loc_32_40_res0
+
+  ### Regression Model Layers for Features 4_5: Residual 1 (res_conv2) ---
+
+  # Layer 111: res0 - preprocess:
+  #            in 64ch, out 64 ch, (4, 5) -> (4, 5)
+  - in_sequences: loc_4_5_res0
+    out_offset: 0x10AE0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: loc_4_5_res1_preprocess
+    weight_source: loc_32_40_res1_preprocess
+
+  # Layer 112: res1 - res_layers[0]:
+  #            in 64ch, out 64 ch, (4, 5) -> (4, 5)
+  - out_offset: 0xF6E0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    read_gap: 1
+    name: loc_4_5_res1_conv1
+    weight_source: loc_32_40_res1_conv1
+
+  # Layer 113: res1 - res_layers[1]:
+  #            in 64ch, out 64 ch, (4, 5) -> (4, 5)
+  - out_offset: 0x10AE4
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    write_gap: 1
+    name: loc_4_5_res1_conv2
+    weight_source: loc_32_40_res1_conv2
+
+  # Layer 114: res1 - preprocess + res_layers[1]:
+  #            in 64ch, out 64 ch, (4, 5) -> (4, 5)
+  - in_sequences: [loc_4_5_res1_preprocess, loc_4_5_res1_conv2]
+    in_offset: 0x10AE0
+    out_offset: 0xF6E0
+    processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    eltwise: add
+    operation: none
+    name: loc_4_5_res1
+    weight_source: loc_32_40_res1
+
+  # Layer 115: loc_4_5_conv5:
+  #            in 64ch, out 6 * 4 = 24 ch, (4, 5) -> (4, 5)
+  - out_offset: 0xEF40
+    processors: 0xffffffffffffffff
+    output_processors: 0x000000000000ffffff
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: none
+    name: loc_preds_from_4_5
+    output: true
+    weight_source: loc_preds_from_32_40
