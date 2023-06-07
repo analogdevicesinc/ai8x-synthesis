@@ -2991,9 +2991,15 @@ class Backend(backend.Backend):
 
                 # Allow 1D <-> 2D and 2D W/L conversions
                 if operator[ll] == op.CONV1D:
-                    assert input_dim[ll][1] == 1
-                    data = data.reshape(data.shape[0], -1, input_dim[ll][0])
-                elif buffer_shift[ll] == None:
+                    if in_sequences[ll] != [-2]:
+                        assert input_dim[ll][1] == 1
+                        data = data.reshape(data.shape[0], -1, input_dim[ll][0])
+                    else:
+                        data = data.transpose(0, 2, 3, 1)
+                        data = data.reshape(data.shape[0], -1, input_dim[ll][0])
+                elif buffer_shift[ll] is None:
+                #    data = data.reshape(data.shape[0], -1, input_dim[ll][0]+1, input_dim[ll][1])
+                #else:
                     data = data.reshape(data.shape[0], -1, input_dim[ll][0], input_dim[ll][1])
 
                 # In-flight pooling
@@ -3029,6 +3035,7 @@ class Backend(backend.Backend):
                         eprint(f'{layer_pfx(ll)}Input dimensions do not match. '
                                f'Expected: {in_chan}x{pooled_dim[ll][0]}, '
                                f'got {out_size[0]}x{out_size[1]}.')
+                #else:
                 elif buffer_shift[ll] == None:
                     if out_size[0] != in_chan \
                        or out_size[1] != pooled_dim[ll][0] or out_size[2] != pooled_dim[ll][1]:
@@ -3172,17 +3179,19 @@ class Backend(backend.Backend):
 
                 if buffer_shift[ll] != None:
                     # todo: check shape (whether 1D, 2D) against in_dim & in_channels
-                    data_buffer = np.roll(data_buffer, -buffer_shift[ll], axis=2)
+                    # alican todo: we need to do the same operation for out_buf as well (roll and zero out)
+                    data_buffer = np.roll(data_buffer, -buffer_shift[ll], axis=0)
                     if buffer_shift[ll] > 0:
-                        data_buffer[:, -buffer_shift[ll]:, :] = 0
+                        data_buffer[-buffer_shift[ll]:, :, :] = 0
                     else:
-                        data_buffer[:, :-buffer_shift[ll], :] = 0
+                        data_buffer[:-buffer_shift[ll], :, :] = 0
                 if buffer_insert[ll] != None:
                     # todo: check shape of out_buf (whether 1D, 2D) against in_dim & in_channels
                     if buffer_insert[ll] > 0:
-                        data_buffer[:, -buffer_insert[ll]:, :] = out_buf
+                        buffer_dims = data_buffer.shape
+                        data_buffer[-buffer_insert[ll]:, :, :] = out_buf.transpose(1,2,0).reshape(1, buffer_dims[1], -1)
                     else:
-                        data_buffer[:, :-buffer_insert[ll], :] = out_buf
+                        data_buffer[:-buffer_insert[ll], :, :] = out_buf.transpose(1,2,0).reshape(1, buffer_dims[1], -1)
 
                 if operator[ll] in [op.CONV2D, op.LINEAR, op.CONVTRANSPOSE2D, op.CONV1D]:
                     if weightsfile is not None:

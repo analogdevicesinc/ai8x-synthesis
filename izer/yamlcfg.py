@@ -706,7 +706,7 @@ def parse(
 
             data_buffer_cfg.append({
                 'proc': data_buffer_proc,
-                'dim': (data_buffer_channels, data_buffer_dim[0], data_buffer_dim[1]),
+                'dim': (data_buffer_dim[0], data_buffer_channels, data_buffer_dim[1]),
                 'offset': data_buffer_offset,
                 'width': data_buffer_width,
                 'name': data_buffer_name,

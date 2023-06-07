@@ -30,7 +30,7 @@ def find_layer(
     for ll, e in enumerate(layer_names):
         if e is not None and e.lower() == name:
             return ll
-    if name == all_names[1].lower():
+    if name == all_names[1]:
         return -2   # data buffer
     if error:
         eprint(f'Could not find the `{keyword}` layer name `{name}` in layer sequence '
