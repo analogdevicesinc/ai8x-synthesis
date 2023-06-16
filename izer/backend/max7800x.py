@@ -125,7 +125,7 @@ class Backend(backend.Backend):
         pooled_dim = state.pooled_dim
         powerdown = state.powerdown
         prefix = state.prefix
-        pretend_zero_sram = state.pretend_zero_sram
+        # pretend_zero_sram = state.pretend_zero_sram
         prev_sequence = state.prev_sequence
         processor_map = state.processor_map
         quantization = state.quantization
@@ -268,11 +268,10 @@ class Backend(backend.Backend):
             nprint(f'The clock divider of {state.clock_divider} exceeds the device maximum '
                    f'({tc.dev.MAX_CNNCLKDIV}).')
 
-        #if zero_sram or pretend_zero_sram:
-        # Clear every seventh kernel so we can test the BIST
-        #    for i, _ in enumerate(kernel):
-        #        if kernel[i] is not None:
-        #            kernel[i][::7] = np.full(shape=kernel[i][0].shape, fill_value=0, dtype=np.int64)
+        # if zero_sram or pretend_zero_sram:
+        #     Clear every seventh kernel so we can test the BIST
+        #     for i, _ in enumerate(kernel):
+        #         kernel[i][::7] = np.full(shape=kernel[i][0].shape, fill_value=0, dtype=np.int64)
 
         if state.result_output and (state.mlator or oneshot or stopstart):
             state.result_output = False
@@ -2998,8 +2997,6 @@ class Backend(backend.Backend):
                         data = data.transpose(0, 2, 3, 1)
                         data = data.reshape(data.shape[0], -1, input_dim[ll][0])
                 elif buffer_shift[ll] is None:
-                #    data = data.reshape(data.shape[0], -1, input_dim[ll][0]+1, input_dim[ll][1])
-                #else:
                     data = data.reshape(data.shape[0], -1, input_dim[ll][0], input_dim[ll][1])
 
                 # In-flight pooling
@@ -3035,8 +3032,7 @@ class Backend(backend.Backend):
                         eprint(f'{layer_pfx(ll)}Input dimensions do not match. '
                                f'Expected: {in_chan}x{pooled_dim[ll][0]}, '
                                f'got {out_size[0]}x{out_size[1]}.')
-                #else:
-                elif buffer_shift[ll] == None:
+                elif buffer_shift[ll] is None:
                     if out_size[0] != in_chan \
                        or out_size[1] != pooled_dim[ll][0] or out_size[2] != pooled_dim[ll][1]:
                         eprint(f'{layer_pfx(ll)}Input dimensions do not match. '
@@ -3177,22 +3173,20 @@ class Backend(backend.Backend):
                 else:
                     eprint(f'Unknown operator `{op.string(operator[ll])}`.')
 
-                if buffer_shift[ll] != None:
-                    # todo: check shape (whether 1D, 2D) against in_dim & in_channels
-                    # alican todo: we need to do the same operation for out_buf as well (roll and zero out)
+                if buffer_shift[ll] is not None:
                     data_buffer = np.roll(data_buffer, -buffer_shift[ll], axis=0)
-                    if buffer_shift[ll] > 0:
-                        data_buffer[-buffer_shift[ll]:, :, :] = 0
-                    else:
-                        data_buffer[:-buffer_shift[ll], :, :] = 0
-                if buffer_insert[ll] != None:
-                    # todo: check shape of out_buf (whether 1D, 2D) against in_dim & in_channels
-                    if buffer_insert[ll] > 0:
+                    data_buffer[-buffer_shift[ll]:, :, :] = 0
+                    out_buf = np.roll(out_buf, -buffer_shift[ll], axis=0)
+                    out_buf[-buffer_shift[ll]:, :, :] = 0
+                if buffer_insert[ll] is not None:
+                    try:
                         buffer_dims = data_buffer.shape
-                        data_buffer[-buffer_insert[ll]:, :, :] = out_buf.transpose(1,2,0).reshape(1, buffer_dims[1], -1)
-                    else:
-                        data_buffer[:-buffer_insert[ll], :, :] = out_buf.transpose(1,2,0).reshape(1, buffer_dims[1], -1)
-
+                        data_buffer[-buffer_insert[ll]:, :, :] = \
+                            out_buf.transpose(1, 2, 0).reshape(1, buffer_dims[1], -1)
+                    except IndexError:
+                        eprint(f'{layer_pfx(ll)}Buffer insertion unsuccessful. Check that the '
+                               f'output dimensions of the layer are consistent with the buffer '
+                               f'specification (dim and channels)')
                 if operator[ll] in [op.CONV2D, op.LINEAR, op.CONVTRANSPOSE2D, op.CONV1D]:
                     if weightsfile is not None:
                         np.save(
@@ -3222,12 +3216,18 @@ class Backend(backend.Backend):
                     # Operator output
                     np.save(datafile, out_buf, allow_pickle=False, fix_imports=False)
 
-                # todo: add relevant checks to shift ops
-                if buffer_shift[ll] == None:
+                if buffer_shift[ll] is None:
                     assert out_size[0] == output_chan[ll] \
                         and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
                     assert out_size[0] == output_size[ll][0] \
                         and out_size[1] == output_size[ll][1] and out_size[2] == output_size[ll][2]
+                else:
+                    assert out_size[1] == output_chan[ll] \
+                        and out_size[0] - buffer_shift[ll] == output_dim[ll][0] \
+                        and out_size[2] == output_dim[ll][1]
+                    assert out_size[1] == output_size[ll][0] \
+                        and out_size[0] - buffer_shift[ll] == output_size[ll][1] \
+                        and out_size[2] == output_size[ll][2]
 
                 # Write .mem file for output or create the C check_output() function to
                 # verify the output

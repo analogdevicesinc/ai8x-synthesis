@@ -14,7 +14,7 @@ from .eprint import eprint
 
 
 def find_layer(
-    all_names: List,  # contains "layer_name"s as first element, "data_buffer_name" as second 
+    all_names: List,  # contains "layer_name"s as first element, "data_buffer_name" as second
     sequence: int,
     name: str,
     keyword: str,

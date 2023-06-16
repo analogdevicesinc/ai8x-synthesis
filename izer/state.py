@@ -38,6 +38,7 @@ compact_weights: bool = False
 conv_groups: List[int] = []
 data: Any = None
 data_buffer: Optional[List[List[Any]]] = None
+data_buffer_cfg: Optional[List[Any]] = None
 debug_computation: bool = False
 debug_latency: bool = False
 debug_log: Optional[TextIO] = None

@@ -1,19 +1,16 @@
 ---
-# TCN based Action Segmentation model for 4x folded 240x240 Kinetics dataset (backbone only)
+# TCN based Action Recognition model for 4x folded 240x240 Kinetics dataset
 
 arch: ai85actiontcn
 dataset: kinetics400
 data_buffer:
   - processors: 0xffffffff00000000
-    dim: 15 # some other keyword?
+    dim: 15
     channels: 32
     offset: 0x7FC4
     name: tcn_buffer
 
 layers:
-  # Layers 0-16 are for 32x1 feature extraction.
-  # 32 time frames used for classifications.
-  # Data offset for TVN input is 7F80
   # Layer 0: prep0. in 96ch, out 64 ch. 60x60 -> 60x60
   - processors: 0x0000ffffffffffff
     output_processors: 0xffffffffffffffff
@@ -29,7 +26,6 @@ layers:
     in_offset: 0x00F8
     out_offset: 0x4000
     operation: Conv2d
-    #in_sequences: input
     kernel_size: 3x3
     pad: 1
     activate: ReLU
@@ -42,8 +38,6 @@ layers:
     kernel_size: 3x3
     pad: 1
     activate: ReLU
-    max_pool: 2
-    pool_stride: 2
   # Layer 3: conv1_2. in 64ch, out 64 ch. 30x30 -> 30x30
   - processors: 0xffffffffffffffff
     output_processors: 0xffffffffffffffff
@@ -192,44 +186,42 @@ layers:
     eltwise: add
     operation: none
     name: res4_out
-  # Layer 15.5: shift the buffer
+  # Layer 16: shift the buffer
   - processors: 0xffffffff00000000
     output_processors: 0xffffffff00000000
     in_offset: 0x7FC8
     in_channels: 32
     in_dim: 14
-    #in_sequences: tcn_buffer
-    in_sequences: -2
+    in_sequences: tcn_buffer
     out_offset: 0x7FC4
-    operation: Passthrough # buna farkli bir isim koy
-    buffer_op: ShiftLeft
+    operation: Passthrough
+    buffer_shift: 1
     name: buffer_shift
-  # Layer 16: conv5. in 64ch, out 32 ch. 3x3 -> 1x1
+  # Layer 17: conv5. in 64ch, out 32 ch. 3x3 -> 1x1
   - processors: 0xffffffffffffffff
     output_processors: 0xffffffff00000000
     in_offset: 0x5000
     out_offset: 0x7FFC
     operation: Conv2d
     in_sequences: res4_out
-    buffer_op: InsertRight
+    buffer_insert: 1
     kernel_size: 3x3
     pad: 0
     activate: ReLU
     name: conv5
-  # Layer 17: tcn0. in 32ch, out 32 ch. 15x1 -> 13x1
+  # Layer 18: tcn0. in 32ch, out 32 ch. 15x1 -> 13x1
   - processors: 0xffffffff00000000
     in_offset: 0x7FC4
     in_channels: 32
     in_dim: 15
-#    in_sequences: None # buraya data_buffer'in ismi yazilacak
-    in_sequences: -2
+    in_sequences: tcn_buffer
     out_offset: 0x1000
     operation: Conv1d
     kernel_size: 3
     pad: 0
     activate: ReLU
     name: tcn0
-  # Layer 18: tcn1. in 32ch, out 32 ch. 13x1 -> 9x1
+  # Layer 19: tcn1. in 32ch, out 32 ch. 13x1 -> 9x1
   - processors: 0x00000000ffffffff
     in_offset: 0x1000
     out_offset: 0x4000
@@ -239,7 +231,7 @@ layers:
     pad: 0
     activate: ReLU
     name: tcn1
-  # Layer 19: tcn2. in 32ch, out 5-dimensional output. 9x1 -> 1x1
+  # Layer 20: tcn2. in 32ch, out 5-dimensional output. 9x1 -> 1x1
   - processors: 0x00000000ffffffff
     in_offset: 0x4000
     out_offset: 0x0000

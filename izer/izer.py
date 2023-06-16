@@ -187,7 +187,6 @@ def main():
     if data.ndim < 3:
         data = np.expand_dims(data, axis=2)
 
-    # todo: may read from sample data_file, or initialize
     if params['data_buffer_cfg'] is not None:
         data_buffer_dims = params['data_buffer_cfg'][0]['dim']
         data_buffer = np.zeros(data_buffer_dims, dtype=np.int64)

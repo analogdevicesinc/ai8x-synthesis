@@ -58,7 +58,7 @@ class UniqueKeyLoader(yaml.Loader):
 def parse(
         config_file,
         skip_layers=0,
-):
+): # pylint: disable=too-many-branches
     """
     Configure network parameters from the YAML configuration file `config_file`.
     `max_conv` can be set to force an early termination of the parser.
@@ -169,7 +169,7 @@ def parse(
                                  'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
                                  'bias_group', 'bias_quadrant', 'calcx4', 'readahead', 'name',
                                  'pool_dilation', 'output_pad', 'tcalc', 'read_gap', 'output',
-                                 'weight_source','buffer_shift', 'buffer_insert'])
+                                 'weight_source', 'buffer_shift', 'buffer_insert'])
         if bool(cfg_set):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`: '
                    f'{cfg_set}.')
@@ -573,7 +573,7 @@ def parse(
             val = ll['name']
             if names.find_layer([layer_name, data_buffer_name],
                                 sequence, val.lower(), 'name', False) is not None:
-                error_exit(f'Duplicate layer name {val} for `name`', sequence)
+                error_exit(f'Duplicate layer name {val}  for `name`', sequence)
             if val.lower() in ['stop', 'input']:
                 error_exit(f'Using reserved name {val} for `name`', sequence)
             layer_name[sequence] = val
@@ -585,20 +585,24 @@ def parse(
                 weight_source[sequence] = val
             else:
                 weight_source[sequence] = val - skip_layers
-        
+
         if 'buffer_shift' in ll:
             val = ll['buffer_shift']
             if not isinstance(val, int):
                 error_exit('`buffer_shift` must be an integer', sequence)
+            if not val > 0:
+                error_exit('`buffer_shift` must be a positive integer', sequence)
             if 'in_sequences' not in ll:
                 error_exit('The `buffer_shift` operation requires the name of the buffer '
                            '(`in_sequences`) to be specified', sequence)
             buffer_shift[sequence] = val
-        
+
         if 'buffer_insert' in ll:
             val = ll['buffer_insert']
             if not isinstance(val, int):
                 error_exit('`buffer_insert` must be an integer', sequence)
+            if not val > 0:
+                error_exit('`buffer_insert` must be a positive integer', sequence)
             if 'out_offset' not in ll:
                 error_exit('The `buffer_insert` operation requires `out_offset` '
                            'to be specified', sequence)
@@ -670,7 +674,6 @@ def parse(
             del buffer_insert[ll]
 
     if 'data_buffer' in cfg:
-        #data_buffer_sequence = 0
         for ll in cfg['data_buffer']:
             cfg_set = set(ll)
 
@@ -686,7 +689,7 @@ def parse(
             data_buffer_proc = ll['processors']
             if isinstance(data_buffer_proc, str):
                 try:
-                    unload_proc = int(unload_proc.replace('.', '').replace('_', ''), 16)
+                    data_buffer_proc = int(data_buffer_proc.replace('.', '').replace('_', ''), 16)
                 except ValueError:
                     pass
             val = ll['dim']
@@ -695,13 +698,9 @@ def parse(
             data_buffer_offset = ll['offset']
             data_buffer_width = ll['width'] if 'with' in ll else 8
 
+            # Future: may check for duplicate names, if we add an option to have multiple buffers
             if 'name' in ll:
                 val = ll['name']
-                # todo: may check for duplicate names, if we'll add the option to have multiple data buffers
-                #if names.find_layer(layer_name, sequence, val.lower(), 'name', False) is not None:
-                #    error_exit(f'Duplicate layer name {val} for `name`', sequence)
-                #if val.lower() in ['stop', 'input']:
-                #    error_exit(f'Using reserved name {val} for `name`', sequence)
                 data_buffer_name = val
 
             data_buffer_cfg.append({
@@ -714,12 +713,13 @@ def parse(
 
         # Check that the required parameters are specified for layers using the data buffer
         sequence = 0
-        for ll in cfg['layers']:           
+        for ll in cfg['layers']:
             if in_sequences[sequence] == [data_buffer_name]:
                 if 'in_offset' not in ll or 'out_offset' not in ll or 'in_dim' not in ll \
                    or 'in_channels' not in ll:
                     error_exit('Using the data buffer as input to a layer requires `in_offset`, '
-                            '`out_offset`, `in_dim` and `in_channels` to be specified', sequence)
+                               '`out_offset`, `in_dim` and `in_channels` to be specified',
+                               sequence)
             sequence += 1
 
     for ll, _ in enumerate(operator):
@@ -752,7 +752,7 @@ def parse(
         # Check that pooling isn't set for ConvTranspose2d:
         if not pool_first[ll] and (operands[ll] == 1 or pool[ll][0] == 1 and pool[ll][1] == 1):
             error_exit('`pool_first: False` requires both pooling and element-wise operations', ll)
-    
+
     if 'unload' in cfg:
         for ll in cfg['unload']:
             cfg_set = set(ll)
