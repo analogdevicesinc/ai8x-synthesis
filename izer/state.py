@@ -7,7 +7,7 @@
 """
 Configuration state for backends.
 """
-from typing import Any, List, Optional, TextIO
+from typing import Any, Dict, List, Optional, TextIO
 
 # These are the raw global state variables, initialized to None, False, 0, [], or their defaults.
 # Defaults must not depend on any other module such as tornadocnn (tc).
@@ -38,7 +38,7 @@ compact_weights: bool = False
 conv_groups: List[int] = []
 data: Any = None
 data_buffer: Optional[List[List[Any]]] = None
-data_buffer_cfg: Optional[List[Any]] = None
+data_buffer_cfg: Optional[List[Dict]] = None
 debug_computation: bool = False
 debug_latency: bool = False
 debug_log: Optional[TextIO] = None

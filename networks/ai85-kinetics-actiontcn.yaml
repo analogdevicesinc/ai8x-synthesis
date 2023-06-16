@@ -47,6 +47,8 @@ layers:
     kernel_size: 3x3
     pad: 1
     activate: ReLU
+    max_pool: 2
+    pool_stride: 2
     name: res1_out
   # Layer 4: conv2. in 64ch, out 64 ch. 30x30 -> 15x15
   - processors: 0xffffffffffffffff

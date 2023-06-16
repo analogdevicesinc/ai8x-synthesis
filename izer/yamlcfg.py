@@ -58,7 +58,7 @@ class UniqueKeyLoader(yaml.Loader):
 def parse(
         config_file,
         skip_layers=0,
-): # pylint: disable=too-many-branches
+):  # pylint: disable=too-many-branches
     """
     Configure network parameters from the YAML configuration file `config_file`.
     `max_conv` can be set to force an early termination of the parser.
