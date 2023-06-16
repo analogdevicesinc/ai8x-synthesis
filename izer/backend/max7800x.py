@@ -701,6 +701,7 @@ class Backend(backend.Backend):
                     if lt == -1:
                         emap = processor_map[0]
                     elif lt == -2:
+                        # pylint: disable=unsubscriptable-object
                         emap = data_buffer_cfg[0]['proc']
                     else:
                         emap = output_processor_map[lt]
@@ -768,6 +769,7 @@ class Backend(backend.Backend):
                     if lt == -1:
                         emap |= processor_map[0]
                     elif lt == -2:
+                        # pylint: disable=unsubscriptable-object
                         emap |= data_buffer_cfg[0]['proc']
                     else:
                         emap |= output_processor_map[lt]
