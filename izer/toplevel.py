@@ -466,7 +466,10 @@ def main(
             if embedded_code or embedded_arm or tc.dev.MODERN_SIM:
                 memfile.write('  MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_SMPHR); '
                               '// Enable Semaphore clock\n')
-                memfile.write('  MXC_NVIC_SetVector(RISCV_IRQn, WakeISR); // Set wakeup ISR\n')
+                if embedded_code or embedded_arm:
+                    memfile.write('  MXC_NVIC_SetVector(RISCV_IRQn, WakeISR); // Set wakeup ISR\n')
+                else:
+                    memfile.write('  NVIC_SetVector(RISCV_IRQn, WakeISR); // Set wakeup ISR\n')
                 if (embedded_code or embedded_arm) and debugwait:
                     memfile.write('\n  // DO NOT DELETE THIS LINE:\n'
                                   f'  MXC_Delay(SEC({debugwait})); '
