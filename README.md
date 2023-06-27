@@ -2687,7 +2687,7 @@ Certain networks (such as TCN) require rolling data buffers. These are implement
 
 ##### `data_buffer` (Global)
 
-The data buffer is allocated and named using the global `data_buffer` configuration key.
+The data buffer is allocated and named using the global `data_buffer` configuration key. `processor`,  `dim` (1D or 2D), `channels`, and `offset` must be defined.
 
 Example:
 
@@ -2702,7 +2702,7 @@ data_buffer:
 
 ##### `buffer_shift` (per layer)
 
-The buffer is shifted `n` places using `buffer_shift: n`.
+The buffer is shifted `n` places using `buffer_shift: n`. `in_offset` and `in_dim` are required.
 
 Example:
 
@@ -2741,7 +2741,7 @@ Example:
 
 ##### Buffer use
 
-The buffer is used with `in_sequences`, in the example `in_sequences: tcn_buffer`.
+The buffer is used with `in_sequences`, in the example `in_sequences: tcn_buffer`. To use the buffer contents as input, `in_offset` and `in_dim` are required.
 
 #### Dropout and Batch Normalization
 
