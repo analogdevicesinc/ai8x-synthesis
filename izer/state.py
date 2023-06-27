@@ -191,6 +191,7 @@ stride: List[List[int]] = []
 synthesize_input: Optional[int] = None
 synthesize_words: int = 0
 tcalc: List[bool] = []
+test_bist: bool = False
 test_dir: str = ''
 timeout: Optional[int] = None
 timer: Optional[int] = None
