@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2021 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -178,7 +178,7 @@ def vscode(
     # Filenames beginning with this will have substitution
 
     if not template_dir.exists():
-        raise Exception(f"Failed to find project template folder '{template_dir}'.")
+        raise RuntimeError(f"Failed to find project template folder '{template_dir}'.")
 
     tmp = []  # Work-horse list, linter be nice
     # Parse compiler definitions...
@@ -392,21 +392,21 @@ def write_mapping(template_file: Path, out_path: Path, mapping: MakefileMapping,
 
 # Default values that will be used in the template if these keyword
 # arguments are not passed to 'create_makefile'
-defaults = dict(
-    vpaths=[".", "src"],
-    ipaths=[".", "include"],
-    autosearch=1,
-    defines=["MXC_ASSERT_ENABLE", "ARM_MATH_CM4"],
-    float_abi="softfp",
-    depth=3,
-    olevel_debug="g",
-    olevel_release=2,
-    olevel_default=2,
-    compiler="GCC",
-    linkerfile="$(TARGET_LC).ld",
-    sbt=0,
-    default_goal="all"
-)
+defaults = {
+    'vpaths': ['.', 'src'],
+    'ipaths': ['.', 'include'],
+    'autosearch': 1,
+    'defines': ['MXC_ASSERT_ENABLE', 'ARM_MATH_CM4'],
+    'float_abi': 'softfp',
+    'depth': 3,
+    'olevel_debug': 'g',
+    'olevel_release': 2,
+    'olevel_default': 2,
+    'compiler': 'GCC',
+    'linkerfile': '$(TARGET_LC).ld',
+    'sbt': 0,
+    'default_goal': 'all'
+}
 
 
 def makefile(

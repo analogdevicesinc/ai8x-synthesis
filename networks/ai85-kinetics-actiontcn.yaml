@@ -1,0 +1,246 @@
+---
+# TCN based Action Recognition model for 4x folded 240x240 Kinetics dataset
+
+arch: ai85actiontcn
+dataset: kinetics400
+data_buffer:
+  - processors: 0xffffffff00000000
+    dim: 15
+    channels: 32
+    offset: 0x7FC4
+    name: tcn_buffer
+
+layers:
+  # Layer 0: prep0. in 96ch, out 64 ch. 60x60 -> 60x60
+  - processors: 0x0000ffffffffffff
+    output_processors: 0xffffffffffffffff
+    in_offset: 0x0F00
+    out_offset: 0x00F8
+    operation: Conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
+  # Layer 1: conv0. in 64ch, out 64 ch. 60x60 -> 60x60
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    in_offset: 0x00F8
+    out_offset: 0x4000
+    operation: Conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+  # Layer 2: conv1. in 64ch, out 64 ch. 60x60 -> 30x30
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    in_offset: 0x4000
+    out_offset: 0x0000
+    operation: Conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+  # Layer 3: conv1_2. in 64ch, out 64 ch. 30x30 -> 30x30
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    in_offset: 0x0000
+    out_offset: 0x5000
+    operation: Conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    max_pool: 2
+    pool_stride: 2
+    name: res1_out
+  # Layer 4: conv2. in 64ch, out 64 ch. 30x30 -> 15x15
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    in_offset: 0x5000
+    out_offset: 0x0000
+    operation: Conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    max_pool: 2
+    pool_stride: 2
+    name: conv2
+  # Layer 5: conv2_1. in 64ch, out 64 ch. 15x15 -> 15x15
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    in_offset: 0x0000
+    out_offset: 0x1000
+    operation: Conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
+    write_gap: 1
+    name: conv2_1
+  # Layer 6: conv2_p. in 64ch, out 64 ch. 30x30 -> 15x15
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    in_offset: 0x5000
+    out_offset: 0x1004
+    in_sequences: [res1_out]
+    operation: Conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    max_pool: 2
+    pool_stride: 2
+    write_gap: 1
+    name: conv2_p
+  # Layer 7: residual connection for conv2. in 64ch, out 64 ch. 15x15 -> 15x15
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    in_offset: 0x1000
+    out_offset: 0x5000
+    in_sequences: [conv2_1, conv2_p]
+    eltwise: add
+    operation: none
+    name: res2_out
+  # Layer 8: conv3. in 64ch, out 64 ch. 15x15 -> 7x7
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    in_offset: 0x5000
+    out_offset: 0x0000
+    operation: Conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    max_pool: 2
+    pool_stride: 2
+    name: conv3
+  # Layer 9: conv3_1. in 64ch, out 64 ch. 7x7 -> 7x7
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    in_offset: 0x0000
+    out_offset: 0x1000
+    operation: Conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
+    write_gap: 1
+    name: conv3_1
+  # Layer 10: conv3_p. in 64ch, out 64 ch. 15x15 -> 7x7
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    in_offset: 0x5000
+    out_offset: 0x1004
+    in_sequences: [res2_out]
+    operation: Conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    max_pool: 2
+    pool_stride: 2
+    write_gap: 1
+    name: conv3_p
+  # Layer 11: residual connection for conv2. in 64ch, out 64 ch. 7x7 -> 7x7
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    in_offset: 0x1000
+    out_offset: 0x5000
+    in_sequences: [conv3_1, conv3_p]
+    eltwise: add
+    operation: none
+    name: res3_out
+  # Layer 12: conv4. in 64ch, out 64 ch. 7x7 -> 3x3
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    in_offset: 0x5000
+    out_offset: 0x0000
+    operation: Conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    max_pool: 2
+    pool_stride: 2
+    name: conv4
+  # Layer 13: conv4_1. in 64ch, out 64 ch. 3x3 -> 3x3
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    in_offset: 0x0000
+    out_offset: 0x1000
+    operation: Conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
+    write_gap: 1
+    name: conv4_1
+  # Layer 14: conv4_p. in 64ch, out 64 ch. 7x7 -> 3x3
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    in_offset: 0x5000
+    out_offset: 0x1004
+    in_sequences: [res3_out]
+    operation: Conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    max_pool: 2
+    pool_stride: 2
+    write_gap: 1
+    name: conv4_p
+  # Layer 15: residual connection for conv2. in 64ch, out 64 ch. 3x3 -> 3x3
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    in_offset: 0x1000
+    out_offset: 0x5000
+    in_sequences: [conv4_1, conv4_p]
+    eltwise: add
+    operation: none
+    name: res4_out
+  # Layer 16: shift the buffer
+  - processors: 0xffffffff00000000
+    output_processors: 0xffffffff00000000
+    in_offset: 0x7FC8
+    in_channels: 32
+    in_dim: 14
+    in_sequences: tcn_buffer
+    out_offset: 0x7FC4
+    operation: Passthrough
+    buffer_shift: 1
+    name: buffer_shift
+  # Layer 17: conv5. in 64ch, out 32 ch. 3x3 -> 1x1
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffff00000000
+    in_offset: 0x5000
+    out_offset: 0x7FFC
+    operation: Conv2d
+    in_sequences: res4_out
+    buffer_insert: 1
+    kernel_size: 3x3
+    pad: 0
+    activate: ReLU
+    name: conv5
+  # Layer 18: tcn0. in 32ch, out 32 ch. 15x1 -> 13x1
+  - processors: 0xffffffff00000000
+    in_offset: 0x7FC4
+    in_channels: 32
+    in_dim: 15
+    in_sequences: tcn_buffer
+    out_offset: 0x1000
+    operation: Conv1d
+    kernel_size: 3
+    pad: 0
+    activate: ReLU
+    name: tcn0
+  # Layer 19: tcn1. in 32ch, out 32 ch. 13x1 -> 9x1
+  - processors: 0x00000000ffffffff
+    in_offset: 0x1000
+    out_offset: 0x4000
+    operation: Conv1d
+    dilation: 2
+    kernel_size: 3
+    pad: 0
+    activate: ReLU
+    name: tcn1
+  # Layer 20: tcn2. in 32ch, out 5-dimensional output. 9x1 -> 1x1
+  - processors: 0x00000000ffffffff
+    in_offset: 0x4000
+    out_offset: 0x0000
+    operation: Conv1d
+    dilation: 4
+    kernel_size: 3
+    pad: 0
+    activate: None
+    output_width: 32
+    name: tcn2

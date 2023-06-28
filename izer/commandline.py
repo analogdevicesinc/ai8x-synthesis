@@ -358,6 +358,8 @@ def get_parser() -> argparse.Namespace:
     group.add_argument('--legacy-kernels', action='store_true', default=False,
                        help="use old, less efficient kernel allocation for certain old RTL sims"
                             " (default: false)")
+    group.add_argument('--test-bist', action='store_true', default=False,
+                       help="test BIST by clearing every seventh kernel (default: false)")
     group.add_argument('--test-dir', metavar='S', required=True,
                        help="set base directory name for auto-filing .mem files")
     group.add_argument('--top-level', default='cnn', metavar='S',
@@ -692,6 +694,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.stopstart = args.stop_start
     state.synthesize_input = args.synthesize_input
     state.synthesize_words = args.synthesize_words
+    state.test_bist = args.test_bist
     state.test_dir = args.test_dir
     state.timeout = args.timeout
     state.timer = args.timer

@@ -7,7 +7,7 @@
 """
 Configuration state for backends.
 """
-from typing import Any, List, Optional, TextIO
+from typing import Any, Dict, List, Optional, TextIO
 
 # These are the raw global state variables, initialized to None, False, 0, [], or their defaults.
 # Defaults must not depend on any other module such as tornadocnn (tc).
@@ -26,6 +26,8 @@ big_data: List[bool] = []
 block_mode: bool = False
 board_name: str = ''
 boost: Optional[List[int]] = None
+buffer_insert: List[int] = []
+buffer_shift: List[int] = []
 bypass: List[bool] = []
 c_filename: str = ''
 calcx4: List[bool] = []
@@ -35,6 +37,8 @@ compact_data: bool = False
 compact_weights: bool = False
 conv_groups: List[int] = []
 data: Any = None
+data_buffer: Optional[List[List[Any]]] = None
+data_buffer_cfg: Optional[List[Dict]] = None
 debug_computation: bool = False
 debug_latency: bool = False
 debug_log: Optional[TextIO] = None
@@ -187,6 +191,7 @@ stride: List[List[int]] = []
 synthesize_input: Optional[int] = None
 synthesize_words: int = 0
 tcalc: List[bool] = []
+test_bist: bool = False
 test_dir: str = ''
 timeout: Optional[int] = None
 timer: Optional[int] = None
