@@ -125,7 +125,7 @@ class Backend(backend.Backend):
         pooled_dim = state.pooled_dim
         powerdown = state.powerdown
         prefix = state.prefix
-        # pretend_zero_sram = state.pretend_zero_sram
+        pretend_zero_sram = state.pretend_zero_sram
         prev_sequence = state.prev_sequence
         processor_map = state.processor_map
         quantization = state.quantization
@@ -144,6 +144,7 @@ class Backend(backend.Backend):
         streaming = state.streaming
         stride = state.stride
         tcalc = state.tcalc
+        test_bist = state.test_bist
         timeout = state.timeout
         timer = state.timer
         verbose = state.verbose
@@ -268,10 +269,10 @@ class Backend(backend.Backend):
             nprint(f'The clock divider of {state.clock_divider} exceeds the device maximum '
                    f'({tc.dev.MAX_CNNCLKDIV}).')
 
-        # if zero_sram or pretend_zero_sram:
-        #     Clear every seventh kernel so we can test the BIST
-        #     for i, _ in enumerate(kernel):
-        #         kernel[i][::7] = np.full(shape=kernel[i][0].shape, fill_value=0, dtype=np.int64)
+        if test_bist and (zero_sram or pretend_zero_sram):
+            # Clear every seventh kernel so we can test the BIST
+            for i, _ in enumerate(kernel):
+                kernel[i][::7] = np.full(shape=kernel[i][0].shape, fill_value=0, dtype=np.int64)
 
         if state.result_output and (state.mlator or oneshot or stopstart):
             state.result_output = False
