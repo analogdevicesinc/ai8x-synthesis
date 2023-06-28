@@ -272,7 +272,9 @@ class Backend(backend.Backend):
         if test_bist and (zero_sram or pretend_zero_sram):
             # Clear every seventh kernel so we can test the BIST
             for i, _ in enumerate(kernel):
-                kernel[i][::7] = np.full(shape=kernel[i][0].shape, fill_value=0, dtype=np.int64)
+                if kernel[i] is not None:
+                    kernel[i][::7] = \
+                        np.full(shape=kernel[i][0].shape, fill_value=0, dtype=np.int64)
 
         if state.result_output and (state.mlator or oneshot or stopstart):
             state.result_output = False
