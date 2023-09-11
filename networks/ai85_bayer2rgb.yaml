@@ -1,0 +1,39 @@
+---
+# Compatible with MAX78000
+
+arch: bayer2rgbnet
+dataset: Bayer
+
+# Define layer parameters in order of the layer sequence
+layers:
+
+  # Layer 0 (l1): Conv2d: in 4ch, out 3ch, (45, 45) -> (45, 45)
+  - out_offset: 0x0000
+    processors: 0x000000000000000f
+    output_processors: 0x0000000000070000
+    operation: conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: None
+    name: l1
+
+  # Layer 1 (l2): ConvTranspose2d: in 3ch, out 3ch, (45, 45) -> (90, 90)
+  - out_offset: 0x0000
+    processors: 0x0000000000070000
+    output_processors: 0x0007000000000000
+    operation: convtranspose2d
+    kernel_size: 3x3
+    pad: 1
+    activate: None
+    name: l2
+
+  # Layer 2 (l3): Conv2d: in 3ch, out 3ch, (90, 90) -> (90, 90)
+  - out_offset: 0x0000
+    processors: 0x0007000000000000
+    output_processors: 0x0000000000000007
+    operation: conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: None
+    name: l3
+    output: true
