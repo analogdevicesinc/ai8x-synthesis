@@ -1,6 +1,6 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-September 12, 2023
+September 18, 2023
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
@@ -2625,11 +2625,23 @@ Example:
 
 `in_dim` specifies the dimensions of the input data. This is usually automatically computed based on the output of the previous layer or the layer(s) referenced by `in_sequences`. This key allows overriding of the automatically calculated dimensions. `in_dim` must be used when changing from 1D to 2D data or vice versa. 1D dimensions can be specified as a tuple `[L, 1]` or as an integer `L`.
 
-See also: `in_channels`.
+See also: `in_channels`, `in_skip`.
 
 Examples:
         `in_dim: [64, 64]`
         `in_dim: 32`
+
+##### `in_skip` (Optional)
+
+`in_skip` specifies a number of rows (2D) or data bytes (1D) to skip when using the previous layer's output as input. By also adjusting `in_offset`, this provides the means to crop the top/bottom of an image or the beginning/end of 1D data.
+
+See also: `in_dim`, `in_offset`.
+
+Example (1D cropping):
+        `# Output data had L=512`
+        `in_offset: 0x000c  # Skip 3 (x4 processors) at beginning`
+        `in_dim: 506  # Target length = 506`
+        `in_skip: [3, 3]  # Crop 3 at the beginning, 3 at the end`
 
 ##### `in_sequences` (Optional)
 

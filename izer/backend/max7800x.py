@@ -83,6 +83,7 @@ class Backend(backend.Backend):
         input_channel_skip = state.input_channel_skip
         input_csv = state.input_csv
         input_dim = state.input_dim
+        input_crop = state.input_crop
         input_skip = state.input_skip
         kernel = state.weights
         kernel_size = state.kernel_size
@@ -727,7 +728,8 @@ class Backend(backend.Backend):
                     # Channel-wise concatenation or element-wise or interleaved concatenation
                     offs = 0
                     for i, lt in enumerate(in_sequences[ll]):
-                        if lt not in [-1, -2] and in_offset[ll] + 4 * i != out_offset[lt] \
+                        if lt not in [-1, -2] \
+                           and in_offset[ll] + 4 * i != out_offset[lt] + 4 * input_crop[ll][0] \
                            and in_offset[ll] + offs != out_offset[lt]:
                             wprint(f'{layer_pfx(ll)}`in_offset` (0x{in_offset[ll]:04x}, for '
                                    f'input #{i}) does not match `out_offset` '
@@ -2993,7 +2995,9 @@ class Backend(backend.Backend):
                 if operands[ll] > 1 and not pool_first[ll]:
                     data = np.expand_dims(run_eltwise(data, ll), 0)
 
-                # Allow 1D <-> 2D and 2D W/L conversions
+                # Allow 1D <-> 2D and 2D W/L conversions, and skipping/subsetting
+                if input_crop[ll][0] != 0 or input_crop[ll][1] != 0:  # line skip count
+                    data = data[:, :, input_crop[ll][0]:-input_crop[ll][1], :]
                 if operator[ll] == op.CONV1D:
                     if in_sequences[ll] != [-2]:
                         assert input_dim[ll][1] == 1

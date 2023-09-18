@@ -91,6 +91,7 @@ input_csv_period: int = 0
 input_csv_retrace: int = 0
 input_csv: Optional[str] = None
 input_dim: List[List[int]] = []
+input_crop: List[List[int]] = []
 input_fifo: bool = False
 input_filename: str = ''
 input_offset: List[Any] = []

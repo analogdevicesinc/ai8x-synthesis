@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -106,6 +106,7 @@ def parse(
     input_skip = [0] * tc.dev.MAX_LAYERS
     input_chan_skip = [0] * tc.dev.MAX_LAYERS
     input_dim = [None] * tc.dev.MAX_LAYERS
+    input_crop = [[0, 0]] * tc.dev.MAX_LAYERS
     output_chan = [None] * tc.dev.MAX_LAYERS
     # All other variables are initialized with the default values
     padding = [[1, 1]] * tc.dev.MAX_LAYERS
@@ -169,7 +170,7 @@ def parse(
                                  'sequence', 'streaming', 'stride', 'write_gap', 'bypass',
                                  'bias_group', 'bias_quadrant', 'calcx4', 'readahead', 'name',
                                  'pool_dilation', 'output_pad', 'tcalc', 'read_gap', 'output',
-                                 'weight_source', 'buffer_shift', 'buffer_insert'])
+                                 'weight_source', 'buffer_shift', 'buffer_insert', 'in_crop'])
         if bool(cfg_set):
             eprint(f'Configuration file {config_file} contains unknown key(s) for `layers`: '
                    f'{cfg_set}.')
@@ -260,6 +261,8 @@ def parse(
                     error_exit('`in_dim` must be an integer or list not exceeding two dimensions',
                                sequence)
             input_dim[sequence] = val
+        if 'in_crop' in ll:
+            input_crop[sequence] = ll['in_crop']
         if 'in_skip' in ll and 'read_gap' in ll:
             error_exit('Duplicate key for `in_skip`/`read_gap`', sequence)
         if 'in_skip' in ll or 'read_gap' in ll:
@@ -635,6 +638,7 @@ def parse(
             del input_chan_skip[ll]
             del input_skip[ll]
             del input_dim[ll]
+            del input_crop[ll]
             del input_offset[ll]
             del output_chan[ll]
             del output_offset[ll]
@@ -803,6 +807,7 @@ def parse(
     settings['input_chan_skip'] = input_chan_skip
     settings['input_chan'] = input_chan
     settings['input_dim'] = input_dim
+    settings['input_crop'] = input_crop
     settings['input_offset'] = input_offset
     settings['input_skip'] = input_skip
     settings['kernel_size'] = kernel_size
