@@ -56,7 +56,7 @@ class UniqueKeyLoader(yaml.Loader):
 def parse(
         config_file,
         skip_layers=0,
-        linter='yamllint',
+        linter=None,
 ):  # pylint: disable=too-many-branches
     """
     Configure network parameters from the YAML configuration file `config_file`.
@@ -98,7 +98,7 @@ def parse(
                 elif w != '':
                     wprint(w)
         except FileNotFoundError:
-            wprint(f'Cannot run {linter} to check {config_file}')
+            wprint(f'Cannot run "{linter}" linter to check {config_file}')
 
     # Load configuration file
     with open(config_file, mode='r', encoding='utf-8') as cfg_file:

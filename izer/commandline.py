@@ -460,6 +460,8 @@ def get_parser() -> argparse.Namespace:
                        help='version check update interval (hours), default = 24')
     group.add_argument('--upstream', metavar='REPO', default="MaximIntegratedAI/ai8x-synthesis",
                        help='GitHub repository name for update checking')
+    group.add_argument('--yamllint', metavar='S', default='yamllint',
+                       help='name of linter for YAML files (default: yamllint)')
 
     args = parser.parse_args()
 
