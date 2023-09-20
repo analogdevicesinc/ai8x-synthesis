@@ -88,16 +88,14 @@ def parse(
             check=False,
         )
         errors = proc.stderr.splitlines()
-        if errors:
-            for i, line in enumerate(errors):
-                eprint(line, exit_code=None if i < len(errors) - 1 else 1)
+        for i, line in enumerate(errors):
+            eprint(line, exit_code=None if i < len(errors) - 1 else 1)
         warnings = proc.stdout.splitlines()
-        if warnings:
-            for w in warnings:
-                if ' error ' in w:
-                    eprint('  ' + w)
-                elif w != '':
-                    wprint(w)
+        for w in warnings:
+            if ' error ' in w:
+                eprint('  ' + w)
+            elif w != '':
+                wprint(w)
     except FileNotFoundError:
         wprint(f'Cannot run {yamllint} to check {config_file}')
 
