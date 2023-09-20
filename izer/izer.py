@@ -331,6 +331,7 @@ def main():
     output_channels = output_channels[:layers]
     output_offset = params['output_offset'][:layers]
     conf_input_dim = params['input_dim'][:layers]
+    input_crop = params['input_crop'][:layers]
     input_offset = params['input_offset'][:layers]
     kernel_size = params['kernel_size'][:layers]
     quantization = params['quantization'][:layers]
@@ -494,8 +495,11 @@ def main():
                            'Use `in_dim:` to reshape the data to two dimensions, or to silence '
                            'this message.')
             else:
-                if pixels > 0 and conf_input_dim[ll][0] * conf_input_dim[ll][1] != pixels:
-                    eprint(f'{layer_pfx(ll)}The configured `in_dim` does not match the '
+                pixelcount = (conf_input_dim[ll][0] + input_crop[ll][0]
+                              + input_crop[ll][1]) * conf_input_dim[ll][1]
+                if pixels > 0 and pixelcount != pixels:
+                    eprint(f'{layer_pfx(ll)}The configured `in_dim` (pixel count '
+                           f'{pixelcount}) does not match the '
                            f'sum of all pixels ({pixels}) in the layer\'s `in_sequences`.')
                 input_dim[ll] = conf_input_dim[ll]
         if operator[ll] != op.CONV1D:
@@ -630,6 +634,7 @@ def main():
     state.input_channel_skip = input_channel_skip
     state.input_channels = input_channels
     state.input_dim = input_dim
+    state.input_crop = input_crop
     state.input_offset = input_offset
     state.input_skip = input_skip
     state.kernel_size = kernel_size
