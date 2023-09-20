@@ -1,13 +1,12 @@
 ###################################################################################################
-# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
 ###################################################################################################
 """
-Pure Python implementation of Conv1d, Conv2d, ConvTranspose2d, Pool1d, Pool2d, Eltwise, and Linear.
-Allows debug of individual accumulations.
-NumPy implementation of Conv2d, ConvTranspose2d, Pool2d.
+Python implementation of Conv1d, Conv2d, ConvTranspose1d, ConvTranspose2d, Pool1d, Pool2d,
+Eltwise, and Linear.
 Compatible with PyTorch.
 """
 import os
@@ -201,8 +200,7 @@ def conv1d(
     weight = weight.reshape(out_channels, input_size[0] // groups, -1)
     data = data.reshape(input_size[0], -1)
 
-    output = np.full(shape=(output_size[0], output_size[1]),
-                     fill_value=np.nan, dtype=np.int64)
+    output = np.empty(shape=(output_size[0], output_size[1]), dtype=np.int64)
 
     # Stretch data for fractionally-strided convolution
     if fractional_stride > 1:

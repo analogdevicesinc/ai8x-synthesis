@@ -1,6 +1,6 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-August 7, 2023
+September 19, 2023
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
@@ -12,8 +12,9 @@ ADI’s MAX78000/MAX78002 project is comprised of five repositories:
     [ai8x-training](https://github.com/MaximIntegratedAI/ai8x-training) **(described in this document)**
 4. The synthesis repository, which is used to *convert a trained model into C code* using the “izer” tool:
     [ai8x-synthesis](https://github.com/MaximIntegratedAI/ai8x-synthesis) **(described in this document)**
-5. The reference design repository, which contains host applications and sample applications for reference designs:
+5. The reference design repository, which contains host applications and sample applications for reference designs such as [MAXREFDES178 (Cube Camera)](https://www.analog.com/en/design-center/reference-designs/maxrefdes178.html):
     [refdes](https://github.com/MaximIntegratedAI/refdes)
+    *Note: Examples for EVkits and Feather boards are part of the MSDK*
 
 _Open the `.md` version of this file in a markdown enabled viewer, for example Typora (<http://typora.io>).
 See <https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet> for a description of Markdown. A [PDF copy of this file](README.pdf) is available in this repository. The GitHub rendering of this document does not show the mathematical formulas. Use the ≡ button to access the table of contents on GitHub._
@@ -2624,11 +2625,23 @@ Example:
 
 `in_dim` specifies the dimensions of the input data. This is usually automatically computed based on the output of the previous layer or the layer(s) referenced by `in_sequences`. This key allows overriding of the automatically calculated dimensions. `in_dim` must be used when changing from 1D to 2D data or vice versa. 1D dimensions can be specified as a tuple `[L, 1]` or as an integer `L`.
 
-See also: `in_channels`.
+See also: `in_channels`, `in_crop`.
 
 Examples:
         `in_dim: [64, 64]`
         `in_dim: 32`
+
+##### `in_crop` (Optional)
+
+`in_crop` specifies a number of rows (2D) or data bytes (1D) to skip (crop) when using the previous layer's output as input. By also adjusting `in_offset`, this provides the means to crop the top/bottom of an image or the beginning/end of 1D data. The dimensions and offsets are validated to match (minus the crop amount).
+
+See also: `in_dim`, `in_offset`.
+
+Example (1D cropping):
+        `# Output data had L=512`
+        `in_offset: 0x000c  # Skip 3 (x4 processors) at beginning`
+        `in_dim: 506  # Target length = 506`
+        `in_crop: [3, 3]  # Crop 3 at the beginning, 3 at the end`
 
 ##### `in_sequences` (Optional)
 
