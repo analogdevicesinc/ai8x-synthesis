@@ -8,11 +8,9 @@
 YAML Configuration Routines
 """
 import os
+import subprocess
 
 import yaml
-import yamllint
-import yamllint.config
-import yamllint.linter
 
 from . import devices, names, op, state
 from . import tornadocnn as tc
@@ -58,12 +56,14 @@ class UniqueKeyLoader(yaml.Loader):
 def parse(
         config_file,
         skip_layers=0,
+        linter=None,
 ):  # pylint: disable=too-many-branches
     """
     Configure network parameters from the YAML configuration file `config_file`.
     `max_conv` can be set to force an early termination of the parser.
     The function returns both YAML dictionary, the length of the processor map,
     as well as a settings dictionary.
+    if `linter` is set, try to run it against the YAML file and display the output.
     """
 
     def error_exit(message, sequence):
@@ -74,15 +74,31 @@ def parse(
 
     print(f'Reading {config_file} to configure network...')
 
-    # Run yamllint first
     if not os.path.exists(config_file):
         eprint(f'YAML configuration file {config_file} does not exist!')
 
-    yaml_config = yamllint.config.YamlLintConfig('extends: relaxed')
-    with open(config_file, mode='r', encoding='utf-8') as cfg_file:
-        for p in yamllint.linter.run(cfg_file, yaml_config):
-            eprint(f'{config_file} line {p.line}, col {p.column}: {p.desc}',
-                   error=p.level == 'error')
+    # Run linter first if configured
+    if linter:
+        try:
+            proc = subprocess.run(
+                [linter, config_file],
+                shell=False,
+                text=True,
+                capture_output=True,
+                timeout=5.0,
+                check=False,
+            )
+            errors = proc.stderr.splitlines()
+            for i, line in enumerate(errors):
+                eprint(line, exit_code=None if i < len(errors) - 1 else 1)
+            warnings = proc.stdout.splitlines()
+            for w in warnings:
+                if ' error ' in w:
+                    eprint('  ' + w)
+                elif w != '':
+                    wprint(w)
+        except FileNotFoundError:
+            wprint(f'Cannot run "{linter}" linter to check {config_file}')
 
     # Load configuration file
     with open(config_file, mode='r', encoding='utf-8') as cfg_file:

@@ -69,7 +69,7 @@ def main():
     commandline.set_state(args)
 
     # Load configuration file
-    cfg, cfg_layers, params = yamlcfg.parse(args.config_file, args.skip_yaml_layers)
+    cfg, cfg_layers, params = yamlcfg.parse(args.config_file, args.skip_yaml_layers, args.yamllint)
     state.layer_name = params['layer_name']
 
     # If not using test data, load weights and biases

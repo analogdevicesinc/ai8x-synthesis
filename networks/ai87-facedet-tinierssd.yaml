@@ -1,3 +1,4 @@
+---
 # For AI87
 # CHW configuration for FaceDetection
 # Parallel Model
@@ -33,7 +34,7 @@ layers:
 
   # Layer 2: backbone_conv3
   - out_offset: 0x3000
-    in_offset: 0x0000 #0x4000
+    in_offset: 0x0000  # 0x4000
     processors: 0xffffffff00000000
     output_processors: 0xffffffffffffffff
     operation: conv2d

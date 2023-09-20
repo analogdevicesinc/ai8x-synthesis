@@ -1,6 +1,6 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-September 19, 2023
+September 20, 2023
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
@@ -2288,6 +2288,9 @@ The following table describes the most important command line arguments for `ai8
 
 The [quick-start guide](https://github.com/MaximIntegratedAI/MaximAI_Documentation/blob/master/Guides/YAML%20Quickstart.md) provides a short overview of the purpose and structure of the YAML network description file.
 
+If `yamllint` is installed and available in the shell path, it is automatically run against the configuration file and all warnings and errors are reported.
+*Note: The name of the linter can be changed using the `--yamllint` command line argument.*
+
 The following is a detailed guide into all supported configuration options.
 
 An example network description for the ai85net5 architecture and MNIST is shown below:
@@ -2357,7 +2360,7 @@ To generate an RTL simulation for the same network and sample data in the direct
 
 Network descriptions are written in YAML (see <https://en.wikipedia.org/wiki/YAML>). There are two sections in each file — global statements and a sequence of layer descriptions.
 
-*Note: The network loader automatically checks the configuration file for syntax errors and prints warnings for non-fatal errors. To perform the same checks manually, run:* `yamllint configfile.yaml`
+*Note: The network loader automatically checks the configuration file for syntax errors and prints warnings for non-fatal errors if `yamllint` is installed in the shell search path. To perform the same checks manually, run:* `yamllint configfile.yaml` (to use a different linter, specify `--yamllint mylinter`).
 
 #### Purpose of the YAML Network Description
 
