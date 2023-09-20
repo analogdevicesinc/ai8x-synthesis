@@ -8,11 +8,10 @@
 YAML Configuration Routines
 """
 import os
+import re
+import subprocess
 
 import yaml
-import yamllint
-import yamllint.config
-import yamllint.linter
 
 from . import devices, names, op, state
 from . import tornadocnn as tc
@@ -58,6 +57,7 @@ class UniqueKeyLoader(yaml.Loader):
 def parse(
         config_file,
         skip_layers=0,
+        yamllint='yamllint',
 ):  # pylint: disable=too-many-branches
     """
     Configure network parameters from the YAML configuration file `config_file`.
@@ -78,11 +78,27 @@ def parse(
     if not os.path.exists(config_file):
         eprint(f'YAML configuration file {config_file} does not exist!')
 
-    yaml_config = yamllint.config.YamlLintConfig('extends: relaxed')
-    with open(config_file, mode='r', encoding='utf-8') as cfg_file:
-        for p in yamllint.linter.run(cfg_file, yaml_config):
-            eprint(f'{config_file} line {p.line}, col {p.column}: {p.desc}',
-                   error=p.level == 'error')
+    try:
+        proc = subprocess.run(
+            [yamllint, config_file, '-f', 'parsable'],
+            shell=False,
+            text=True,
+            capture_output=True,
+            timeout=5.0,
+            check=False,
+        )
+        errors = proc.stderr.splitlines()
+        if errors:
+            for i, line in enumerate(errors):
+                eprint(line.rstrip(), exit_code=None if i < len(errors) - 1 else 1)
+        warnings = proc.stdout.splitlines()
+        if warnings:
+            for w in warnings:
+                _, line, column, level, desc = re.split(r':(\d+):(\d+):\s*\[(\w+)\]\s+', w)
+                eprint(f'{config_file} line {line}, col {column}: {desc}',
+                       error=level == 'error')
+    except FileNotFoundError:
+        wprint(f'Cannot run {yamllint} to check {config_file}')
 
     # Load configuration file
     with open(config_file, mode='r', encoding='utf-8') as cfg_file:
