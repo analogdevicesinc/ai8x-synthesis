@@ -80,7 +80,7 @@ def parse(
 
     try:
         proc = subprocess.run(
-            [yamllint, config_file, '-f', 'parsable'],
+            [yamllint, config_file],
             shell=False,
             text=True,
             capture_output=True,
@@ -90,13 +90,14 @@ def parse(
         errors = proc.stderr.splitlines()
         if errors:
             for i, line in enumerate(errors):
-                eprint(line.rstrip(), exit_code=None if i < len(errors) - 1 else 1)
+                eprint(line, exit_code=None if i < len(errors) - 1 else 1)
         warnings = proc.stdout.splitlines()
         if warnings:
             for w in warnings:
-                _, line, column, level, desc = re.split(r':(\d+):(\d+):\s*\[(\w+)\]\s+', w)
-                eprint(f'{config_file} line {line}, col {column}: {desc}',
-                       error=level == 'error')
+                if ' error ' in w:
+                    eprint('  ' + w)
+                elif w != '':
+                    wprint(w)
     except FileNotFoundError:
         wprint(f'Cannot run {yamllint} to check {config_file}')
 
