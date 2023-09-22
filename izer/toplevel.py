@@ -716,7 +716,7 @@ def main(
                     if not (riscv or embedded_code):
                         memfile.write('  SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk; // SLEEPDEEP=0\n')
                     memfile.write('  while (cnn_time == 0)\n')
-                    if embedded_code:
+                    if embedded_code and not riscv:  # RISC-V no LP API in SDK currently
                         memfile.write(f'    {sleep_api}(); // Wait for CNN\n\n')
                     elif not riscv:
                         memfile.write('    __WFI(); // Wait for CNN\n\n')
