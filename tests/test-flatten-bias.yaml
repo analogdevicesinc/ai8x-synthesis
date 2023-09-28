@@ -7,7 +7,7 @@ layers:
   - max_pool: 16
     pool_stride: 8
     pad: 1
-    activate: ReLU
+    activate: None
     out_offset: 0x0000
     processors: 0x0000000000000007
     data_format: HWC

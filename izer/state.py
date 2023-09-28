@@ -202,6 +202,7 @@ verbose_all: bool = False
 verbose: bool = False
 verify_kernels: bool = False
 verify_writes: bool = False
+warn_zero: bool = True
 weight_filename: str = ''
 weight_start: int = 0
 weights: List[Any] = []

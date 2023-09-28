@@ -20,4 +20,4 @@ layers:
     activation: relu
     pad: 0
     bypass: true
-    output_shift: -3
+    output_shift: 5
