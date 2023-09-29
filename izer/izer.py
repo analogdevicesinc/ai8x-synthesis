@@ -19,7 +19,7 @@ import rich.console
 from . import checkpoint, commandline, console, onnxcp, op, rtlsim, sampledata, sampleweight, state
 from . import tornadocnn as tc
 from . import versioncheck, yamlcfg
-from .eprint import eprint, wprint
+from .eprint import eprint, nprint, wprint
 from .names import layer_pfx, layer_str
 from .utils import plural
 
@@ -417,7 +417,7 @@ def main():
             eprint(f'{layer_pfx(ll)}`output_width` must be 8 when activation is used.')
 
     if ll == 0 and (pool[0][0] != 1 or pool[0][1] != 1):
-        wprint(f'{layer_pfx(0)}The input layer uses pooling. Consider downscaling the input data '
+        nprint(f'{layer_pfx(0)}The input layer uses pooling. Consider downscaling the input data '
                'at the source instead.')
 
     while ll < layers:

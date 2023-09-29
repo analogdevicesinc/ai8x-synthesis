@@ -3332,7 +3332,7 @@ class Backend(backend.Backend):
                     if memfile:
                         memfile.close()
 
-                if not np.any(out_buf):
+                if not np.any(out_buf) and state.warn_zero:
                     wprint(f'{layer_pfx(ll)}All output values for the given sample input are '
                            'zero. The generated known-answer test for this network may not be '
                            'meaningful. See the log file for details.')

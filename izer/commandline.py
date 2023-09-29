@@ -161,6 +161,8 @@ def get_parser() -> argparse.Namespace:
                        help="override `output_width` for the final layer (default: use YAML)")
     group.add_argument('--no-deduplicate-weights', action='store_true', default=False,
                        help="do not reuse weights (default: enabled)")
+    group.add_argument('--no-warn-zero', action='store_true', default=False,
+                       help="do not warn about all-zero data (default: warn)")
 
     # File names
     group = parser.add_argument_group('File names')
@@ -705,6 +707,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.verbose_all = args.verbose_all
     state.verify_kernels = args.verify_kernels or args.verify_writes and args.new_kernel_loader
     state.verify_writes = args.verify_writes
+    state.warn_zero = not args.no_warn_zero
     state.weight_filename = args.weight_filename
     state.weight_start = args.weight_start
     state.wfi = args.wfi

@@ -6,7 +6,7 @@ dataset: test_fifostream-nonsquare
 
 layers:
   - pad: 1
-    out_offset: 0x400
+    out_offset: 0x2000
     processors: 0x0001000100010001
     data_format: CHW
     streaming: true
