@@ -278,7 +278,7 @@ class MakefileMapping(MutableMapping):
     This class is a modified dictionary that maps template strings (keys) to
     values while enforcing template pattern matching.  It also handles special
     cases where a value is not a 1:1 match to what should be written to
-    the template Makefile.  For example, pre-pending source files with
+    the template Makefile.  For example, prepending source files with
     'SRCS +=', etc. is done "on the fly" through this mapping object.
 
     The key:value rules are as follows:
