@@ -35,7 +35,7 @@ The following additional packages are also required:
 
 ## Building from Scratch
 
-To obtain the full OpenOCD source code, and to re-build the binaries, please use `git clone https://github.com/MaximIntegratedMicros/openocd.git`.
+To obtain the full OpenOCD source code, and to re-build the binaries, please use `git clone https://github.com/Analog-Devices-MSDK/openocd.git`.
 
 ### Linux
 
