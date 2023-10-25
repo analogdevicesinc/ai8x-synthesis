@@ -13,15 +13,15 @@
             "MIMode": "gdb",
             "linux": {
                 "miDebuggerPath": "${config:ARM_GCC_path}/bin/arm-none-eabi-gdb",
-                "debugServerPath": "${config:OCD_path}/openocd",
+                "debugServerPath": "${config:OCD_path}/openocd"
             },
             "windows": {
                 "miDebuggerPath": "${config:ARM_GCC_path}/bin/arm-none-eabi-gdb.exe",
-                "debugServerPath": "${config:OCD_path}/openocd.exe",
+                "debugServerPath": "${config:OCD_path}/openocd.exe"
             },
             "osx": {
                 "miDebuggerPath": "${config:ARM_GCC_path}/bin/arm-none-eabi-gdb",
-                "debugServerPath": "${config:OCD_path}/bin/openocd",
+                "debugServerPath": "${config:OCD_path}/bin/openocd"
             },
             "logging": {
                 "exceptions": true,
@@ -63,15 +63,15 @@
             "MIMode": "gdb",
             "linux": {
                 "miDebuggerPath": "${config:xPack_GCC_path}/bin/riscv-none-embed-gdb",
-                "debugServerPath": "${config:OCD_path}/openocd",
+                "debugServerPath": "${config:OCD_path}/openocd"
             },
             "windows": {
                 "miDebuggerPath": "${config:xPack_GCC_path}/bin/riscv-none-embed-gdb.exe",
-                "debugServerPath": "${config:OCD_path}/openocd.exe",
+                "debugServerPath": "${config:OCD_path}/openocd.exe"
             },
             "osx": {
                 "miDebuggerPath": "${config:xPack_GCC_path}/bin/riscv-none-embed-gdb",
-                "debugServerPath": "${config:OCD_path}/bin/openocd",
+                "debugServerPath": "${config:OCD_path}/bin/openocd"
             },
             "logging": {
                 "exceptions": true,
