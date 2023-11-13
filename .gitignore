@@ -3,7 +3,7 @@
 *.prof
 /.mypy_cache/
 /.python-version/
-/.vscode
+/.vscode/
 **/build/
 /ninja-python-distributions
 /pip-selfcheck.json
