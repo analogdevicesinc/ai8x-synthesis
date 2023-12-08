@@ -2,3 +2,5 @@
 extends: default
 rules:
   line-length: {max: 1024}
+  new-lines:
+    type: platform
