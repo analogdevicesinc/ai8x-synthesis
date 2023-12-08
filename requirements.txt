@@ -11,4 +11,3 @@ rich>=11.2.0
 protobuf>=3.20.1,<4.0
 xxhash>=3.0.0
 matplotlib>=3.6.0
-yamllint==1.33.0
