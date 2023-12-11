@@ -38,7 +38,7 @@ def passthrough_faker(n_channels):
     a = nn.Conv2d(in_channels=n_channels, out_channels=n_channels, kernel_size=1, bias=False)
     a.weight.data = torch.zeros_like(a.weight.data)
     for i in range(a.weight.data.shape[0]):
-        a.weight.data[i, i, :, :] = 64
+        a.weight.data[i, i, :, :] = 1
     return a
 
 
@@ -61,10 +61,10 @@ def main():
         new_state_dict[name] = v
 
     new_state_dict[f'{args.layer_name}.output_shift'] = torch.Tensor([1.]).to(device)
-    new_state_dict[f'{args.layer_name}.weight_bits'] = torch.Tensor([8.]).to(device)
+    new_state_dict[f'{args.layer_name}.weight_bits'] = torch.Tensor([2.]).to(device)
     new_state_dict[f'{args.layer_name}.bias_bits'] = torch.Tensor([8.]).to(device)
     new_state_dict[f'{args.layer_name}.quantize_activation'] = torch.Tensor([1.]).to(device)
-    new_state_dict[f'{args.layer_name}.adjust_output_shift'] = torch.Tensor([0.]).to(device)
+    new_state_dict[f'{args.layer_name}.adjust_output_shift'] = torch.Tensor([1.]).to(device)
     new_state_dict[f'{args.layer_name}.shift_quantile'] = torch.Tensor([1.]).to(device)
     new_state_dict[f'{args.layer_name}.op.weight'] = passthrough_kernel.weight.data.to(device)
 
