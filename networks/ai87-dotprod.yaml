@@ -1,7 +1,7 @@
 ---
 arch: AI87DotProd
 dataset: dotprod_test
-# Dotproduct Model with 73 passtrough layers
+# Dotproduct Model with 73 passthrough layers
 # Define layer parameters in order of the layer sequence
 layers:
   # Layer 0: Passthrough
