@@ -29,7 +29,7 @@ def parse_arguments():
     parser.add_argument('--layer-name-after-pt', metavar='S', required=True,
                         help='name of the layer just after the passthrough layer is added')
     parser.add_argument('--low-memory-footprint', action='store_true', default=False,
-                        help='enables 2bits quantization for weights')
+                        help='enables 2-bit quantization for weights')
 
     args = parser.parse_args()
     return args
