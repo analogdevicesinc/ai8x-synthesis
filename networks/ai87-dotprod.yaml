@@ -1,0 +1,524 @@
+---
+arch: AI87DotProd
+dataset: dotprod_test
+# Dotproduct Model with 73 passthrough layers
+# Define layer parameters in order of the layer sequence
+layers:
+  # Layer 0: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    data_format: HWC
+    processors: 0xffff.ffff.ffff.ffff
+    operation: passthrough
+    activate: None
+
+  # Layer 1: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 2: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 3: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 4: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 5: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 6: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 7: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 8: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 9: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 10: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 11: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 12: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 13: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 14: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 15: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 16: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 17: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 18: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 19: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 20: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 21: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 22: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 23: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 24: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 25: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 26: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 27: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 28: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 29: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 30: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 31: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 32: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 33: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 34: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 35: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 36: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 37: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 38: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 39: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 40: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 41: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 42: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 43: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 44: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 45: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 46: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 47: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 48: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 49: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 50: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 51: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 52: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 53: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 54: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 55: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 56: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 57: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 58: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 59: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 60: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 61: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 62: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 63: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 64: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 65: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 66: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 67: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 68: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 69: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 70: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 71: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer 72: Passthrough
+  - out_offset: 0x9300
+    in_offset: 0x0000
+    processors: 0xffff.ffff.ffff.ffff
+    operation: None
+    activate: None
+
+  # Layer73:mlp
+  - op: mlp
+    activate: none
+    out_offset: 0x4000
+    processors: 0xffff.ffff.ffff.ffff
+    data_format: HWC

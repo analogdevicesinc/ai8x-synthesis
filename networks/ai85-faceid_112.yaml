@@ -1,0 +1,159 @@
+---
+# Faceid_112 for face recognition. Compatible with MAX78000.
+
+arch: ai85faceidnet_112
+dataset: vggface2_faceid
+
+layers:
+  # Layer 0: pre_stage. in 3ch, out 32 ch
+  - processors: 0x0000000000000007
+    in_offset: 0x0000
+    out_offset: 0x2000
+    operation: Conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    streaming: true
+  # Layer 1: pre_stage_2. in 32ch, out 32 ch
+  - processors: 0xffffffff00000000
+    output_processors: 0x00000000ffffffff
+    out_offset: 0x4000
+    operation: Conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: ReLU
+    max_pool: 2
+    pool_stride: 2
+    streaming: true
+  # Layer 2: Bottleneck-0, n=0, conv1. in 32ch, out 64 ch
+  - processors: 0x00000000ffffffff
+    output_processors: 0xffffffffffffffff
+    out_offset: 0x0000
+    operation: Conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
+  # Layer 3: Bottleneck-0, n=0, conv2. in 64ch, out 48 ch
+  - processors: 0xffffffffffffffff
+    output_processors: 0x0000ffffffffffff
+    out_offset: 0x4000
+    operation: Conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: None
+    max_pool: 2
+    pool_stride: 2
+  # Layer 4: Bottleneck-1, n=0, conv1. in 48ch, out 192 ch
+  - processors: 0x0000ffffffffffff
+    output_processors: 0xffffffffffffffff
+    out_offset: 0x0000
+    operation: Conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
+  # Layer 5: Bottleneck-1, n=0, conv2. in 192 ch, out 64 ch
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    out_offset: 0x4000
+    operation: Conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: None
+    max_pool: 2
+    pool_stride: 2
+  # Layer 6: Bottleneck-2, n=0, conv1. in 64ch, out 128 ch
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    out_offset: 0x2000
+    operation: Conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
+  # Layer 7: Bottleneck-2, n=0, conv2. in 128 ch, out 64 ch
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    out_offset: 0x0000
+    operation: Conv2d
+    kernel_size: 3x3
+    write_gap: 1
+    pad: 1
+    activate: None
+  # Layer 8: Bottleneck-2, n=0, Reform input layer
+  - in_offset: 0x4000
+    out_offset: 0x0004
+    processors: 0xffffffffffffffff
+    operation: passthrough
+    write_gap: 1
+    in_sequences: [5]
+  # Layer 9: Bottleneck-2, n=0, Residual add
+  - in_offset: 0x0000
+    out_offset: 0x2000
+    processors: 0xffffffffffffffff
+    operation: none
+    eltwise: add
+    in_sequences: [7, 8]
+  # Layer 10: Bottleneck-3, n=0, conv1. in 64, out 256 ch
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    out_offset: 0x0000
+    operation: Conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
+  # Layer 11: Bottleneck-3, n=0, conv2. in 256 ch, out 96 ch
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffff0000
+    out_offset: 0x4000
+    operation: Conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: None
+    max_pool: 2
+    pool_stride: 2
+  # Layer 12: Bottleneck-4, n=0, conv1. in 96 ch, out 192 ch
+  - processors: 0xffffffffffff0000
+    output_processors: 0xffffffffffffffff
+    out_offset: 0x0000
+    operation: Conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
+  # Layer 13: Bottleneck-4, n=0, conv2. in 192 ch, out 128 ch
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    out_offset: 0x4000
+    operation: Conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: None
+  # Layer 14: post_stage in 128 ch, out 128 ch
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    out_offset: 0x0000
+    operation: Conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: ReLU
+  # Layer 15: pre_avg in 128 ch, out 128 ch
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    out_offset: 0x4000
+    operation: Conv2d
+    kernel_size: 3x3
+    pad: 1
+    activate: None
+  # Layer 16: Fake Fused Avg Pool
+  - processors: 0xffffffffffffffff
+    output_processors: 0xffffffffffffffff
+    out_offset: 0x0000
+    operation: Conv2d
+    kernel_size: 1x1
+    pad: 0
+    activate: None
+    avg_pool: [7, 7]
+    pool_stride: 1
+  # Layer 17: output layer in 128 features, out 64 features
+  - out_offset: 0x2000
+    processors: 0xffffffffffffffff
+    operation: MLP
+    activate: None
