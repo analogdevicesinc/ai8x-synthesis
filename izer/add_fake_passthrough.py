@@ -28,17 +28,22 @@ def parse_arguments():
                         help='depth of the passthrough layer')
     parser.add_argument('--layer-name-after-pt', metavar='S', required=True,
                         help='name of the layer just after the passthrough layer is added')
+    parser.add_argument('--low-memory-footprint', action='store_true', default=False,
+                        help='enables 2-bit quantization for weights')
 
     args = parser.parse_args()
     return args
 
 
-def passthrough_faker(n_channels):
+def passthrough_faker(n_channels, low_memory_footprint=False):
     """Creates passthrough layer"""
     a = nn.Conv2d(in_channels=n_channels, out_channels=n_channels, kernel_size=1, bias=False)
     a.weight.data = torch.zeros_like(a.weight.data)
     for i in range(a.weight.data.shape[0]):
-        a.weight.data[i, i, :, :] = 64
+        if low_memory_footprint:
+            a.weight.data[i, i, :, :] = 1
+        else:
+            a.weight.data[i, i, :, :] = 64
     return a
 
 
@@ -48,7 +53,7 @@ def main():
     device = torch.device('cpu')
 
     checkpoint = torch.load(args.input_checkpoint_path)
-    passthrough_kernel = passthrough_faker(args.layer_depth)
+    passthrough_kernel = passthrough_faker(args.layer_depth, args.low_memory_footprint)
 
     new_checkpoint = copy.deepcopy(checkpoint)
 
@@ -61,7 +66,10 @@ def main():
         new_state_dict[name] = v
 
     new_state_dict[f'{args.layer_name}.output_shift'] = torch.Tensor([1.]).to(device)
-    new_state_dict[f'{args.layer_name}.weight_bits'] = torch.Tensor([8.]).to(device)
+    if args.low_memory_footprint:
+        new_state_dict[f'{args.layer_name}.weight_bits'] = torch.Tensor([2.]).to(device)
+    else:
+        new_state_dict[f'{args.layer_name}.weight_bits'] = torch.Tensor([8.]).to(device)
     new_state_dict[f'{args.layer_name}.bias_bits'] = torch.Tensor([8.]).to(device)
     new_state_dict[f'{args.layer_name}.quantize_activation'] = torch.Tensor([1.]).to(device)
     new_state_dict[f'{args.layer_name}.adjust_output_shift'] = torch.Tensor([0.]).to(device)
