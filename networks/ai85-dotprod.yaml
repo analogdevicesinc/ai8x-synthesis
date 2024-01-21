@@ -1,0 +1,11 @@
+---
+arch: AI85DotProd
+dataset: dotprod_test
+
+layers:
+  # layer0: mlp
+  - op: mlp
+    activate: none
+    out_offset: 0x4000
+    processors: 0xffff.ffff.ffff.ffff
+    data_format: HWC
