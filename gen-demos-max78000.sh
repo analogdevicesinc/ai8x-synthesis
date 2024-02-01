@@ -11,6 +11,7 @@ python ai8xize.py --test-dir $TARGET --prefix cifar-100-mixed --checkpoint-file 
 python ai8xize.py --test-dir $TARGET --prefix cifar-100-simplewide2x-mixed --checkpoint-file trained/ai85-cifar100-simplenetwide2x-qat-mixed-q.pth.tar --config-file networks/cifar100-simplewide2x.yaml --softmax $COMMON_ARGS --boost 2.5 "$@"
 python ai8xize.py --test-dir $TARGET --prefix cifar-100-residual --checkpoint-file trained/ai85-cifar100-residual-qat8-q.pth.tar --config-file networks/cifar100-ressimplenet.yaml --softmax $COMMON_ARGS --boost 2.5 "$@"
 python ai8xize.py --test-dir $TARGET --prefix kws20_v3 --checkpoint-file trained/ai85-kws20_v3-qat8-q.pth.tar --config-file networks/kws20-v3-hwc.yaml --softmax $COMMON_ARGS "$@"
+python ai8xize.py --test-dir $TARGET --prefix kws20_nas --checkpoint-file trained/ai85-kws20_nas-qat8-q.pth.tar --config-file networks/kws20-nas-hwc.yaml --softmax $COMMON_ARGS "$@"
 python ai8xize.py --test-dir $TARGET --prefix faceid --checkpoint-file trained/ai85-faceid-qat8-q.pth.tar --config-file networks/faceid.yaml --fifo $COMMON_ARGS "$@"
 python ai8xize.py --test-dir $TARGET --prefix cats-dogs --checkpoint-file trained/ai85-catsdogs-qat8-q.pth.tar --config-file networks/cats-dogs-hwc.yaml --fifo --softmax $COMMON_ARGS "$@"
 python ai8xize.py --test-dir $TARGET --prefix camvid_unet --checkpoint-file trained/ai85-camvid-unet-large-fakept-q.pth.tar --config-file networks/camvid-unet-large-fakept.yaml $COMMON_ARGS --overlap-data --mlator --no-unload --max-checklines 8192 --new-kernel-loader "$@"

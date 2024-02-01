@@ -1,0 +1,116 @@
+---
+# HWC (big data) configuration for ai85kws20netnas
+
+arch: ai85kws20netnas
+dataset: KWS_20
+
+# Define layer parameters in order of the layer sequence
+layers:
+  # Conv 1D - 14 layers
+  # Unit-1
+  - data_format: HWC
+    operation: Conv1d
+    kernel_size: 1
+    pad: 0
+    activate: ReLU
+    out_offset: 0x2000
+    processors: 0xffffffffffffffff
+  - operation: Conv1d
+    kernel_size: 3
+    pad: 1
+    activate: ReLU
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff
+  - operation: Conv1d
+    kernel_size: 3
+    pad: 1
+    activate: ReLU
+    out_offset: 0x2000
+    processors: 0xffffffffffffffff
+  # Unit-2
+  - max_pool: 2
+    pool_stride: 2
+    operation: Conv1d
+    kernel_size: 3
+    pad: 1
+    activate: ReLU
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff
+  - operation: Conv1d
+    kernel_size: 1
+    pad: 0
+    activate: ReLU
+    out_offset: 0x2000
+    processors: 0xffffffffffffffff
+  - operation: Conv1d
+    kernel_size: 1
+    pad: 0
+    activate: ReLU
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff
+  # Unit-3
+  - max_pool: 2
+    pool_stride: 2
+    operation: Conv1d
+    kernel_size: 3
+    pad: 1
+    activate: ReLU
+    out_offset: 0x2000
+    processors: 0xffffffffffffffff
+  - operation: Conv1d
+    kernel_size: 5
+    pad: 2
+    activate: ReLU
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff
+  # Unit-4
+  - max_pool: 2
+    pool_stride: 2
+    operation: Conv1d
+    kernel_size: 5
+    pad: 2
+    activate: ReLU
+    out_offset: 0x2000
+    processors: 0xffffffffffffffff
+  - operation: Conv1d
+    kernel_size: 1
+    pad: 0
+    activate: ReLU
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff
+  # Unit-5
+  - max_pool: 2
+    pool_stride: 2
+    operation: Conv1d
+    kernel_size: 5
+    pad: 2
+    activate: ReLU
+    out_offset: 0x2000
+    processors: 0xffffffffffffffff
+  - operation: Conv1d
+    kernel_size: 3
+    pad: 1
+    activate: ReLU
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff
+  # Unit-6
+  - max_pool: 2
+    pool_stride: 2
+    operation: Conv1d
+    kernel_size: 5
+    pad: 2
+    activate: ReLU
+    out_offset: 0x2000
+    processors: 0xffffffffffffffff
+  - operation: Conv1d
+    kernel_size: 1
+    pad: 0
+    activate: ReLU
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff
+  # Classification layer
+  - flatten: true
+    out_offset: 0x2000
+    processors: 0xffffffffffffffff
+    operation: MLP
+    output_width: 32
