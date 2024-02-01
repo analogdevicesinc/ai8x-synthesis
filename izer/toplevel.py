@@ -13,26 +13,39 @@ from . import devices, rv, state
 from . import tornadocnn as tc
 
 COPYRIGHT = \
-    '/******************************************************************************\n' \
+    '/*******************************************************************************\n' \
+    '* Copyright (C) 2019-2023 Maxim Integrated Products, Inc., All rights Reserved.\n' \
     '*\n' \
-    '* Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.\n' \
-    '* (now owned by Analog Devices, Inc.),\n' \
-    '* Copyright (C) 2023-2024 Analog Devices, Inc. All Rights Reserved. This software\n' \
-    '* is proprietary to Analog Devices, Inc. and its licensors.\n' \
+    '* This software is protected by copyright laws of the United States and\n' \
+    '* of foreign countries. This material may also be protected by patent laws\n' \
+    '* and technology transfer regulations of the United States and of foreign\n' \
+    '* countries. This software is furnished under a license agreement and/or a\n' \
+    '* nondisclosure agreement and may only be used or reproduced in accordance\n' \
+    '* with the terms of those agreements. Dissemination of this information to\n' \
+    '* any party or parties not specified in the license agreement and/or\n' \
+    '* nondisclosure agreement is expressly prohibited.\n' \
     '*\n' \
-    '* Licensed under the Apache License, Version 2.0 (the "License");\n' \
-    '* you may not use this file except in compliance with the License.\n' \
-    '* You may obtain a copy of the License at\n' \
+    '* The above copyright notice and this permission notice shall be included\n' \
+    '* in all copies or substantial portions of the Software.\n' \
     '*\n' \
-    '*     http://www.apache.org/licenses/LICENSE-2.0\n' \
+    '* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS\n' \
+    '* OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF\n' \
+    '* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.\n' \
+    '* IN NO EVENT SHALL MAXIM INTEGRATED BE LIABLE FOR ANY CLAIM, DAMAGES\n' \
+    '* OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,\n' \
+    '* ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR\n' \
+    '* OTHER DEALINGS IN THE SOFTWARE.\n' \
     '*\n' \
-    '* Unless required by applicable law or agreed to in writing, software\n' \
-    '* distributed under the License is distributed on an "AS IS" BASIS,\n' \
-    '* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n' \
-    '* See the License for the specific language governing permissions and\n' \
-    '* limitations under the License.\n' \
+    '* Except as contained in this notice, the name of Maxim Integrated\n' \
+    '* Products, Inc. shall not be used except as stated in the Maxim Integrated\n' \
+    '* Products, Inc. Branding Policy.\n' \
     '*\n' \
-    '******************************************************************************/\n\n'
+    '* The mere transfer of this software does not imply any licenses\n' \
+    '* of trade secrets, proprietary technology, copyrights, patents,\n' \
+    '* trademarks, maskwork rights, or any other form of intellectual\n' \
+    '* property whatsoever. Maxim Integrated Products, Inc. retains all\n' \
+    '* ownership rights.\n' \
+    '*******************************************************************************/\n\n'
 
 
 def copyright_header(
