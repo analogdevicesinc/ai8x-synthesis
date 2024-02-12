@@ -1,7 +1,11 @@
 ---
+# Autoencoder model compatible with MAX78000.
+# Input Shape: [256, 3] = [N_CHANNELS, SIGNAL_LEN]
+# Sample motor data is collected using SpectraQuest Machinery Fault Simulator.
+
 arch: ai85autoencoder
 dataset: SampleMotorDataLimerick
-# Define layer parameters in order of the layer sequence
+
 layers:
   # Layer 0: 256 channels in --> 64 processors, 4 passes. Conv1D
   - pad: 0
