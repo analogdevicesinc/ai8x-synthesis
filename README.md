@@ -1,19 +1,19 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-January 10, 2024
+February 22, 2024
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
 1. **Start here**:
     **[Top Level Documentation](https://github.com/MaximIntegratedAI/MaximAI_Documentation)**
 2. The software development kit (MSDK), which contains drivers and example programs ready to run on the evaluation kits (EVkit and Feather):
-    [Analog Devices MSDK](https://github.com/Analog-Devices-MSDK/msdk)
+    [Analog Devices MSDK](https://github.com/analogdevicesinc/msdk)
 3. The training repository, which is used for deep learning *model development and training*:
     [ai8x-training](https://github.com/MaximIntegratedAI/ai8x-training) **(described in this document)**
 4. The synthesis repository, which is used to *convert a trained model into C code* using the “izer” tool:
     [ai8x-synthesis](https://github.com/MaximIntegratedAI/ai8x-synthesis) **(described in this document)**
 5. The reference design repository, which contains host applications and sample applications for reference designs such as [MAXREFDES178 (Cube Camera)](https://www.analog.com/en/design-center/reference-designs/maxrefdes178.html):
-    [refdes](https://github.com/Analog-Devices-MSDK/refdes)
+    [refdes](https://github.com/analogdevicesinc/refdes)
     *Note: Examples for EVkits and Feather boards are part of the MSDK*
 
 _Open the `.md` version of this file in a markdown enabled viewer, for example Typora (<http://typora.io>).
@@ -423,7 +423,7 @@ For minor updates, pull the latest code and install the updated wheels:
 
 ##### MSDK Updates
 
-Please *also* update the MSDK or use the Maintenance Tool as documented in the [Analog Devices MSDK documentation](https://github.com/Analog-Devices-MSDK/msdk). The Maintenance Tool automatically updates the MSDK.
+Please *also* update the MSDK or use the Maintenance Tool as documented in the [Analog Devices MSDK documentation](https://github.com/analogdevicesinc/msdk). The Maintenance Tool automatically updates the MSDK.
 
 ##### Python Version Updates
 
@@ -551,7 +551,7 @@ There are two ways to install the MSDK.
 
 #### Method 1: MSDK Installer
 
-The [Analog Devices MSDK](https://github.com/Analog-Devices-MSDK/msdk) for MAX78000/MAX7802 is available via the installer links below. These installers require a GUI on your system.
+The [Analog Devices MSDK](https://github.com/analogdevicesinc/msdk) for MAX78000/MAX7802 is available via the installer links below. These installers require a GUI on your system.
 
 1. Download the MSDK installer for your operating system from one of the links below.
     * [Windows](https://www.analog.com/en/design-center/evaluation-hardware-and-software/software/software-download?swpart=SFW0010820A)
@@ -640,7 +640,7 @@ The MAX78000/MAX78002 MSDK is available as a git repository. The repository cont
 1. Clone the MSDK repository (recommendation: change to the *ai8x-synthesis* folder first):
 
     ```shell
-    $ git clone https://github.com/Analog-Devices-MSDK/msdk.git sdk
+    $ git clone https://github.com/analogdevicesinc/msdk.git sdk
     ```
 
 2. Download and install the Arm Embedded GNU Toolchain from [https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads).
