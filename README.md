@@ -1,6 +1,6 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-February 22, 2024
+February 26, 2024
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
@@ -535,7 +535,7 @@ With the installation of Training and Synthesis projects completed it is importa
 
 ### Embedded Software Development Kit (MSDK)
 
-The Software Development Kit (MSDK) for the MAX78000 and MAX78002 is used to compile, flash, and debug the output of the *ai8x-synthesis* (“izer”) tool. It also enables general software development for the microcontroller cores of the MAX78000 and MAX78002. It consists of the following components:
+The Software Development Kit (MSDK) for MAX78000 and MAX78002 is used to compile, flash, and debug the output of the *ai8x-synthesis* (“izer”) tool. It also enables general software development for the microcontroller cores of the MAX78000 and MAX78002. It consists of the following components:
 
 * Peripheral Drivers
 * Board Support Packages (BSPs)
@@ -551,13 +551,13 @@ There are two ways to install the MSDK.
 
 #### Method 1: MSDK Installer
 
-An automatic installer is available for the MSDK.  Instructions on downloading, installing, and getting started with the MSDK's supported development environments are found in the [**MSDK User Guide**](https://analogdevicesinc.github.io/msdk/USERGUIDE/).
+An automatic installer is available for the MSDK. Instructions for downloading, installing, and getting started with the MSDK’s supported development environments are found in the [**MSDK User Guide**](https://analogdevicesinc.github.io/msdk/USERGUIDE/).
 
 After installation and setup, continue with the [Final Check](#final-check).
 
 #### Method 2: Manual Installation
 
-The MSDK is also available as a [git repository](https://github.com/analogdevicesinc/msdk), which can be used to obtain the latest development resources. The repository contains all of the MSDK's components _except_ the Arm GCC, RISC-V GCC, and Make. These can be downloaded and installed manually.
+The MSDK is also available as a [git repository](https://github.com/analogdevicesinc/msdk), which can be used to obtain the latest development resources. The repository contains all of the MSDK’s components _except_ the Arm GCC, RISC-V GCC, and Make. These can be downloaded and installed manually.
 
 1. Clone the MSDK repository (recommendation: change to the *ai8x-synthesis* folder first):
 
