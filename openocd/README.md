@@ -32,7 +32,7 @@ The following additional packages are also required:
 
 ## Building from Scratch
 
-To obtain the full OpenOCD source code, and to re-build the binaries, please use `git clone https://github.com/analogdevicesinc/openocd.git`.
+To obtain the full OpenOCD source code, and to re-build the binaries, please use `git clone -b release https://github.com/analogdevicesinc/openocd.git`.
 
 ### Linux
 
