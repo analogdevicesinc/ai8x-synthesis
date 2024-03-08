@@ -1,0 +1,51 @@
+---
+# Autoencoder model compatible with MAX78000.
+# Input Shape: [256, 3] = [N_CHANNELS, SIGNAL_LEN]
+# Sample motor data is collected using SpectraQuest Machinery Fault Simulator.
+
+arch: ai85autoencoder
+dataset: SampleMotorDataLimerick
+
+layers:
+  # Layer 0: 256 channels in --> 64 processors, 4 passes. Conv1D
+  - pad: 0
+    activate: ReLU
+    out_offset: 0x2000
+    processors: 0xffffffffffffffff
+    operation: Conv1d
+    kernel_size: 1
+    data_format: HWC
+  # Layer 1: 128 channels in --> 64 processors, 2 passes. Conv1D
+  - pad: 0
+    activate: ReLU
+    out_offset: 0x0000
+    processors: 0xffffffffffffffff
+    kernel_size: 3
+    operation: Conv1d
+  # Layer 2: 64 inputs --> 64 processors, 1 passes. MLP
+  - pad: 0
+    activate: ReLU
+    out_offset: 0x2000
+    processors: 0xffffffffffffffff
+    operation: MLP
+  # Layer 3: 32 inputs --> 32 processors, 1 pass. MLP
+  - activate: ReLU
+    out_offset: 0x0000
+    processors: 0x00000000ffffffff
+    operation: MLP
+  # Layer 4: 16 inputs --> 16 processors, 1 pass. MLP
+  - activate: ReLU
+    out_offset: 0x2000
+    processors: 0x000000000000000f
+    operation: MLP
+  # Layer 5: 32 inputs --> 32 processors, 1 pass. MLP
+  - activate: ReLU
+    out_offset: 0x4000
+    processors: 0x00000000ffffffff
+    operation: MLP
+  # Layer 6: 96 inputs --> 48 processors, 2 passes. MLP
+  - pad: 0
+    activate: None
+    out_offset: 0x0000
+    processors: 0x0000ffffffffffff
+    operation: MLP
