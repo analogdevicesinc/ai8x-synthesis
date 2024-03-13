@@ -3250,7 +3250,7 @@ ERROR: Layer 6: 64 input channels (before flattening) using 1 pass, and 1 operan
 
 ##### “new-lines” Configuration File Parsing Error
 
-```
+```shell
 ERROR: invalid config: option "type" of "new-lines" should be in ('unix', 'dos')
 ```
 
