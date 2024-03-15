@@ -13,7 +13,8 @@
 	"extensions": {
 		"recommendations": [
 			"ms-python.pylint",
-			"ms-python.flake8"
+			"ms-python.flake8",
+			"ms-python.mypy-type-checker"
 		]
 	}
 }
