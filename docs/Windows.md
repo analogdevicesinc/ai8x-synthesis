@@ -2,7 +2,7 @@
 
 December 8, 2022
 
-The preferred and most compatible way to train networks is using the *[Windows Subsystem for Linux (WSL2)](https://github.com/MaximIntegratedAI/ai8x-synthesis/blob/develop/docs/WSL2.md).* However, WSL2 is not always available. The instructions in this document demonstrate how to train networks natively on Windows, without WSL2.
+The preferred and most compatible way to train networks is using the *[Windows Subsystem for Linux (WSL2)](https://github.com/analogdevicesinc/ai8x-synthesis/blob/develop/docs/WSL2.md).* However, WSL2 is not always available. The instructions in this document demonstrate how to train networks natively on Windows, without WSL2.
 
 ## Requirements
 
@@ -85,7 +85,7 @@ Open a MinGW shell using Start - Maxim Integrated SDK - MinGW:
 
 Next, change to the target directory (the default is  `C:\MaximSDK\Tools\MinGW\msys\1.0\home\<name>\`).
 
-Check out the training and synthesis repositories as detailed in the [main documentation](https://github.com/MaximIntegratedAI/ai8x-synthesis/blob/develop/README.md#upstream-code).
+Check out the training and synthesis repositories as detailed in the [main documentation](https://github.com/analogdevicesinc/ai8x-synthesis/blob/develop/README.md#upstream-code).
 
 
 
