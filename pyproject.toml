@@ -1,10 +1,98 @@
+[build-system]
+requires = ["pip", "setuptools", "wheel"]
+
+[project]
+name = "ai8x-synthesis"
+description = "Quantization and Synthesis (Device Specific Code Generation) for ADI's MAX78000 and MAX78002 Edge AI Devices"
+authors = [
+  {name = "Analog Devices Inc."},
+]
+requires-python = ">=3.11.8,<3.12"
+readme = "README.md"
+license = {file = "LICENSE.txt"}
+keywords = ["machine-learning", "ai", "deep-learning", "artificial-intelligence", "analog-devices", "maxim", "maxim-integrated", "max78000", "max78002"]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/MaximIntegratedAI"
+Documentation = "https://github.com/MaximIntegratedAI/ai8x-synthesis/blob/develop/README.md"
+Repository = "https://github.com/MaximIntegratedAI/ai8x-synthesis.git"
+Issues = "https://github.com/MaximIntegratedAI/ai8x-synthesis/issues"
+
+[project.scripts]
+izer = "izer.izer:main"
+
 [tool.black]
 line-length = 99
-target-version = ['py36']
 
 [tool.codespell]
-count = ''
-ignore-words-list = 'nervana,cconfiguration'
+count = ""
+ignore-words-list = "nervana,cconfiguration,anormal"
 quiet-level = 3
-skip = '*.dasm,*.map,./rtldev,./.mypy_cache,./sdk,./venv,./.git,./super-linter.log'
+skip = "*.dasm,*.map,./rtldev,./.mypy_cache,./sdk,./.venv,./.git,./super-linter.log"
 ignore-regex = '^\s+"image/png".*$'
+
+[tool.pytest.ini_options]
+norecursedirs = [
+    ".git",
+    ".venv",
+    "assets",
+    "attic",
+    "bin",
+    "etc",
+    "docs",
+    "lib",
+    "networks",
+    "rtldev",
+    "sdk",
+    "share",
+    "trained",
+]
+
+[tool.isort]
+profile = ""
+line_length = 99
+known_math = [
+    "numpy",
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "tensorboard",
+    "tensorflow",
+]
+sections = [
+    "FUTURE",
+    "STDLIB",
+    "MATH",
+    "THIRDPARTY",
+    "FIRSTPARTY",
+    "LOCALFOLDER",
+]
+
+[tool.mypy]
+ignore_missing_imports = true
+follow_imports = "silent"
+show_column_numbers = true
+
+[tool.pylint."MESSAGES CONTROL"]
+disable = "invalid-name,consider-using-with,duplicate-code,not-callable"
+[tool.pylint.TYPECHECK]
+ignored-modules = "numpy,matplotlib.cm,torch"
+ignored-classes = "ModelProto"
+[tool.pylint.FORMAT]
+max-line-length = 99
+[tool.pylint.DESIGN]
+max-locals = 100
+max-statements = 2000
+min-public-methods = 0
+max-branches = 180
+max-module-lines = 5000
+max-nested-blocks = 10
+max-args = 55
+max-attributes = 60
+max-public-methods = 35
+max-bool-expr = 12
+max-parents = 15
+[tool.pylint.MASTER]
+ignore = "CMSIS_5,sdk"
+

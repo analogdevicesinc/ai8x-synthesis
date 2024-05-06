@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -54,7 +54,7 @@ def load(
         try:
             while True:
                 w.append(np.load(file))
-        except ValueError:
+        except (ValueError, EOFError):
             pass
 
     if len(w) == 1:  # If the weights file wasn't a list
@@ -143,7 +143,7 @@ def load_bias(
                             _ = np.load(file)
                         seq += 1
                     ll += 1
-            except ValueError:
+            except (ValueError, EOFError):
                 pass
 
     return bias
