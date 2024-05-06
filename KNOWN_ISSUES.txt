@@ -1,0 +1,4 @@
+KNOWN ISSUES for ai8x-synthesis with PyToch 2.3.0
+=================================================
+
+N/A
