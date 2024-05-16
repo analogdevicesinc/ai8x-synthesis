@@ -14,10 +14,10 @@ keywords = ["machine-learning", "ai", "deep-learning", "artificial-intelligence"
 dynamic = ["version"]
 
 [project.urls]
-Homepage = "https://github.com/MaximIntegratedAI"
-Documentation = "https://github.com/MaximIntegratedAI/ai8x-synthesis/blob/develop/README.md"
-Repository = "https://github.com/MaximIntegratedAI/ai8x-synthesis.git"
-Issues = "https://github.com/MaximIntegratedAI/ai8x-synthesis/issues"
+Homepage = "https://github.com/analogdevicesinc/MaximAI_Documentation"
+Documentation = "https://github.com/analogdevicesinc/ai8x-synthesis/blob/develop/README.md"
+Repository = "https://github.com/analogdevicesinc/ai8x-synthesis.git"
+Issues = "https://github.com/analogdevicesinc/ai8x-synthesis/issues"
 
 [project.scripts]
 izer = "izer.izer:main"
