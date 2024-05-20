@@ -30,7 +30,7 @@ layers:
     streaming: true
 
   # Layer 2: fire3, inp: 32x320x240
-  - out_offset: 0x2440 #0x2000
+  - out_offset: 0x2440  # 0x2000
     in_offset: 0x1000
     processors: 0x00000000ffffffff
     output_processors: 0xffffffffffffffff
@@ -56,7 +56,7 @@ layers:
     streaming: true
 
   # Layer 4: fire4, inp: 64x80x60
-  - out_offset: 0x4000 
+  - out_offset: 0x4000
     in_offset: 0x3000
     processors: 0xffffffffffffffff
     output_processors: 0xffffffffffffffff
@@ -67,7 +67,7 @@ layers:
     streaming: true
 
   # Layer 5: fire5, inp: 64x80x60
-  - out_offset: 0x5000 # 0x12C0
+  - out_offset: 0x5000  # 0x12C0
     in_offset: 0x4000
     processors: 0xffffffffffffffff
     output_processors: 0xffffffffffffffff
@@ -137,7 +137,7 @@ layers:
     pool_stride: 2
 
   # Layer 11: conv12_1, inp: 32x10x7
-  - out_offset: 0x5000 # 0x0280
+  - out_offset: 0x5000  # 0x0280
     in_offset: 0x4400
     processors: 0x00000000ffffffff
     output_processors: 0x000000000000ffff
@@ -148,7 +148,7 @@ layers:
 
   # Layer 12: conv12_2, inp: 16x10x7
   - name: conv12_2
-    out_offset: 0x5000 # 0x003C
+    out_offset: 0x5000  # 0x003C
     in_offset: 0x5000
     processors: 0x000000000000ffff
     output_processors: 0x00000000ffff0000
@@ -184,7 +184,7 @@ layers:
     activate: None
 
   # Layer 15: loc_conv10, inp: 32x10x7
-  - out_offset: 0x6B70 # 0x0118
+  - out_offset: 0x6B70  # 0x0118
     in_offset: 0x4400
     processors: 0x00000000ffffffff
     output_processors: 0x000000000000ffff
@@ -196,7 +196,7 @@ layers:
     activate: None
 
   # Layer 16: loc_conv12_2, inp: 16x5x3
-  - out_offset: 0x6C88 # 0x003C
+  - out_offset: 0x6C88  # 0x003C
     in_offset: 0x5000
     processors: 0x00000000ffff0000
     output_processors: 0x000000000000ffff
@@ -206,9 +206,9 @@ layers:
     in_sequences: conv12_2
     output: true
     activate: None
- 
+
   # Layer 17: kpts_fire8, inp: 32x40x30
-  - out_offset: 0x4000 # 0x12C0
+  - out_offset: 0x4000  # 0x12C0
     in_offset: 0x3000
     processors: 0x00000000ffffffff
     output_processors: 0xffffffff00000000
@@ -218,9 +218,9 @@ layers:
     in_sequences: fire8
     output: true
     activate: None
-  
+
   # Layer 18: kpts_fire9, inp: 32x20x15
-  - out_offset: 0x52C0 # 0x04B0
+  - out_offset: 0x52C0  # 0x04B0
     in_offset: 0x3000
     processors: 0xffffffff00000000
     output_processors: 0xffffffff00000000
@@ -230,9 +230,9 @@ layers:
     in_sequences: fire9
     output: true
     activate: None
-  
+
   # Layer 19: kpts_fire10, inp: 32x10x7
-  - out_offset: 0x5770 # 0x0118
+  - out_offset: 0x5770  # 0x0118
     in_offset: 0x4400
     processors: 0x00000000ffffffff
     output_processors: 0xffffffff00000000
@@ -242,7 +242,7 @@ layers:
     in_sequences: fire10
     output: true
     activate: None
-  
+
   # Layer 20: kpts_fire12_2, inp: 16x5x3
   - out_offset: 0x5888
     in_offset: 0x5000
@@ -254,7 +254,7 @@ layers:
     in_sequences: conv12_2
     output: true
     activate: None
-  
+
   # Layer 21: cl_fire8, inp: 32x40x30
   - out_offset: 0x5400  # 0x12C0
     in_offset: 0x3000
@@ -280,7 +280,7 @@ layers:
     activate: None
 
   # Layer 23: cl_conv10, inp: 32x10x7
-  - out_offset: 0x6B70 # 0x0118
+  - out_offset: 0x6B70  # 0x0118
     in_offset: 0x4400
     processors: 0x00000000ffffffff
     output_processors: 0x0000000000ff0000
@@ -292,7 +292,7 @@ layers:
     activate: None
 
   # Layer 24: cl_conv12_2, inp: 16x5x3
-  - out_offset: 0x6C88 # 0x003C
+  - out_offset: 0x6C88  # 0x003C
     in_offset: 0x5000
     processors: 0x00000000ffff0000
     output_processors: 0x0000000000ff0000
