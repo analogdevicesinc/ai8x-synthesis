@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2024 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -282,7 +282,7 @@ class MakefileMapping(MutableMapping):
     'SRCS +=', etc. is done "on the fly" through this mapping object.
 
     The key:value rules are as follows:
-        * The key is lowercase, and any '.' is replaced is '_'. (revelant for JSON parsing)
+        * The key is lowercase, and any '.' is replaced is '_'. (relevant for JSON parsing)
 
         * The value is a tuple with 2 items:
             * index 0: The template string
