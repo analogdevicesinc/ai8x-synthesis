@@ -503,7 +503,7 @@ def main():
                            f'sum of all pixels ({pixels}) in the layer\'s `in_sequences`.')
                 input_dim[ll] = conf_input_dim[ll]
 
-        if not (operator[ll] == op.CONV1D or (operator[ll] == op.NONE and input_dim[ll][1] == 1)):
+        if operator[ll] != op.CONV1D and (operator[ll] != op.NONE or input_dim[ll][1] != 1):
             if pool_stride[ll][0] != pool_stride[ll][1]:
                 eprint(f'{layer_pfx(ll)}{op.string(operator[ll])} does not support '
                        f'non-square pooling stride (currently set to '
@@ -523,7 +523,7 @@ def main():
             eprint(f'{layer_pfx(ll)}Pooling or zero-padding results in a zero data '
                    f'dimension (input {input_dim[ll]}, result {pooled_dim[ll]}).')
 
-        if not (operator[ll] == op.CONV1D or (operator[ll] == op.NONE and input_dim[ll][1] == 1)):
+        if operator[ll] != op.CONV1D and (operator[ll] != op.NONE or input_dim[ll][1] != 1):
             if stride[ll][0] != stride[ll][1]:
                 eprint(f'{layer_pfx(ll)}{op.string(operator[ll])} does not support '
                        f'non-square stride (currently set to {stride[ll][0]}x{stride[ll][1]}).')
