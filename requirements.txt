@@ -3,7 +3,7 @@ GitPython==3.1.43
 PyGithub==2.3.0
 PyYAML==6.0.1
 matplotlib==3.9.0
-numpy==1.26.4
+numpy==2.0.0
 onnx==1.16.1
 pytest==8.2.2
 rich==13.7.1
