@@ -6,5 +6,5 @@ target-version = ['py36']
 count = ''
 ignore-words-list = 'nervana,cconfiguration'
 quiet-level = 3
-skip = '*.dasm,*.map,./rtldev,./.mypy_cache,./sdk,./venv,./.git,./super-linter.log'
+skip = '*.dasm,*.map,*.pdf,./rtldev,./.mypy_cache,./sdk,./venv,./.git,./super-linter.log'
 ignore-regex = '^\s+"image/png".*$'
