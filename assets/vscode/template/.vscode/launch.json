@@ -13,7 +13,7 @@
             "servertype": "openocd",
             "linux": {
                 "gdbPath": "${config:ARM_GCC_path}/bin/arm-none-eabi-gdb",
-                "serverpath": "${config:OCD_path}/openocd",
+                "serverpath": "${config:OCD_path}/openocd"
             },
             "windows": {
                 "gdbPath": "${config:ARM_GCC_path}/bin/arm-none-eabi-gdb.exe",
