@@ -164,6 +164,7 @@ def vscode(
     arm_gcc_path: str = defaults["ARM_GCC_PATH"],
     xpack_gcc_path: str = defaults["XPACK_GCC_PATH"],
     make_path: str = defaults["MAKE_PATH"],
+    msys_path: str = defaults["MSYS_PATH"]
 ):
     """
     Generates Visual Studio Code project files from the VSCode-Maxim project.
@@ -247,7 +248,8 @@ def vscode(
                         replace("##__OCD_PATH__##", ocd_path). \
                         replace("##__ARM_GCC_PATH__##", arm_gcc_path). \
                         replace("##__XPACK_GCC_PATH__##", xpack_gcc_path). \
-                        replace("##__MAKE_PATH__##", make_path)
+                        replace("##__MAKE_PATH__##", make_path). \
+                        replace("##__MSYS_PATH__##", msys_path)
 
                 if (not out_file.exists()) or overwrite:
                     with open(out_file, "w+", encoding="UTF-8") as f:
