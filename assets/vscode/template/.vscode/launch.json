@@ -17,7 +17,7 @@
             },
             "windows": {
                 "gdbPath": "${config:ARM_GCC_path}/bin/arm-none-eabi-gdb.exe",
-                "serverpath": "${config:OCD_path}/openocd.exe",
+                "serverpath": "${config:OCD_path}/openocd.exe"
             },
             "osx": {
                 "gdbPath": "${config:ARM_GCC_path}/bin/arm-none-eabi-gdb",
