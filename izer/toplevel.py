@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2024 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -14,7 +14,7 @@ from . import tornadocnn as tc
 
 COPYRIGHT = \
     '/*******************************************************************************\n' \
-    '* Copyright (C) 2019-2023 Maxim Integrated Products, Inc., All rights Reserved.\n' \
+    '* Copyright (C) 2019-2024 Maxim Integrated Products, Inc., All rights Reserved.\n' \
     '*\n' \
     '* This software is protected by copyright laws of the United States and\n' \
     '* of foreign countries. This material may also be protected by patent laws\n' \
@@ -248,16 +248,11 @@ def function_footer(
 
 def write_ml_data(
         memfile: TextIO,
-        output_width: int,
 ) -> None:
     """
     Write the ml_data variable with `output_width` to `memfile`.
     """
-    if output_width != 32:
-        memfile.write('static int32_t ml_data32[(CNN_NUM_OUTPUTS + '
-                      f'{32 // output_width - 1}) / {32 // output_width}];\n')
-    else:
-        memfile.write('static int32_t ml_data[CNN_NUM_OUTPUTS];\n')
+    memfile.write('static int32_t ml_data[CNN_NUM_OUTPUTS];\n')
 
 
 def main(
@@ -309,7 +304,7 @@ def main(
     unmask = ~mask & ((1 << tc.dev.P_NUMGROUPS_ALL) - 1)
 
     if unload and not softmax:
-        write_ml_data(memfile, output_width)
+        write_ml_data(memfile)
         memfile.write('\n')
 
     if arm_code_wrapper:
@@ -347,8 +342,8 @@ def main(
     if embedded_code and not forever and softmax:
         memfile.write('  int digs, tens;\n')
         if output_width != 32:
-            memfile.write(f'int{output_width}_t *ml_data = '
-                          f'(int{output_width}_t *) ml_data32;\n')
+            memfile.write(f'  int{output_width}_t *ml_data{output_width} = '
+                          f'(int{output_width}_t *) ml_data;\n')
     if embedded_code and softmax or oneshot > 0:
         memfile.write('\n')
 
@@ -811,7 +806,7 @@ def main(
             memfile.write('  softmax_layer();\n')
         elif unload:
             memfile.write('  cnn_unload((uint32_t *) '
-                          f'ml_data{"32" if output_width != 32 else ""});\n')
+                          'ml_data);\n')
 
         if embedded_code:
             memfile.write('\n  printf("\\n*** PASS ***\\n\\n");\n\n'
@@ -911,13 +906,13 @@ def softmax_layer(
     Write the call to the softmax layer to `memfile`.
     """
     memfile.write('// Classification layer:\n')
-    write_ml_data(memfile, output_width)
+    write_ml_data(memfile)
     memfile.write('static q15_t ml_softmax[CNN_NUM_OUTPUTS];\n\n')
 
     function_header(memfile, prefix='',
                     function='softmax_layer',
                     return_type='void')
-    memfile.write(f'  cnn_unload((uint32_t *) ml_data{"32" if output_width != 32 else ""});\n')
+    memfile.write('  cnn_unload((uint32_t *) ml_data);\n')
 
     if output_width == 32:
         if shift == 0:
@@ -927,7 +922,7 @@ def softmax_layer(
             memfile.write('  softmax_shift_q17p14_q15((q31_t *) ml_data, '
                           f'CNN_NUM_OUTPUTS, {shift}, ml_softmax);\n')
     else:
-        memfile.write('  arm_softmax_q7_q15((const q7_t *) ml_data32, '
+        memfile.write('  arm_softmax_q7_q15((const q7_t *) ml_data, '
                       'CNN_NUM_OUTPUTS, ml_softmax);\n')
 
     function_footer(memfile, return_value='void')
