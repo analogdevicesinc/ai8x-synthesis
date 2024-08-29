@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2024 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -134,7 +134,14 @@ def load(  # pylint: disable=too-many-branches,too-many-statements
 
     with console.Progress(start=True) as progress:
         task0 = progress.add_task(description='Arranging weights...', total=layers-start_layer)
+        start_range = []
+        end_range = []
         for ll in range(start_layer, layers):
+            if processor_map[ll] == 0xffffffffffffffff:
+                start_range.append(ll)
+            else:
+                end_range.append(ll)
+        for ll in start_range + end_range:
             if operator[ll] == op.NONE or bypass[ll] or kernel[ll] is None:
                 assert kern_len[ll] == 0
                 assert kern_offs[ll] == start_offs
