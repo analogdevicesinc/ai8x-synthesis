@@ -160,6 +160,7 @@ def main():
                     input_channels.insert(ll, input_channels[val])
                     output_channels.insert(ll, output_channels[val])
                     output_shift[ll] = output_shift[val]
+                    final_scale[ll] = final_scale[val]
                     layers += 1
 
     if layers != cfg_layers:
