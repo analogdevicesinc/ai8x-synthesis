@@ -241,11 +241,11 @@ def convert_checkpoint(input_file, output_file, arguments):
                 out_shift_name = '.'.join([layer, 'output_shift'])
                 out_shift = torch.Tensor([-1 * get_max_bit_shift(params_r, clamp_bits,
                                                                  shift_quantile, True)])
-                threshold_name = '.'.join([layer, 'threshold'])
+                threshold_name = '.'.join([layer, 'activation_threshold'])
                 if threshold_name in checkpoint_state:
-                    threshold = checkpoint_state[threshold_name]
-                    out_shift = (out_shift - threshold).clamp(min=-7.-clamp_bits,
-                                                              max=23.-clamp_bits)
+                    activation_threshold = checkpoint_state[threshold_name]
+                    out_shift = (out_shift - activation_threshold).clamp(min=-7.-clamp_bits,
+                                                                         max=23.-clamp_bits)
                 new_checkpoint_state[out_shift_name] = out_shift
                 if new_masks_dict is not None:
                     new_masks_dict[out_shift_name] = out_shift
