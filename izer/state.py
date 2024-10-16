@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2021-2023 Maxim Integrated Products Inc. All Rights Reserved.
+# Copyright (C) 2021-2024 Maxim Integrated Products Inc. All Rights Reserved.
 #
 # Maxim Integrated Products Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -70,6 +70,7 @@ fifo: bool = False
 final_layer: int = -1
 first_layer_used: int = 0
 fixed_input: bool = False
+final_scale: List[int] = []
 flatten: List[bool] = []
 forever: bool = False
 generate_kat: bool = True
@@ -174,6 +175,7 @@ riscv: bool = False
 rtl_preload_weights: bool = False
 rtl_preload: bool = False
 runtest_filename: str = ''
+scale_output: bool = True
 sample_filename: str = ''
 simple1b: bool = False
 simulated_sequence: List[Any] = []

@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2024 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -56,6 +56,7 @@ def load(
     bias_min = []
     bias_max = []
     bias_size = []
+    final_scale = {}
 
     checkpoint = torch.load(checkpoint_file, map_location='cpu')
     print(f'Reading {checkpoint_file} to configure network weights...')
@@ -251,6 +252,12 @@ def load(
             # Add implicit shift based on quantization
             output_shift[seq] += 8 - abs(quantization[seq])
 
+            final_scale_name = '.'.join([layer, 'final_scale'])
+            if final_scale_name in checkpoint_state:
+                w = checkpoint_state[final_scale_name].numpy().astype(np.int64)
+                final_scale[seq] = w.item()
+            else:
+                final_scale[seq] = 0
             layers += 1
             seq += 1
 
@@ -286,4 +293,4 @@ def load(
         sys.exit(1)
 
     return layers, weights, bias, output_shift, \
-        input_channels, output_channels
+        input_channels, output_channels, final_scale

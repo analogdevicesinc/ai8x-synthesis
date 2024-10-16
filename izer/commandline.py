@@ -464,6 +464,8 @@ def get_parser() -> argparse.Namespace:
                        help='GitHub repository name for update checking')
     group.add_argument('--yamllint', metavar='S', default='yamllint',
                        help='name of linter for YAML files (default: yamllint)')
+    group.add_argument('--no-scale-output', action='store_true', default=False,
+                       help="scale output with final layer scale factor (default: false)")
 
     args = parser.parse_args()
 
@@ -691,6 +693,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.rtl_preload_weights = args.rtl_preload_weights
     state.runtest_filename = args.runtest_filename
     state.sample_filename = args.sample_filename
+    state.scale_output = not args.no_scale_output
     state.simple1b = args.simple1b
     state.sleep = args.deepsleep
     state.slow_load = args.slow_load

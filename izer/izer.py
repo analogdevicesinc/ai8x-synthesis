@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2024 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -74,6 +74,7 @@ def main():
 
     # If not using test data, load weights and biases
     # This also configures the network's output channels
+    final_scale = None
     if cfg['arch'] != 'test':
         if not args.checkpoint_file:
             eprint('--checkpoint-file is a required argument.')
@@ -96,7 +97,7 @@ def main():
         else:
             # PyTorch checkpoint file selected
             layers, weights, bias, output_shift, \
-                input_channels, output_channels = \
+                input_channels, output_channels, final_scale = \
                 checkpoint.load(
                     args.checkpoint_file,
                     cfg['arch'],
@@ -134,6 +135,8 @@ def main():
             params['bypass'],
             filename=args.bias_input,
         )
+    if final_scale is None:
+        final_scale = {ll: 0 for ll in range(cfg_layers)}
     if cfg_layers > layers:
         # Add empty weights/biases and channel counts for layers not in checkpoint file.
         # The checkpoint file does not contain weights for non-convolution operations.
@@ -157,6 +160,7 @@ def main():
                     input_channels.insert(ll, input_channels[val])
                     output_channels.insert(ll, output_channels[val])
                     output_shift[ll] = output_shift[val]
+                    final_scale[ll] = final_scale[val]
                     layers += 1
 
     if layers != cfg_layers:
@@ -630,6 +634,7 @@ def main():
     state.eltwise = eltwise
     state.final_layer = final_layer
     state.first_layer_used = min_layer
+    state.final_scale = final_scale
     state.flatten = flatten
     state.in_offset = input_offset
     state.in_sequences = in_sequences

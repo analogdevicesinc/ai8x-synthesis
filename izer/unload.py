@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2024 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -53,6 +53,36 @@ def unload(
         return f'{prefix}  out_buf{"32" if out_size != 32 else ""}' \
                f'[offs++] = *mlat;{comment}\n'
 
+    def scaled_mlator_write_one(
+            prefix: str = '',
+            comment: str = '',
+            out_size: int = 8,
+            scale: int = 0,
+    ) -> None:
+        """
+        Print a single mlator unload line with scaling
+        """
+
+        if scale > 0:
+            return f'{prefix}  val = *mlat;{comment}\n' \
+                f'{prefix}  out_buf[offs++] = (val & 0xff) << {scale};\n' \
+                f'{prefix}  out_buf[offs++] = ((val >> 8) & 0xff) << {scale};\n' \
+                f'{prefix}  out_buf[offs++] = ((val >> 16) & 0xff) << {scale};\n' \
+                f'{prefix}  out_buf[offs++] = ((val >> 24) & 0xff) << {scale};\n'
+
+        if scale < 0:
+            return f'{prefix}  val = *mlat;{comment}\n' \
+                f'{prefix}  out_buf[offs++] = (int16_t)((val & 0xff) << 8) >> '\
+                f'{abs(scale) + 8};\n' \
+                f'{prefix}  out_buf[offs++] = (int16_t)(((val >> 8) & 0xff) << 8) >> '\
+                f'{abs(scale) + 8};\n' \
+                f'{prefix}  out_buf[offs++] = (int16_t)(((val >> 16) & 0xff) << 8) >> '\
+                f'{abs(scale) + 8};\n' \
+                f'{prefix}  out_buf[offs++] = (int16_t)(((val >> 24) & 0xff) << 8) >> '\
+                f'{abs(scale) + 8};\n'
+
+        return mlator_write_one(prefix, comment, out_size)
+
     # Cache for faster access
     apb_base = state.apb_base
     mlator = state.mlator
@@ -61,6 +91,23 @@ def unload(
     wide_chunk = state.wide_chunk if state.embedded_code else 0
     unload_custom = state.unload_custom
     mlator_warning = state.mlator_warning
+    final_scale = state.final_scale
+    scale_output = state.scale_output
+    final_scale_detected = False
+
+    for layer in final_scale:
+        if final_scale[layer] != 0:
+            final_scale_detected = True
+            break
+
+    if not scale_output and final_scale_detected:
+        wprint('Non-zero output scale detected, but --scale-output not set. '
+               'Unload operation will be realized without scaling. '
+               f'Final scales are {final_scale}.')
+
+    if scale_output and not final_scale_detected:
+        nprint('--scale-output set, but all output scales are zero. '
+               'Unload operation will be realized without scaling.')
 
     assert not state.block_mode or not mlator
 
@@ -201,6 +248,7 @@ def unload(
             else:  # mlator
                 def mlator_loop(
                         num: int = 1,
+                        ll: int = ll,
                 ) -> None:
                     """
                     Print multiple mlator unload lines using a partially unrolled loop
@@ -214,13 +262,20 @@ def unload(
                     if num >= 2 * mlator_chunk:
                         result += f'  for (i = 0; i < {num // mlator_chunk}; i++) {{\n'
                         for _ in range(mlator_chunk):
-                            result += mlator_write_one('  ', '', out_size)
+                            if scale_output:
+                                result += scaled_mlator_write_one('  ', '', out_size,
+                                                                  final_scale[ll])
+                            else:
+                                result += mlator_write_one('  ', '', out_size)
                         result += '  }\n'
                         num = num % mlator_chunk
 
                     # Emit single lines for all remaining statements
                     while num > 0:
-                        result += mlator_write_one('', '', out_size)
+                        if scale_output:
+                            result += scaled_mlator_write_one('  ', '', out_size, final_scale[ll])
+                        else:
+                            result += mlator_write_one('', '', out_size)
                         num -= 1
                     return result
 
@@ -251,12 +306,20 @@ def unload(
                                   (proc // tc.dev.P_NUMPRO) * tc.dev.C_GROUP_OFFS // 4) +
                                  (doffs >> 2) * width + expand * out_size) \
                                 * (write_gap[ll] + 1) * 4
-                            target = this_c * input_shape[ll][1] * input_shape[ll][2] \
-                                + row * input_shape[ll][1] + col + written
+                            if scale_output:
+                                target = this_c * input_shape[ll][1] * input_shape[ll][2] \
+                                    + row * input_shape[ll][1] + col + written // 2
+                            else:
+                                target = this_c * input_shape[ll][1] * input_shape[ll][2] \
+                                    + row * input_shape[ll][1] + col + written
+
                             assert target & 3 == 0
 
                             if target != write_addr:
-                                out_text += f'  offs = 0x{target >> 2:04x};\n'
+                                if scale_output:
+                                    out_text += f'  offs = 0x{target:04x};\n'
+                                else:
+                                    out_text += f'  offs = 0x{target >> 2:04x};\n'
                             if source != read_addr:
                                 if loop_count > 0:
                                     out_text += mlator_loop(loop_count)
@@ -286,9 +349,13 @@ def unload(
                             # FIXME: Do not write more than
                             # `num_bytes = min(4, input_shape[2] - col)`
                             if mlator_chunk == 1:
-                                out_text += mlator_write_one('',
-                                                             f' // {this_c},{row},{col}-{col+3}',
-                                                             out_size)
+                                if scale_output:
+                                    out_text += scaled_mlator_write_one('', f' // {this_c},{row},'
+                                                                        f'{col}-{col+3}',
+                                                                        out_size, final_scale[ll])
+                                else:
+                                    out_text += mlator_write_one('', f' // {this_c},{row},'
+                                                                 f'{col}-{col+3}', out_size)
                             loop_count += 1
                             read_addr = source + 4
                             write_addr = target + 4
@@ -346,11 +413,16 @@ def unload(
                         else:
                             prefix = ''
                         for _ in range(min(remaining, chunk)):
-                            if delta_r == 4:
-                                out_text += f'{prefix}  *out_buf++ = *addr++;\n'
+                            if final_scale[ll] != 0 and final_scale[ll] > 0 and scale_output:
+                                out_text += f'{prefix}  *out_buf++ = (*addr++) <<'\
+                                            f' {final_scale[ll]};\n'
+                            elif final_scale[ll] != 0 and final_scale[ll] < 0 and scale_output:
+                                out_text += f'{prefix}  *out_buf++ = (int{o_width}_t)(*addr++)'\
+                                            f' >> {abs(final_scale[ll])};\n'
                             else:
-                                out_text += f'{prefix}  *out_buf++ = *addr;\n' \
-                                            f'{prefix}  addr {"+" if delta_r >= 0 else "-"}= ' \
+                                out_text += f'{prefix}  *out_buf++ = *addr++;\n'
+                            if delta_r != 4:
+                                out_text += f'{prefix}  addr {"+" if delta_r >= 0 else "-"}= ' \
                                             f'0x{abs(delta_r) // 4:04x};\n'
                         if loop_runs > 1:
                             out_text += '  }\n'
@@ -362,10 +434,21 @@ def unload(
                 xy_dim = input_shape[ll][1] * input_shape[ll][2]
                 short_write = xy_dim == 1
                 chunk = max(1, narrow_chunk)
-                if not short_write:
+                if not short_write and out_size == 1:
                     out_text += '  offs = 0x0000;\n'
                 if not first_output:
-                    out_text += f'  out_buf = ((uint8_t *) out_buf32) + 0x{written:04x};\n'
+                    if scale_output and out_size == 1:
+                        out_text += f'  out_buf = ((uint{o_width*2}_t *) out_buf32)'\
+                                    f'+ 0x{(written // 2):04x};\n'
+                    elif scale_output and out_size == 4:
+                        out_text += f'  temp_out_buf = ((uint32_t *) out_buf32)'\
+                                    f'+ 0x{(written // 4):04x};\n'
+                    elif not scale_output and out_size == 4:
+                        out_text += f'  temp_out_buf = ((uint32_t *) out_buf32)'\
+                                    f'+ 0x{(written // 4):04x};\n'
+                    else:
+                        out_text += f'  out_buf = ((uint{o_width}_t *) out_buf32)'\
+                                    f'+ 0x{written:04x};\n'
                 while idx < len(emit_list):
                     # Find how many have the same r/w addresses with different shift,
                     # then how many the same deltas between rs and ws with the same set of shifts.
@@ -407,47 +490,82 @@ def unload(
                         else:
                             prefix = ''
                         for _ in range(min(remaining, chunk)):
-                            if delta_r == 4:
-                                out_text += f'{prefix}  val = *addr++;\n'
+                            if out_size == 4:
+                                if final_scale[ll] != 0 and final_scale[ll] > 0 and scale_output:
+                                    out_text += f'{prefix}  *temp_out_buf++ = (*addr++)'\
+                                                f'<< {final_scale[ll]};\n'
+                                elif final_scale[ll] != 0 and final_scale[ll] < 0 and scale_output:
+                                    out_text += f'{prefix}  *temp_out_buf++ = (int32_t)(*addr++)'\
+                                                f' >> {abs(final_scale[ll])};\n'
+                                else:
+                                    out_text += f'{prefix}  *temp_out_buf++ = *addr++;\n'
                             else:
-                                out_text += f'{prefix}  val = *addr;\n' \
-                                            f'{prefix}  addr {"+" if delta_r >= 0 else "-"}= ' \
-                                            f'0x{abs(delta_r) // 4:04x};\n'
-                            for shift in shift_list:
-                                if not short_write:
-                                    out_text += f'{prefix}  out_buf[offs'
-                                    if shift > 0:
-                                        out_text += f'+0x{xy_dim * shift:02x}'
-                                    out_text += '] = '
+                                if delta_r == 4:
+                                    out_text += f'{prefix}  val = *addr++;\n'
                                 else:
-                                    out_text += f'{prefix}  *out_buf++ = '
-                                if shift == 0:
-                                    out_text += 'val'
-                                else:
-                                    out_text += f'(val >> {shift * 8})'
-                                out_text += ' & 0xff;\n'
+                                    out_text += f'{prefix}  val = *addr;\n' \
+                                                f'{prefix}  addr {"+" if delta_r >= 0 else "-"}= '\
+                                                f' 0x{abs(delta_r) // 4:04x};\n'
+                                for shift in shift_list:
+                                    if not short_write:
+                                        out_text += f'{prefix}  out_buf[offs'
+                                        if shift > 0:
+                                            out_text += f'+0x{xy_dim * shift:02x}'
+                                        out_text += '] = '
+                                    else:
+                                        out_text += f'{prefix}  *out_buf++ = '
+                                    if scale_output:
+                                        if shift == 0:
+                                            out_text += f'(int{o_width*2}_t)((val'
+                                        else:
+                                            out_text += f'(int{o_width*2}_t)(((val >> {shift * 8})'
+                                    else:
+                                        if shift == 0:
+                                            out_text += '(val'
+                                        else:
+                                            out_text += f'((val >> {shift * 8})'
+                                    if not scale_output or final_scale[ll] == 0:
+                                        out_text += ' & 0xff);\n'
+                                    elif final_scale[ll] > 0:
+                                        out_text += f' & 0xff)) << {final_scale[ll]};\n'
+                                    elif final_scale[ll] < 0:
+                                        out_text += ' & 0xff) << 8) >>'\
+                                                    f'{8 + abs(final_scale[ll])};\n'
 
-                            if not short_write:
-                                out_text += f'{prefix}  offs++;\n'
+                                if not short_write:
+                                    out_text += f'{prefix}  offs++;\n'
                         if loop_runs > 1:
                             out_text += '  }\n'
                         remaining -= loop_runs * chunk
                         out_addr += 4 * loop_runs * chunk
 
                     idx += (run + 1) * shift_count
-                    if not short_write and idx < len(emit_list) and shift_count > 1:
+                    if not short_write and idx < len(emit_list) and \
+                            shift_count > 1 and out_size == 1:
                         out_text += f'  offs += 0x{xy_dim * (shift_count - 1):04x};\n'
 
-        # Always a byte counter
-        written += input_shape[ll][0] * input_shape[ll][1] * input_shape[ll][2] \
-            * output_width[ll] // 8
+        if out_size == 4:
+            written += input_shape[ll][0] * input_shape[ll][1] * input_shape[ll][2] \
+                       * out_size
+        else:
+            if scale_output:
+                written += ((input_shape[ll][0] * input_shape[ll][1] *
+                             input_shape[ll][2] + 1) // 2) * 4
+            else:
+                written += ((input_shape[ll][0] * input_shape[ll][1] *
+                             input_shape[ll][2] + 3) // 4) * 4
 
         first_output = False
         prev_out_size = out_size
 
-    if o_width != 32 and have_non_mlator:
+    if o_width != 32 and have_non_mlator and not scale_output:
         memfile.write(f'  uint{o_width}_t *out_buf = (uint{o_width}_t *) out_buf32;\n')
         memfile.write('  uint32_t val;\n')
+    if o_width != 32 and scale_output:
+        memfile.write(f'  uint{o_width*2}_t *out_buf = (uint{o_width*2}_t *) out_buf32;\n')
+        memfile.write('  uint32_t val;\n')
+    if 32 in o_widths and o_width != 32:
+        memfile.write('  uint32_t *temp_out_buf;\n')
     if o_width == 32 or have_non_mlator:
         memfile.write('  volatile uint32_t *addr;\n')
     if mlator_layers:
