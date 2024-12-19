@@ -514,7 +514,7 @@ def unload(
                                         out_text += '] = '
                                     else:
                                         out_text += f'{prefix}  *out_buf++ = '
-                                    if scale_output:
+                                    if scale_output and final_scale[ll] != 0:
                                         if shift == 0:
                                             out_text += f'(int{o_width*2}_t)((val'
                                         else:
