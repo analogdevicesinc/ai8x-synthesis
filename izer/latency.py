@@ -35,13 +35,13 @@ def calculate(
     Calculate the latency in cycles for a single layer with the arguments given.
     """
     # Input
-    img_rows, img_cols = input_dim  # type: Tuple[int, int]
-    pool_rows, pool_cols = pool  # type: Tuple[int, int]
-    pool_row_stride, pool_col_stride = pool_stride  # type: Tuple[int, int]
-    img_pooled_rows, img_pooled_cols = pooled_dim  # type: Tuple[int, int]
-    row_pad, col_pad = padding  # type: Tuple[int, int]
-    kern_rows, kern_cols = kernel_size  # type: Tuple[int, int]
-    output_rows, output_cols = output_dim  # type: Tuple[int, int]
+    img_rows, img_cols = input_dim
+    pool_rows, pool_cols = pool
+    pool_row_stride, pool_col_stride = pool_stride
+    img_pooled_rows, img_pooled_cols = pooled_dim
+    row_pad, col_pad = padding
+    kern_rows, kern_cols = kernel_size
+    output_rows, output_cols = output_dim
 
     s: str = '                 Channels C     Rows H  Columns W\n' \
         f'Input dimensions{input_chan:11}{img_rows:11}{img_cols:11}\n' \

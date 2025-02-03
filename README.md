@@ -1,8 +1,8 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-May 20, 2024
+November 7, 2024
 
-**Note: This branch is compatible with PyTorch 1.8. Please go to the “pytorch-2” branch for PyTorch 2.3 compatibility.**
+**Note: This branch requires PyTorch 2. Please see the archive-1.8 branch for PyTorch 1.8 support. [KNOWN_ISSUES](KNOWN_ISSUES.txt) contains a list of known issues.**
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
@@ -11,9 +11,9 @@ ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 2. The software development kit (MSDK), which contains drivers and example programs ready to run on the evaluation kits (EVkit and Feather):
     [Analog Devices MSDK](https://github.com/analogdevicesinc/msdk)
 3. The training repository, which is used for deep learning *model development and training*:
-    [ai8x-training](https://github.com/analogdevicesinc/ai8x-training) **(described in this document)**
+    [ai8x-training](https://github.com/analogdevicesinc/ai8x-training/tree/develop) **(described in this document)**
 4. The synthesis repository, which is used to *convert a trained model into C code* using the “izer” tool:
-    [ai8x-synthesis](https://github.com/analogdevicesinc/ai8x-synthesis) **(described in this document)**
+    [ai8x-synthesis](https://github.com/analogdevicesinc/ai8x-synthesis/tree/develop) **(described in this document)**
 5. The reference design repository, which contains host applications and sample applications for reference designs such as [MAXREFDES178 (Cube Camera)](https://www.analog.com/en/design-center/reference-designs/maxrefdes178.html):
     [refdes](https://github.com/analogdevicesinc/MAX78xxx-RefDes)
     *Note: Examples for EVkits and Feather boards are part of the MSDK*
@@ -64,8 +64,8 @@ PyTorch operating system and hardware support are constantly evolving. This docu
 Full support and documentation are provided for the following platform:
 
 * CPU: 64-bit amd64/x86_64 “PC” with [Ubuntu Linux 20.04 LTS or 22.04 LTS](https://ubuntu.com/download/server)
-* GPU for hardware acceleration (optional but highly recommended): Nvidia with [CUDA 11](https://developer.nvidia.com/cuda-toolkit-archive)
-* [PyTorch 1.8.1 (LTS)](https://pytorch.org/get-started/locally/) on Python 3.8.x. *Please use the “pytorch-2” branch for PyTorch 2.3 compatibility.*
+* GPU for hardware acceleration (optional but highly recommended): Nvidia with [CUDA 12.1](https://developer.nvidia.com/cuda-toolkit-archive) or later
+* [PyTorch 2.3](https://pytorch.org/get-started/locally/) on Python 3.11.x
 
 Limited support and advice for using other hardware and software combinations is available as follows.
 
@@ -87,7 +87,7 @@ If WSL2 is not available, it is also possible (but not recommended due to inhere
 
 ##### macOS
 
-The software works on macOS, but model training suffers from the lack of hardware acceleration.
+The software works on macOS and uses MPS acceleration on Apple Silicon. On Intel CPUs, model training suffers from the lack of hardware acceleration.
 
 ##### Virtual Machines (Unsupported)
 
@@ -99,19 +99,17 @@ This software also works inside Docker containers. However, CUDA support inside 
 
 #### PyTorch and Python
 
-The officially supported version of [PyTorch is 1.8.1 (LTS)](https://pytorch.org/get-started/locally/) running on Python 3.8.x. Newer versions will typically work, but are not covered by support, documentation, and installation scripts.
+The officially supported version of [PyTorch is 2.3](https://pytorch.org/get-started/locally/) running on Python 3.11.x. Newer versions will typically work, but are not covered by support, documentation, and installation scripts.
 
 #### Hardware Acceleration
 
-When going beyond simple models, model training does not work well without CUDA hardware acceleration. The network loader (“izer”) does <u>not</u> require CUDA, and very simple models can also be trained on systems without CUDA.
+When going beyond simple models, model training does not work well without hardware acceleration – Nvidia CUDA, AMD ROCm, or Apple Silicon MPS. The network loader (“izer”) does <u>not</u> require hardware acceleration, and very simple models can also be trained on systems without hardware acceleration.
 
-* CUDA requires Nvidia GPUs.
-
-* There is a PyTorch pre-release with ROCm acceleration for certain AMD GPUs on Linux ([see blog entry](https://pytorch.org/blog/pytorch-for-amd-rocm-platform-now-available-as-python-package/)), but this is not currently covered by the installation instructions in this document, and it is not supported.
-
-* At this time, there is neither CUDA nor ROCm nor Neural Engine support on macOS, and therefore no hardware acceleration (there is a pre-release version of PyTorch with M1 acceleration on macOS 12.3 or later, and M1 acceleration will be supported in a future release of these tools).
-
+* CUDA requires modern Nvidia GPUs. This is the most compatible, and best supported hardware accelerator.
+* ROCm requires certain AMD GPUs, see [blog entry](https://pytorch.org/blog/pytorch-for-amd-rocm-platform-now-available-as-python-package/).
+* MPS requires Apple Silicon (M1 or newer) and macOS 12.3 or newer.
 * PyTorch does not include CUDA support for aarch64/arm64 systems. *Rebuilding PyTorch from source is not covered by this document.*
+
 
 ##### Using Multiple GPUs
 
@@ -173,19 +171,19 @@ Some additional system packages are required, and installation of these addition
 
 ##### macOS
 
-On macOS (no CUDA support available) use:
+On macOS use:
 
 ```shell
-$ brew install libomp libsndfile tcl-tk
+$ brew install libomp libsndfile tcl-tk sox
 ```
 
-##### Linux (Ubuntu), including WSL2
+##### Linux (Ubuntu), including WSL2)
 
 ```shell
 $ sudo apt-get install -y make build-essential libssl-dev zlib1g-dev \
   libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm \
   libncurses5-dev libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev \
-  libsndfile-dev portaudio19-dev
+  libsndfile-dev portaudio19-dev libsox-dev
 ```
 
 ###### RedHat Enterprise Linux / CentOS 8
@@ -209,11 +207,11 @@ $ sudo dnf install openssl-devel zlib-devel \
   libsndfile libsndfile-devel portaudio-devel
 ```
 
-#### Python 3.8
+#### Python 3.11
 
-*The software in this project uses Python 3.8.11 or a later 3.8.x version.*
+*The software in this project uses Python 3.11.8 or a later 3.11.x version.*
 
-First, check whether there is a default Python interpreter and whether it is version 3.8.x:
+First, check whether there is a default Python interpreter and whether it is version 3.11.x:
 
 ```shell
 $ python --version
@@ -227,17 +225,17 @@ Python 2.7.18
 # wrong version, pyenv required
 ```
 
-Python 2 **will not function correctly** with the MAX78000/MAX78002 tools. If the result is Python **3.8**.x, skip ahead to [git Environment](#git-environment). For *any* other version (for example, 2.7, 3.7, 3.9, 3.10), or no version, continue here.
+Python 2 **will not function correctly** with the MAX78000/MAX78002 tools. If the result is Python **3.11**.x, skip ahead to [git Environment](#git-environment). For *any* other version (for example, 2.7, 3.7, 3.8, 3.9, 3.10), or no version, continue here.
 
-*Note: For the purposes of the MAX78000/MAX78002 tools, “python3” is not a substitute for “python”. Please install pyenv when `python --version` does not return version 3.8.x, <u>even if</u> “python3” is available.*
+*Note: For the purposes of the MAX78000/MAX78002 tools, “python3” is not a substitute for “python”. Please install pyenv when `python --version` does not return version 3.11.x, <u>even if</u> “python3” is available.*
 
-*Note for advanced users: `sudo apt-get install python-is-python3` on Ubuntu 20.04 will install Python 3 as the default Python version; however, it may not be version 3.8.x.*
+*Note for advanced users: `sudo apt-get install python-is-python3` on Ubuntu 20.04 will install Python 3 as the default Python version; however, it may not be version 3.11.x.*
 
 ##### pyenv
 
-It is not necessary to install Python 3.8 system-wide, or to rely on the system-provided Python. To manage Python versions, instead use `pyenv` (<https://github.com/pyenv/pyenv>). This allows multiple Python versions to co-exist on the same system without interfering with the system or with one another.
+It is not necessary to install Python 3.11 system-wide, or to rely on the system-provided Python. To manage Python versions, instead use `pyenv` (<https://github.com/pyenv/pyenv>). This allows multiple Python versions to co-exist on the same system without interfering with the system or with one another.
 
-On macOS (no CUDA support available):
+On macOS:
 
 ```shell
 $ brew install pyenv pyenv-virtualenv
@@ -279,7 +277,7 @@ $ ~/.pyenv/bin/pyenv init
 
 *Note: Installing both conda and pyenv in parallel may cause issues. Ensure that the pyenv initialization tasks are executed <u>before</u> any conda related tasks.*
 
-Next, close the Terminal, open a new Terminal and install Python 3.8.11.
+Next, close the Terminal, open a new Terminal and install Python 3.11.8.
 
 On macOS:
 
@@ -291,13 +289,13 @@ $ env \
   PKG_CONFIG_PATH="$(brew --prefix tcl-tk)/lib/pkgconfig" \
   CFLAGS="-I$(brew --prefix tcl-tk)/include" \
   PYTHON_CONFIGURE_OPTS="--with-tcltk-includes='-I$(brew --prefix tcl-tk)/include' --with-tcltk-libs='-L$(brew --prefix tcl-tk)/lib -ltcl8.6 -ltk8.6'" \
-  pyenv install 3.8.11
+  pyenv install 3.11.8
 ```
 
 On Linux, including WSL2:
 
 ```shell
-$ pyenv install 3.8.11
+$ pyenv install 3.11.8
 ```
 
 #### git Environment
@@ -331,41 +329,43 @@ To create the virtual environment and install basic wheels:
 $ cd ai8x-training
 ```
 
-The default branch is “develop” which is updated most frequently. If you want to use the “main” branch instead, switch to “main” using `git checkout main`.
+Using the instructions above checks out the `develop` branch which supports PyTorch 2.3. The `main` branch is updated less frequently, but possibly more stable. To change branches, use the command `git checkout`, for example `git checkout main`.
+For PyTorch 1.8 support, use the archive.
 
-If using pyenv, set the local directory to use Python 3.8.11.
+If using pyenv, set the local directory to use Python 3.11.8.
 
 ```shell
-$ pyenv local 3.8.11
+$ pyenv local 3.11.8
 ```
 
-In all cases, verify that a 3.8.x version of Python is used:
+In all cases, verify that a 3.11.x version of Python is used:
 
 ```shell
 $ python --version
-Python 3.8.11
+Python 3.11.8
 ```
 
-If this does <u>*not*</u> return version 3.8.x, please install and initialize [pyenv](#python-38).
+If this does <u>*not*</u> return version 3.11.x, please install and initialize [pyenv](#python-311).
 
 Then continue with the following:
 
 ```shell
-$ python -m venv venv --prompt ai8x-training
+$ python -m venv .venv --prompt ai8x-training
+$ echo "*" > .venv/.gitignore
 ```
 
-If this command returns an error message similar to *“The virtual environment was not created successfully because ensurepip is not available,”* please install and initialize [pyenv](#python-38).
+If this command returns an error message similar to *“The virtual environment was not created successfully because ensurepip is not available,”* please install and initialize [pyenv](#python-311).
 
 On macOS and Linux, including WSL2, activate the environment using
 
 ```shell
-$ source venv/bin/activate
+$ source .venv/bin/activate
 ```
 
 On native Windows, instead use:
 
 ```shell
-$ source venv/Scripts/activate
+$ source .venv/Scripts/activate
 ```
 
 Then continue with
@@ -374,21 +374,21 @@ Then continue with
 (ai8x-training) $ pip3 install -U pip wheel setuptools
 ```
 
-The next step differs depending on whether the system uses CUDA 11.x, or not.
+The next step differs depending on whether the system uses CUDA 12.1+, or not.
 
-For CUDA 11.x on Linux, including WSL2:
-
-```shell
-(ai8x-training) $ pip3 install -r requirements-cu11.txt
-```
-
-For CUDA 11.x on native Windows:
+For CUDA 12:
 
 ```shell
-(ai8x-training) $ pip3 install -r requirements-win-cu11.txt
+(ai8x-training) $ pip3 install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu121
 ```
 
-For all other systems, including macOS, and CUDA 10.2 on Linux:
+For ROCm 5.7:
+
+```shell
+(ai8x-training) $ pip3 install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/rocm5.7
+```
+
+For all other systems, including macOS:
 
 ```shell
 (ai8x-training) $ pip3 install -r requirements.txt
@@ -396,11 +396,12 @@ For all other systems, including macOS, and CUDA 10.2 on Linux:
 
 ##### Repository Branches
 
-By default, the `develop` branch is checked out. This branch is the most frequently updated branch and it contains the latest improvements to the project. To switch to the main branch that is updated less frequently, but may be more stable, use the command `git checkout main`.
+Using the instructions above checks out the `develop` branch which supports PyTorch 2.3. The `main` branch is updated less frequently, but possibly more stable. To change branches, use the command `git checkout`, for example `git checkout main`.
+For PyTorch 1.8 support, use the archive.
 
 ###### TensorFlow / Keras
 
-Support for TensorFlow / Keras is currently in the `develop-tf` branch.
+Support for TensorFlow / Keras is deprecated.
 
 #### Updating to the Latest Version
 
@@ -412,7 +413,7 @@ After a small delay of typically a day, a “Release” tag is created on GitHub
 
 In addition to code updated in the repository itself, **submodules and Python libraries may have been updated as well**.
 
-Major upgrades (such as updating from PyTorch 1.7 to PyTorch 1.8) are best done by removing all installed wheels. This can be achieved most easily by creating a new folder and starting from scratch at [Upstream Code](#upstream-code). Starting from scratch is also recommended when upgrading the Python version.
+Major upgrades (such as updating from PyTorch 1.8 to PyTorch 2.3) are best done by removing all installed wheels. This can be achieved most easily by creating a new folder and starting from scratch at [Upstream Code](#upstream-code). Starting from scratch is also recommended when upgrading the Python version.
 
 For minor updates, pull the latest code and install the updated wheels:
 
@@ -420,7 +421,7 @@ For minor updates, pull the latest code and install the updated wheels:
 (ai8x-training) $ git pull
 (ai8x-training) $ git submodule update --init
 (ai8x-training) $ pip3 install -U pip setuptools
-(ai8x-training) $ pip3 install -U -r requirements.txt  # or requirements-xxx.txt, as shown above
+(ai8x-training) $ pip3 install -U -r requirements.txt  # add --extra-index-url if needed, as shown above
 ```
 
 ##### MSDK Updates
@@ -429,11 +430,11 @@ Please *also* update the MSDK or use the Maintenance Tool as documented in the [
 
 ##### Python Version Updates
 
-Updating Python may require updating `pyenv` first. Should `pyenv install 3.8.11` fail,
+Updating Python may require updating `pyenv` first. Should `pyenv install 3.11.8` fail,
 
 ```shell
-$ pyenv install 3.8.11
-python-build: definition not found: 3.8.11
+$ pyenv install 3.11.8
+python-build: definition not found: 3.11.8
 ```
 
 then `pyenv` must be updated. On macOS, use:
@@ -456,19 +457,19 @@ $
 The update should now succeed:
 
 ```shell
-$ pyenv install 3.8.11
-Downloading Python-3.8.11.tar.xz...
--> https://www.python.org/ftp/python/3.8.11/Python-3.8.11.tar.xz
-Installing Python-3.8.11...
+$ pyenv install 3.11.8
+Downloading Python-3.11.8.tar.xz...
+-> https://www.python.org/ftp/python/3.11.8/Python-3.11.8.tar.xz
+Installing Python-3.11.8...
 ...
-$ pyenv local 3.8.11
+$ pyenv local 3.11.8
 ```
 
 
 
 #### Synthesis Project
 
-The `ai8x-synthesis` project does not require CUDA.
+The `ai8x-synthesis` project does not require hardware acceleration.
 
 Start by deactivating the `ai8x-training` environment if it is active.
 
@@ -488,34 +489,35 @@ If you want to use the main branch, switch to “main” using the optional comm
 If using pyenv, run:
 
 ```shell
-$ pyenv local 3.8.11
+$ pyenv local 3.11.8
 ```
 
-In all cases, make sure Python 3.8.x is the active version:
+In all cases, make sure Python 3.11.x is the active version:
 
 ```shell
 $ python --version
-Python 3.8.11
+Python 3.11.8
 ```
 
-If this does <u>*not*</u> return version 3.8.x, please install and initialize [pyenv](#python-38).
+If this does <u>*not*</u> return version 3.11.x, please install and initialize [pyenv](#python-311).
 
 Then continue:
 
 ```shell
-$ python -m venv venv --prompt ai8x-synthesis
+$ python -m venv .venv --prompt ai8x-synthesis
+$ echo "*" > .venv/.gitignore
 ```
 
 Activate the virtual environment. On macOS and Linux (including WSL2), use
 
 ```shell
-$ source venv/bin/activate
+$ source .venv/bin/activate
 ```
 
 On native Windows, instead use
 
 ```shell
-$ source venv/Scripts/activate
+$ source .venv/Scripts/activate
 ```
 
 For all systems, continue with:
@@ -606,7 +608,7 @@ The MSDK is also available as a [git repository](https://github.com/analogdevice
     fi
     
     # RISC-V GCC
-    RISCVGCC_DIR=/usr/local/xpack-riscv-none-embed-gcc-10.2.0-1.2  # Change me!
+    RISCVGCC_DIR=/usr/local/xpack-riscv-none-elf-gcc-12.3.0-2  # Change me!
     echo $PATH | grep -q -s "$RISCVGCC_DIR/bin"
     if [ $? -eq 1 ] ; then
         PATH=$PATH:"$RISCVGCC_DIR/bin"
@@ -726,7 +728,7 @@ The machine also implements a streaming mode. Streaming allows input data dimens
 
 The following illustration shows the basic principle: In order to produce the first output pixel of the second layer, not all data needs to be present at the input. In the example, a 5×5 input needs to be available.
 
-<img src="docs/Streaming.png"/>
+<img src="docs/Streaming.png" alt="Illustration of Streaming Mode"/>
 
 In the accelerator implementation, data is shifted into the Tornado memory in a sequential fashion, so prior rows will be available as well. In order to produce the _blue_ output pixel, input data up to the blue input pixel must be available.
 
@@ -1226,30 +1228,31 @@ The example shows a fractionally-strided convolution with a stride of 2, a pad o
 
 If hardware acceleration is not available, skip the following two steps and continue with [Training Script](#training-script).
 
-1. Before the first training session, check that CUDA hardware acceleration is available using `nvidia-smi -q`:
+Before the first training session, check that hardware acceleration is available and recognized by PyTorch:
 
-   ```shell
-   (ai8x-training) $ nvidia-smi -q
-   ...
-   Driver Version                            : 470.57.02
-   CUDA Version                              : 11.4
-
-   Attached GPUs                             : 1
-   GPU 00000000:01:00.0
-       Product Name                          : NVIDIA TITAN RTX
-       Product Brand                         : Titan
-   ...
-   ```
-
-2. Verify that PyTorch recognizes CUDA:
-
-   ```shell
+ ```shell
    (ai8x-training) $ python check_cuda.py
-   System:            linux
-   Python version:    3.8.11 (default, Jul 14 2021, 12:46:05) [GCC 9.3.0]
-   PyTorch version:   1.8.1+cu111
-   CUDA acceleration: available in PyTorch
-   ```
+   System:                 linux
+   Python version:         3.11.8 (main, Mar  4 2024, 15:29:36) [GCC 11.4.0]
+   PyTorch version:        2.3.1+cu121
+   CUDA/ROCm acceleration: available in PyTorch
+   MPS acceleration:       NOT available in PyTorch
+ ```
+
+CUDA can be diagnosed using `nvidia-smi -q`:
+
+```shell
+(ai8x-training) $ nvidia-smi -q
+...
+Driver Version                            : 545.23.06
+CUDA Version                              : 12.3
+
+Attached GPUs                             : 2
+GPU 00000000:01:00.0
+    Product Name                          : NVIDIA TITAN RTX
+    Product Brand                         : Titan
+...
+```
 
 ### Training Script
 
@@ -1259,11 +1262,15 @@ The `models/` folder contains models that fit into the MAX78000 or MAX78002’s 
 
 To train the FP32 model for MNIST on MAX78000 or MAX78002, run `scripts/train_mnist.sh` from the `ai8x-training` project. This script will place checkpoint files into the log directory. Training makes use of the Distiller framework, but the `train.py` software has been modified slightly to improve it and add some MAX78000/MAX78002 specifics.
 
+#### Distributed Training
+
+On systems with multiple GPUs, the training script supports `DistributedDataParallel`. To use distributed training, prefix the training script with `scripts/distributed.sh`. For example, run `scripts/distributed.sh scripts/train_mnist.sh`. Note that (at this time) distributed training is only supported locally.
+
 Since training can take a significant amount of time, the training script does not overwrite any weights previously produced. Results are placed in sub-directories under `logs/` named with the date and time when training began. The latest results are always soft-linked to by `latest-log_dir` and `latest_log_file`.
 
 #### Troubleshooting
 
-1. If the training script returns `ModuleNotFoundError: No module named 'numpy'`, please activate the virtual environment using `source venv/bin/activate`, or on native Windows without WSL2, `source venv/scripts/activate`.
+1. If the training script returns `ModuleNotFoundError: No module named 'numpy'`, please activate the virtual environment using `source .venv/bin/activate`, or on native Windows without WSL2, `source .venv/scripts/activate`.
 
 2. If the training script crashes, or if it returns an internal error (such as `CUDNN_STATUS_INTERNAL_ERROR`), it may be necessary to limit the number of PyTorch workers to 1 (this has been observed running on native Windows). Add `--workers=1` when running any training script, for example;
 
@@ -1314,7 +1321,9 @@ Since training can take a significant amount of time, the training script does n
 
    Training might succeed after reducing the batch size, reducing image dimensions, or pruning the dataset. Unfortunately, the only real fix for this issue is more system RAM. In the example, `kinetics_get_datasets()` from `datasets/kinetics.py` states “The current implementation of using 2000 training and 150 test examples per class at 240×240 resolution and 5 frames per second requires around 50 GB of RAM.”
 
-
+6. On CUDA-capable machines, the training script by default uses PyTorch 2’s [`torch.compile()` feature](https://pytorch.org/docs/stable/generated/torch.compile.html) which improves execution speed. However, some models may not support this feature. It can be disabled using the command line option
+   `--compiler-mode none`
+   Disabling `torch.compile()` may also be necessary when using AMD ROCm acceleration.
 
 
 ### Example Training Session
@@ -1458,6 +1467,7 @@ The following table describes the most important command line arguments for `tra
 | `--nas`                    | Enable network architecture search                           |                                 |
 | `--nas-policy`             | Define NAS policy in YAML file                               | `--nas-policy nas/nas_policy.yaml` |
 | `--regression` | Select regression instead of classification (changes Loss function, and log output) |  |
+| `--compiler-mode` | Select [TorchDynamo optimization mode](https://pytorch.org/docs/stable/generated/torch.compile.html) (default: enabled on CUDA capable machines) | `--compiler-mode none` |
 | `--dr` | Set target embedding dimensionality for dimensionality reduction                |`--dr 64`                        |
 | `--scaf-lr` | Initial learning rate for sub-center ArcFace loss optimizer |  |
 | `--scaf-scale` |Scale hyperparameter for sub-center ArcFace loss |  |
@@ -1610,21 +1620,23 @@ When using the `-8` command line switch, all module outputs are quantized to 8-b
 
 The last layer can optionally use 32-bit output for increased precision. This is simulated by adding the parameter `wide=True` to the module function call.
 
-##### Weights: Quantization-Aware Training (QAT)
+##### Weights and Activations: Quantization-Aware Training (QAT)
 
 Quantization-aware training (QAT) is enabled by default. QAT is controlled by a policy file, specified by `--qat-policy`.
 
-* After `start_epoch` epochs, training will learn an additional parameter that corresponds to a shift of the final sum of products.
+* After `start_epoch` epochs, an intermediate epoch with no backpropagation will be realized to collect activation statistics. Each layer's activation ranges will be determined based on the range & resolution trade-off from the collected activations. Then, QAT will start and an additional parameter (`output_shift`) will be learned to shift activations for compensating weights  & biases scaling down.
 * `weight_bits` describes the number of bits available for weights.
 * `overrides` allows specifying the `weight_bits` on a per-layer basis.
+* `outlier_removal_z_score` defines the z-score threshold for outlier removal during activation range calculation. (default: 8.0)
+* `shift_quantile` defines the quantile of the parameters distribution to be used for the `output_shift` parameter. (default: 1.0)
 
-By default, weights are quantized to 8-bits after 10 epochs as specified in `policies/qat_policy.yaml`. A more refined example that specifies weight sizes for individual layers can be seen in `policies/qat_policy_cifar100.yaml`.
+By default, weights are quantized to 8-bits after 30 epochs as specified in `policies/qat_policy.yaml`. A more refined example that specifies weight sizes for individual layers can be seen in `policies/qat_policy_cifar100.yaml`.
 
 Quantization-aware training can be <u>disabled</u> by specifying `--qat-policy None`.
 
 The proper choice of `start_epoch` is important for achieving good results, and the default policy’s `start_epoch` may be much too small. As a rule of thumb, set `start_epoch` to a very high value (e.g., 1000) to begin, and then observe where in the training process the model stops learning. This epoch can be used as `start_epoch`, and the final network metrics (after an additional number of epochs) should be close to the non-QAT metrics. *Additionally, ensure that the learning rate after the `start_epoch` epoch is relatively small.*
 
-For more information, please also see [Quantization](#quantization).
+For more information, please also see [Quantization](#quantization) and [QATv2](https://github.com/analogdevicesinc/ai8x-training/blob/develop/docs/QATv2.md).
 
 #### Batch Normalization
 
@@ -1690,20 +1702,6 @@ When using PuTTY, port forwarding is achieved as follows:
 
 
 
-#### SHAP — SHapely Additive exPlanations
-
-The training software integrates code to generate SHAP plots (see <https://github.com/slundberg/shap>). This can help with feature attribution for input images.
-
-The `train.py` program can create plots using the `--shap` command line argument in combination with `--evaluate`:
-
-```shell
-$ python train.py --model ai85net5 --dataset CIFAR10 --confusion --evaluate --device MAX78000 --exp-load-weights-from logs/CIFAR-new/best.pth.tar --shap 3
-```
-
-This will create a plot with a random selection of 3 test images. The plot shows ten outputs (the ten classes) for the three different input images on the left. Red pixels increase the model’s output while blue pixels decrease the output. The sum of the SHAP values equals the difference between the expected model output (averaged over the background dataset) and the current model output.
-
-<img src="docs/shap.png" alt="shap"/>
-
 ### BatchNorm Fusing
 
 Batchnorm fusing (see [Batch Normalization](#batch-normalization)) is needed as a separate step <u>only when both</u> the following are true:
@@ -1749,7 +1747,7 @@ For both approaches, the `quantize.py` software quantizes an existing PyTorch ch
 
 #### Quantization-Aware Training (QAT)
 
-Quantization-aware training is the better performing approach. It is enabled by default. QAT learns additional parameters during training that help with quantization (see [Weights: Quantization-Aware Training (QAT)](#weights-quantization-aware-training-qat). No additional arguments (other than input, output, and device) are needed for `quantize.py`.
+Quantization-aware training is the better performing approach. It is enabled by default. QAT learns additional parameters during training that help with quantization (see [Weights and Activations: Quantization-Aware Training (QAT)](#weights-and-activations-quantization-aware-training-qat). No additional arguments (other than input, output, and device) are needed for `quantize.py`.
 
 The input checkpoint to `quantize.py` is either `qat_best.pth.tar`, the best QAT epoch’s checkpoint, or `qat_checkpoint.pth.tar`, the final QAT epoch’s checkpoint.
 
@@ -2008,7 +2006,7 @@ The behavior of a training session might change when Quantization Aware Training
 While there can be multiple reasons for this, check two important settings that can influence the training behavior:
 
 * The initial learning rate may be set too high. Reduce LR by a factor of 10 or 100 by specifying a smaller initial `--lr` on the command line, and possibly by reducing the epoch `milestones` for further reduction of the learning rate in the scheduler file specified by `--compress`. Note that the the selected optimizer and the batch size both affect the learning rate.
-* The epoch when QAT is engaged may be set too low. Increase `start_epoch` in the QAT scheduler file specified by `--qat-policy`, and increase the total number of training epochs by increasing the value specified by the `--epochs` command line argument and by editing the `ending_epoch` in the scheduler file specified by `--compress`. *See also the rule of thumb discussed in the section [Weights: Quantization-Aware Training (QAT)](#weights:-auantization-aware-training \(qat\)).*
+* The epoch when QAT is engaged may be set too low. Increase `start_epoch` in the QAT scheduler file specified by `--qat-policy`, and increase the total number of training epochs by increasing the value specified by the `--epochs` command line argument and by editing the `ending_epoch` in the scheduler file specified by `--compress`. *See also the rule of thumb discussed in the section [Weights and Activations: Quantization-Aware Training (QAT)](#weights-and-activations-quantization-aware-training-qat).*
 
 
 
@@ -2133,7 +2131,7 @@ The following table describes the most important command line arguments for `ai8
 | ------------------------ | ------------------------------------------------------------ | ------------------------------- |
 | `--help`                 | Complete list of arguments                                   |                                 |
 | *Device selection*       |                                                              |                                 |
-| `--device`               | Set device (MAX78000, or MAX78002)               | `--device MAX78002`             |
+| `--device`               | Set device (MAX78000, or MAX78002)                           | `--device MAX78002`             |
 | *Hardware features*      |                                                              |                                 |
 | `--avg-pool-rounding`    | Round average pooling results                                |                                 |
 | `--simple1b`             | Use simple XOR instead of 1-bit multiplication               |                                 |
@@ -2147,14 +2145,14 @@ The following table describes the most important command line arguments for `ai8
 | `--overwrite`            | Produce output even when the target directory exists (default: abort) |                        |
 | `--compact-weights`      | Use *memcpy* to load weights in order to save code space     |                                 |
 | `--mexpress`             | Use faster kernel loading (default)                          |                                 |
-| `--no-mexpress` | Use alternate kernel loading (slower) | |
+| `--no-mexpress`          | Use alternate kernel loading (slower)                        |                                 |
 | `--mlator`               | Use hardware to swap output bytes (useful for large multi-channel outputs) |                   |
 | `--softmax`              | Add software Softmax functions to generated code             |                                 |
 | `--boost`                | Turn on a port pin to boost the CNN supply                   | `--boost 2.5`                   |
 | `--timer`                | Insert code to time the inference using a timer              | `--timer 0`                     |
-| `--no-wfi`               | Do not use WFI (wait for interrupt) instructions and do not enter sleep mode when waiting for CNN completion. This is required for very fast, small networks. |                                 |
-| `--define` | Additional preprocessor defines | `--define "FAST GOOD"` |
-| *MAX78002* |  |  |
+| `--no-wfi`               | Do not use WFI (wait for interrupt) instructions and do not enter sleep mode when waiting for CNN completion. This is required for very fast, small networks. |  |
+| `--define`               | Additional preprocessor defines                              | `--define "FAST GOOD"`          |
+| *MAX78002*               |                                                              |                                 |
 | `--no-pipeline` | **MAX78002 only**: Disable the pipeline and run the CNN on the slower APB clock. This reduces power consumption, but increases inference time and in most cases overall energy usage. |  |
 | `--max-speed` | **MAX78002 only:** In pipeline mode, load weights and input data on the PLL clock divided by 1 instead of divided by 4. This is approximately 50% faster, but uses 200% of the energy compared to the default settings. |  |
 | *File names*             |                                                              |                                 |
@@ -2182,7 +2180,7 @@ The following table describes the most important command line arguments for `ai8
 | `--debug-computation`    | Debug computation (SLOW)                                     |                                 |
 | `--stop-after`           | Stop after layer                                             | `--stop-after 2`                |
 | `--one-shot`             | Use layer-by-layer one-shot mechanism                        |                                 |
-| `--ignore-bias-groups`   | Do not force `bias_group` to only available x16 quadrants |                                 |
+| `--ignore-bias-groups`   | Do not force `bias_group` to only available x16 quadrants    |                                 |
 | *Streaming tweaks*       |                                                              |                                 |
 | `--overlap-data`         | Allow output to overwrite input                              |                                 |
 | `--override-start`       | Override auto-computed streaming start value (x8 hex)        |                                 |
@@ -2195,7 +2193,7 @@ The following table describes the most important command line arguments for `ai8
 | `--ignore-streaming`     | Ignore all 'streaming' layer directives                      |                                 |
 | *Power saving*           |                                                              |                                 |
 | `--powerdown`            | Power down unused MRAM instances                             |                                 |
-| `--deepsleep`            | Put Arm core into deep sleep                               |                                 |
+| `--deepsleep`            | Put Arm core into deep sleep                                 |                                 |
 | *Hardware settings*      |                                                              |                                 |
 | `--input-offset`         | First layer input offset (x8 hex, defaults to 0x0000)        | `--input-offset 2000`           |
 | `--mlator-noverify`      | Do not check both mlator and non-mlator output               |                                 |
@@ -2206,13 +2204,14 @@ The following table describes the most important command line arguments for `ai8
 | `--ready-sel`            | Specify memory waitstates                                    |                                 |
 | `--ready-sel-fifo`       | Specify FIFO waitstates                                      |                                 |
 | `--ready-sel-aon`        | Specify AON waitstates                                       |                                 |
-| Various                  |                                                              |                                 |
+| *Various*                |                                                              |                                 |
 | `--synthesize-input`     | Instead of using large sample input data, use only the first `--synthesize-words` words of the sample input, and add N to each subsequent set of `--synthesize-words` 32-bit words | `--synthesize-input 0x112233` |
 | `--synthesize-words`     | When using `--synthesize-input`, specifies how many words to use from the input. The default is 8. This number must be a divisor of the total number of pixels per channel. | `--synthesize-words 64` |
-| `--max-verify-length` | Instead of checking all of the expected output data, verify only the first N words | `--max-verify-length 1024` |
+| `--max-verify-length`    | Instead of checking all of the expected output data, verify only the first N words | `--max-verify-length 1024` |
 | `--no-unload`            | Do not create the `cnn_unload()` function                    |                                 |
-| `--no-kat` | Do not generate the `check_output()` function (disable known-answer test) | |
-| `--no-deduplicate-weights` | Do not deduplicate weights and and bias values | |
+| `--no-kat`               | Do not generate the `check_output()` function (disable known-answer test)  |                   |
+| `--no-deduplicate-weights` | Do not deduplicate weights and and bias values             |                                 |
+| `--no-scale-output` | Do not use scales from the checkpoint to recover output range while generating `cnn_unload()` function | |
 
 ### YAML Network Description
 
@@ -2333,6 +2332,12 @@ The following keywords are required for each `unload` list item:
 `offset`: Data source offset
 `width`: Data width (optional, defaults to 8) — either 8 or 32
 `write_gap`: Gap between data words (optional, defaults to 0)
+
+When `--no-scale-output` is not specified, scales from the checkpoint file are used to recover the output range. If there is a non-zero scale for the 8 bits output, the output will be scaled and kept in 16 bits. If the scale is zero, the output will be 8 bits. For 32 bits output, the output will be kept in 32 bits always.
+
+Example:
+
+![Unload Array](docs/unload_example.png)
 
 ##### `layers` (Mandatory)
 
@@ -2658,7 +2663,7 @@ Example:
 By default, the final layer is used as the output layer. Output layers are checked using the known-answer test, and they are copied from hardware memory when `cnn_unload()` is called. The tool also checks that output layer data isn’t overwritten by any later layers.
 
 When specifying `output: true`, any layer (or a combination of layers) can be used as an output layer.
-*Note:* When `unload:` is used, output layers are not used for generating `cnn_unload()`.
+*Note:* When `--no-unload` is used, output layers are not used for generating `cnn_unload()`.
 
 Example:
         `output: true`
@@ -2858,6 +2863,27 @@ The same network can also be viewed graphically:
 
 <img src="docs/residual.png" alt="residual" style="zoom:38%;" />
 
+#### Automatically Generating YAML Network Descriptions (Preview)
+
+The ai8x-training repository includes a *preview version* of the “yamlwriter” tool integrated into `train.py` which can create a skeleton YAML file for many networks (excluding data memory allocation). To use this tool:
+
+1. Switch to the training repository.
+2. Use the training script and append “--yaml-template myfile.yaml” (see example below).
+3. **IMPORTANT!** Edit the resulting output and manually assign processors and data memory offsets.
+
+Please note that the tool is not compatible with some of the features of more complex networks. It can nevertheless help getting started with writing a new YAML network description file.
+
+Simple example for MNIST:
+
+```shell
+(ai8x-training) $ scripts/train_mnist.sh --yaml-template mnist.yaml
+(ai8x-training) $ vim mnist.yaml
+```
+
+Next, edit the resulting yaml file and adjust the `in_offset`, `out_offset` and `processors`, `output_processors` as needed.
+
+
+
 ### Adding New Models and New Datasets to the Network Loader
 
 Adding new datasets to the Network Loader is implemented as follows:
@@ -2935,7 +2961,7 @@ For RGB image inputs, there are three channels. For example, a 3×80×60 (C×H×
    ```shell
    (ai8x-synthesis) $ deactivate
    $ cd ../ai8x-training
-   $ source venv/bin/activate
+   $ source .venv/bin/activate
    ```
 
 2. Create an evaluation script and run it:
@@ -3120,27 +3146,27 @@ In order to upgrade an embedded project after retraining the model, point the ne
 
 The generator also adds all files from the `assets/eclipse`, `assets/device-all`, and `assets/embedded-*` folders. These files (when starting with `template` in their name) will be automatically customized to include project-specific information as shown in the following table:
 
-| Key                       | Replaced by                                                  |
-| ------------------------- | ------------------------------------------------------------ |
+| Key                       | Replaced by                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------- |
 | `##__PROJ_NAME__##`       | Project name (works on file names as well as the file contents), from `--prefix` |
-| `##__ELF_FILE__##`        | Output elf (binary) file name (`PROJECT.elf` or `PROJECT-combined.elf`) |
-| `##__BOARD__##`           | Board name (e.g., `EvKit_V1`), from `--board-name`                   |
-| `##__FILE_INSERT__##`     | Network statistics and timer                                 |
-| `##__OPENOCD_PARAMS__##` | OpenOCD arguments (e.g., `-f interface/cmsis-dap.cfg -f target/max7800x.cfg`), from `--eclipse-openocd-args` |
-| `##__TARGET_UC__##` | Upper case device name (e.g., `MAX78000`), from `--device` |
-| `##__TARGET_LC__##` | Lower case device name (e.g., `max78000`), from `--device` |
-| `##__ADDITIONAL_INCLUDES__##` | Additional include files, from `--eclipse-includes`  (default: empty) |
-| `##__GCC_PREFIX__##` | `arm-non-eabi-` or `riscv-none-embed-` |
+| `##__ELF_FILE__##`        | Output elf (binary) file name (`PROJECT.elf` or `PROJECT-combined.elf`)          |
+| `##__BOARD__##`           | Board name (e.g., `EvKit_V1`), from `--board-name`                               |
+| `##__FILE_INSERT__##`     | Network statistics and timer                                                     |
+| `##__OPENOCD_PARAMS__##`  | OpenOCD arguments (e.g., `-f interface/cmsis-dap.cfg -f target/max7800x.cfg`), from `--eclipse-openocd-args` |
+| `##__TARGET_UC__##`       | Upper case device name (e.g., `MAX78000`), from `--device`                       |
+| `##__TARGET_LC__##`       | Lower case device name (e.g., `max78000`), from `--device`                       |
+| `##__ADDITIONAL_INCLUDES__##` | Additional include files, from `--eclipse-includes`  (default: empty)        |
+| `##__GCC_PREFIX__##`      | `arm-non-eabi-` or `riscv-none-elf-`                                             |
 | `##__DEFINES__##`<br />*or* `##__GCC_SUFFIX__##` | Additional #defines (e.g., `-D SUPERSPEED`), from `--define` (default: empty) |
 | `##__DEFINES_ARM__##`<br />*or* `##__ARM_DEFINES__##` | Replace default ARM #defines, from `--define-default-arm` (default: `"MXC_ASSERT_ENABLE ARM_MATH_CM4"`) |
 | `##__DEFINES_RISCV__##`<br />*or* `##__RISC_DEFINES__##` | Replace default RISC-V #defines, from `--define-default-riscv` (default: `"MXC_ASSERT_ENABLE RV32"`) |
-| `##__PROCESSOR_DEFINES__##` | Selects the #defines for the active processor (Arm or RISC-V) |
-| `##__ADDITIONAL_VARS__##` | Additional variables, from `--eclipse-variables` (default: empty) |
-| `##__PMON_GPIO_PINS__##` | Power Monitor GPIO pins |
-| `##__CNN_START__##` | Port pin action when CNN starts |
-| `##__CNN_COMPLETE__##` | Port pin action when CNN finishes |
-| `##__SYS_START__##` | Port pin action when system starts |
-| `##__SYS_COMPLETE__##` | Port pin action when system finishes |
+| `##__PROCESSOR_DEFINES__##` | Selects the #defines for the active processor (Arm or RISC-V)                  |
+| `##__ADDITIONAL_VARS__##` | Additional variables, from `--eclipse-variables` (default: empty)                |
+| `##__PMON_GPIO_PINS__##`  | Power Monitor GPIO pins                                                          |
+| `##__CNN_START__##`       | Port pin action when CNN starts                                                  |
+| `##__CNN_COMPLETE__##`    | Port pin action when CNN finishes                                                |
+| `##__SYS_START__##`       | Port pin action when system starts                                               |
+| `##__SYS_COMPLETE__##`    | Port pin action when system finishes                                             |
 
 *Note: The vscode templates are treated differently and not designed to be modified by the user.*
 
@@ -3267,6 +3293,22 @@ When running C code generated with `--energy`, the power display on the EVKit wi
 *Note: MAX78000 uses LED1 and LED2 to trigger power measurement via MAX32625 and MAX34417.*
 
 See the [benchmarking guide](https://github.com/analogdevicesinc/MaximAI_Documentation/blob/main/Guides/MAX7800x%20Power%20Monitor%20and%20Energy%20Benchmarking%20Guide.pdf) for more information about benchmarking.
+
+
+#### Moving from MAX78000 to MAX78002 (or vice versa)
+
+Assuming the network is compatible with the new deployment target, changing the `--device` parameter will create new code that differs as follows:
+
+| File           | Changes                                                      | Recommended Action            |
+| -------------- | ------------------------------------------------------------ | ----------------------------- |
+| cnn.c          | Modified register and memory addresses, modified clock configuration | Replace file          |
+| main.c         | Modified input memory addresses, modified clock configuration | Replace file or edit         |
+| Makefile       | Modified TARGET variables                                    | Replace file or edit          |
+| .launch        | Modified values for `.cfg` and `.svd`                        | Replace file or edit          |
+| sampleoutput.h | Modified memory addresses                                    | Replace file                  |
+| weights.h      | Modified memory addresses                                    | Replace file                  |
+| .settings/     | Modified TARGET value                                        | Replace folder or edit .prefs |
+| .vscode/       | Modified target variable                                     | Replace folder or edit .json  |
 
 
 

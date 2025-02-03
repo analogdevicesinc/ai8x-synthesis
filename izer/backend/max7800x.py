@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2024 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -69,6 +69,7 @@ class Backend(backend.Backend):
         fast_fifo_quad = state.fast_fifo_quad
         fifo = state.fifo
         final_layer = state.final_layer
+        final_scale = state.final_scale
         first_layer_used = state.first_layer_used
         flatten = state.flatten
         forever = state.forever
@@ -136,6 +137,7 @@ class Backend(backend.Backend):
         riscv = state.riscv
         riscv_cache = state.riscv_cache
         riscv_flash = state.riscv_flash
+        scale_output = state.scale_output
         simple1b = state.simple1b
         simulated_sequence = state.simulated_sequence
         snoop = state.snoop
@@ -1152,7 +1154,8 @@ class Backend(backend.Backend):
                         conv_str = ', no convolution, '
                     apb.output(conv_str +
                                f'{output_chan[ll]}x{output_dim_str[ll]} output\n', embedded_code)
-
+            apb.output('\n', embedded_code)
+            apb.output(f'// Final Scales: {final_scale}\n', embedded_code)
             apb.output('\n', embedded_code)
 
             apb.header()
@@ -3553,8 +3556,20 @@ class Backend(backend.Backend):
         elif block_mode:
             assets.copy('assets', 'blocklevel-ai' + str(device), base_directory, test_name)
         elif embedded_code:
-            output_count = output_chan[terminating_layer] \
-                * output_dim[terminating_layer][0] * output_dim[terminating_layer][1]
+            output_count = 0
+            for i in range(terminating_layer + 1):
+                if output_layer[i]:
+                    if output_width[i] != 32:
+                        if scale_output:
+                            output_count += (output_chan[i] * output_dim[i][0] * output_dim[i][1]
+                                             + (32 // (2 * output_width[i]) - 1)) \
+                                             // (32 // (2 * output_width[i]))
+                        else:
+                            output_count += (output_chan[i] * output_dim[i][0] * output_dim[i][1]
+                                             + (32 // output_width[i] - 1)) \
+                                             // (32 // output_width[i])
+                    else:
+                        output_count += output_chan[i] * output_dim[i][0] * output_dim[i][1]
             insert = summary_stats + \
                 '\n/* Number of outputs for this network */\n' \
                 f'#define CNN_NUM_OUTPUTS {output_count}'

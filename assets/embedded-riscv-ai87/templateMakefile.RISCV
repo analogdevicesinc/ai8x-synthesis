@@ -97,8 +97,10 @@ STACK_SIZE=1024
 # "A2" in ASCII
 # TARGET_REV=0x4132
 
-# Use this variables to specify and alternate tool path
-#TOOL_DIR=/usr/local/riscv-none-embed-gcc/8.3.0-1.1
+# Use this variables to specify an alternate RISCV toolchain
+# For example, to use the (now deprecated) "riscv-none-embed"...
+# Note the toolchain must be on the PATH.
+#RISCV_PREFIX = riscv-none-embed
 
 # Point this variable to a startup file to override the default file
 #STARTUPFILE=startup_riscv_##__TARGET_LC__##.S

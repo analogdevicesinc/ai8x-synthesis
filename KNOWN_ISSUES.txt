@@ -1,0 +1,4 @@
+KNOWN ISSUES for ai8x-synthesis with PyTorch 2.3.1
+==================================================
+
+N/A

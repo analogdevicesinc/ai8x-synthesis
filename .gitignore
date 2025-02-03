@@ -2,7 +2,7 @@
 *.mem
 *.prof
 /.mypy_cache/
-/.python-version/
+/.venv/
 /.vscode/
 **/build/
 /ninja-python-distributions
@@ -13,5 +13,4 @@
 /super-linter.log
 /super-linter.report/
 /.version-check
-/venv*/
 /sdk/
