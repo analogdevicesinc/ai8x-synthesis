@@ -18,7 +18,7 @@ layers:
     activate: ReLU
 
   # Layer 1: backbone_conv2
-  - out_offset: 0x2000
+  - out_offset: 0x0000
     in_offset: 0x2000
     processors: 0xffffffff00000000
     output_processors: 0x00000000ffffffff
@@ -28,8 +28,8 @@ layers:
     activate: ReLU
 
   # Layer 2: backbone_conv3
-  - out_offset: 0x1000
-    in_offset: 0x2000
+  - out_offset: 0x6000
+    in_offset: 0x0000
     processors: 0x00000000ffffffff
     output_processors: 0xffffffffffffffff
     operation: conv2d
@@ -41,7 +41,7 @@ layers:
 
   # Layer 3: backbone_conv4
   - out_offset: 0x0000  # 1600
-    in_offset: 0x1000
+    in_offset: 0x6000
     processors: 0xffffffffffffffff
     output_processors: 0xffffffffffffffff
     operation: conv2d
