@@ -190,7 +190,7 @@ def load(
                             if kernel_size_onnx[seq][0] != 1 or kernel_size_onnx[seq][1] != 1:
                                 eprint(f'The `kernel_size` for the MLP layer {seq} should '
                                        f'be set to 1x1 instead of '
-                                       f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.',
+                                       f'{kernel_size_onnx[seq][0]}x{kernel_size_onnx[seq][1]}.',
                                        exit_code=None)
                                 error_exit = True
                         elif w.ndim == 3:  # 1D
@@ -198,7 +198,7 @@ def load(
                                or kernel_size_onnx[seq][1] != 1:
                                 eprint(f'The `kernel_size` for the 1D layer {seq} should '
                                        f'be set to {w.shape[2]}x1 instead of '
-                                       f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.',
+                                       f'{kernel_size_onnx[seq][0]}x{kernel_size_onnx[seq][1]}.',
                                        exit_code=None)
                                 error_exit = True
                         elif w.ndim == 4:  # 2D
@@ -206,7 +206,7 @@ def load(
                                or kernel_size_onnx[seq][1] != w.shape[3]:
                                 eprint(f'The `kernel_size` for the 2D layer {seq} should '
                                        f'be set to {w.shape[2]}x{w.shape[3]} instead of '
-                                       f'{kernel_size[seq][0]}x{kernel_size[seq][1]}.',
+                                       f'{kernel_size_onnx[seq][0]}x{kernel_size_onnx[seq][1]}.',
                                        exit_code=None)
                                 error_exit = True
 
