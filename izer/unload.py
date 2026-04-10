@@ -423,7 +423,7 @@ def unload(
                                 out_text += f'{prefix}  *out_buf++ = *addr++;\n'
                             if delta_r != 4:
                                 out_text += f'{prefix}  addr {"+" if delta_r >= 0 else "-"}= ' \
-                                            f'0x{abs(delta_r) // 4:04x};\n'
+                                            f'0x{abs(delta_r) // 4 - 1:04x};\n'
                         if loop_runs > 1:
                             out_text += '  }\n'
                         remaining -= loop_runs * chunk
